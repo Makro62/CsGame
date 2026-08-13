@@ -190,7 +190,14 @@ export function ShootingSystem() {
 
     controller.fire();
 
-    const movementState = "idle";
+    // Detect actual movement state for spread calculation
+    const lastInput = useGameStore.getState().lastInput;
+    let movementState: 'idle' | 'walk' | 'sprint' | 'slide' | 'airborne' = 'idle';
+    if (lastInput) {
+      if (lastInput.sprint) movementState = 'sprint';
+      else if (lastInput.forward || lastInput.backward || lastInput.left || lastInput.right) movementState = 'walk';
+    }
+
     const spread = getSpreadRadius(
       activeWeapon,
       movementState,
@@ -219,15 +226,12 @@ export function ShootingSystem() {
       const hit = validHits[0];
       createImpactEffect(hit.point, scene);
 
-      // Tracer from the camera to the impact point (visual only)
-      window.dispatchEvent(
-        new CustomEvent("tracer", {
-          detail: {
-            start: camera.getWorldPosition(new THREE.Vector3()).clone(),
-            end: hit.point.clone(),
-          },
-        })
-      );
+      // Tracer via Zustand instead of window.dispatchEvent
+      const startPos = camera.getWorldPosition(new THREE.Vector3());
+      useGameStore.getState().setTracerEvent({
+        start: { x: startPos.x, y: startPos.y, z: startPos.z },
+        end: { x: hit.point.x, y: hit.point.y, z: hit.point.z },
+      });
 
       if (gameMode === "training") {
         useGameStore.getState().incrementShots();
@@ -247,8 +251,8 @@ export function ShootingSystem() {
         if (targetId) {
           const wStats = WEAPONS[activeWeapon as keyof typeof WEAPONS];
           const dmg = isHead ? (wStats?.headshot || 100) : (wStats?.dmg || 35);
-          useGameStore.getState().damageTarget(targetId, dmg);
-          useGameStore.getState().incrementHits(isHead);
+          useGameStore.getState().damageTarget(targetId, dmg, isHead);
+          useGameStore.getState().incrementHits();
           useNetworkStore.getState().showHitMarker(isHead);
         }
       }
@@ -260,8 +264,8 @@ export function ShootingSystem() {
     createMuzzleFlash();
     createShellCasing();
 
-    // Dispatch shoot event for screen shake
-    window.dispatchEvent(new Event("shoot"));
+    // Trigger shoot event via Zustand instead of window.dispatchEvent
+    useGameStore.getState().triggerShoot();
 
     // Play gunshot sound
     Sound.gunshot(activeWeapon);
@@ -294,7 +298,6 @@ export function ShootingSystem() {
     sendShoot,
     setLastFireTime,
     round.phase,
-    sensitivity,
     createMuzzleFlash,
     createShellCasing,
   ]);

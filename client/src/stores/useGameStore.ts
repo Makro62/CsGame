@@ -27,7 +27,7 @@ interface GameState {
   serverMode: string
   nickname: string
   currentMap: string
-  targets: Map<string, Target>
+  targets: Record<string, Target>
   stats: TrainingStats
   timer: number
   isTimerRunning: boolean
@@ -39,6 +39,8 @@ interface GameState {
     sprint: boolean
   } | null
   spectatorTargetIndex: number
+  shootEvent: number
+  tracerEvent: { start: { x: number; y: number; z: number }; end: { x: number; y: number; z: number } } | null
 
   setNickname: (name: string) => void
   setMode: (mode: GameMode) => void
@@ -56,16 +58,18 @@ interface GameState {
   setSpectatorTargetIndex: (index: number) => void
   addTarget: (target: Target) => void
   removeTarget: (id: string) => void
-  damageTarget: (id: string, damage: number) => void
+  damageTarget: (id: string, damage: number, isHeadshot: boolean) => void
   resetTargets: () => void
   incrementShots: () => void
-  incrementHits: (headshot: boolean) => void
+  incrementHits: () => void
   resetStats: () => void
   setTimer: (time: number) => void
   startTimer: () => void
   stopTimer: () => void
   loadBestTime: () => void
   saveBestTime: () => void
+  triggerShoot: () => void
+  setTracerEvent: (tracer: { start: { x: number; y: number; z: number }; end: { x: number; y: number; z: number } } | null) => void
 }
 
 export const useGameStore = create<GameState>()((set, get) => {
@@ -74,7 +78,7 @@ export const useGameStore = create<GameState>()((set, get) => {
     serverMode: 'bomb_defusal',
     nickname: 'Player',
     currentMap: 'container_yard',
-    targets: new Map(),
+    targets: {},
     stats: {
       kills: 0,
       headshots: 0,
@@ -88,6 +92,8 @@ export const useGameStore = create<GameState>()((set, get) => {
     isTimerRunning: false,
     lastInput: null,
     spectatorTargetIndex: 0,
+    shootEvent: 0,
+    tracerEvent: null,
 
     setNickname: (name: string) => {
       set({ nickname: name || 'Player' })
@@ -127,24 +133,21 @@ export const useGameStore = create<GameState>()((set, get) => {
     },
 
     addTarget: (target: Target) => {
-      set(state => {
-        const newTargets = new Map(state.targets)
-        newTargets.set(target.id, target)
-        return { targets: newTargets }
-      })
+      set(state => ({
+        targets: { ...state.targets, [target.id]: target },
+      }))
     },
 
     removeTarget: (id: string) => {
       set(state => {
-        const newTargets = new Map(state.targets)
-        newTargets.delete(id)
-        return { targets: newTargets }
+        const { [id]: _, ...rest } = state.targets
+        return { targets: rest }
       })
     },
 
-    damageTarget: (id: string, damage: number) => {
+    damageTarget: (id: string, damage: number, isHeadshot: boolean) => {
       const { targets } = get()
-      const target = targets.get(id)
+      const target = targets[id]
       if (!target || !target.isAlive) return
 
       const newHp = target.hp - damage
@@ -152,20 +155,25 @@ export const useGameStore = create<GameState>()((set, get) => {
 
       if (isDead) {
         get().removeTarget(id)
-      } else {
         set(state => {
-          const newTargets = new Map(state.targets)
-          newTargets.set(id, {
-            ...target,
-            hp: newHp,
-          })
-          return { targets: newTargets }
+          const newStats = {
+            ...state.stats,
+            kills: state.stats.kills + 1,
+            headshots: state.stats.headshots + (isHeadshot ? 1 : 0),
+          }
+          newStats.hsRate =
+            newStats.kills > 0 ? (newStats.headshots / newStats.kills) * 100 : 0
+          return { stats: newStats }
         })
+      } else {
+        set(state => ({
+          targets: { ...state.targets, [id]: { ...target, hp: newHp } },
+        }))
       }
     },
 
     resetTargets: () => {
-      set({ targets: new Map() })
+      set({ targets: {} })
     },
 
     incrementShots: () => {
@@ -177,20 +185,16 @@ export const useGameStore = create<GameState>()((set, get) => {
       }))
     },
 
-    incrementHits: (headshot: boolean) => {
+    incrementHits: () => {
       set(state => {
         const newStats = {
           ...state.stats,
           shotsHit: state.stats.shotsHit + 1,
-          kills: state.stats.kills + 1,
-          headshots: state.stats.headshots + (headshot ? 1 : 0),
         }
         newStats.accuracy =
           newStats.shotsFired > 0
             ? (newStats.shotsHit / newStats.shotsFired) * 100
             : 0
-        newStats.hsRate =
-          newStats.kills > 0 ? (newStats.headshots / newStats.kills) * 100 : 0
         return { stats: newStats }
       })
     },
@@ -224,9 +228,12 @@ export const useGameStore = create<GameState>()((set, get) => {
     loadBestTime: () => {
       const saved = localStorage.getItem('training_best_time')
       if (saved) {
-        set(state => ({
-          stats: { ...state.stats, bestTime: parseFloat(saved) },
-        }))
+        const time = parseFloat(saved)
+        if (!isNaN(time) && isFinite(time)) {
+          set(state => ({
+            stats: { ...state.stats, bestTime: time },
+          }))
+        }
       }
     },
 
@@ -238,6 +245,14 @@ export const useGameStore = create<GameState>()((set, get) => {
           stats: { ...state.stats, bestTime: timer },
         }))
       }
+    },
+
+    triggerShoot: () => {
+      set(state => ({ shootEvent: state.shootEvent + 1 }))
+    },
+
+    setTracerEvent: (tracer) => {
+      set({ tracerEvent: tracer })
     },
   }
 

@@ -8,7 +8,6 @@ const MAX_TARGETS = 5;
 export function AimTrainer() {
   const targets = useGameStore((s) => s.targets);
   const addTarget = useGameStore((s) => s.addTarget);
-  const incrementHits = useGameStore((s) => s.incrementHits);
   const isTimerRunning = useGameStore((s) => s.isTimerRunning);
 
   const spawnTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -34,10 +33,10 @@ export function AimTrainer() {
   }, [addTarget]);
 
   const handleTargetHit = useCallback(
-    (headshot: boolean) => {
-      incrementHits(headshot);
+    (_headshot: boolean) => {
+      // Kill tracking is handled by useGameStore.damageTarget when target hp reaches 0
     },
-    [incrementHits]
+    []
   );
 
   // Spawn targets periodically while running
@@ -50,13 +49,13 @@ export function AimTrainer() {
     if (!isTimerRunning) return;
 
     // Spawn immediately
-    if (targets.size < MAX_TARGETS) {
+    if (Object.keys(targets).length < MAX_TARGETS) {
       spawnTarget();
     }
 
     spawnTimer.current = setInterval(() => {
       const currentTargets = useGameStore.getState().targets;
-      if (currentTargets.size < MAX_TARGETS) {
+      if (Object.keys(currentTargets).length < MAX_TARGETS) {
         spawnTarget();
       }
     }, 800);
@@ -71,7 +70,7 @@ export function AimTrainer() {
   return (
     <group>
       {/* Render targets */}
-      {Array.from(targets.values()).map((target) => (
+      {Object.values(targets).map((target) => (
         <Target
           key={target.id}
           id={target.id}

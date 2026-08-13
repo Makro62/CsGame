@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react";
 import * as THREE from "three";
-import { RigidBody, CuboidCollider, CylinderCollider } from "@react-three/rapier";
+import { RigidBody, CuboidCollider } from "@react-three/rapier";
+import { StaticBox, StaticCylinder } from "./MapHelpers";
 
 // ============================================================================
 // Color Constants
@@ -15,64 +16,6 @@ const COLORS = {
   concrete: "#666666",
   ramp: "#888888",
 } as const;
-
-// ============================================================================
-// Helper Components
-// ============================================================================
-
-type BoxProps = {
-  position: [number, number, number];
-  size: [number, number, number];
-  color: string;
-  rotation?: [number, number, number];
-  receiveShadow?: boolean;
-  castShadow?: boolean;
-};
-
-function StaticBox({
-  position,
-  size,
-  color,
-  rotation = [0, 0, 0],
-  receiveShadow = true,
-  castShadow = true,
-}: BoxProps) {
-  return (
-    <RigidBody type="fixed" position={position} rotation={rotation} colliders={false}>
-      <mesh receiveShadow={receiveShadow} castShadow={castShadow}>
-        <boxGeometry args={size} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      <CuboidCollider args={[size[0] / 2, size[1] / 2, size[2] / 2]} />
-    </RigidBody>
-  );
-}
-
-type CylinderProps = {
-  position: [number, number, number];
-  radius: number;
-  height: number;
-  color: string;
-  segments?: number;
-};
-
-function StaticCylinder({
-  position,
-  radius,
-  height,
-  color,
-  segments = 16,
-}: CylinderProps) {
-  return (
-    <RigidBody type="fixed" position={position} colliders={false}>
-      <mesh castShadow receiveShadow>
-        <cylinderGeometry args={[radius, radius, height, segments]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      <CylinderCollider args={[height / 2, radius]} />
-    </RigidBody>
-  );
-}
 
 // ============================================================================
 // Floor Zone Indicator (visual-only, no collider)

@@ -30,6 +30,9 @@ interface SlideState {
 
 const direction = new THREE.Vector3()
 const velocityXZ = new THREE.Vector2()
+const _lookTarget = new THREE.Vector3()
+const _currentPos = new THREE.Vector3()
+const _desiredMovement = new THREE.Vector3()
 
 const POINTER_LOCK_SENSITIVITY = 0.002
 
@@ -199,12 +202,12 @@ export function PlayerController() {
         const frame = killCam.getReplayFrame(now)
         if (frame) {
           camera.position.set(frame.x, frame.y + EYE_HEIGHT_STAND, frame.z)
-          const lookTarget = new THREE.Vector3(
+          _lookTarget.set(
             frame.x - Math.sin(frame.rotationY),
             frame.y + EYE_HEIGHT_STAND,
             frame.z - Math.cos(frame.rotationY)
           )
-          camera.lookAt(lookTarget)
+          camera.lookAt(_lookTarget)
           return
         }
         // Kill cam finished, fall through to spectator
@@ -217,16 +220,14 @@ export function PlayerController() {
         const safeIdx = Math.max(0, Math.min(targetIdx, playerArray.length - 1))
         const target = playerArray[safeIdx]
         if (target) {
-          camera.position.lerp(
-            new THREE.Vector3(target.x, target.y + EYE_HEIGHT_STAND, target.z),
-            0.1
-          )
-          const lookTarget = new THREE.Vector3(
+          _currentPos.set(target.x, target.y + EYE_HEIGHT_STAND, target.z)
+          camera.position.lerp(_currentPos, 0.1)
+          _lookTarget.set(
             target.x - Math.sin(target.rotationY),
             target.y + EYE_HEIGHT_STAND,
             target.z - Math.cos(target.rotationY)
           )
-          camera.lookAt(lookTarget)
+          camera.lookAt(_lookTarget)
         }
       }
       return
@@ -238,23 +239,23 @@ export function PlayerController() {
     if (!controller || !rb) return
 
     const pos = rb.translation()
-    let currentPos = new THREE.Vector3(pos.x, pos.y, pos.z)
+    _currentPos.set(pos.x, pos.y, pos.z)
 
     // Initialize on first frame: snap to ground level
     if (!initDone.current) {
       initDone.current = true
-      currentPos.y = TOTAL_HEIGHT / 2 + 0.01
+      _currentPos.y = TOTAL_HEIGHT / 2 + 0.01
       velocityY.current = 0
       grounded.current = true
       rb.setNextKinematicTranslation({
-        x: currentPos.x,
-        y: currentPos.y,
-        z: currentPos.z,
+        x: _currentPos.x,
+        y: _currentPos.y,
+        z: _currentPos.z,
       })
       camera.position.set(
-        currentPos.x,
-        currentPos.y + EYE_HEIGHT_STAND,
-        currentPos.z
+        _currentPos.x,
+        _currentPos.y + EYE_HEIGHT_STAND,
+        _currentPos.z
       )
 
       // Auto-equip default weapon
@@ -268,10 +269,10 @@ export function PlayerController() {
     // Server reconciliation
     if (lastSnapshot) {
       const reconciled = reconcile(
-        { x: currentPos.x, y: currentPos.y, z: currentPos.z },
+        { x: _currentPos.x, y: _currentPos.y, z: _currentPos.z },
         { x: lastSnapshot.x, y: lastSnapshot.y, z: lastSnapshot.z }
       )
-      currentPos.set(reconciled.x, reconciled.y, reconciled.z)
+      _currentPos.set(reconciled.x, reconciled.y, reconciled.z)
     }
 
     // Calculate movement direction from quaternion yaw (matching server logic)
@@ -433,7 +434,7 @@ export function PlayerController() {
     const canJump =
       grounded.current ||
       coyoteTimeRef.current > 0 ||
-      currentPos.y <= TOTAL_HEIGHT / 2 + 0.1
+      _currentPos.y <= TOTAL_HEIGHT / 2 + 0.1
 
     if (canJump && hasJumpBuffer) {
       const timeSinceCrouchRelease = now - getCrouchReleasedAt()
@@ -493,20 +494,20 @@ export function PlayerController() {
     const moveZ = velocityXZ.y * dt
     const moveY = velocityY.current * dt
 
-    const desiredMovement = new THREE.Vector3(moveX, moveY, moveZ)
+    _desiredMovement.set(moveX, moveY, moveZ)
 
     // Character controller collision
     const collider = rb.collider(0)
     if (collider) {
-      controller.computeColliderMovement(collider, desiredMovement)
+      controller.computeColliderMovement(collider, _desiredMovement)
     }
 
     const result = controller.computedMovement()
-    currentPos.add(result)
+    _currentPos.add(result)
 
     // Strict wall boundary clamping (-29.2 to 29.2 on X, -19.2 to 19.2 on Z)
-    currentPos.x = THREE.MathUtils.clamp(currentPos.x, -29.2, 29.2)
-    currentPos.z = THREE.MathUtils.clamp(currentPos.z, -19.2, 19.2)
+    _currentPos.x = THREE.MathUtils.clamp(_currentPos.x, -29.2, 29.2)
+    _currentPos.z = THREE.MathUtils.clamp(_currentPos.z, -19.2, 19.2)
 
     // Ground detection
     if (velocityY.current > 0) {
@@ -522,8 +523,8 @@ export function PlayerController() {
     }
 
     // Prevent falling below ground
-    if (currentPos.y < TOTAL_HEIGHT / 2) {
-      currentPos.y = TOTAL_HEIGHT / 2
+    if (_currentPos.y < TOTAL_HEIGHT / 2) {
+      _currentPos.y = TOTAL_HEIGHT / 2
       if (velocityY.current < 0) velocityY.current = 0
       grounded.current = true
       coyoteTimeRef.current = 0.12
@@ -553,9 +554,9 @@ export function PlayerController() {
 
     // Update position
     rb.setNextKinematicTranslation({
-      x: currentPos.x,
-      y: currentPos.y,
-      z: currentPos.z,
+      x: _currentPos.x,
+      y: _currentPos.y,
+      z: _currentPos.z,
     })
 
     // Update crouch state
@@ -565,7 +566,7 @@ export function PlayerController() {
     const targetEyeHeight = crouching.current
       ? EYE_HEIGHT_CROUCH
       : EYE_HEIGHT_STAND
-    const targetCameraY = currentPos.y + targetEyeHeight
+    const targetCameraY = _currentPos.y + targetEyeHeight
 
     // Smooth camera height transition
     const bobOffset =
@@ -594,13 +595,13 @@ export function PlayerController() {
     }
 
     // Camera position XZ
-    camera.position.x = currentPos.x
-    camera.position.z = currentPos.z
+    camera.position.x = _currentPos.x
+    camera.position.z = _currentPos.z
 
     // Auto-pickup dropped bomb (T team only)
     if (!localHasBomb && droppedBombPos) {
-      const dx = currentPos.x - droppedBombPos.x
-      const dz = currentPos.z - droppedBombPos.z
+      const dx = _currentPos.x - droppedBombPos.x
+      const dz = _currentPos.z - droppedBombPos.z
       if (Math.sqrt(dx * dx + dz * dz) < 2) {
         sendPickupBomb()
       }

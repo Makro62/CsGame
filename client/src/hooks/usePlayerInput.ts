@@ -9,10 +9,7 @@ export interface PlayerInput {
   jump: boolean
   sprint: boolean
   crouch: boolean
-  use: boolean
   ads: boolean
-  shoot: boolean
-  reload: boolean
   jumpBuffer: number[]
 }
 
@@ -48,7 +45,7 @@ export function usePlayerInput() {
       if (e.button === 0) keys.current['Mouse1'] = true
       if (e.button === 2) {
         keys.current['Mouse2'] = true
-        e.preventDefault() // Prevent context menu
+        e.preventDefault()
       }
     }
 
@@ -58,7 +55,7 @@ export function usePlayerInput() {
     }
 
     const onContextMenu = (e: MouseEvent) => {
-      e.preventDefault() // Prevent right-click context menu during gameplay
+      e.preventDefault()
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -82,7 +79,6 @@ export function usePlayerInput() {
     const k = keys.current
     const now = performance.now()
 
-    // Prune old jump buffer entries
     jumpBuffer.current = jumpBuffer.current.filter(
       t => now - t <= PHYSICS.inputWindowMs
     )
@@ -95,20 +91,12 @@ export function usePlayerInput() {
       jump: !!k['Space'],
       sprint: !!k['ShiftLeft'] || !!k['ShiftRight'],
       crouch: !!k['ControlLeft'] || !!k['ControlRight'],
-      use: !!k['KeyE'],
       ads: !!k['Mouse2'],
-      shoot: !!k['Mouse1'],
-      reload: !!k['KeyR'],
       jumpBuffer: [...jumpBuffer.current],
     }
   }
 
-  const pushJumpBuffer = () => {
-    jumpBuffer.current.push(performance.now())
-    if (jumpBuffer.current.length > 5) jumpBuffer.current.shift()
-  }
-
   const getCrouchReleasedAt = () => crouchReleasedAt.current
 
-  return { getInput, pushJumpBuffer, getCrouchReleasedAt }
+  return { getInput, getCrouchReleasedAt }
 }

@@ -24,6 +24,31 @@ import {
   ThrowGrenadeInput,
   MapObstacle,
 } from "@cs-game/shared";
+import {
+  MAX_ORIGIN_DISTANCE_SQ,
+  FIRE_RATE_TOLERANCE,
+  SPAWN_PROTECTION_MS,
+  HEAD_HEIGHT_THRESHOLD,
+  PERP_DISTANCE_THRESHOLD_SQ,
+  MAX_HP,
+  ARMOR_VALUE,
+  ARMOR_DAMAGE_MULTIPLIER,
+  CHAT_COOLDOWN_MS,
+  RADIO_COOLDOWN_MS,
+  MAX_CHAT_LENGTH,
+  VOTE_TIMEOUT_MS,
+  VOTE_KICK_EXIT_CODE,
+  KOTH_CAPTURE_RATE_PER_PLAYER,
+  KOTH_DECAY_RATE,
+  KOTH_MAX_PROGRESS,
+  GRENADE_BOUNCE_DAMPING,
+  GRENADE_GROUND_MIN_Y,
+  GRENADE_OFFSET,
+  MIN_SPAWN_DISTANCE_SQ,
+  ROUND_RESET_DELAY_MS,
+  AWP_MAX_RANGE,
+  DEFAULT_MAX_RANGE,
+} from "./constants";
 
 const { Room } = colyseus;
 
@@ -166,6 +191,12 @@ export class GameRoom extends Room<GameState> {
   // Rate limiting for chat and radio
   private lastChatTime: Map<string, number> = new Map();
   private lastRadioTime: Map<string, number> = new Map();
+  // Track reload timers for cleanup on disconnect
+  private reloadTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  // Rate limiting for input messages
+  private lastInputMessageTime: Map<string, number> = new Map();
+  // Rate limiting for vote kick requests
+  private lastVoteTime: Map<string, number> = new Map();
   // Server-side grenade simulation (not synced as schema; transient)
   private grenades: Map<string, GrenadeSim> = new Map();
   private grenadeCooldowns: Map<string, number> = new Map();
@@ -181,6 +212,12 @@ export class GameRoom extends Room<GameState> {
       const player = this.state.players.get(client.sessionId);
       if (!player || player.isDead) return;
       if (this.state.phase !== "active") return;
+
+      // Rate limit input messages (max 2x tick rate)
+      const now = performance.now();
+      const lastInput = this.lastInputMessageTime.get(client.sessionId) || 0;
+      if (now - lastInput < (TICK_MS * 2)) return;
+      this.lastInputMessageTime.set(client.sessionId, now);
 
       this.processMovement(client.sessionId, player, input);
 
@@ -208,11 +245,11 @@ export class GameRoom extends Room<GameState> {
       const ox = data.origin.x - shooter.x;
       const oy = data.origin.y - (shooter.y + 1.6);
       const oz = data.origin.z - shooter.z;
-      if (ox * ox + oy * oy + oz * oz > 3 * 3) return;
+      if (ox * ox + oy * oy + oz * oz > MAX_ORIGIN_DISTANCE_SQ) return;
 
       const lastFire = this.lastFireTime.get(client.sessionId) || 0;
       const minInterval = 1000 / weaponStats.fireRate;
-      if (now - lastFire < minInterval * 0.85) return;
+      if (now - lastFire < minInterval * FIRE_RATE_TOLERANCE) return;
 
       if (shooter.ammo <= 0) return;
 
@@ -225,9 +262,9 @@ export class GameRoom extends Room<GameState> {
       const victim = this.state.players.get(hitResult.victimId);
       if (!victim || victim.isDead) return;
 
-      // Spawn protection: 1.5s invulnerability after respawn
+      // Spawn protection: invulnerability after respawn
       const spawnTime = this.spawnProtection.get(hitResult.victimId);
-      if (spawnTime && performance.now() - spawnTime < 1500) return;
+      if (spawnTime !== undefined && performance.now() - spawnTime < SPAWN_PROTECTION_MS) return;
 
       const damage = this.calculateDamage(
         weaponKey,
@@ -264,7 +301,7 @@ export class GameRoom extends Room<GameState> {
 
       player.isReloading = true;
 
-      setTimeout(() => {
+      const reloadTimer = setTimeout(() => {
         const p = this.state.players.get(client.sessionId);
         if (!p || p.isDead) { if (p) p.isReloading = false; return; }
 
@@ -274,8 +311,10 @@ export class GameRoom extends Room<GameState> {
         p.reserveAmmo -= toLoad;
         p.isReloading = false;
 
+        this.reloadTimers.delete(client.sessionId);
         this.broadcast("reloadEnd", { playerId: client.sessionId });
       }, weaponStats.reload * 1000);
+      this.reloadTimers.set(client.sessionId, reloadTimer);
 
       this.broadcast("reloadStart", { playerId: client.sessionId });
     });
@@ -475,7 +514,7 @@ export class GameRoom extends Room<GameState> {
       const ox = origin.x - player.x;
       const oy = origin.y - (player.y + 1.6);
       const oz = origin.z - player.z;
-      if (ox * ox + oy * oy + oz * oz > 3 * 3) return;
+      if (ox * ox + oy * oy + oz * oz > MAX_ORIGIN_DISTANCE_SQ) return;
 
       // Anti-cheat: clamp throw power.
       const speed = Math.sqrt(
@@ -543,17 +582,17 @@ export class GameRoom extends Room<GameState> {
       const player = this.state.players.get(client.sessionId);
       if (!player || player.isDead) return;
 
-      // Rate limit: 500ms cooldown per player
+      // Rate limit cooldown per player
       const now = performance.now();
       const lastChat = this.lastChatTime.get(client.sessionId) || 0;
-      if (now - lastChat < 500) return;
+      if (now - lastChat < CHAT_COOLDOWN_MS) return;
       this.lastChatTime.set(client.sessionId, now);
 
       if (typeof data?.message !== "string") return;
       const message = data.message
         .replace(/[\u0000-\u001f\u007f]/g, "")
         .trim()
-        .slice(0, 120);
+        .slice(0, MAX_CHAT_LENGTH);
       if (!message) return;
 
       this.broadcast("chat", {
@@ -573,13 +612,19 @@ export class GameRoom extends Room<GameState> {
       if (this.state.players.size < 2) return;
       if (this.vote) return;
 
+      // Rate limit: 30 second cooldown per player for vote requests
+      const now = performance.now();
+      const lastVote = this.lastVoteTime.get(client.sessionId) || 0;
+      if (now - lastVote < 30000) return;
+      this.lastVoteTime.set(client.sessionId, now);
+
       this.vote = {
         targetId: data.targetId,
         targetNickname: target.nickname,
         yesVotes: new Set([client.sessionId]),
         timer: setTimeout(() => {
           this.vote = null;
-        }, 30000),
+        }, VOTE_TIMEOUT_MS),
       };
 
       this.broadcast("vote_request", {
@@ -610,7 +655,7 @@ export class GameRoom extends Room<GameState> {
 
           if (targetClient) {
             this.broadcast("kicked", { targetId: targetClient.sessionId, targetNickname });
-            targetClient.leave(4000, "Kicked by vote");
+            targetClient.leave(VOTE_KICK_EXIT_CODE, "Kicked by vote");
           }
         }
       }
@@ -621,10 +666,10 @@ export class GameRoom extends Room<GameState> {
       if (!player || player.isDead) return;
       if (![1, 2, 3].includes(data.code)) return;
 
-      // Rate limit: 2 second cooldown per player
+      // Rate limit cooldown per player
       const now = performance.now();
       const lastRadio = this.lastRadioTime.get(client.sessionId) || 0;
-      if (now - lastRadio < 2000) return;
+      if (now - lastRadio < RADIO_COOLDOWN_MS) return;
       this.lastRadioTime.set(client.sessionId, now);
 
       this.clients.forEach((c) => {
@@ -717,7 +762,7 @@ export class GameRoom extends Room<GameState> {
     player.team = team;
     player.nickname = options.nickname || `Player${playerCount + 1}`;
     player.money = ECONOMY.startMoney;
-    player.hp = 100;
+    player.hp = MAX_HP;
     player.currentWeapon = "deagle";
     player.primaryWeapon = "";
     player.secondaryWeapon = "deagle";
@@ -765,6 +810,12 @@ export class GameRoom extends Room<GameState> {
       this.respawnTimers.delete(sessionId);
     }
 
+    const reloadTimer = this.reloadTimers.get(sessionId);
+    if (reloadTimer) {
+      clearTimeout(reloadTimer);
+      this.reloadTimers.delete(sessionId);
+    }
+
     if (this.vote && this.vote.targetId === sessionId) {
       if (this.vote.timer) clearTimeout(this.vote.timer);
       this.vote = null;
@@ -774,6 +825,8 @@ export class GameRoom extends Room<GameState> {
     this.lastInputTime.delete(sessionId);
     this.lastChatTime.delete(sessionId);
     this.lastRadioTime.delete(sessionId);
+    this.lastInputMessageTime.delete(sessionId);
+    this.lastVoteTime.delete(sessionId);
 
     // ─── Reconnect window: player state is preserved for 60s ───
     if (player && this.state.phase !== "waiting") {
@@ -875,6 +928,9 @@ export class GameRoom extends Room<GameState> {
 
   // ─── Movement ──────────────────────────────────────────────────
   private processMovement(sessionId: string, player: PlayerState, input: ClientInput) {
+    // Reject duplicate or out-of-order inputs
+    if (input.seq <= player.lastProcessedSeq) return;
+
     const now = performance.now();
     const lastTime = this.lastInputTime.get(sessionId) || now;
     // Real dt clamped to prevent speed-hack exploitation (max 2x tick)
@@ -961,9 +1017,17 @@ export class GameRoom extends Room<GameState> {
       this.shootHistory.set(sessionId, history);
     }
     history.push({ t: now, x: player.x, z: player.z });
+    // Cap history length to prevent unbounded growth (~2 seconds at 30 tick)
+    while (history.length > 60) {
+      history.shift();
+    }
+    // Also prune by time window
     while (history.length > 0 && now - history[0].t > HISTORY_WINDOW_MS) {
       history.shift();
     }
+
+    // Update last processed sequence
+    player.lastProcessedSeq = input.seq;
   }
 
   private samplePosition(
@@ -1047,7 +1111,7 @@ export class GameRoom extends Room<GameState> {
       const dz = targetZ - shooterPos.z;
 
       const weaponKey = shooter.currentWeapon as keyof typeof WEAPONS;
-      const maxRange = weaponKey === "awp" ? 100 : 60;
+      const maxRange = weaponKey === "awp" ? AWP_MAX_RANGE : DEFAULT_MAX_RANGE;
       const distToTarget = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (distToTarget > maxRange) return;
 
@@ -1064,15 +1128,15 @@ export class GameRoom extends Room<GameState> {
       const perpDz = targetZ - closestZ;
       const perpDistSq = perpDx * perpDx + perpDz * perpDz;
 
-      // Hitbox cylinder radius = 0.6m
-      if (perpDistSq > 0.6 * 0.6) return;
+      // Hitbox cylinder radius
+      if (perpDistSq > PERP_DISTANCE_THRESHOLD_SQ) return;
 
       const relY = closestY - player.y;
       if (relY < -0.2 || relY > 2.0) return; // Out of height bounds
 
       let zone: "head" | "torso" | "limbs" = "torso";
       if (relY >= 1.35) zone = "head";
-      else if (relY <= 0.45) zone = "limbs";
+      else if (relY <= HEAD_HEIGHT_THRESHOLD) zone = "limbs";
 
       // Line of sight + wallbang: cast a ray from the muzzle to the hit
       // point. Wood surfaces can be pierced (max 2), metal blocks fully.
@@ -1144,7 +1208,7 @@ export class GameRoom extends Room<GameState> {
       } else if (zone === "head" && hasHelmet) {
         baseDmg *= 0.5;
       } else if (zone === "torso") {
-        baseDmg *= 0.65;
+        baseDmg *= ARMOR_DAMAGE_MULTIPLIER;
       }
     }
 
@@ -1167,8 +1231,8 @@ export class GameRoom extends Room<GameState> {
       grenade.z += grenade.vz * dt;
 
       // Ground bounce
-      if (grenade.y <= 0.15) {
-        grenade.y = 0.15;
+      if (grenade.y <= GRENADE_GROUND_MIN_Y) {
+        grenade.y = GRENADE_GROUND_MIN_Y;
         grenade.vy = -grenade.vy * GRENADE.bounce;
         grenade.vx *= GRENADE.bounceXZ;
         grenade.vz *= GRENADE.bounceXZ;
@@ -1187,17 +1251,17 @@ export class GameRoom extends Room<GameState> {
             grenade.vx, grenade.vy, grenade.vz,
             obs
           );
-          if (axis === "x") grenade.vx = -grenade.vx * 0.45;
-          else if (axis === "y") grenade.vy = -grenade.vy * 0.45;
-          else grenade.vz = -grenade.vz * 0.45;
+          if (axis === "x") grenade.vx = -grenade.vx * GRENADE_BOUNCE_DAMPING;
+          else if (axis === "y") grenade.vy = -grenade.vy * GRENADE_BOUNCE_DAMPING;
+          else grenade.vz = -grenade.vz * GRENADE_BOUNCE_DAMPING;
           if (axis !== "y") {
             // push out of the box along the dominant axis
             const center = (obs.minX + obs.maxX) / 2;
             const cz = (obs.minZ + obs.maxZ) / 2;
             if (axis === "x") {
-              grenade.x = grenade.x < center ? obs.minX - 0.01 : obs.maxX + 0.01;
+              grenade.x = grenade.x < center ? obs.minX - GRENADE_OFFSET : obs.maxX + GRENADE_OFFSET;
             } else {
-              grenade.z = grenade.z < cz ? obs.minZ - 0.01 : obs.maxZ + 0.01;
+              grenade.z = grenade.z < cz ? obs.minZ - GRENADE_OFFSET : obs.maxZ + GRENADE_OFFSET;
             }
           }
           break;
@@ -1211,10 +1275,25 @@ export class GameRoom extends Room<GameState> {
       }
     });
 
-    // Prune finished grenades
+    // Prune finished grenades and enforce max limit
+    const toDelete: string[] = [];
     this.grenades.forEach((g) => {
-      if (g.detonated) this.grenades.delete(g.id);
+      if (g.detonated || now - g.spawnTime > GRENADE.fuse * 1000 + 2000) {
+        toDelete.push(g.id);
+      }
     });
+    for (const id of toDelete) {
+      this.grenades.delete(id);
+    }
+    // Hard limit: max 20 active grenades
+    if (this.grenades.size > 20) {
+      const oldest = Array.from(this.grenades.values())
+        .sort((a, b) => a.spawnTime - b.spawnTime)
+        .slice(0, this.grenades.size - 20);
+      for (const g of oldest) {
+        this.grenades.delete(g.id);
+      }
+    }
   }
 
   private detonateGrenade(grenade: GrenadeSim, now: number) {
@@ -1264,7 +1343,7 @@ export class GameRoom extends Room<GameState> {
 
       // Spawn protection check
       const spawnTime = this.spawnProtection.get(victimId);
-      if (spawnTime && now - spawnTime < 1500) return;
+      if (spawnTime !== undefined && now - spawnTime < SPAWN_PROTECTION_MS) return;
 
       const falloff = 1 - dist / GRENADE.heRadius;
       let dmg = Math.max(1, Math.round(GRENADE.heMaxDmg * falloff));
@@ -1382,7 +1461,7 @@ export class GameRoom extends Room<GameState> {
             if (id === sessionId || other.isDead) return;
             const dx = candidate.x - other.x;
             const dz = candidate.z - other.z;
-            if (dx * dx + dz * dz < 100) tooClose = true;
+            if (dx * dx + dz * dz < MIN_SPAWN_DISTANCE_SQ) tooClose = true;
           });
           if (!tooClose) {
             spawnPoint = candidate;
@@ -1397,7 +1476,7 @@ export class GameRoom extends Room<GameState> {
         player.z = spawn.z;
       }
 
-      player.hp = 100;
+      player.hp = MAX_HP;
       player.isDead = false;
       player.y = 0;
 
@@ -1549,8 +1628,8 @@ export class GameRoom extends Room<GameState> {
         this.broadcast("kothCaptureStart", { team: "T" });
       }
       this.state.kothCaptureProgress = Math.min(
-        100,
-        this.state.kothCaptureProgress + (100 / (10 * SERVER.tickRate)) * playersInZoneT
+        KOTH_MAX_PROGRESS,
+        this.state.kothCaptureProgress + (KOTH_MAX_PROGRESS / (KOTH_CAPTURE_RATE_PER_PLAYER * SERVER.tickRate)) * playersInZoneT
       );
     } else if (playersInZoneCT > 0 && playersInZoneT === 0) {
       // CT is capturing
@@ -1559,8 +1638,8 @@ export class GameRoom extends Room<GameState> {
         this.broadcast("kothCaptureStart", { team: "CT" });
       }
       this.state.kothCaptureProgress = Math.min(
-        100,
-        this.state.kothCaptureProgress + (100 / (10 * SERVER.tickRate)) * playersInZoneCT
+        KOTH_MAX_PROGRESS,
+        this.state.kothCaptureProgress + (KOTH_MAX_PROGRESS / (KOTH_CAPTURE_RATE_PER_PLAYER * SERVER.tickRate)) * playersInZoneCT
       );
     } else if (playersInZoneT > 0 && playersInZoneCT > 0) {
       // Contested - no progress
@@ -1570,7 +1649,7 @@ export class GameRoom extends Room<GameState> {
       if (this.state.kothCaptureProgress > 0) {
         this.state.kothCaptureProgress = Math.max(
           0,
-          this.state.kothCaptureProgress - (100 / (15 * SERVER.tickRate))
+          this.state.kothCaptureProgress - (KOTH_MAX_PROGRESS / (KOTH_DECAY_RATE * SERVER.tickRate))
         );
       }
       if (this.state.kothCaptureProgress === 0) {
@@ -1579,7 +1658,7 @@ export class GameRoom extends Room<GameState> {
     }
 
     // Check for capture completion
-    if (this.state.kothCaptureProgress >= 100) {
+    if (this.state.kothCaptureProgress >= KOTH_MAX_PROGRESS) {
       const capturingTeam = this.state.kothCapturingTeam;
       if (capturingTeam === "T") {
         this.state.kothScoreT++;
@@ -1671,9 +1750,9 @@ export class GameRoom extends Room<GameState> {
       player.money -= (gearItem as any).price;
 
       if (item === "kevlar") {
-        player.armor = 100;
+        player.armor = ARMOR_VALUE;
       } else if (item === "helmet") {
-        player.armor = 100;
+        player.armor = ARMOR_VALUE;
         player.hasHelmet = true;
       } else if (item === "defuseKit") {
         player.hasDefuseKit = true;
@@ -1705,7 +1784,7 @@ export class GameRoom extends Room<GameState> {
 
     // Reset players for the selected mode
     this.state.players.forEach((p) => {
-      p.hp = 100;
+      p.hp = MAX_HP;
       p.isDead = false;
       p.kills = 0;
       p.deaths = 0;
@@ -1857,7 +1936,7 @@ export class GameRoom extends Room<GameState> {
         p.kills = 0;
         p.deaths = 0;
         p.money = ECONOMY.startMoney;
-        p.hp = 100;
+        p.hp = MAX_HP;
         p.isDead = false;
         p.hasBomb = false;
         p.armor = 0;
@@ -1881,7 +1960,7 @@ export class GameRoom extends Room<GameState> {
       this.state.bombSite = "";
 
       this.broadcast("matchReset", {});
-    }, 5000);
+    }, ROUND_RESET_DELAY_MS);
   }
 
   private endMatch(winnerId: string) {
@@ -1910,7 +1989,7 @@ export class GameRoom extends Room<GameState> {
         p.kills = 0;
         p.deaths = 0;
         p.money = ECONOMY.startMoney;
-        p.hp = 100;
+        p.hp = MAX_HP;
         p.isDead = false;
         p.hasBomb = false;
         p.armor = 0;
@@ -1934,7 +2013,7 @@ export class GameRoom extends Room<GameState> {
       this.state.bombSite = "";
 
       this.broadcast("matchReset", {});
-    }, 5000);
+    }, ROUND_RESET_DELAY_MS);
   }
 
   private giveRoundRewards(winner: "T" | "CT") {
@@ -1977,7 +2056,7 @@ export class GameRoom extends Room<GameState> {
 
   private resetPlayersForRound() {
     this.state.players.forEach((p) => {
-      p.hp = 100;
+      p.hp = MAX_HP;
       p.isDead = false;
       p.isReloading = false;
       p.isPlanting = false;

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Sky } from '@react-three/drei'
 import { Physics } from '@react-three/rapier'
@@ -45,6 +45,7 @@ function MultiplayerMode() {
   const { round, connected, measurePing } = useNetworkStore()
   const currentMap = useGameStore((s) => s.currentMap)
   const MapComponent = getMapById(currentMap).component
+  const noop = useCallback(() => {}, [])
 
   // Measure ping periodically when connected
   useEffect(() => {
@@ -107,7 +108,7 @@ function MultiplayerMode() {
       {buyMenuOpen && round.phase === 'buy' && (
         <BuyMenu onClose={closeBuyMenu} />
       )}
-      <ClickToPlayOverlay onLock={() => {}} />
+      <ClickToPlayOverlay onLock={noop} />
     </div>
   )
 }

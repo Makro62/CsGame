@@ -1,21 +1,3 @@
-```markdown
-# Documentation
-*.md
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-.env.*
-
-# Editors
-.vscode/
-.idea/
-
 # Dependencies
 node_modules/
 venv/
@@ -23,6 +5,8 @@ venv/
 __pycache__/
 .mypy_cache/
 .pytest_cache/
+
+# Build output
 dist/
 build/
 target/
@@ -38,6 +22,20 @@ target/
 *.a
 *.obj
 *.out
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Editors
+.vscode/
+.idea/
 
 # System files
 .DS_Store
@@ -71,4 +69,3 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-```

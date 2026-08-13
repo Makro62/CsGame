@@ -20,3 +20,22 @@ httpServer.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
   console.log(`Colyseus monitor: http://localhost:${port}/colyseus`);
 });
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  gameServer.gracefullyShutdown().then(() => {
+    httpServer.close(() => {
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  gameServer.gracefullyShutdown().then(() => {
+    httpServer.close(() => {
+      process.exit(0);
+    });
+  });
+});
