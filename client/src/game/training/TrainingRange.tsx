@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Sky } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
-import { ContainerYard } from "../map/ContainerYard";
+import { getMapById } from "../map/MapRegistry";
 import { PlayerController } from "../player/PlayerController";
 import { WeaponModel } from "../weapons/WeaponModel";
 import { ShootingSystem } from "../weapons/ShootingSystem";
@@ -134,6 +134,8 @@ function TrainingModeSelector({
 export function TrainingRange() {
   const [trainingMode, setTrainingMode] = useState<"aim" | "recoil">("aim");
   useWeaponSwitch();
+  const currentMap = useGameStore((s) => s.currentMap);
+  const MapComponent = getMapById(currentMap).component;
 
   useEffect(() => {
     // Auto-equip default weapon on mount
@@ -151,7 +153,7 @@ export function TrainingRange() {
           intensity={1.5}
         />
         <Physics gravity={[0, -9.81, 0]}>
-          <ContainerYard />
+          <MapComponent />
           <PlayerController />
           <WeaponModel />
           {trainingMode === "aim" && <AimTrainer />}

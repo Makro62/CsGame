@@ -1,13 +1,37 @@
+import { useState } from "react";
 import { useGameStore } from "../stores/useGameStore";
+import { useNetworkStore } from "../stores/useNetworkStore";
+import { ServerBrowser } from "../components/ServerBrowser";
+import { MAPS } from "../game/map/MapRegistry";
 
 const SERVER_MODES: { id: string; name: string; desc: string }[] = [
   { id: "bomb_defusal", name: "BOMB DEFUSAL", desc: "5v5 • plant/defuse • buy economy" },
   { id: "ffa", name: "FFA DEATHMATCH", desc: "Free-for-all • first to 20 kills" },
   { id: "tdm", name: "TEAM DEATHMATCH", desc: "T vs CT • first to 75 kills" },
+  { id: "koth", name: "KING OF THE HILL", desc: "Capture zone • first to 3 captures" },
 ];
 
 export function MainMenu() {
-  const { setMode, nickname, setNickname, serverMode, setServerMode } = useGameStore();
+  const { setMode, nickname, setNickname, serverMode, setServerMode, currentMap, setCurrentMap } = useGameStore();
+  const [showBrowser, setShowBrowser] = useState(false);
+  const connect = useNetworkStore((s) => s.connect);
+  const joinRoomById = useNetworkStore((s) => s.joinRoomById);
+
+  const handleQuickJoin = () => {
+    connect(nickname, serverMode);
+    setMode("multiplayer");
+  };
+
+  const handleJoinRoom = (roomId: string) => {
+    joinRoomById(roomId, nickname);
+    setMode("multiplayer");
+  };
+
+  const handleCreateRoom = () => {
+    // Create a new room by joining (will create if none available)
+    connect(nickname, serverMode);
+    setMode("multiplayer");
+  };
 
   return (
     <div
@@ -132,6 +156,50 @@ export function MainMenu() {
         </div>
       </div>
 
+      {/* Map Selection */}
+      <div style={{ marginBottom: "24px", textAlign: "center" }}>
+        <label
+          style={{
+            display: "block",
+            fontSize: "12px",
+            color: "#6b7280",
+            marginBottom: "8px",
+            textTransform: "uppercase",
+          }}
+        >
+          Map
+        </label>
+        <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+          {MAPS.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setCurrentMap(m.id)}
+              title={m.description}
+              style={{
+                padding: "10px 14px",
+                fontSize: "13px",
+                fontWeight: "bold",
+                fontFamily: "monospace",
+                background:
+                  currentMap === m.id
+                    ? "rgba(139,92,246,0.35)"
+                    : "rgba(255,255,255,0.08)",
+                border:
+                  currentMap === m.id
+                    ? "1px solid rgba(139,92,246,0.8)"
+                    : "1px solid rgba(255,255,255,0.2)",
+                borderRadius: "8px",
+                color: currentMap === m.id ? "#c4b5fd" : "#cbd5e1",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Menu Buttons */}
       <div
         style={{
@@ -167,7 +235,7 @@ export function MainMenu() {
         </button>
 
         <button
-          onClick={() => setMode("multiplayer")}
+          onClick={handleQuickJoin}
           style={{
             padding: "16px 32px",
             fontSize: "18px",
@@ -188,9 +256,43 @@ export function MainMenu() {
             e.currentTarget.style.boxShadow = "none";
           }}
         >
-          MULTIPLAYER (5v5)
+          QUICK JOIN
+        </button>
+
+        <button
+          onClick={() => setShowBrowser(true)}
+          style={{
+            padding: "16px 32px",
+            fontSize: "18px",
+            fontWeight: "bold",
+            backgroundColor: "#8b5cf6",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            transition: "transform 0.2s, box-shadow 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.05)";
+            e.currentTarget.style.boxShadow = "0 0 20px rgba(139, 92, 246, 0.5)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
+        >
+          SERVER BROWSER
         </button>
       </div>
+
+      {/* Server Browser Modal */}
+      {showBrowser && (
+        <ServerBrowser
+          onClose={() => setShowBrowser(false)}
+          onJoinRoom={handleJoinRoom}
+          onCreateRoom={handleCreateRoom}
+        />
+      )}
 
       {/* Footer */}
       <div

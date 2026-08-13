@@ -3,18 +3,8 @@ import { useSettingsStore } from '../stores/useSettingsStore'
 
 export default function SettingsMenu() {
   const [open, setOpen] = useState(false)
-  const {
-    sensitivity,
-    slideControl,
-    masterVolume,
-    sfxVolume,
-    musicVolume,
-    setSensitivity,
-    setSlideControl,
-    setMasterVolume,
-    setSfxVolume,
-    setMusicVolume,
-  } = useSettingsStore()
+  const { sensitivity, slideControl, masterVolume, sfxVolume, musicVolume } =
+    useSettingsStore()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -24,6 +14,27 @@ export default function SettingsMenu() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Read setters from store at event time to avoid closure staleness
+  const handleSensitivityChange = (value: number) => {
+    useSettingsStore.getState().setSensitivity(value)
+  }
+
+  const handleSlideControlChange = (value: number) => {
+    useSettingsStore.getState().setSlideControl(value)
+  }
+
+  const handleMasterVolumeChange = (value: number) => {
+    useSettingsStore.getState().setMasterVolume(value)
+  }
+
+  const handleSfxVolumeChange = (value: number) => {
+    useSettingsStore.getState().setSfxVolume(value)
+  }
+
+  const handleMusicVolumeChange = (value: number) => {
+    useSettingsStore.getState().setMusicVolume(value)
+  }
 
   if (!open) return null
 
@@ -55,7 +66,9 @@ export default function SettingsMenu() {
 
         {/* Mouse Settings */}
         <div style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12 }}>MOUSE</h3>
+          <h3 style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12 }}>
+            MOUSE
+          </h3>
           <div style={{ marginBottom: 12 }}>
             <div style={{ marginBottom: 6 }}>Sensitivity</div>
             <input
@@ -64,7 +77,9 @@ export default function SettingsMenu() {
               max={5}
               step={0.1}
               value={sensitivity}
-              onChange={e => setSensitivity(parseFloat(e.target.value))}
+              onChange={e =>
+                handleSensitivityChange(parseFloat(e.target.value))
+              }
               style={{ width: '100%' }}
             />
             <div style={{ fontSize: 12, color: '#aaa' }}>
@@ -75,7 +90,9 @@ export default function SettingsMenu() {
 
         {/* Movement Settings */}
         <div style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12 }}>MOVEMENT</h3>
+          <h3 style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12 }}>
+            MOVEMENT
+          </h3>
           <div style={{ marginBottom: 12 }}>
             <div style={{ marginBottom: 6 }}>Slide Control</div>
             <input
@@ -84,7 +101,9 @@ export default function SettingsMenu() {
               max={10}
               step={1}
               value={slideControl}
-              onChange={e => setSlideControl(parseInt(e.target.value, 10))}
+              onChange={e =>
+                handleSlideControlChange(parseInt(e.target.value, 10))
+              }
               style={{ width: '100%' }}
             />
             <div style={{ fontSize: 12, color: '#aaa' }}>{slideControl}</div>
@@ -93,7 +112,9 @@ export default function SettingsMenu() {
 
         {/* Audio Settings */}
         <div style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12 }}>AUDIO</h3>
+          <h3 style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12 }}>
+            AUDIO
+          </h3>
           <div style={{ marginBottom: 12 }}>
             <div style={{ marginBottom: 6 }}>Master Volume</div>
             <input
@@ -102,7 +123,9 @@ export default function SettingsMenu() {
               max={100}
               step={5}
               value={masterVolume}
-              onChange={e => setMasterVolume(parseInt(e.target.value, 10))}
+              onChange={e =>
+                handleMasterVolumeChange(parseInt(e.target.value, 10))
+              }
               style={{ width: '100%' }}
             />
             <div style={{ fontSize: 12, color: '#aaa' }}>{masterVolume}%</div>
@@ -115,7 +138,7 @@ export default function SettingsMenu() {
               max={100}
               step={5}
               value={sfxVolume}
-              onChange={e => setSfxVolume(parseInt(e.target.value, 10))}
+              onChange={e => handleSfxVolumeChange(parseInt(e.target.value, 10))}
               style={{ width: '100%' }}
             />
             <div style={{ fontSize: 12, color: '#aaa' }}>{sfxVolume}%</div>
@@ -137,8 +160,17 @@ export default function SettingsMenu() {
 
         {/* Keybinds */}
         <div style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12 }}>KEYBINDS</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
+          <h3 style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12 }}>
+            KEYBINDS
+          </h3>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 8,
+              fontSize: 12,
+            }}
+          >
             <div style={{ color: '#aaa' }}>WASD - Move</div>
             <div style={{ color: '#aaa' }}>Mouse - Look</div>
             <div style={{ color: '#aaa' }}>LMB - Shoot</div>

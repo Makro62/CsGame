@@ -36,6 +36,10 @@ export class PlayerState extends Schema {
   grenadeFlash: number
   ammo: number
   reserveAmmo: number
+  primaryAmmo: number
+  primaryReserveAmmo: number
+  secondaryAmmo: number
+  secondaryReserveAmmo: number
   isPlanting: boolean
   isDefusing: boolean
   plantProgress: number
@@ -74,6 +78,10 @@ export class PlayerState extends Schema {
     this.grenadeFlash = 0
     this.ammo = 7
     this.reserveAmmo = 42
+    this.primaryAmmo = 0
+    this.primaryReserveAmmo = 0
+    this.secondaryAmmo = 7
+    this.secondaryReserveAmmo = 42
     this.isPlanting = false
     this.isDefusing = false
     this.plantProgress = 0
@@ -112,6 +120,10 @@ defineTypes(PlayerState, {
   grenadeFlash: 'number',
   ammo: 'number',
   reserveAmmo: 'number',
+  primaryAmmo: 'number',
+  primaryReserveAmmo: 'number',
+  secondaryAmmo: 'number',
+  secondaryReserveAmmo: 'number',
   isPlanting: 'boolean',
   isDefusing: 'boolean',
   plantProgress: 'number',
@@ -165,6 +177,10 @@ export class GameState extends Schema {
   kothZoneX: number
   kothZoneZ: number
   kothZoneRadius: number
+  kothCapturingTeam: string
+  kothCaptureProgress: number
+  kothScoreT: number
+  kothScoreCT: number
 
   constructor() {
     super()
@@ -195,6 +211,10 @@ export class GameState extends Schema {
     this.kothZoneX = 0
     this.kothZoneZ = 0
     this.kothZoneRadius = 8
+    this.kothCapturingTeam = ''
+    this.kothCaptureProgress = 0
+    this.kothScoreT = 0
+    this.kothScoreCT = 0
   }
 }
 
@@ -224,6 +244,10 @@ defineTypes(GameState, {
   kothZoneX: 'number',
   kothZoneZ: 'number',
   kothZoneRadius: 'number',
+  kothCapturingTeam: 'string',
+  kothCaptureProgress: 'number',
+  kothScoreT: 'number',
+  kothScoreCT: 'number',
 })
 
 // ─── Interfaces ─────────────────────────────────────────────────

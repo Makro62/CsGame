@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { WEAPONS } from "@cs-game/shared";
+import { useNetworkStore } from "./useNetworkStore";
 
 export type WeaponKey = keyof typeof WEAPONS;
 
@@ -10,6 +11,12 @@ interface WeaponState {
   knifeSlot: WeaponKey;
   currentAmmo: number;
   maxAmmo: number;
+  primaryAmmo: number;
+  primaryMaxAmmo: number;
+  primaryReserve: number;
+  secondaryAmmo: number;
+  secondaryMaxAmmo: number;
+  secondaryReserve: number;
   isReloading: boolean;
   reloadStartTime: number | null;
   isADS: boolean;
@@ -61,6 +68,12 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   knifeSlot: "knife",
   currentAmmo: 0,
   maxAmmo: 0,
+  primaryAmmo: 0,
+  primaryMaxAmmo: 0,
+  primaryReserve: 0,
+  secondaryAmmo: 7,
+  secondaryMaxAmmo: 7,
+  secondaryReserve: 42,
   isReloading: false,
   reloadStartTime: null,
   isADS: false,
@@ -112,7 +125,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   },
 
   switchToSlot: (slot: 1 | 2 | 3) => {
-    const { primaryWeapon, secondaryWeapon, knifeSlot, activeWeapon } = get();
+    const { primaryWeapon, secondaryWeapon, knifeSlot, activeWeapon, currentAmmo } = get();
     let target: WeaponKey | null = null;
 
     if (slot === 1) target = primaryWeapon;
@@ -122,10 +135,29 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     if (!target || target === activeWeapon) return;
 
     const stats = WEAPONS[target];
+
+    // Save current slot's ammo before switching
+    if (activeWeapon && (activeWeapon === primaryWeapon)) {
+      set({ primaryAmmo: currentAmmo });
+    } else if (activeWeapon && (activeWeapon === secondaryWeapon)) {
+      set({ secondaryAmmo: currentAmmo });
+    }
+
+    // Load target slot's saved ammo
+    let ammo: number = stats.mag;
+    if (slot === 1) {
+      const saved = get().primaryAmmo;
+      ammo = saved > 0 ? saved : stats.mag;
+    } else if (slot === 2) {
+      const saved = get().secondaryAmmo;
+      ammo = saved > 0 ? saved : stats.mag;
+    }
+    // Knife: ammo = 0
+
     set({
       activeWeapon: target,
-      currentAmmo: stats.mag,
-      maxAmmo: stats.mag,
+      currentAmmo: slot === 3 ? 0 : ammo,
+      maxAmmo: slot === 3 ? 0 : (stats.mag as number),
       isReloading: false,
       reloadStartTime: null,
       isADS: false,
@@ -138,9 +170,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     });
 
     // Send to server
-    import("./useNetworkStore").then(({ useNetworkStore }) => {
-      useNetworkStore.getState().sendSwitchWeapon(slot);
-    });
+    useNetworkStore.getState().sendSwitchWeapon(slot);
 
     setTimeout(() => {
       set({ isSwitching: false, switchTimer: 0 });

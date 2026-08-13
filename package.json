@@ -2,13 +2,13 @@
   "name": "cs-game-monorepo",
   "private": true,
   "workspaces": [
+    "shared",
     "client",
-    "server",
-    "shared"
+    "server"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present"
+    "postinstall": "npm run build --workspace=shared",
+    "dev": "npm run build --workspace=shared && npm run dev --workspaces --if-present",
+    "build": "npm run build --workspace=shared && npm run build --workspaces --if-present"
   }
 }
-

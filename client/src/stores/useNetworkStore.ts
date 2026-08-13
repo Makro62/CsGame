@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { Client, Room } from "colyseus.js";
 import { GameState, PlayerState, Snapshot, ROUND, WEAPONS } from "@cs-game/shared";
 import { useWeaponStore, type WeaponKey } from "./useWeaponStore";
+import { startKillCamRecording, stopKillCamRecording } from "./useKillCamStore";
+import { SERVER_URL } from "../config/network";
 
 interface RemotePlayer {
   x: number;
@@ -54,6 +56,10 @@ interface RoundState {
   readyCount: number;
   maxRounds: number;
   gameMode: string;
+  kothCapturingTeam: string;
+  kothCaptureProgress: number;
+  kothScoreT: number;
+  kothScoreCT: number;
 }
 
 interface VoteRequest {
@@ -119,6 +125,7 @@ interface NetworkState {
   deathRecap: { killerName: string; weapon: string; headshot: boolean } | null;
 
   connect: (nickname: string, mode?: string) => Promise<void>;
+  joinRoomById: (roomId: string, nickname: string) => Promise<void>;
   disconnect: () => void;
   sendInput: (input: Record<string, unknown>) => void;
   sendShoot: (data: Record<string, unknown>) => void;
@@ -157,6 +164,10 @@ const initialRound: RoundState = {
   readyCount: 0,
   maxRounds: ROUND.maxRounds,
   gameMode: "bomb_defusal",
+  kothCapturingTeam: "",
+  kothCaptureProgress: 0,
+  kothScoreT: 0,
+  kothScoreCT: 0,
 };
 
 const SESSION_KEY = "cs_game_session";
@@ -222,7 +233,7 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
     retryNickname = nickname;
     retryMode = mode;
 
-    const client = new Client("ws://localhost:2567");
+    const client = new Client(SERVER_URL);
     let room: Room<GameState> | null = null;
     let isReconnect = false;
 
@@ -261,6 +272,36 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
       setupRoom(room, nickname, mode, isReconnect);
     } catch (e) {
       console.error("Failed to join room:", e);
+      set({ reconnecting: false });
+    }
+  },
+
+  joinRoomById: async (roomId: string, nickname: string) => {
+    clearRetry();
+    retryNickname = nickname;
+    retryMode = "bomb_defusal";
+
+    const client = new Client(SERVER_URL);
+
+    try {
+      const room = await client.joinById<GameState>(roomId, { nickname });
+      
+      sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({ reconnectionToken: room.reconnectionToken })
+      );
+
+      set({
+        client,
+        room,
+        sessionId: room.sessionId,
+        connected: true,
+        reconnecting: false,
+      });
+
+      setupRoom(room, nickname, "bomb_defusal", false);
+    } catch (e) {
+      console.error("Failed to join room by ID:", e);
       set({ reconnecting: false });
     }
   },
@@ -390,6 +431,16 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
     const { sessionId } = useNetworkStore.getState();
     const isDeath = sessionId && event.victimId === sessionId;
     
+    // Start kill cam recording if we're the victim
+    if (isDeath && event.killerId !== sessionId) {
+      startKillCamRecording(event.killerId, event.killerName);
+    }
+    
+    // Stop kill cam recording if we killed someone (we were recording them)
+    if (event.killerId === sessionId) {
+      stopKillCamRecording();
+    }
+    
     set((state) => ({
       killFeed: [event, ...state.killFeed].slice(0, 5),
       deathRecap: isDeath ? {
@@ -501,6 +552,10 @@ function setupRoom(
         readyCount: state.readyCount,
         maxRounds: state.maxRounds,
         gameMode: state.gameMode,
+        kothCapturingTeam: state.kothCapturingTeam || "",
+        kothCaptureProgress: state.kothCaptureProgress || 0,
+        kothScoreT: state.kothScoreT || 0,
+        kothScoreCT: state.kothScoreCT || 0,
       },
     });
   });

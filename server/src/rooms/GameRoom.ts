@@ -22,6 +22,7 @@ import {
   BombPlantRequest,
   BombDefuseRequest,
   ThrowGrenadeInput,
+  MapObstacle,
 } from "@cs-game/shared";
 
 const { Room } = colyseus;
@@ -92,6 +93,30 @@ function rayVsBox(
   return tmax >= 0 ? Math.max(tmin, 0) : null;
 }
 
+// Check if line of sight exists between two points (no solid obstacles blocking)
+function hasLineOfSight(
+  x1: number, y1: number, z1: number,
+  x2: number, y2: number, z2: number,
+  obstacles: readonly MapObstacle[]
+): boolean {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dz = z2 - z1;
+  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (dist < 0.01) return true;
+
+  const ndx = dx / dist;
+  const ndy = dy / dist;
+  const ndz = dz / dist;
+
+  for (const obs of obstacles) {
+    if (obs.material === "wood") continue; // Wood is wallbangable, don't block LOS
+    const t = rayVsBox(x1, y1, z1, ndx, ndy, ndz, obs);
+    if (t !== null && t < dist) return false;
+  }
+  return true;
+}
+
 // Determine the dominant bounce axis for a ray entering a box.
 function bounceAxis(
   ox: number, oy: number, oz: number,
@@ -133,6 +158,14 @@ export class GameRoom extends Room<GameState> {
 
   // Lag compensation: per-player position history for server rewind
   private shootHistory: Map<string, PositionSample[]> = new Map();
+  // Track last input time per player for real-time dt calculation
+  private lastInputTime: Map<string, number> = new Map();
+  // Track server-measured RTT per client for lag compensation validation
+  private serverRTT: Map<string, number> = new Map();
+  private pingTimestamps: Map<string, number> = new Map();
+  // Rate limiting for chat and radio
+  private lastChatTime: Map<string, number> = new Map();
+  private lastRadioTime: Map<string, number> = new Map();
   // Server-side grenade simulation (not synced as schema; transient)
   private grenades: Map<string, GrenadeSim> = new Map();
   private grenadeCooldowns: Map<string, number> = new Map();
@@ -271,6 +304,15 @@ export class GameRoom extends Room<GameState> {
       const { slot } = data;
       let weapon: string | null = null;
 
+      // Save current slot's ammo before switching
+      if (player.currentWeapon === player.primaryWeapon && player.primaryWeapon) {
+        player.primaryAmmo = player.ammo;
+        player.primaryReserveAmmo = player.reserveAmmo;
+      } else if (player.currentWeapon === player.secondaryWeapon && player.secondaryWeapon) {
+        player.secondaryAmmo = player.ammo;
+        player.secondaryReserveAmmo = player.reserveAmmo;
+      }
+
       if (slot === 1) {
         weapon = player.primaryWeapon || null;
       } else if (slot === 2) {
@@ -285,8 +327,20 @@ export class GameRoom extends Room<GameState> {
       if (!weaponStats) return;
 
       player.currentWeapon = weapon;
-      player.ammo = weaponStats.mag;
-      player.reserveAmmo = weaponStats.reserveAmmo;
+
+      // Load saved ammo for the target slot (or defaults if never used)
+      if (slot === 1 && player.primaryWeapon) {
+        player.ammo = player.primaryAmmo > 0 ? player.primaryAmmo : weaponStats.mag;
+        player.reserveAmmo = player.primaryReserveAmmo > 0 ? player.primaryReserveAmmo : weaponStats.reserveAmmo;
+      } else if (slot === 2 && player.secondaryWeapon) {
+        player.ammo = player.secondaryAmmo > 0 ? player.secondaryAmmo : weaponStats.mag;
+        player.reserveAmmo = player.secondaryReserveAmmo > 0 ? player.secondaryReserveAmmo : weaponStats.reserveAmmo;
+      } else {
+        // Knife slot - no ammo needed
+        player.ammo = 0;
+        player.reserveAmmo = 0;
+      }
+
       player.isReloading = false;
 
       this.broadcast("weaponSwitched", {
@@ -480,12 +534,20 @@ export class GameRoom extends Room<GameState> {
     });
 
     this.onMessage("ping", (client, data: { timestamp: number }) => {
+      // Track when we received this ping for RTT estimation
+      this.pingTimestamps.set(client.sessionId, performance.now());
       client.send("pong", { timestamp: data.timestamp });
     });
 
     this.onMessage("chat", (client, data: { message?: unknown }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || player.isDead) return;
+
+      // Rate limit: 500ms cooldown per player
+      const now = performance.now();
+      const lastChat = this.lastChatTime.get(client.sessionId) || 0;
+      if (now - lastChat < 500) return;
+      this.lastChatTime.set(client.sessionId, now);
 
       if (typeof data?.message !== "string") return;
       const message = data.message
@@ -559,6 +621,12 @@ export class GameRoom extends Room<GameState> {
       if (!player || player.isDead) return;
       if (![1, 2, 3].includes(data.code)) return;
 
+      // Rate limit: 2 second cooldown per player
+      const now = performance.now();
+      const lastRadio = this.lastRadioTime.get(client.sessionId) || 0;
+      if (now - lastRadio < 2000) return;
+      this.lastRadioTime.set(client.sessionId, now);
+
       this.clients.forEach((c) => {
         const p = this.state.players.get(c.sessionId);
         if (p && p.team === player.team) {
@@ -625,6 +693,7 @@ export class GameRoom extends Room<GameState> {
       this.simulateGrenades(now);
       this.processPlanting();
       this.processDefusing();
+      this.processKOTH();
     }, TICK_MS);
   }
 
@@ -702,6 +771,9 @@ export class GameRoom extends Room<GameState> {
     }
 
     this.grenadeCooldowns.delete(sessionId);
+    this.lastInputTime.delete(sessionId);
+    this.lastChatTime.delete(sessionId);
+    this.lastRadioTime.delete(sessionId);
 
     // ─── Reconnect window: player state is preserved for 60s ───
     if (player && this.state.phase !== "waiting") {
@@ -803,7 +875,13 @@ export class GameRoom extends Room<GameState> {
 
   // ─── Movement ──────────────────────────────────────────────────
   private processMovement(sessionId: string, player: PlayerState, input: ClientInput) {
-    const dt = TICK_MS / 1000;
+    const now = performance.now();
+    const lastTime = this.lastInputTime.get(sessionId) || now;
+    // Real dt clamped to prevent speed-hack exploitation (max 2x tick)
+    const rawDt = (now - lastTime) / 1000;
+    const dt = Math.min(rawDt, (TICK_MS * 2) / 1000);
+    this.lastInputTime.set(sessionId, now);
+
     const speed = input.sprint
       ? PHYSICS.sprintSpeed
       : input.crouch
@@ -938,10 +1016,13 @@ export class GameRoom extends Room<GameState> {
     const normDir = { x: dir.x / dirLength, y: dir.y / dirLength, z: dir.z / dirLength };
 
     // Lag compensation: rewind to when the shot was fired client-side.
-    const latency = Math.min(
-      Math.max(0, data.latency ?? 0),
-      MAX_REWIND_MS
-    );
+    // Validate client-reported latency against server-measured RTT to prevent exploitation
+    const serverRTT = this.serverRTT.get(shooterId) || 0;
+    const clientLatency = Math.max(0, data.latency ?? 0);
+    // Use the smaller of client-reported and 1.5x server-measured RTT
+    const latency = serverRTT > 0
+      ? Math.min(clientLatency, serverRTT * 1.5, MAX_REWIND_MS)
+      : Math.min(clientLatency, MAX_REWIND_MS);
     const targetTime = now - latency;
 
     let closestHit: {
@@ -1166,7 +1247,7 @@ export class GameRoom extends Room<GameState> {
       return;
     }
 
-    // HE grenade: radial damage with falloff.
+    // HE grenade: radial damage with falloff and LOS check.
     this.state.players.forEach((victim, victimId) => {
       if (victimId === grenade.throwerId || victim.isDead) return;
       if (this.state.gameMode !== "ffa" && victim.team === (this.state.players.get(grenade.throwerId)?.team ?? "")) return;
@@ -1176,6 +1257,11 @@ export class GameRoom extends Room<GameState> {
       const dz = victim.z - grenade.z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (dist > GRENADE.heRadius) return;
+
+      // LOS check: damage is blocked by solid obstacles
+      if (!hasLineOfSight(grenade.x, grenade.y, grenade.z, victim.x, victim.y + 1, victim.z, MAP_OBSTACLES)) {
+        return;
+      }
 
       // Spawn protection check
       const spawnTime = this.spawnProtection.get(victimId);
@@ -1424,6 +1510,97 @@ export class GameRoom extends Room<GameState> {
     this.broadcast("bombExploded", {});
 
     this.endRound("T");
+  }
+
+  private processKOTH() {
+    if (this.state.gameMode !== "koth" || this.state.phase !== "active") {
+      return;
+    }
+
+    const zoneX = this.state.kothZoneX;
+    const zoneZ = this.state.kothZoneZ;
+    const zoneRadius = this.state.kothZoneRadius;
+    const zoneRadiusSq = zoneRadius * zoneRadius;
+
+    let playersInZoneT = 0;
+    let playersInZoneCT = 0;
+
+    // Count alive players in the zone
+    this.state.players.forEach((player) => {
+      if (player.isDead || player.hp <= 0) return;
+
+      const dx = player.x - zoneX;
+      const dz = player.z - zoneZ;
+      const distSq = dx * dx + dz * dz;
+
+      if (distSq <= zoneRadiusSq) {
+        if (player.team === "T") {
+          playersInZoneT++;
+        } else {
+          playersInZoneCT++;
+        }
+      }
+    });
+
+    // Determine capturing team
+    if (playersInZoneT > 0 && playersInZoneCT === 0) {
+      // T is capturing
+      if (this.state.kothCapturingTeam !== "T") {
+        this.state.kothCapturingTeam = "T";
+        this.broadcast("kothCaptureStart", { team: "T" });
+      }
+      this.state.kothCaptureProgress = Math.min(
+        100,
+        this.state.kothCaptureProgress + (100 / (10 * SERVER.tickRate)) * playersInZoneT
+      );
+    } else if (playersInZoneCT > 0 && playersInZoneT === 0) {
+      // CT is capturing
+      if (this.state.kothCapturingTeam !== "CT") {
+        this.state.kothCapturingTeam = "CT";
+        this.broadcast("kothCaptureStart", { team: "CT" });
+      }
+      this.state.kothCaptureProgress = Math.min(
+        100,
+        this.state.kothCaptureProgress + (100 / (10 * SERVER.tickRate)) * playersInZoneCT
+      );
+    } else if (playersInZoneT > 0 && playersInZoneCT > 0) {
+      // Contested - no progress
+      this.state.kothCapturingTeam = "contested";
+    } else {
+      // No one in zone - decay progress
+      if (this.state.kothCaptureProgress > 0) {
+        this.state.kothCaptureProgress = Math.max(
+          0,
+          this.state.kothCaptureProgress - (100 / (15 * SERVER.tickRate))
+        );
+      }
+      if (this.state.kothCaptureProgress === 0) {
+        this.state.kothCapturingTeam = "";
+      }
+    }
+
+    // Check for capture completion
+    if (this.state.kothCaptureProgress >= 100) {
+      const capturingTeam = this.state.kothCapturingTeam;
+      if (capturingTeam === "T") {
+        this.state.kothScoreT++;
+        this.broadcast("kothCaptured", { team: "T", scoreT: this.state.kothScoreT, scoreCT: this.state.kothScoreCT });
+      } else if (capturingTeam === "CT") {
+        this.state.kothScoreCT++;
+        this.broadcast("kothCaptured", { team: "CT", scoreT: this.state.kothScoreT, scoreCT: this.state.kothScoreCT });
+      }
+
+      // Reset capture
+      this.state.kothCaptureProgress = 0;
+      this.state.kothCapturingTeam = "";
+
+      // Check win condition (first to 3 captures)
+      if (this.state.kothScoreT >= 3) {
+        this.endRound("T");
+      } else if (this.state.kothScoreCT >= 3) {
+        this.endRound("CT");
+      }
+    }
   }
 
   private dropBomb(player: PlayerState) {

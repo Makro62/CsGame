@@ -14,6 +14,7 @@ import { useGameStore } from '../../stores/useGameStore'
 import { useNetworkStore } from '../../stores/useNetworkStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useWeaponStore, type WeaponKey } from '../../stores/useWeaponStore'
+import { useKillCamStore } from '../../stores/useKillCamStore'
 
 const EYE_HEIGHT_STAND = 0.8
 const EYE_HEIGHT_CROUCH = 0.4
@@ -138,8 +139,6 @@ export function PlayerController() {
   // Uses quaternion-based yaw/pitch to avoid Euler gimbal lock.
   useEffect(() => {
     let locked = false
-    const yaw = new THREE.Quaternion()
-    const pitch = new THREE.Quaternion()
 
     const onPointerLockChange = () => {
       locked = !!document.pointerLockElement
@@ -150,22 +149,18 @@ export function PlayerController() {
       const sens =
         POINTER_LOCK_SENSITIVITY * useSettingsStore.getState().sensitivity
 
-      // Yaw: rotate around world Y axis (horizontal mouse movement)
-      yaw.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -e.movementX * sens)
-      camera.quaternion.premultiply(yaw)
-
-      // Pitch: rotate around local X axis (vertical mouse movement)
-      pitch.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -e.movementY * sens)
-      camera.quaternion.multiply(pitch)
-
-      // Clamp pitch to prevent flipping (extract euler, clamp, re-apply)
-      const euler = new THREE.Euler().setFromQuaternion(
+      // Use a single Euler-based yaw/pitch update for a more natural and stable FPS feel.
+      const current = new THREE.Euler().setFromQuaternion(
         camera.quaternion,
         'YXZ'
       )
-      euler.x = THREE.MathUtils.clamp(euler.x, -1.55, 1.55)
-      euler.z = 0 // no roll
-      camera.quaternion.setFromEuler(euler)
+
+      current.y -= e.movementX * sens
+      current.x -= e.movementY * sens
+      current.x = THREE.MathUtils.clamp(current.x, -1.55, 1.55)
+      current.z = 0
+
+      camera.quaternion.setFromEuler(current)
     }
 
     document.addEventListener('pointerlockchange', onPointerLockChange)
@@ -198,6 +193,24 @@ export function PlayerController() {
     lastFrameTime.current = now
 
     if (localIsDead) {
+      // Kill cam replay
+      const killCam = useKillCamStore.getState()
+      if (killCam.isReplaying) {
+        const frame = killCam.getReplayFrame(now)
+        if (frame) {
+          camera.position.set(frame.x, frame.y + EYE_HEIGHT_STAND, frame.z)
+          const lookTarget = new THREE.Vector3(
+            frame.x - Math.sin(frame.rotationY),
+            frame.y + EYE_HEIGHT_STAND,
+            frame.z - Math.cos(frame.rotationY)
+          )
+          camera.lookAt(lookTarget)
+          return
+        }
+        // Kill cam finished, fall through to spectator
+      }
+
+      // Normal spectator mode
       const playerArray = Array.from(remotePlayers.values())
       if (playerArray.length > 0) {
         const targetIdx = useGameStore.getState().spectatorTargetIndex
@@ -417,7 +430,10 @@ export function PlayerController() {
           INPUT_WINDOW_MS) ||
       input.jump
 
-    const canJump = grounded.current || coyoteTimeRef.current > 0 || currentPos.y <= TOTAL_HEIGHT / 2 + 0.1
+    const canJump =
+      grounded.current ||
+      coyoteTimeRef.current > 0 ||
+      currentPos.y <= TOTAL_HEIGHT / 2 + 0.1
 
     if (canJump && hasJumpBuffer) {
       const timeSinceCrouchRelease = now - getCrouchReleasedAt()

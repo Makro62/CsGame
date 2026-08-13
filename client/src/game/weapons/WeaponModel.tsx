@@ -1,8 +1,8 @@
-import { useRef, useEffect } from "react";
-import { useFrame } from "@react-three/fiber";
-import * as THREE from "three";
-import { useWeaponStore } from "../../stores/useWeaponStore";
-import { useGameStore } from "../../stores/useGameStore";
+import { useRef, useEffect } from 'react'
+import { useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
+import { useWeaponStore } from '../../stores/useWeaponStore'
+import { useGameStore } from '../../stores/useGameStore'
 
 const WEAPON_POSITIONS: Record<string, [number, number, number]> = {
   // Primary rifles
@@ -18,133 +18,147 @@ const WEAPON_POSITIONS: Record<string, [number, number, number]> = {
   // Melee
   knife: [0.18, -0.18, -0.28],
   combatknife: [0.18, -0.18, -0.28],
-};
+}
 
 export function WeaponModel() {
-  const groupRef = useRef<THREE.Group>(null);
-  const recoilGroupRef = useRef<THREE.Group>(null);
-  const { activeWeapon, recoilOffset, isReloading, isSwitching } =
-    useWeaponStore();
+  const groupRef = useRef<THREE.Group>(null)
+  const recoilGroupRef = useRef<THREE.Group>(null)
+  const { activeWeapon, recoilOffset, isReloading, isSwitching, isADS } =
+    useWeaponStore()
 
-  const isMoving = useRef(false);
-  const moveIntensity = useRef(0);
-  const currentSway = useRef({ x: 0, y: 0 });
-  const lastSwingTime = useRef(0);
-  const swingProgress = useRef(0);
+  const isMoving = useRef(false)
+  const moveIntensity = useRef(0)
+  const currentSway = useRef({ x: 0, y: 0 })
+  const lastSwingTime = useRef(0)
+  const swingProgress = useRef(0)
 
   useEffect(() => {
     const checkMovement = () => {
-      const input = useGameStore.getState().lastInput;
+      const input = useGameStore.getState().lastInput
       if (input) {
-        const moving = input.forward || input.backward || input.left || input.right;
-        const sprinting = input.sprint;
-        isMoving.current = moving;
-        moveIntensity.current = sprinting ? 1.5 : moving ? 1.0 : 0;
+        const moving =
+          input.forward || input.backward || input.left || input.right
+        const sprinting = input.sprint
+        isMoving.current = moving
+        moveIntensity.current = sprinting ? 1.5 : moving ? 1.0 : 0
       }
-    };
-    const interval = setInterval(checkMovement, 100);
-    return () => clearInterval(interval);
-  }, []);
+    }
+    const interval = setInterval(checkMovement, 100)
+    return () => clearInterval(interval)
+  }, [])
 
   // Listen for mouse click to trigger knife swing
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
-        const now = performance.now();
-        if (now - lastSwingTime.current > 500) { // 500ms cooldown
-          lastSwingTime.current = now;
-          swingProgress.current = 1;
+        const now = performance.now()
+        if (now - lastSwingTime.current > 500) {
+          // 500ms cooldown
+          lastSwingTime.current = now
+          swingProgress.current = 1
         }
       }
-    };
-    window.addEventListener("mousedown", handleMouseDown);
-    return () => window.removeEventListener("mousedown", handleMouseDown);
-  }, []);
+    }
+    window.addEventListener('mousedown', handleMouseDown)
+    return () => window.removeEventListener('mousedown', handleMouseDown)
+  }, [])
 
   useFrame(({ camera, clock }) => {
-    if (!groupRef.current || !recoilGroupRef.current || !activeWeapon) return;
+    if (!groupRef.current || !recoilGroupRef.current || !activeWeapon) return
 
-    const time = clock.getElapsedTime();
+    const time = clock.getElapsedTime()
 
     // Weapon sway modulated by movement state
-    const moveMult = 1 + moveIntensity.current * 0.8;
-    const targetSwayX = Math.sin(time * 1.5) * 0.003 * moveMult;
-    const targetSwayY = Math.sin(time * 2) * 0.0015 * moveMult;
+    const moveMult = 1 + moveIntensity.current * 0.8
+    const targetSwayX = Math.sin(time * 1.5) * 0.003 * moveMult
+    const targetSwayY = Math.sin(time * 2) * 0.0015 * moveMult
 
     // Smooth sway transitions
-    currentSway.current.x += (targetSwayX - currentSway.current.x) * 0.1;
-    currentSway.current.y += (targetSwayY - currentSway.current.y) * 0.1;
-    const swayX = currentSway.current.x;
-    const swayY = currentSway.current.y;
+    currentSway.current.x += (targetSwayX - currentSway.current.x) * 0.1
+    currentSway.current.y += (targetSwayY - currentSway.current.y) * 0.1
+    const swayX = currentSway.current.x
+    const swayY = currentSway.current.y
 
     // Weapon bob during sprint
-    const sprintBob = isMoving.current && moveIntensity.current > 1
-      ? Math.sin(time * 8) * 0.008
-      : 0;
-    const sprintBobY = isMoving.current && moveIntensity.current > 1
-      ? Math.abs(Math.sin(time * 8)) * 0.005
-      : 0;
+    const sprintBob =
+      isMoving.current && moveIntensity.current > 1
+        ? Math.sin(time * 8) * 0.008
+        : 0
+    const sprintBobY =
+      isMoving.current && moveIntensity.current > 1
+        ? Math.abs(Math.sin(time * 8)) * 0.005
+        : 0
 
-    // Recoil kick
-    const kickZ = Math.min(recoilOffset.y * 0.015, 0.03);
-    const kickY = Math.min(recoilOffset.x * 0.008, 0.015);
+    // Recoil kick tuned for a smoother, less violent FPS feel.
+    const kickScale = isADS ? 0.45 : 1
+    const kickZ = Math.min(recoilOffset.y * 0.0065 * kickScale, 0.016)
+    const kickY = Math.min(recoilOffset.x * 0.0032 * kickScale, 0.008)
+
+    // Slightly soften the visual punch while keeping the transient feel alive.
+    const visualPunch = recoilOffset.y * 0.0018
 
     // Reload animation — gun tilts down and back up
-    const reloadProgress = isReloading ? Math.sin(time * 3) * 0.08 : 0;
-    const reloadTilt = isReloading ? Math.sin(time * 3) * 0.3 : 0;
+    const reloadProgress = isReloading ? Math.sin(time * 3) * 0.08 : 0
+    const reloadTilt = isReloading ? Math.sin(time * 3) * 0.3 : 0
 
     // Knife swing animation
-    const isKnife = activeWeapon === "knife" || activeWeapon === "combatknife";
-    const swingAngle = isKnife ? swingProgress.current * 1.2 : 0;
-    const swingY = isKnife ? swingProgress.current * 0.15 : 0;
-    
+    const isKnife = activeWeapon === 'knife' || activeWeapon === 'combatknife'
+    const swingAngle = isKnife ? swingProgress.current * 1.2 : 0
+    const swingY = isKnife ? swingProgress.current * 0.15 : 0
+
     // Decay swing progress
     if (swingProgress.current > 0) {
-      swingProgress.current *= 0.85;
-      if (swingProgress.current < 0.01) swingProgress.current = 0;
+      swingProgress.current *= 0.85
+      if (swingProgress.current < 0.01) swingProgress.current = 0
     }
 
     // Deploy animation
-    const deployOffset = isSwitching ? -0.25 : 0;
+    const deployOffset = isSwitching ? -0.25 : 0
 
-    const basePos = WEAPON_POSITIONS[activeWeapon] || [0.28, -0.28, -0.45];
+    const basePos = WEAPON_POSITIONS[activeWeapon] || [0.28, -0.28, -0.45]
 
     // Parent group tracks camera transform
-    groupRef.current.position.copy(camera.position);
-    groupRef.current.quaternion.copy(camera.quaternion);
+    groupRef.current.position.copy(camera.position)
+    groupRef.current.quaternion.copy(camera.quaternion)
 
     // Child group applies local FPV offset
     recoilGroupRef.current.position.set(
       basePos[0] + swayX + sprintBob,
-      basePos[1] + swayY + sprintBobY + kickY + reloadProgress + swingY,
+      basePos[1] +
+        swayY +
+        sprintBobY +
+        kickY +
+        visualPunch +
+        reloadProgress +
+        swingY,
       basePos[2] + kickZ + deployOffset
-    );
+    )
 
     recoilGroupRef.current.rotation.set(
-      -kickZ * 0.4 + reloadTilt + swingAngle,
-      -kickY * 0.4,
+      -kickZ * 0.45 + reloadTilt + swingAngle,
+      -kickY * 0.5,
       0
-    );
-  });
+    )
+  })
 
-  if (!activeWeapon) return null;
+  if (!activeWeapon) return null
 
   return (
     <group ref={groupRef} name="weapon-model-parent">
       <group ref={recoilGroupRef} name="weapon-model-recoil">
-        {activeWeapon === "ak47" && <AK47Model />}
-        {activeWeapon === "m4a1" && <M4A1Model />}
-        {activeWeapon === "awp" && <AWPModel />}
-        {activeWeapon === "deagle" && <DeagleModel />}
-        {activeWeapon === "mp5" && <MP5Model />}
-        {activeWeapon === "glock" && <GlockModel />}
-        {activeWeapon === "tec9" && <Tec9Model />}
-        {activeWeapon === "autopistol" && <AutoPistolModel />}
-        {activeWeapon === "knife" && <KnifeModel />}
-        {activeWeapon === "combatknife" && <CombatKnifeModel />}
+        {activeWeapon === 'ak47' && <AK47Model />}
+        {activeWeapon === 'm4a1' && <M4A1Model />}
+        {activeWeapon === 'awp' && <AWPModel />}
+        {activeWeapon === 'deagle' && <DeagleModel />}
+        {activeWeapon === 'mp5' && <MP5Model />}
+        {activeWeapon === 'glock' && <GlockModel />}
+        {activeWeapon === 'tec9' && <Tec9Model />}
+        {activeWeapon === 'autopistol' && <AutoPistolModel />}
+        {activeWeapon === 'knife' && <KnifeModel />}
+        {activeWeapon === 'combatknife' && <CombatKnifeModel />}
       </group>
     </group>
-  );
+  )
 }
 
 // ─── AK-47 ────────────────────────────────────────────────────────
@@ -208,7 +222,7 @@ function AK47Model() {
         <meshStandardMaterial color="#555555" />
       </mesh>
     </group>
-  );
+  )
 }
 
 // ─── M4A1 ────────────────────────────────────────────────────────
@@ -272,7 +286,7 @@ function M4A1Model() {
         <meshStandardMaterial color="#555555" />
       </mesh>
     </group>
-  );
+  )
 }
 
 // ─── AWP ────────────────────────────────────────────────────────
@@ -359,7 +373,7 @@ function AWPModel() {
         <meshStandardMaterial color="#444444" />
       </mesh>
     </group>
-  );
+  )
 }
 
 // ─── Desert Eagle ────────────────────────────────────────────────
@@ -375,7 +389,11 @@ function DeagleModel() {
       {/* Slide top ridge */}
       <mesh position={[0, 0.042, -0.02]}>
         <boxGeometry args={[0.035, 0.012, 0.18]} />
-        <meshStandardMaterial color="#FFD700" metalness={0.8} roughness={0.15} />
+        <meshStandardMaterial
+          color="#FFD700"
+          metalness={0.8}
+          roughness={0.15}
+        />
       </mesh>
       {/* Barrel */}
       <mesh position={[0, 0.015, -0.18]}>
@@ -432,7 +450,7 @@ function DeagleModel() {
         <meshStandardMaterial color="#DAA520" metalness={0.6} roughness={0.3} />
       </mesh>
     </group>
-  );
+  )
 }
 
 // ─── MP5 ────────────────────────────────────────────────────────
@@ -500,7 +518,7 @@ function MP5Model() {
         <meshStandardMaterial color="#383838" />
       </mesh>
     </group>
-  );
+  )
 }
 
 // ─── Knife ──────────────────────────────────────────────────────
@@ -516,7 +534,11 @@ function KnifeModel() {
       {/* Blade edge — angled */}
       <mesh position={[0.008, 0.08, -0.01]} rotation={[0.1, 0, 0]}>
         <boxGeometry args={[0.008, 0.12, 0.02]} />
-        <meshStandardMaterial color="#A8A8A8" metalness={0.85} roughness={0.15} />
+        <meshStandardMaterial
+          color="#A8A8A8"
+          metalness={0.85}
+          roughness={0.15}
+        />
       </mesh>
       {/* Guard */}
       <mesh position={[0, 0.01, 0]}>
@@ -543,7 +565,7 @@ function KnifeModel() {
         <meshStandardMaterial color="#444444" />
       </mesh>
     </group>
-  );
+  )
 }
 
 // ─── Glock-18 ───────────────────────────────────────────────────
@@ -616,7 +638,7 @@ function GlockModel() {
         <meshStandardMaterial color="#555555" />
       </mesh>
     </group>
-  );
+  )
 }
 
 // ─── Tec-9 ──────────────────────────────────────────────────────
@@ -694,7 +716,7 @@ function Tec9Model() {
         <meshStandardMaterial color="#444444" />
       </mesh>
     </group>
-  );
+  )
 }
 
 // ─── Auto Pistol ────────────────────────────────────────────────
@@ -767,7 +789,7 @@ function AutoPistolModel() {
         <meshStandardMaterial color="#666666" />
       </mesh>
     </group>
-  );
+  )
 }
 
 // ─── Combat Knife ───────────────────────────────────────────────
@@ -778,17 +800,29 @@ function CombatKnifeModel() {
       {/* Blade — larger, tanto-style */}
       <mesh position={[0, 0.09, -0.01]} rotation={[0.08, 0, 0]}>
         <boxGeometry args={[0.014, 0.16, 0.045]} />
-        <meshStandardMaterial color="#B0B0B0" metalness={0.9} roughness={0.08} />
+        <meshStandardMaterial
+          color="#B0B0B0"
+          metalness={0.9}
+          roughness={0.08}
+        />
       </mesh>
       {/* Blade spine — thicker back edge */}
       <mesh position={[-0.006, 0.09, -0.01]} rotation={[0.08, 0, 0]}>
         <boxGeometry args={[0.006, 0.14, 0.04]} />
-        <meshStandardMaterial color="#999999" metalness={0.85} roughness={0.12} />
+        <meshStandardMaterial
+          color="#999999"
+          metalness={0.85}
+          roughness={0.12}
+        />
       </mesh>
       {/* Blade edge — sharp side */}
       <mesh position={[0.009, 0.09, -0.01]} rotation={[0.08, 0, 0]}>
         <boxGeometry args={[0.005, 0.13, 0.02]} />
-        <meshStandardMaterial color="#D0D0D0" metalness={0.95} roughness={0.05} />
+        <meshStandardMaterial
+          color="#D0D0D0"
+          metalness={0.95}
+          roughness={0.05}
+        />
       </mesh>
       {/* Guard — tactical */}
       <mesh position={[0, 0.01, 0]}>
@@ -832,5 +866,5 @@ function CombatKnifeModel() {
         <meshStandardMaterial color="#444444" metalness={0.7} roughness={0.3} />
       </mesh>
     </group>
-  );
+  )
 }

@@ -330,9 +330,13 @@ export function ShootingSystem() {
     const controller = recoilController.current;
     if (!controller) return;
 
-    // Update recoil controller recovery
+    // Update recoil controller recovery with ADS-aware damping for a cleaner feel
     const { offsetX, offsetY } = controller.update(1 / 60);
-    updateRecoil(offsetX * sensitivity, offsetY * sensitivity);
+    const recoilScale = isADS ? 0.55 : 1;
+    updateRecoil(
+      offsetX * sensitivity * recoilScale,
+      offsetY * sensitivity * recoilScale
+    );
   });
 
   return null;
