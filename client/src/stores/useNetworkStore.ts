@@ -1,0 +1,671 @@
+import { create } from "zustand";
+import { Client, Room } from "colyseus.js";
+import { GameState, PlayerState, Snapshot, ROUND, WEAPONS } from "@cs-game/shared";
+import { useWeaponStore, type WeaponKey } from "./useWeaponStore";
+
+interface RemotePlayer {
+  x: number;
+  y: number;
+  z: number;
+  rotationY: number;
+  nickname: string;
+  team: string;
+  hp: number;
+  isDead: boolean;
+  currentWeapon: string;
+  hasBomb: boolean;
+  kills: number;
+  deaths: number;
+  isSprinting: boolean;
+  isCrouching: boolean;
+}
+
+interface KillEvent {
+  killerId: string;
+  killerName: string;
+  victimId: string;
+  victimName: string;
+  weapon: string;
+  headshot: boolean;
+  timestamp: number;
+}
+
+interface DamageEvent {
+  shooterId: string;
+  victimId: string;
+  damage: number;
+  hp: number;
+  headshot: boolean;
+}
+
+interface RoundState {
+  phase: string;
+  roundTimeLeft: number;
+  buyPhaseTimeLeft: number;
+  roundNumber: number;
+  teamRedScore: number;
+  teamBlueScore: number;
+  bombPlanted: boolean;
+  bombTimeLeft: number;
+  bombSite: string;
+  isHalfTime: boolean;
+  isOvertime: boolean;
+  isSuddenDeath: boolean;
+  readyCount: number;
+  maxRounds: number;
+  gameMode: string;
+}
+
+interface VoteRequest {
+  targetId: string;
+  targetNickname: string;
+  initiatorId: string;
+}
+
+interface SmokeData {
+  x: number;
+  z: number;
+  timeLeft: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  sender: string;
+  message: string;
+  team?: string;
+  timestamp: number;
+}
+
+interface NetworkState {
+  client: Client | null;
+  room: Room<GameState> | null;
+  sessionId: string | null;
+  connected: boolean;
+  reconnecting: boolean;
+  remotePlayers: Map<string, RemotePlayer>;
+  lastSnapshot: Snapshot | null;
+  ping: number;
+  pingHistory: number[];
+  latency: number;
+  killFeed: KillEvent[];
+  hitMarker: { headshot: boolean; timestamp: number } | null;
+  round: RoundState;
+  playerScores: Map<string, number>;
+  smokes: SmokeData[];
+  localHp: number;
+  localIsDead: boolean;
+  localMoney: number;
+  localTeam: string;
+  localWeapon: string;
+  localPrimaryWeapon: string;
+  localSecondaryWeapon: string;
+  localKnifeSlot: string;
+  localArmor: number;
+  localHelmet: boolean;
+  localGrenadeHE: number;
+  localGrenadeSmoke: number;
+  localGrenadeFlash: number;
+  localHasBomb: boolean;
+  localReady: boolean;
+  localKills: number;
+  localDeaths: number;
+  localX: number;
+  localZ: number;
+  localRotationY: number;
+  droppedBombPos: { x: number; y: number; z: number } | null;
+  voteRequest: VoteRequest | null;
+  chatMessages: ChatMessage[];
+  deathRecap: { killerName: string; weapon: string; headshot: boolean } | null;
+
+  connect: (nickname: string, mode?: string) => Promise<void>;
+  disconnect: () => void;
+  sendInput: (input: Record<string, unknown>) => void;
+  sendShoot: (data: Record<string, unknown>) => void;
+  sendReload: () => void;
+  sendBuy: (item: string) => void;
+  sendReady: () => void;
+  sendPlantStart: (site: "A" | "B") => void;
+  sendPlantCancel: () => void;
+  sendDefuseStart: (kit: boolean) => void;
+  sendDefuseCancel: () => void;
+  sendPickupBomb: () => void;
+  sendSwitchWeapon: (slot: number) => void;
+  sendThrowGrenade: (data: { type: "he" | "smoke" | "flash"; origin: { x: number; y: number; z: number }; velocity: { x: number; y: number; z: number } }) => void;
+  sendGameMode: (mode: string) => void;
+  sendVoteRequest: (targetId: string) => void;
+  sendVote: (targetId: string, vote: boolean) => void;
+  sendChat: (message: string) => void;
+  addKillEvent: (event: KillEvent) => void;
+  showHitMarker: (headshot: boolean) => void;
+  measurePing: () => void;
+}
+
+const initialRound: RoundState = {
+  phase: "waiting",
+  roundTimeLeft: 0,
+  buyPhaseTimeLeft: 0,
+  roundNumber: 1,
+  teamRedScore: 0,
+  teamBlueScore: 0,
+  bombPlanted: false,
+  bombTimeLeft: 0,
+  bombSite: "",
+  isHalfTime: false,
+  isOvertime: false,
+  isSuddenDeath: false,
+  readyCount: 0,
+  maxRounds: ROUND.maxRounds,
+  gameMode: "bomb_defusal",
+};
+
+const SESSION_KEY = "cs_game_session";
+const MAX_RECONNECT_ATTEMPTS = 12;
+
+// ─── Reconnect bookkeeping ──────────────────────────────────────
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let retryCount = 0;
+let retryNickname = "";
+let retryMode = "bomb_defusal";
+
+function clearRetry() {
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+  retryCount = 0;
+}
+
+export const useNetworkStore = create<NetworkState>()((set, get) => ({
+  client: null,
+  room: null,
+  sessionId: null,
+  connected: false,
+  reconnecting: false,
+  remotePlayers: new Map(),
+  lastSnapshot: null,
+  ping: 0,
+  pingHistory: [],
+  latency: 0,
+  killFeed: [],
+  hitMarker: null,
+  round: { ...initialRound },
+  playerScores: new Map(),
+  smokes: [],
+  localHp: 100,
+  localIsDead: false,
+  localMoney: 800,
+  localTeam: "",
+  localWeapon: "deagle",
+  localPrimaryWeapon: "",
+  localSecondaryWeapon: "deagle",
+  localKnifeSlot: "knife",
+  localArmor: 0,
+  localHelmet: false,
+  localGrenadeHE: 0,
+  localGrenadeSmoke: 0,
+  localGrenadeFlash: 0,
+  localHasBomb: false,
+  localReady: false,
+  localKills: 0,
+  localDeaths: 0,
+  localX: 0,
+  localZ: 0,
+  localRotationY: 0,
+  droppedBombPos: null,
+  voteRequest: null,
+  chatMessages: [],
+  deathRecap: null,
+
+  connect: async (nickname: string, mode = "bomb_defusal") => {
+    clearRetry();
+    retryNickname = nickname;
+    retryMode = mode;
+
+    const client = new Client("ws://localhost:2567");
+    let room: Room<GameState> | null = null;
+    let isReconnect = false;
+
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) {
+        try {
+          const { reconnectionToken } = JSON.parse(saved);
+          if (reconnectionToken) {
+            room = await client.reconnect<GameState>(reconnectionToken);
+            isReconnect = true;
+          }
+        } catch {
+          sessionStorage.removeItem(SESSION_KEY);
+        }
+      }
+
+      if (!room) {
+        room = await client.joinOrCreate<GameState>("fps_room", {
+          nickname,
+        });
+        sessionStorage.setItem(
+          SESSION_KEY,
+          JSON.stringify({ reconnectionToken: room.reconnectionToken })
+        );
+      }
+
+      set({
+        client,
+        room,
+        sessionId: room.sessionId,
+        connected: true,
+        reconnecting: false,
+      });
+
+      setupRoom(room, nickname, mode, isReconnect);
+    } catch (e) {
+      console.error("Failed to join room:", e);
+      set({ reconnecting: false });
+    }
+  },
+
+  disconnect: () => {
+    clearRetry();
+    sessionStorage.removeItem(SESSION_KEY);
+    const { room } = get();
+    if (room) {
+      room.leave();
+    }
+    set({
+      client: null,
+      room: null,
+      sessionId: null,
+      connected: false,
+      reconnecting: false,
+      remotePlayers: new Map(),
+      lastSnapshot: null,
+      killFeed: [],
+      hitMarker: null,
+      voteRequest: null,
+      round: { ...initialRound },
+      playerScores: new Map(),
+      smokes: [],
+      localHp: 100,
+      localIsDead: false,
+      localMoney: 800,
+      localTeam: "",
+      localWeapon: "deagle",
+      localGrenadeHE: 0,
+      localGrenadeSmoke: 0,
+      localGrenadeFlash: 0,
+      localHasBomb: false,
+      localReady: false,
+      localKills: 0,
+      localDeaths: 0,
+      localX: 0,
+      localZ: 0,
+      localRotationY: 0,
+      droppedBombPos: null,
+      chatMessages: [],
+    });
+  },
+
+  sendInput: (input: Record<string, unknown>) => {
+    const { room } = get();
+    if (room) room.send("input", input);
+  },
+
+  sendShoot: (data: Record<string, unknown>) => {
+    const { room } = get();
+    if (room) room.send("shoot", data);
+  },
+
+  sendReload: () => {
+    const { room } = get();
+    if (room) room.send("reload");
+  },
+
+  sendBuy: (item: string) => {
+    const { room } = get();
+    if (room) room.send("buy", { item });
+  },
+
+  sendReady: () => {
+    const { room } = get();
+    if (room) room.send("ready");
+  },
+
+  sendPlantStart: (site: "A" | "B") => {
+    const { room } = get();
+    if (room) room.send("plant_start", { site });
+  },
+
+  sendPlantCancel: () => {
+    const { room } = get();
+    if (room) room.send("plant_cancel");
+  },
+
+  sendDefuseStart: (kit: boolean) => {
+    const { room } = get();
+    if (room) room.send("defuse_start", { kit });
+  },
+
+  sendDefuseCancel: () => {
+    const { room } = get();
+    if (room) room.send("defuse_cancel");
+  },
+
+  sendPickupBomb: () => {
+    const { room } = get();
+    if (room) room.send("pickup_bomb");
+  },
+
+  sendSwitchWeapon: (slot: number) => {
+    const { room } = get();
+    if (room) room.send("switch_weapon", { slot });
+  },
+
+  sendThrowGrenade: (data) => {
+    const { room } = get();
+    if (room) room.send("throw_grenade", data);
+  },
+
+  sendGameMode: (mode: string) => {
+    const { room } = get();
+    if (room) room.send("set_game_mode", { mode });
+  },
+
+  sendVoteRequest: (targetId: string) => {
+    const { room } = get();
+    if (room) room.send("vote_request", { targetId });
+  },
+
+  sendVote: (targetId: string, vote: boolean) => {
+    const { room } = get();
+    if (room) room.send("vote_kick", { targetId, vote });
+  },
+
+  sendChat: (message: string) => {
+    const { room } = get();
+    if (room) room.send("chat", { message });
+  },
+
+  addKillEvent: (event: KillEvent) => {
+    const { sessionId } = useNetworkStore.getState();
+    const isDeath = sessionId && event.victimId === sessionId;
+    
+    set((state) => ({
+      killFeed: [event, ...state.killFeed].slice(0, 5),
+      deathRecap: isDeath ? {
+        killerName: event.killerName,
+        weapon: event.weapon,
+        headshot: event.headshot,
+      } : state.deathRecap,
+    }));
+  },
+
+  showHitMarker: (headshot: boolean) => {
+    set({ hitMarker: { headshot, timestamp: performance.now() } });
+    setTimeout(() => {
+      set({ hitMarker: null });
+    }, 200);
+  },
+
+  measurePing: () => {
+    const { room } = get();
+    if (!room) return;
+
+    const startTime = performance.now();
+    room.send("ping", { timestamp: startTime });
+  },
+}));
+
+// ─── Room wiring (shared by initial join and reconnect) ─────────
+function setupRoom(
+  room: Room<GameState>,
+  nickname: string,
+  mode: string,
+  isReconnect: boolean
+) {
+  if (!isReconnect) {
+    // Apply the selected game mode right after joining.
+    room.send("set_game_mode", { mode });
+  }
+
+  room.onStateChange((state: GameState) => {
+    const remotePlayers = new Map<string, RemotePlayer>();
+    state.players.forEach((player: PlayerState, id: string) => {
+      if (id !== room.sessionId) {
+        remotePlayers.set(id, {
+          x: player.x,
+          y: player.y,
+          z: player.z,
+          rotationY: player.rotationY,
+          nickname: player.nickname,
+          team: player.team,
+          hp: player.hp,
+          isDead: player.isDead,
+          currentWeapon: player.currentWeapon,
+          hasBomb: player.hasBomb,
+          kills: player.kills,
+          deaths: player.deaths,
+          isSprinting: player.isSprinting,
+          isCrouching: player.isCrouching,
+        });
+      }
+    });
+
+    const localPlayer = state.players.get(room.sessionId);
+    const playerScores = new Map<string, number>();
+    state.playerScores.forEach((score, key) => {
+      playerScores.set(key, score);
+    });
+    const smokes: SmokeData[] = [];
+    state.smokes.forEach((smoke) => {
+      smokes.push({ x: smoke.x, z: smoke.z, timeLeft: smoke.timeLeft });
+    });
+
+    useNetworkStore.setState({
+      remotePlayers,
+      playerScores,
+      smokes,
+      localHp: localPlayer ? localPlayer.hp : 100,
+      localIsDead: localPlayer ? localPlayer.isDead : false,
+      localMoney: localPlayer ? localPlayer.money : 800,
+      localTeam: localPlayer ? localPlayer.team : "",
+      localWeapon: localPlayer ? localPlayer.currentWeapon : "deagle",
+      localPrimaryWeapon: localPlayer ? localPlayer.primaryWeapon : "",
+      localSecondaryWeapon: localPlayer ? localPlayer.secondaryWeapon : "deagle",
+      localKnifeSlot: localPlayer ? localPlayer.knifeSlot : "knife",
+      localArmor: localPlayer ? localPlayer.armor : 0,
+      localHelmet: localPlayer ? localPlayer.hasHelmet : false,
+      localGrenadeHE: localPlayer ? localPlayer.grenadeHE : 0,
+      localGrenadeSmoke: localPlayer ? localPlayer.grenadeSmoke : 0,
+      localGrenadeFlash: localPlayer ? localPlayer.grenadeFlash : 0,
+      localHasBomb: localPlayer ? localPlayer.hasBomb : false,
+      localReady: localPlayer ? localPlayer.isReady : false,
+      localKills: localPlayer ? localPlayer.kills : 0,
+      localDeaths: localPlayer ? localPlayer.deaths : 0,
+      localX: localPlayer ? localPlayer.x : 0,
+      localZ: localPlayer ? localPlayer.z : 0,
+      localRotationY: localPlayer ? localPlayer.rotationY : 0,
+      round: {
+        phase: state.phase,
+        roundTimeLeft: state.roundTimeLeft,
+        buyPhaseTimeLeft: state.buyPhaseTimeLeft,
+        roundNumber: state.roundNumber,
+        teamRedScore: state.teamRedScore,
+        teamBlueScore: state.teamBlueScore,
+        bombPlanted: state.bombPlanted,
+        bombTimeLeft: state.bombTimeLeft,
+        bombSite: state.bombSite,
+        isHalfTime: state.isHalfTime,
+        isOvertime: state.isOvertime,
+        isSuddenDeath: state.isSuddenDeath,
+        readyCount: state.readyCount,
+        maxRounds: state.maxRounds,
+        gameMode: state.gameMode,
+      },
+    });
+  });
+
+  room.onMessage("snapshot", (snapshot: Snapshot) => {
+    // Only trust snapshots during the active phase to avoid
+    // stale snap-back teleports while in buy/waiting phases.
+    if (useNetworkStore.getState().round.phase !== "active") return;
+    useNetworkStore.setState({ lastSnapshot: snapshot });
+  });
+
+  room.onMessage("vote_request", (data: VoteRequest) => {
+    useNetworkStore.setState({ voteRequest: data });
+  });
+
+  room.onMessage("kicked", (data: { targetId: string; targetNickname: string }) => {
+    useNetworkStore.setState({ voteRequest: null });
+    if (data.targetId === room.sessionId) {
+      alert(`You were kicked by vote (${data.targetNickname}'s initiator voted).`);
+    }
+  });
+
+  room.onMessage("damage", (data: DamageEvent) => {
+    const { sessionId, showHitMarker } = useNetworkStore.getState();
+    if (sessionId && data.shooterId === sessionId) {
+      showHitMarker(data.headshot);
+    }
+  });
+
+  room.onMessage("kill", (event: KillEvent) => {
+    useNetworkStore.getState().addKillEvent(event);
+  });
+
+  room.onMessage(
+    "itemBought",
+    (data: { item: string; slot: "weapon" | "gear" | "utility" }) => {
+      if (data.slot === "weapon" && data.item in WEAPONS) {
+        useWeaponStore.getState().equipWeapon(data.item as WeaponKey);
+      }
+    }
+  );
+
+  room.onMessage("bombDropped", (data: { x: number; y: number; z: number }) => {
+    useNetworkStore.setState({ droppedBombPos: data });
+  });
+
+  room.onMessage("bombPickedUp", () => {
+    useNetworkStore.setState({ droppedBombPos: null });
+  });
+
+  room.onMessage("bombPlanted", () => {
+    useNetworkStore.setState({ droppedBombPos: null });
+  });
+
+  room.onMessage("weaponSwitched", (data: { playerId: string; weapon: string; slot: number }) => {
+    if (data.playerId !== room.sessionId) return;
+    useWeaponStore.getState().equipWeapon(data.weapon as WeaponKey);
+  });
+
+  room.onMessage("grenadeThrown", (data: { id: string; type: string; throwerId: string; x: number; y: number; z: number; vx: number; vy: number; vz: number }) => {
+    window.dispatchEvent(new CustomEvent("nadeThrown", { detail: data }));
+  });
+
+  room.onMessage("grenadeDetonated", (data: { id: string; type: string; x: number; y: number; z: number }) => {
+    window.dispatchEvent(new CustomEvent("nadeDetonated", { detail: data }));
+  });
+
+  room.onMessage("flash", (data: { x: number; y: number; z: number; throwerId: string }) => {
+    window.dispatchEvent(new CustomEvent("flashbang", { detail: data }));
+  });
+
+  room.onMessage("pong", (data: { timestamp: number }) => {
+    const rtt = performance.now() - data.timestamp;
+    const { pingHistory } = useNetworkStore.getState();
+    const newHistory = [...pingHistory, rtt].slice(-20);
+    const avgPing = newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
+    useNetworkStore.setState({ ping: Math.round(avgPing), latency: avgPing / 2, pingHistory: newHistory });
+  });
+
+  room.onMessage("chat", (data: { senderId: string; sender: string; message: string; team?: string; timestamp: number }) => {
+    const msg: ChatMessage = {
+      id: `${data.senderId}-${data.timestamp}-${Math.random()}`,
+      senderId: data.senderId,
+      sender: data.sender,
+      message: data.message,
+      team: data.team,
+      timestamp: data.timestamp || Date.now(),
+    };
+    useNetworkStore.setState((state) => ({
+      chatMessages: [...state.chatMessages.slice(-49), msg],
+    }));
+  });
+
+  room.onMessage("radio", (data: { sender: string; code: number; team: string }) => {
+    window.dispatchEvent(new CustomEvent("radioCommand", { detail: data }));
+  });
+
+  room.onMessage("playerReconnected", (data: { sessionId: string; nickname: string }) => {
+    window.dispatchEvent(new CustomEvent("playerReconnected", { detail: data }));
+  });
+
+  room.onLeave(() => {
+    // Keep the session stored so we can attempt a reconnect.
+    useNetworkStore.setState({
+      connected: false,
+      room: null,
+      sessionId: null,
+      remotePlayers: new Map(),
+      lastSnapshot: null,
+      killFeed: [],
+      hitMarker: null,
+      voteRequest: null,
+    });
+    scheduleReconnect(nickname, mode);
+  });
+}
+
+function scheduleReconnect(nickname: string, mode: string) {
+  const saved = sessionStorage.getItem(SESSION_KEY);
+  if (!saved) return;
+
+  retryNickname = nickname;
+  retryMode = mode;
+
+  if (retryCount >= MAX_RECONNECT_ATTEMPTS) {
+    sessionStorage.removeItem(SESSION_KEY);
+    useNetworkStore.setState({ reconnecting: false });
+    return;
+  }
+
+  retryCount++;
+  useNetworkStore.setState({ reconnecting: true });
+
+  const client = new Client("ws://localhost:2567");
+  let reconnectionToken = "";
+  try {
+    ({ reconnectionToken } = JSON.parse(saved));
+  } catch {
+    sessionStorage.removeItem(SESSION_KEY);
+    useNetworkStore.setState({ reconnecting: false });
+    return;
+  }
+
+  if (!reconnectionToken) {
+    sessionStorage.removeItem(SESSION_KEY);
+    useNetworkStore.setState({ reconnecting: false });
+    return;
+  }
+
+  client
+    .reconnect<GameState>(reconnectionToken)
+    .then((room) => {
+      const typedRoom = room as Room<GameState>;
+      clearRetry();
+      useNetworkStore.setState({
+        client,
+        room: typedRoom,
+        sessionId: typedRoom.sessionId,
+        connected: true,
+        reconnecting: false,
+      });
+      setupRoom(typedRoom, retryNickname, retryMode, true);
+    })
+    .catch(() => {
+      clearRetry();
+      retryTimer = setTimeout(() => scheduleReconnect(retryNickname, retryMode), 5000);
+    });
+}
