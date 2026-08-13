@@ -138,7 +138,9 @@ export default function SettingsMenu() {
               max={100}
               step={5}
               value={sfxVolume}
-              onChange={e => handleSfxVolumeChange(parseInt(e.target.value, 10))}
+              onChange={e =>
+                handleSfxVolumeChange(parseInt(e.target.value, 10))
+              }
               style={{ width: '100%' }}
             />
             <div style={{ fontSize: 12, color: '#aaa' }}>{sfxVolume}%</div>
@@ -151,7 +153,9 @@ export default function SettingsMenu() {
               max={100}
               step={5}
               value={musicVolume}
-              onChange={e => setMusicVolume(parseInt(e.target.value, 10))}
+              onChange={e =>
+                handleMusicVolumeChange(parseInt(e.target.value, 10))
+              }
               style={{ width: '100%' }}
             />
             <div style={{ fontSize: 12, color: '#aaa' }}>{musicVolume}%</div>

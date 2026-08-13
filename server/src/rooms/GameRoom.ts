@@ -955,7 +955,6 @@ export class GameRoom extends Room<GameState> {
     player.isAirborne = player.y > 0.1;
 
     // Record position sample for lag compensation
-    const now = performance.now();
     let history = this.shootHistory.get(sessionId);
     if (!history) {
       history = [];
