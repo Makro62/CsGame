@@ -77,34 +77,8 @@ interface GrenadeSim {
 }
 
 // ray vs AABB (slab method). Returns entry distance or null.
-function rayVsBox(
-  ox: number, oy: number, oz: number,
-  dx: number, dy: number, dz: number,
-  box: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number }
-): number | null {
-  let tmin = 0;
-  let tmax = Infinity;
-
-  const axes = [
-    [dx, ox, box.minX, box.maxX] as const,
-    [dy, oy, box.minY, box.maxY] as const,
-    [dz, oz, box.minZ, box.maxZ] as const,
-  ];
-
-  for (const [d, o, lo, hi] of axes) {
-    if (Math.abs(d) < 1e-9) {
-      if (o < lo || o > hi) return null;
-      continue;
-    }
-    let t1 = (lo - o) / d;
-    let t2 = (hi - o) / d;
-    if (t1 > t2) [t1, t2] = [t2, t1];
-    tmin = Math.max(tmin, t1);
-    tmax = Math.min(tmax, t2);
-    if (tmin > tmax) return null;
-  }
-  return tmax >= 0 ? Math.max(tmin, 0) : null;
-}
+// Re-export from shared utility — local kept for hasLineOfSight closure.
+import { rayVsBox } from "../utils/geometry";
 
 // Check if line of sight exists between two points (no solid obstacles blocking)
 function hasLineOfSight(
@@ -153,7 +127,7 @@ function bounceAxis(
 }
 
 export class GameRoom extends Room<GameState> {
-  private tickInterval: ReturnType<typeof setInterval> | null = null;
+  private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private respawnTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private phaseTimerId: ReturnType<typeof setTimeout> | null = null;
   private spawnProtection: Map<string, number> = new Map();
@@ -175,6 +149,8 @@ export class GameRoom extends Room<GameState> {
   private lastRadioTime: Map<string, number> = new Map();
   // Rate limiting for vote kick requests
   private lastVoteTime: Map<string, number> = new Map();
+  // Rate limiting for buy requests
+  private lastBuyTime: Map<string, number> = new Map();
   // Server-side grenade simulation (not synced as schema; transient)
   private grenades: Map<string, GrenadeSim> = new Map();
   private grenadeCooldowns: Map<string, number> = new Map();
@@ -286,6 +262,12 @@ export class GameRoom extends Room<GameState> {
 
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+
+      // Rate limit: 500ms cooldown per player for buy requests
+      const now = performance.now();
+      const lastBuy = this.lastBuyTime.get(client.sessionId) || 0;
+      if (now - lastBuy < 500) return;
+      this.lastBuyTime.set(client.sessionId, now);
 
       // Verify player is in buy zone
       const buyZone = BUY_ZONE[player.team as keyof typeof BUY_ZONE];
@@ -484,6 +466,15 @@ export class GameRoom extends Room<GameState> {
       );
       if (speed <= 0 || speed > GRENADE.maxThrowSpeed) return;
 
+      // Anti-cheat: throw direction must be forward (within ±90° of player facing)
+      const playerForwardX = -Math.sin(player.rotationY);
+      const playerForwardZ = -Math.cos(player.rotationY);
+      const velHorizLen = Math.sqrt(velocity.x ** 2 + velocity.z ** 2);
+      if (velHorizLen > 0.1) {
+        const dot = (velocity.x * playerForwardX + velocity.z * playerForwardZ) / velHorizLen;
+        if (dot < -0.3) return; // reject backward throws
+      }
+
       (player as unknown as Record<string, number>)[ammoField]--;
 
       const id = `g-${client.sessionId}-${++this.grenadeSeq}`;
@@ -556,7 +547,8 @@ export class GameRoom extends Room<GameState> {
 
       if (typeof data?.message !== "string") return;
       const message = data.message
-        .replace(/[\u0000-\u001f\u007f]/g, "")
+        .replace(/[\u0000-\u001f\u007f\u200b-\u200f\ufeff]/g, "") // zero-width + control chars
+        .replace(/[<>"']/g, "") // HTML injection prevention
         .trim()
         .slice(0, MAX_CHAT_LENGTH);
       if (!message) return;
@@ -576,6 +568,7 @@ export class GameRoom extends Room<GameState> {
       if (data.targetId === client.sessionId) return;
       if (!this.state.players.has(client.sessionId)) return;
       if (this.state.players.size < 2) return;
+      if (this.state.players.size < 4) return; // minimum 4 players for vote kick
       if (this.vote) return;
 
       // Rate limit: 30 second cooldown per player for vote requests
@@ -611,7 +604,7 @@ export class GameRoom extends Room<GameState> {
         if (data.vote) vote.yesVotes.add(client.sessionId);
 
         const yesCount = vote.yesVotes.size;
-        if (yesCount / this.state.players.size >= 0.5) {
+        if (yesCount / (this.state.players.size - 1) >= 0.66) {
           const targetClient = this.clients.find(
             (c) => c.sessionId === vote.targetId
           );
@@ -655,18 +648,17 @@ export class GameRoom extends Room<GameState> {
   }
 
   private startTickLoop() {
-    if (this.tickInterval) return;
-    this.tickInterval = setInterval(() => {
+    if (this.tickTimer) return;
+    const tick = () => {
       const now = performance.now();
+      const startTime = now;
 
       if (this.state.phase === "active") {
         this.state.roundTimeLeft = Math.max(0, this.state.roundTimeLeft - 1 / SERVER.tickRate);
         if (this.state.roundTimeLeft <= 0) {
           if (this.state.gameMode === "bomb_defusal") {
-            // Bomb explodes (or defusal failed) the moment time runs out.
             this.endRound(this.state.bombPlanted ? "T" : "CT");
           } else {
-            // FFA/TDM run until the win condition; no round timeout.
             this.state.roundTimeLeft = ROUND.activePhaseDuration;
           }
         }
@@ -693,7 +685,6 @@ export class GameRoom extends Room<GameState> {
         }
       }
 
-      // Smoke lifecycle (authoritative, synced via schema)
       this.state.smokes.forEach((smoke, id) => {
         smoke.timeLeft -= 1 / SERVER.tickRate;
         if (smoke.timeLeft <= 0) {
@@ -706,7 +697,11 @@ export class GameRoom extends Room<GameState> {
       this.processDefusing();
       this.processKOTH();
       this.updateBots(1 / SERVER.tickRate);
-    }, TICK_MS);
+
+      const elapsed = performance.now() - startTime;
+      this.tickTimer = setTimeout(tick, Math.max(1, TICK_MS - elapsed));
+    };
+    this.tickTimer = setTimeout(tick, TICK_MS);
   }
 
   onJoin(client: Client, options: { nickname?: string }) {
@@ -787,6 +782,7 @@ export class GameRoom extends Room<GameState> {
     this.lastChatTime.delete(sessionId);
     this.lastRadioTime.delete(sessionId);
     this.lastVoteTime.delete(sessionId);
+    this.lastBuyTime.delete(sessionId);
 
     // ─── Reconnect window: player state is preserved for 60s ───
     if (player && this.state.phase !== "waiting") {
@@ -883,7 +879,7 @@ export class GameRoom extends Room<GameState> {
   }
 
   private clearAllTimers() {
-    if (this.tickInterval) { clearInterval(this.tickInterval); this.tickInterval = null; }
+    if (this.tickTimer) { clearTimeout(this.tickTimer); this.tickTimer = null; }
     if (this.bombCtrl.bombTimerId) { clearTimeout(this.bombCtrl.bombTimerId); this.bombCtrl.bombTimerId = null; }
     if (this.phaseTimerId) { clearTimeout(this.phaseTimerId); this.phaseTimerId = null; }
     this.respawnTimers.forEach((t) => clearTimeout(t));
@@ -913,13 +909,21 @@ export class GameRoom extends Room<GameState> {
     const sin = Math.sin(input.rotationY);
     const cos = Math.cos(input.rotationY);
 
+    let dirX = 0;
+    let dirZ = 0;
+
+    if (input.forward) { dirX -= sin; dirZ -= cos; }
+    if (input.backward) { dirX += sin; dirZ += cos; }
+    if (input.left) { dirX -= cos; dirZ += sin; }
+    if (input.right) { dirX += cos; dirZ -= sin; }
+
     let moveX = 0;
     let moveZ = 0;
-
-    if (input.forward) { moveX -= sin * speed * dt; moveZ -= cos * speed * dt; }
-    if (input.backward) { moveX += sin * speed * dt; moveZ += cos * speed * dt; }
-    if (input.left) { moveX -= cos * speed * dt; moveZ += sin * speed * dt; }
-    if (input.right) { moveX += cos * speed * dt; moveZ -= sin * speed * dt; }
+    const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
+    if (len > 0.0001) {
+      moveX = (dirX / len) * speed * dt;
+      moveZ = (dirZ / len) * speed * dt;
+    }
 
     const delta = Math.sqrt(moveX * moveX + moveZ * moveZ);
     const maxDelta = SERVER.maxVelocity * dt * SERVER.maxDelta;

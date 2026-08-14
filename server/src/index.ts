@@ -1,9 +1,7 @@
-import colyseus from "colyseus";
+import { Server, LobbyRoom } from "colyseus";
 import { monitor } from "@colyseus/monitor";
 import { createServer } from "http";
 import { GameRoom } from "./rooms/GameRoom.js";
-
-const { Server, LobbyRoom } = colyseus as any;
 
 const port = Number(process.env.PORT) || 2567;
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useGameStore } from "../stores/useGameStore";
 import { useNetworkStore } from "../stores/useNetworkStore";
 import { ServerBrowser } from "../components/ServerBrowser";
@@ -13,6 +14,7 @@ const SERVER_MODES: { id: string; name: string; desc: string }[] = [
 
 export function MainMenu() {
   const { setMode, nickname, setNickname, serverMode, setServerMode, currentMap, setCurrentMap } = useGameStore();
+  const [, setLocation] = useLocation();
   const [showBrowser, setShowBrowser] = useState(false);
   const connect = useNetworkStore((s) => s.connect);
   const joinRoomById = useNetworkStore((s) => s.joinRoomById);
@@ -20,17 +22,19 @@ export function MainMenu() {
   const handleQuickJoin = () => {
     connect(nickname, serverMode);
     setMode("multiplayer");
+    setLocation("/play");
   };
 
   const handleJoinRoom = (roomId: string) => {
     joinRoomById(roomId, nickname);
     setMode("multiplayer");
+    setLocation("/play");
   };
 
   const handleCreateRoom = () => {
-    // Create a new room by joining (will create if none available)
     connect(nickname, serverMode);
     setMode("multiplayer");
+    setLocation("/play");
   };
 
   return (
@@ -215,7 +219,10 @@ export function MainMenu() {
         }}
       >
         <button
-          onClick={() => setMode("training")}
+          onClick={() => {
+            setMode("training");
+            setLocation("/training");
+          }}
           style={{
             padding: "16px 32px",
             fontSize: "18px",

@@ -33,6 +33,7 @@ const velocityXZ = new THREE.Vector2()
 const _lookTarget = new THREE.Vector3()
 const _currentPos = new THREE.Vector3()
 const _desiredMovement = new THREE.Vector3()
+const _euler = new THREE.Euler()
 
 const POINTER_LOCK_SENSITIVITY = 0.002
 
@@ -277,9 +278,9 @@ export function PlayerController() {
 
     // Calculate movement direction from quaternion yaw (matching server logic)
     // Extract yaw from quaternion to avoid Euler gimbal lock issues
-    const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ')
-    const sin = Math.sin(euler.y)
-    const cos = Math.cos(euler.y)
+    _euler.setFromQuaternion(camera.quaternion, 'YXZ')
+    const sin = Math.sin(_euler.y)
+    const cos = Math.cos(_euler.y)
 
     direction.set(0, 0, 0)
     if (input.forward) {
@@ -370,7 +371,7 @@ export function PlayerController() {
     // Air strafing
     if (!grounded.current && direction.lengthSq() > 0.001) {
       const velYaw = Math.atan2(velocityXZ.x, velocityXZ.y)
-      const camYaw = euler.y
+      const camYaw = _euler.y
       let delta = camYaw - velYaw
       while (delta > Math.PI) delta -= Math.PI * 2
       while (delta < -Math.PI) delta += Math.PI * 2
@@ -388,7 +389,7 @@ export function PlayerController() {
     // Curve slide
     if (slideState.current.active && direction.lengthSq() > 0.001) {
       const velYaw = Math.atan2(velocityXZ.x, velocityXZ.y)
-      const camYaw = euler.y
+      const camYaw = _euler.y
       let rot = camYaw - velYaw
       while (rot > Math.PI) rot -= Math.PI * 2
       while (rot < -Math.PI) rot += Math.PI * 2
@@ -540,7 +541,7 @@ export function PlayerController() {
       jump: input.jump,
       sprint: input.sprint,
       crouch: input.crouch,
-      rotationY: euler.y,
+      rotationY: _euler.y,
     })
 
     // Update last input for weapon sway

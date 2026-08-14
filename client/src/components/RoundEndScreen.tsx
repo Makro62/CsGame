@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'wouter'
 import { useNetworkStore } from '../stores/useNetworkStore'
 import { useGameStore } from '../stores/useGameStore'
 
@@ -7,6 +8,7 @@ export function RoundEndScreen() {
   const localTeam = useNetworkStore(s => s.localTeam)
   const disconnect = useNetworkStore(s => s.disconnect)
   const setMode = useGameStore(s => s.setMode)
+  const [, setLocation] = useLocation()
   const [countdown, setCountdown] = useState(4)
 
   useEffect(() => {
@@ -96,6 +98,7 @@ export function RoundEndScreen() {
               style={buttonStyle}
               onClick={() => {
                 setMode('menu')
+                setLocation('/')
                 disconnect()
               }}
             >

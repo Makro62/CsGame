@@ -13,6 +13,10 @@ const raycaster = new THREE.Raycaster();
 const spreadDir = new THREE.Vector2();
 const shootOrigin = new THREE.Vector3();
 const shootDirection = new THREE.Vector3();
+const _muzzleOffset = new THREE.Vector3();
+const _casingOffset = new THREE.Vector3();
+const _shellVelocity = new THREE.Vector3();
+const _tempVec3 = new THREE.Vector3();
 
 // Impact pool for reuse
 const impactPool: THREE.Mesh[] = [];
@@ -121,10 +125,9 @@ export function ShootingSystem() {
     camera.getWorldPosition(shootOrigin);
     camera.getWorldDirection(shootDirection);
 
-    // Position flash at weapon muzzle
-    const offset = new THREE.Vector3(0.1, -0.05, -0.5);
-    offset.applyQuaternion(camera.quaternion);
-    flash.position.copy(shootOrigin).add(offset);
+    _muzzleOffset.set(0.1, -0.05, -0.5);
+    _muzzleOffset.applyQuaternion(camera.quaternion);
+    flash.position.copy(shootOrigin).add(_muzzleOffset);
     flash.rotation.set(0, 0, Math.random() * Math.PI * 2);
     flash.visible = true;
     scene.add(flash);
@@ -140,15 +143,14 @@ export function ShootingSystem() {
     const casing = getShellCasingMesh();
     camera.getWorldPosition(shootOrigin);
 
-    // Position at weapon ejection port
-    const offset = new THREE.Vector3(0.15, 0, -0.3);
-    offset.applyQuaternion(camera.quaternion);
-    casing.position.copy(shootOrigin).add(offset);
+    _casingOffset.set(0.15, 0, -0.3);
+    _casingOffset.applyQuaternion(camera.quaternion);
+    casing.position.copy(shootOrigin).add(_casingOffset);
     casing.visible = true;
     scene.add(casing);
 
     // Animate casing
-    const velocity = new THREE.Vector3(
+    _shellVelocity.set(
       (Math.random() - 0.5) * 0.5,
       2 + Math.random(),
       (Math.random() - 0.5) * 0.5
@@ -163,16 +165,16 @@ export function ShootingSystem() {
         return;
       }
 
-      velocity.y -= 9.81 * 0.016;
-      casing.position.add(velocity.clone().multiplyScalar(0.016));
+      _shellVelocity.y -= 9.81 * 0.016;
+      casing.position.addScaledVector(_shellVelocity, 0.016);
       casing.rotation.x += 0.2;
       casing.rotation.z += 0.1;
 
       if (casing.position.y < 0) {
         casing.position.y = 0;
-        velocity.y *= -0.3;
-        velocity.x *= 0.8;
-        velocity.z *= 0.8;
+        _shellVelocity.y *= -0.3;
+        _shellVelocity.x *= 0.8;
+        _shellVelocity.z *= 0.8;
       }
 
       requestAnimationFrame(animate);
@@ -227,7 +229,7 @@ export function ShootingSystem() {
       createImpactEffect(hit.point, scene);
 
       // Tracer via Zustand instead of window.dispatchEvent
-      const startPos = camera.getWorldPosition(new THREE.Vector3());
+      const startPos = camera.getWorldPosition(_tempVec3);
       useGameStore.getState().setTracerEvent({
         start: { x: startPos.x, y: startPos.y, z: startPos.z },
         end: { x: hit.point.x, y: hit.point.y, z: hit.point.z },

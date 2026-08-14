@@ -126,6 +126,8 @@ export const useGameStore = create<GameState>()((set, get) => {
     setMode: (mode: GameMode) => {
       set({ mode })
       if (mode === 'training') {
+        // Clear multiplayer session to prevent stale reconnection attempts
+        sessionStorage.removeItem('cs_game_session')
         get().resetTargets()
         get().resetStats()
         set({ timer: 60, isTimerRunning: false })

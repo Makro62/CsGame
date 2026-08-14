@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react'
+import { Switch, Route, useLocation, Redirect } from 'wouter'
 import { Canvas } from '@react-three/fiber'
 import { Sky } from '@react-three/drei'
 import { Physics } from '@react-three/rapier'
@@ -43,7 +44,6 @@ function MultiplayerMode() {
   const MapComponent = getMapById(currentMap).component
   const noop = useCallback(() => {}, [])
 
-  // Measure ping periodically when connected
   useEffect(() => {
     if (!connected) return
 
@@ -105,16 +105,58 @@ function MultiplayerMode() {
   )
 }
 
+function SyncModeToURL() {
+  const [location, setLocation] = useLocation()
+
+  // Sync URL → store mode
+  useEffect(() => {
+    const mode = useGameStore.getState().mode
+    if (location === '/' && mode !== 'menu') {
+      useGameStore.getState().setMode('menu')
+    } else if (location === '/training' && mode !== 'training') {
+      useGameStore.getState().setMode('training')
+    } else if (location === '/play' && mode !== 'multiplayer') {
+      useGameStore.getState().setMode('multiplayer')
+    }
+  }, [location])
+
+  // Sync store mode → URL (for programmatic setMode calls)
+  useEffect(() => {
+    const unsub = useGameStore.subscribe((state, prev) => {
+      if (state.mode === prev.mode) return
+      if (state.mode === 'menu' && location !== '/') {
+        setLocation('/')
+      } else if (state.mode === 'training' && location !== '/training') {
+        setLocation('/training')
+      } else if (state.mode === 'multiplayer' && location !== '/play') {
+        setLocation('/play')
+      }
+    })
+    return unsub
+  }, [location, setLocation])
+
+  return null
+}
+
+function GameRoutes() {
+  const [location] = useLocation()
+
+  // Render the right component based on URL
+  if (location === '/training') return <TrainingRange />
+  if (location === '/play') return <MultiplayerMode />
+  return <MainMenu />
+}
+
 export default function App() {
-  const mode = useGameStore(s => s.mode)
-
-  if (mode === 'menu') {
-    return <MainMenu />
-  }
-
-  if (mode === 'training') {
-    return <TrainingRange />
-  }
-
-  return <MultiplayerMode />
+  return (
+    <>
+      <SyncModeToURL />
+      <Switch>
+        <Route path="/" component={GameRoutes} />
+        <Route path="/training" component={GameRoutes} />
+        <Route path="/play" component={GameRoutes} />
+        <Redirect to="/" />
+      </Switch>
+    </>
+  )
 }

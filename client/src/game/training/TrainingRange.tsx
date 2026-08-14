@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Canvas } from "@react-three/fiber";
 import { Sky } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
@@ -73,6 +74,7 @@ function TrainingModeSelector({
   onModeChange: (m: "aim" | "recoil") => void;
 }) {
   const { setMode } = useGameStore();
+  const [, setLocation] = useLocation();
 
   return (
     <div
@@ -115,7 +117,10 @@ function TrainingModeSelector({
         RECOIL PRACTICE
       </button>
       <button
-        onClick={() => setMode("menu")}
+        onClick={() => {
+          setMode("menu");
+          setLocation("/");
+        }}
         style={{
           padding: "8px 16px",
           backgroundColor: "#ef4444",

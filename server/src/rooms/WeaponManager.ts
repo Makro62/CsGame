@@ -3,8 +3,10 @@ import {
   PlayerState,
   WEAPONS,
   MAP_OBSTACLES,
+  MAP_BOUNDARY,
   ShootInput,
 } from "@cs-game/shared";
+import { rayVsBox } from "../utils/geometry";
 import {
   MAX_ORIGIN_DISTANCE_SQ,
   FIRE_RATE_TOLERANCE,
@@ -31,36 +33,6 @@ interface HitResult {
   zone: "head" | "torso" | "limbs";
   distance: number;
   wallbangFactor: number;
-}
-
-// ray vs AABB (slab method)
-function rayVsBox(
-  ox: number, oy: number, oz: number,
-  dx: number, dy: number, dz: number,
-  box: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number }
-): number | null {
-  let tmin = 0;
-  let tmax = Infinity;
-
-  const axes = [
-    [dx, ox, box.minX, box.maxX] as const,
-    [dy, oy, box.minY, box.maxY] as const,
-    [dz, oz, box.minZ, box.maxZ] as const,
-  ];
-
-  for (const [d, o, lo, hi] of axes) {
-    if (Math.abs(d) < 1e-9) {
-      if (o < lo || o > hi) return null;
-      continue;
-    }
-    let t1 = (lo - o) / d;
-    let t2 = (hi - o) / d;
-    if (t1 > t2) [t1, t2] = [t2, t1];
-    tmin = Math.max(tmin, t1);
-    tmax = Math.min(tmax, t2);
-    if (tmin > tmax) return null;
-  }
-  return tmax >= 0 ? Math.max(tmin, 0) : null;
 }
 
 export class WeaponManager {
@@ -94,7 +66,28 @@ export class WeaponManager {
     const ox = data.origin.x - shooter.x;
     const oy = data.origin.y - (shooter.y + 1.6);
     const oz = data.origin.z - shooter.z;
-    return ox * ox + oy * oy + oz * oz <= MAX_ORIGIN_DISTANCE_SQ;
+    if (ox * ox + oy * oy + oz * oz > MAX_ORIGIN_DISTANCE_SQ) return false;
+
+    if (
+      data.origin.x < MAP_BOUNDARY.minX ||
+      data.origin.x > MAP_BOUNDARY.maxX ||
+      data.origin.z < MAP_BOUNDARY.minZ ||
+      data.origin.z > MAP_BOUNDARY.maxZ
+    ) {
+      return false;
+    }
+
+    if (data.direction) {
+      const dirLenSq =
+        (data.direction.x || 0) ** 2 +
+        (data.direction.y || 0) ** 2 +
+        (data.direction.z || 0) ** 2;
+      if (dirLenSq > 0 && (dirLenSq < 0.5 || dirLenSq > 2.0)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   isSpawnProtected(spawnProtection: Map<string, number>, victimId: string): boolean {

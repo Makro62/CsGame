@@ -1,6 +1,7 @@
 {
   "name": "cs-game-monorepo",
   "private": true,
+  "type": "module",
   "workspaces": [
     "shared",
     "client",

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { Client, Room } from "colyseus.js";
 import { GameState, PlayerState, Snapshot, ROUND, WEAPONS } from "@cs-game/shared";
 import { useWeaponStore, type WeaponKey } from "./useWeaponStore";
+import { useGameStore } from "./useGameStore";
 import { startKillCamRecording, stopKillCamRecording } from "./useKillCamStore";
 import { SERVER_URL } from "../config/network";
 import { gameEvents } from "../lib/gameEvents";
@@ -124,6 +125,7 @@ interface NetworkState {
   voteRequest: VoteRequest | null;
   chatMessages: ChatMessage[];
   deathRecap: { killerName: string; weapon: string; headshot: boolean } | null;
+  connectionError: string | null;
 
   connect: (nickname: string, mode?: string) => Promise<void>;
   joinRoomById: (roomId: string, nickname: string) => Promise<void>;
@@ -228,6 +230,7 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
   voteRequest: null,
   chatMessages: [],
   deathRecap: null,
+  connectionError: null,
 
   connect: async (nickname: string, mode = "bomb_defusal") => {
     clearRetry();
@@ -242,8 +245,12 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
         try {
-          const { reconnectionToken } = JSON.parse(saved);
-          if (reconnectionToken) {
+          const parsed = JSON.parse(saved);
+          const { reconnectionToken, savedAt } = parsed;
+          // Reject stale tokens (> 5 minutes old)
+          if (!reconnectionToken || (savedAt && Date.now() - savedAt > 300_000)) {
+            sessionStorage.removeItem(SESSION_KEY);
+          } else {
             room = await client.reconnect<GameState>(reconnectionToken);
             isReconnect = true;
           }
@@ -258,7 +265,7 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
         });
         sessionStorage.setItem(
           SESSION_KEY,
-          JSON.stringify({ reconnectionToken: room.reconnectionToken })
+          JSON.stringify({ reconnectionToken: room.reconnectionToken, savedAt: Date.now() })
         );
       }
 
@@ -268,12 +275,17 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
         sessionId: room.sessionId,
         connected: true,
         reconnecting: false,
+        connectionError: null,
       });
 
       setupRoom(room, nickname, mode, isReconnect);
     } catch (e) {
       console.error("Failed to join room:", e);
-      set({ reconnecting: false });
+      set({
+        reconnecting: false,
+        connected: false,
+        connectionError: e instanceof Error ? e.message : "Failed to connect to server",
+      });
     }
   },
 
@@ -289,7 +301,7 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
       
       sessionStorage.setItem(
         SESSION_KEY,
-        JSON.stringify({ reconnectionToken: room.reconnectionToken })
+        JSON.stringify({ reconnectionToken: room.reconnectionToken, savedAt: Date.now() })
       );
 
       set({
@@ -298,12 +310,17 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
         sessionId: room.sessionId,
         connected: true,
         reconnecting: false,
+        connectionError: null,
       });
 
       setupRoom(room, nickname, "bomb_defusal", false);
     } catch (e) {
       console.error("Failed to join room by ID:", e);
-      set({ reconnecting: false });
+      set({
+        reconnecting: false,
+        connected: false,
+        connectionError: e instanceof Error ? e.message : "Failed to join room",
+      });
     }
   },
 
@@ -675,7 +692,11 @@ function setupRoom(
       hitMarker: null,
       voteRequest: null,
     });
-    scheduleReconnect(nickname, mode);
+    // Only attempt reconnect in multiplayer mode, not training
+    const currentMode = useGameStore.getState().mode;
+    if (currentMode !== "training") {
+      scheduleReconnect(nickname, mode);
+    }
   });
 }
 
@@ -698,7 +719,14 @@ function scheduleReconnect(nickname: string, mode: string) {
   const client = new Client("ws://localhost:2567");
   let reconnectionToken = "";
   try {
-    ({ reconnectionToken } = JSON.parse(saved));
+    const parsed = JSON.parse(saved);
+    reconnectionToken = parsed.reconnectionToken;
+    // Reject stale tokens (> 5 minutes old)
+    if (parsed.savedAt && Date.now() - parsed.savedAt > 300_000) {
+      sessionStorage.removeItem(SESSION_KEY);
+      useNetworkStore.setState({ reconnecting: false });
+      return;
+    }
   } catch {
     sessionStorage.removeItem(SESSION_KEY);
     useNetworkStore.setState({ reconnecting: false });

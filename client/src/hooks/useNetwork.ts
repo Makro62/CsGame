@@ -5,14 +5,18 @@ import { ServerPredictionManager } from "../game/network/ServerPredictionManager
 
 const RECONCILE_LERP = 0.3;
 const RECONCILE_SNAP = 0.5;
+const INPUT_SEND_INTERVAL_MS = 33; // ~30Hz input send rate
 
 export function useNetwork(nickname: string) {
   const { connect, disconnect, sendInput, connected, lastSnapshot, ping, latency } =
     useNetworkStore();
   const seqRef = useRef(0);
   const predictionRef = useRef(new ServerPredictionManager());
+  const lastSendTime = useRef(0);
 
   useEffect(() => {
+    const gameMode = useGameStore.getState().mode;
+    if (gameMode === "training") return; // Training is offline-only
     const serverMode = useGameStore.getState().serverMode;
     connect(nickname, serverMode);
     return () => {
@@ -31,6 +35,11 @@ export function useNetwork(nickname: string) {
       crouch: boolean;
       rotationY: number;
     }) => {
+      if (!connected) return; // Skip in training / offline mode
+      const now = performance.now();
+      if (now - lastSendTime.current < INPUT_SEND_INTERVAL_MS) return;
+      lastSendTime.current = now;
+
       seqRef.current++;
       const playerInput = predictionRef.current.createInput({
         forward: input.forward,

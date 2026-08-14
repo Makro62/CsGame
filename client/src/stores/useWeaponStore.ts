@@ -61,6 +61,15 @@ const DEPLOY_TIMES: Record<WeaponKey, number> = {
   combatknife: 0.25,
 };
 
+let switchTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+function clearSwitchTimeout() {
+  if (switchTimeoutId) {
+    clearTimeout(switchTimeoutId);
+    switchTimeoutId = null;
+  }
+}
+
 export const useWeaponStore = create<WeaponState>()((set, get) => ({
   activeWeapon: null,
   primaryWeapon: null,
@@ -119,8 +128,10 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       lastFireTimestamp: 0,
     }));
 
-    setTimeout(() => {
+    clearSwitchTimeout();
+    switchTimeoutId = setTimeout(() => {
       set({ isSwitching: false, switchTimer: 0 });
+      switchTimeoutId = null;
     }, DEPLOY_TIMES[weapon] * 1000);
   },
 
@@ -172,8 +183,10 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     // Send to server
     useNetworkStore.getState().sendSwitchWeapon(slot);
 
-    setTimeout(() => {
+    clearSwitchTimeout();
+    switchTimeoutId = setTimeout(() => {
       set({ isSwitching: false, switchTimer: 0 });
+      switchTimeoutId = null;
     }, DEPLOY_TIMES[target] * 1000);
   },
 

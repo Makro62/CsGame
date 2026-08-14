@@ -11,7 +11,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@cs-game/shared': path.resolve(__dirname, 'shared'),
+      '@cs-game/shared': path.resolve(import.meta.dirname, 'shared'),
     },
   },
 });
