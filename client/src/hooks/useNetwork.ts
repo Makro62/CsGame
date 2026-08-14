@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useNetworkStore } from "../stores/useNetworkStore";
 import { useGameStore } from "../stores/useGameStore";
+import { ServerPredictionManager } from "../game/network/ServerPredictionManager";
 
 const RECONCILE_LERP = 0.3;
 const RECONCILE_SNAP = 0.5;
@@ -9,6 +10,7 @@ export function useNetwork(nickname: string) {
   const { connect, disconnect, sendInput, connected, lastSnapshot, ping, latency } =
     useNetworkStore();
   const seqRef = useRef(0);
+  const predictionRef = useRef(new ServerPredictionManager());
 
   useEffect(() => {
     const serverMode = useGameStore.getState().serverMode;
@@ -30,11 +32,17 @@ export function useNetwork(nickname: string) {
       rotationY: number;
     }) => {
       seqRef.current++;
-      sendInput({
-        seq: seqRef.current,
-        timestamp: performance.now(),
-        ...input,
+      const playerInput = predictionRef.current.createInput({
+        forward: input.forward,
+        backward: input.backward,
+        left: input.left,
+        right: input.right,
+        jump: input.jump,
+        sprint: input.sprint,
+        crouch: input.crouch,
+        rotationY: input.rotationY,
       });
+      sendInput(playerInput as unknown as Record<string, unknown>);
     },
     [sendInput]
   );
@@ -46,28 +54,30 @@ export function useNetwork(nickname: string) {
     ) => {
       if (!snapshot) return { x: localPos.x, y: localPos.y, z: localPos.z };
 
-      const dx = snapshot.x - localPos.x;
-      const dy = snapshot.y - localPos.y;
-      const dz = snapshot.z - localPos.z;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      // Acknowledge server snapshot (removes acknowledged inputs, replays remaining)
+      predictionRef.current.acknowledgeSnapshot({
+        seq: 0,
+        x: snapshot.x,
+        y: snapshot.y,
+        z: snapshot.z,
+      });
 
-      if (dist > RECONCILE_SNAP) {
-        return { x: snapshot.x, y: snapshot.y, z: snapshot.z };
-      }
+      // Use ServerPredictionManager for enhanced reconciliation
+      const result = predictionRef.current.reconcile(
+        { x: localPos.x, y: localPos.y, z: localPos.z } as any,
+        { seq: 0, x: snapshot.x, y: snapshot.y, z: snapshot.z },
+        RECONCILE_SNAP,
+        RECONCILE_LERP
+      );
 
-      if (dist > RECONCILE_LERP) {
-        const lerpFactor = 0.3;
-        return {
-          x: localPos.x + dx * lerpFactor,
-          y: localPos.y + dy * lerpFactor,
-          z: localPos.z + dz * lerpFactor,
-        };
-      }
-
-      return { x: localPos.x, y: localPos.y, z: localPos.z };
+      return { x: result.x, y: result.y, z: result.z };
     },
     []
   );
+
+  const getPredictionStats = useCallback(() => {
+    return predictionRef.current.getStats();
+  }, []);
 
   return {
     sendPlayerInput,
@@ -77,5 +87,6 @@ export function useNetwork(nickname: string) {
     ping,
     latency,
     seq: seqRef.current,
+    getPredictionStats,
   };
 }

@@ -36,28 +36,33 @@ export function MainMenu() {
   return (
     <div
       style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
         width: "100%",
-        height: "100%",
+        minHeight: "100vh",
         background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
         fontFamily: "monospace",
         color: "white",
       }}
     >
-      {/* Title */}
-      <h1
+      <div
         style={{
-          fontSize: "64px",
-          fontWeight: "bold",
-          margin: "0 0 8px 0",
-          textShadow: "0 0 20px rgba(59, 130, 246, 0.5)",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "40px 20px",
         }}
+      >
+        {/* Title */}
+        <h1
+          style={{
+            fontSize: "64px",
+            fontWeight: "bold",
+            margin: "0 0 8px 0",
+            textShadow: "0 0 20px rgba(59, 130, 246, 0.5)",
+          }}
       >
         CS WEB FPS
       </h1>
@@ -284,6 +289,7 @@ export function MainMenu() {
           SERVER BROWSER
         </button>
       </div>
+      </div>
 
       {/* Server Browser Modal */}
       {showBrowser && (
@@ -297,16 +303,16 @@ export function MainMenu() {
       {/* Footer */}
       <div
         style={{
-          position: "absolute",
-          bottom: "20px",
+          padding: "20px",
           color: "#6b7280",
           fontSize: "12px",
           textAlign: "center",
+          marginTop: "auto",
         }}
       >
-        <p>WASD - Move | Mouse - Look | LMB - Shoot | R - Reload</p>
-        <p>Shift - Sprint | Ctrl - Crouch | Space - Jump | B - Buy Menu</p>
-        <p>G - Throw Grenade (hold = preview) | X - Cycle Grenade</p>
+        <p style={{ margin: "4px 0" }}>WASD - Move | Mouse - Look | LMB - Shoot | R - Reload</p>
+        <p style={{ margin: "4px 0" }}>Shift - Sprint | Ctrl - Crouch | Space - Jump | B - Buy Menu</p>
+        <p style={{ margin: "4px 0" }}>G - Throw Grenade (hold = preview) | X - Cycle Grenade</p>
       </div>
     </div>
   );

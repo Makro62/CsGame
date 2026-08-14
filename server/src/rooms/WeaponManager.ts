@@ -1,0 +1,310 @@
+import {
+  GameState,
+  PlayerState,
+  WEAPONS,
+  MAP_OBSTACLES,
+  ShootInput,
+} from "@cs-game/shared";
+import {
+  MAX_ORIGIN_DISTANCE_SQ,
+  FIRE_RATE_TOLERANCE,
+  SPAWN_PROTECTION_MS,
+  HEAD_HEIGHT_THRESHOLD,
+  PERP_DISTANCE_THRESHOLD_SQ,
+  ARMOR_DAMAGE_MULTIPLIER,
+  AWP_MAX_RANGE,
+  DEFAULT_MAX_RANGE,
+} from "./constants";
+
+const MAX_PIERCE = 2;
+const MAX_REWIND_MS = 500;
+const HISTORY_WINDOW_MS = 1000;
+
+interface PositionSample {
+  t: number;
+  x: number;
+  z: number;
+}
+
+interface HitResult {
+  victimId: string;
+  zone: "head" | "torso" | "limbs";
+  distance: number;
+  wallbangFactor: number;
+}
+
+// ray vs AABB (slab method)
+function rayVsBox(
+  ox: number, oy: number, oz: number,
+  dx: number, dy: number, dz: number,
+  box: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number }
+): number | null {
+  let tmin = 0;
+  let tmax = Infinity;
+
+  const axes = [
+    [dx, ox, box.minX, box.maxX] as const,
+    [dy, oy, box.minY, box.maxY] as const,
+    [dz, oz, box.minZ, box.maxZ] as const,
+  ];
+
+  for (const [d, o, lo, hi] of axes) {
+    if (Math.abs(d) < 1e-9) {
+      if (o < lo || o > hi) return null;
+      continue;
+    }
+    let t1 = (lo - o) / d;
+    let t2 = (hi - o) / d;
+    if (t1 > t2) [t1, t2] = [t2, t1];
+    tmin = Math.max(tmin, t1);
+    tmax = Math.min(tmax, t2);
+    if (tmin > tmax) return null;
+  }
+  return tmax >= 0 ? Math.max(tmin, 0) : null;
+}
+
+export class WeaponManager {
+  private lastFireTime: Map<string, number> = new Map();
+  private shootHistory: Map<string, PositionSample[]> = new Map();
+  private reloadTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private serverRTT: Map<string, number> = new Map();
+  private pingTimestamps: Map<string, number> = new Map();
+  private lastInputMessageTime: Map<string, number> = new Map();
+
+  canFire(sessionId: string, weaponKey: string): boolean {
+    const weaponStats = WEAPONS[weaponKey as keyof typeof WEAPONS];
+    if (!weaponStats) return false;
+
+    const now = performance.now();
+    const lastFire = this.lastFireTime.get(sessionId) || 0;
+    const minInterval = 1000 / weaponStats.fireRate;
+    if (now - lastFire < minInterval * FIRE_RATE_TOLERANCE) return false;
+
+    return true;
+  }
+
+  recordFire(sessionId: string): void {
+    this.lastFireTime.set(sessionId, performance.now());
+  }
+
+  validateShootOrigin(
+    shooter: PlayerState,
+    data: ShootInput
+  ): boolean {
+    const ox = data.origin.x - shooter.x;
+    const oy = data.origin.y - (shooter.y + 1.6);
+    const oz = data.origin.z - shooter.z;
+    return ox * ox + oy * oy + oz * oz <= MAX_ORIGIN_DISTANCE_SQ;
+  }
+
+  isSpawnProtected(spawnProtection: Map<string, number>, victimId: string): boolean {
+    const spawnTime = spawnProtection.get(victimId);
+    return spawnTime !== undefined && performance.now() - spawnTime < SPAWN_PROTECTION_MS;
+  }
+
+  recordPosition(sessionId: string, player: PlayerState, now: number): void {
+    let history = this.shootHistory.get(sessionId);
+    if (!history) {
+      history = [];
+      this.shootHistory.set(sessionId, history);
+    }
+    history.push({ t: now, x: player.x, z: player.z });
+    while (history.length > 60) {
+      history.shift();
+    }
+    while (history.length > 0 && now - history[0].t > HISTORY_WINDOW_MS) {
+      history.shift();
+    }
+  }
+
+  private samplePosition(
+    sessionId: string,
+    targetTime: number
+  ): { x: number; z: number } | null {
+    const history = this.shootHistory.get(sessionId);
+    if (!history || history.length === 0) return null;
+
+    const last = history[history.length - 1];
+    if (targetTime >= last.t) return { x: last.x, z: last.z };
+
+    for (let i = history.length - 2; i >= 0; i--) {
+      const a = history[i];
+      const b = history[i + 1];
+      if (targetTime >= a.t && targetTime <= b.t) {
+        const t = (targetTime - a.t) / (b.t - a.t);
+        return {
+          x: a.x + (b.x - a.x) * t,
+          z: a.z + (b.z - a.z) * t,
+        };
+      }
+    }
+    return { x: history[0].x, z: history[0].z };
+  }
+
+  checkHit(
+    shooterId: string,
+    shooter: PlayerState,
+    data: ShootInput,
+    state: GameState
+  ): HitResult | null {
+    const now = performance.now();
+    const shooterPos = { x: shooter.x, y: shooter.y + 1.6, z: shooter.z };
+    const dir = data.direction;
+    const dirLength = Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+    if (dirLength === 0) return null;
+
+    const normDir = { x: dir.x / dirLength, y: dir.y / dirLength, z: dir.z / dirLength };
+
+    const serverRTT = this.serverRTT.get(shooterId) || 0;
+    const clientLatency = Math.max(0, data.latency ?? 0);
+    const latency = serverRTT > 0
+      ? Math.min(clientLatency, serverRTT * 1.5, MAX_REWIND_MS)
+      : Math.min(clientLatency, MAX_REWIND_MS);
+    const targetTime = now - latency;
+
+    let closestHit: HitResult | null = null;
+
+    state.players.forEach((player, id) => {
+      if (id === shooterId || player.isDead) return;
+      if (state.gameMode !== "ffa" && player.team === shooter.team) return;
+
+      const rewound = this.samplePosition(id, targetTime);
+      const targetX = rewound ? rewound.x : player.x;
+      const targetZ = rewound ? rewound.z : player.z;
+
+      const dx = targetX - shooterPos.x;
+      const dy = player.y - shooterPos.y;
+      const dz = targetZ - shooterPos.z;
+
+      const weaponKey = shooter.currentWeapon as keyof typeof WEAPONS;
+      const maxRange = weaponKey === "awp" ? AWP_MAX_RANGE : DEFAULT_MAX_RANGE;
+      const distToTarget = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (distToTarget > maxRange) return;
+
+      const dot = dx * normDir.x + (dy + 0.9) * normDir.y + dz * normDir.z;
+      if (dot <= 0) return;
+
+      const closestX = shooterPos.x + normDir.x * dot;
+      const closestY = shooterPos.y + normDir.y * dot;
+      const closestZ = shooterPos.z + normDir.z * dot;
+
+      const perpDx = targetX - closestX;
+      const perpDz = targetZ - closestZ;
+      const perpDistSq = perpDx * perpDx + perpDz * perpDz;
+
+      if (perpDistSq > PERP_DISTANCE_THRESHOLD_SQ) return;
+
+      const relY = closestY - player.y;
+      if (relY < -0.2 || relY > 2.0) return;
+
+      let zone: "head" | "torso" | "limbs" = "torso";
+      if (relY >= 1.35) zone = "head";
+      else if (relY <= HEAD_HEIGHT_THRESHOLD) zone = "limbs";
+
+      let pierce = 0;
+      let wallbangFactor = 1;
+
+      for (const obs of MAP_OBSTACLES) {
+        const t = rayVsBox(
+          shooterPos.x, shooterPos.y, shooterPos.z,
+          normDir.x, normDir.y, normDir.z,
+          obs
+        );
+        if (t === null) continue;
+        if (t > dot) continue;
+
+        if (obs.material === "wood" && pierce < MAX_PIERCE) {
+          pierce++;
+          wallbangFactor *= 0.5;
+        } else {
+          return;
+        }
+      }
+
+      const smokeBlocked =
+        state.smokes.size > 0 &&
+        Array.from(state.smokes.values()).some((smoke) => {
+          const sdx = smoke.x - shooterPos.x;
+          const sdy = 1 - shooterPos.y; // Smoke is at ground level (y=1)
+          const sdz = smoke.z - shooterPos.z;
+          const dot2 = sdx * normDir.x + sdy * normDir.y + sdz * normDir.z;
+          if (dot2 <= 0 || dot2 > dot) return false;
+          const closestSmokX = shooterPos.x + normDir.x * dot2;
+          const closestSmokZ = shooterPos.z + normDir.z * dot2;
+          const sPerpX = smoke.x - closestSmokX;
+          const sPerpZ = smoke.z - closestSmokZ;
+          return sPerpX * sPerpX + sPerpZ * sPerpZ < 4;
+        });
+
+      if (smokeBlocked) return;
+
+      if (!closestHit || distToTarget < closestHit.distance) {
+        closestHit = { victimId: id, zone, distance: distToTarget, wallbangFactor };
+      }
+    });
+
+    return closestHit;
+  }
+
+  calculateDamage(
+    weapon: string,
+    zone: "head" | "torso" | "limbs",
+    armor: number,
+    hasHelmet: boolean,
+    wallbangFactor = 1
+  ): number {
+    const weaponStats = WEAPONS[weapon as keyof typeof WEAPONS];
+    if (!weaponStats) return 0;
+
+    let baseDmg: number;
+    switch (zone) {
+      case "head": baseDmg = weaponStats.headshot; break;
+      case "torso": baseDmg = weaponStats.dmg; break;
+      case "limbs": baseDmg = weaponStats.dmg * 0.7; break;
+      default: baseDmg = weaponStats.dmg;
+    }
+
+    if (armor > 0) {
+      if (zone === "head" && !hasHelmet) {
+        // Full damage
+      } else if (zone === "head" && hasHelmet) {
+        baseDmg *= 0.5;
+      } else if (zone === "torso") {
+        baseDmg *= ARMOR_DAMAGE_MULTIPLIER;
+      }
+    }
+
+    return Math.max(1, Math.round(baseDmg * wallbangFactor));
+  }
+
+  trackServerRTT(sessionId: string, rtt: number): void {
+    this.serverRTT.set(sessionId, rtt);
+  }
+
+  canProcessInput(sessionId: string, tickMs: number): boolean {
+    const now = performance.now();
+    const lastInput = this.lastInputMessageTime.get(sessionId) || 0;
+    if (now - lastInput < tickMs * 2) return false;
+    this.lastInputMessageTime.set(sessionId, now);
+    return true;
+  }
+
+  trackReload(sessionId: string, timer: ReturnType<typeof setTimeout>): void {
+    this.reloadTimers.set(sessionId, timer);
+  }
+
+  clearReload(sessionId: string): void {
+    this.reloadTimers.delete(sessionId);
+  }
+
+  clearAll(sessionId: string): void {
+    this.lastFireTime.delete(sessionId);
+    this.shootHistory.delete(sessionId);
+    const reloadTimer = this.reloadTimers.get(sessionId);
+    if (reloadTimer) clearTimeout(reloadTimer);
+    this.reloadTimers.delete(sessionId);
+    this.serverRTT.delete(sessionId);
+    this.pingTimestamps.delete(sessionId);
+    this.lastInputMessageTime.delete(sessionId);
+  }
+}

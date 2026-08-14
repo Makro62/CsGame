@@ -10,23 +10,19 @@ import { ShootingSystem } from './game/weapons/ShootingSystem'
 import { ReloadSystem } from './game/weapons/ReloadSystem'
 import { GrenadeSystem } from './game/weapons/GrenadeSystem'
 import { Crosshair } from './components/Crosshair'
-import { HUD } from './components/HUD'
+import { HUDLayout } from './ui/components/hud/HUDLayout'
 import { HitMarker } from './components/HitMarker'
-import { KillFeed } from './components/KillFeed'
 import { BuyMenu } from './components/BuyMenu'
 import { DamageVignette } from './components/DamageVignette'
 import { DeathScreen } from './components/DeathScreen'
 import { Leaderboard } from './components/Leaderboard'
 import SniperScope from './components/SniperScope'
 import Minimap from './components/Minimap'
-import FpsPingDisplay from './components/FpsPingDisplay'
 import KillConfirm from './components/KillConfirm'
 import { AudioManager } from './components/AudioManager'
 import { RoundEndScreen } from './components/RoundEndScreen'
 import { ClickToPlayOverlay } from './components/ClickToPlayOverlay'
-import { ChatSystem } from './components/ChatSystem'
 import VoteKick from './components/VoteKick'
-import RadioCommand from './components/RadioCommand'
 import { FlashEffect } from './components/FlashEffect'
 import FootstepPlayer from './components/FootstepPlayer'
 import { KillCam } from './components/KillCam'
@@ -87,8 +83,7 @@ function MultiplayerMode() {
       <Crosshair />
       <SniperScope />
       <HitMarker />
-      <HUD />
-      <KillFeed />
+      <HUDLayout />
       <KillConfirm />
       <DamageVignette />
       <DeathScreen />
@@ -96,13 +91,10 @@ function MultiplayerMode() {
       <KOTH />
       <Leaderboard />
       <Minimap />
-      <FpsPingDisplay />
       <AudioManager />
       <FootstepPlayer />
       <RoundEndScreen />
       <SettingsMenu />
-      <ChatSystem />
-      <RadioCommand />
       <VoteKick />
       <FlashEffect />
       {buyMenuOpen && round.phase === 'buy' && (

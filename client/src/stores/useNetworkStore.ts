@@ -633,6 +633,11 @@ function setupRoom(
     const newHistory = [...pingHistory, rtt].slice(-20);
     const avgPing = newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
     useNetworkStore.setState({ ping: Math.round(avgPing), latency: avgPing / 2, pingHistory: newHistory });
+
+    // Report RTT to server for lag compensation (throttled to once per second)
+    if (Math.random() < 0.1) {
+      room.send("clientRTT", { rtt: avgPing });
+    }
   });
 
   room.onMessage("chat", (data: { senderId: string; sender: string; message: string; team?: string; timestamp: number }) => {

@@ -1,9 +1,9 @@
-import colyseus, { LobbyRoom } from "colyseus";
+import colyseus from "colyseus";
 import { monitor } from "@colyseus/monitor";
 import { createServer } from "http";
 import { GameRoom } from "./rooms/GameRoom.js";
 
-const { Server } = colyseus;
+const { Server, LobbyRoom } = colyseus as any;
 
 const port = Number(process.env.PORT) || 2567;
 
@@ -22,20 +22,16 @@ httpServer.listen(port, () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  gameServer.gracefullyShutdown().then(() => {
-    httpServer.close(() => {
-      process.exit(0);
-    });
-  });
-});
+let isShuttingDown = false;
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  gameServer.gracefullyShutdown().then(() => {
-    httpServer.close(() => {
-      process.exit(0);
-    });
-  });
-});
+function shutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`${signal} received, shutting down gracefully...`);
+  gameServer.gracefullyShutdown(false).then(() => {
+    httpServer.close(() => process.exit(0));
+  }).catch(() => process.exit(0));
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

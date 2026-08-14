@@ -1,0 +1,7 @@
+/* Design System - CsGame UI */
+/* Consolidated import of all design tokens */
+
+@import './colors.css';
+@import './typography.css';
+@import './spacing.css';
+@import './animations.css';

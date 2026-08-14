@@ -1,0 +1,124 @@
+/* Color Design System - CsGame UI */
+
+:root {
+  /* Base */
+  --color-bg-primary: #0a0a0f;
+  --color-bg-secondary: #12121a;
+  --color-bg-glass: rgba(10, 10, 15, 0.85);
+  --color-bg-glass-light: rgba(20, 20, 30, 0.6);
+
+  /* Text */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.7);
+  --color-text-muted: rgba(255, 255, 255, 0.4);
+  --color-text-inverse: #0a0a0f;
+
+  /* Teams */
+  --color-terrorist: #ff4444;
+  --color-terrorist-glow: rgba(255, 68, 68, 0.3);
+  --color-counter: #4488ff;
+  --color-counter-glow: rgba(68, 136, 255, 0.3);
+
+  /* States */
+  --color-health-full: #4ade80;
+  --color-health-mid: #fbbf24;
+  --color-health-low: #ef4444;
+  --color-health-critical: #ff0000;
+  --color-armor: #60a5fa;
+  --color-money: #fbbf24;
+  --color-ammo-full: #ffffff;
+  --color-ammo-low: #ef4444;
+  --color-ammo-reload: #fbbf24;
+
+  /* Effects */
+  --color-damage-vignette: rgba(220, 20, 20, 0.6);
+  --color-heal-vignette: rgba(20, 220, 20, 0.3);
+  --color-flash-white: rgba(255, 255, 255, 0.95);
+  --color-smoke-overlay: rgba(100, 100, 100, 0.4);
+
+  /* Accent */
+  --color-accent-gold: #ffd700;
+  --color-accent-purple: #a855f7;
+  --color-accent-cyan: #22d3ee;
+}
+
+/* CSS Variables as Tailwind colors */
+.bg-primary {
+  @apply bg-[var(--color-bg-primary)];
+}
+
+.bg-secondary {
+  @apply bg-[var(--color-bg-secondary)];
+}
+
+.bg-glass {
+  @apply bg-[var(--color-bg-glass)];
+}
+
+.bg-glass-light {
+  @apply bg-[var(--color-bg-glass-light)];
+}
+
+.text-primary {
+  @apply text-[var(--color-text-primary)];
+}
+
+.text-secondary {
+  @apply text-[var(--color-text-secondary)];
+}
+
+.text-muted {
+  @apply text-[var(--color-text-muted)];
+}
+
+.text-terrorist {
+  @apply text-[var(--color-terrorist)];
+}
+
+.text-counter {
+  @apply text-[var(--color-counter)];
+}
+
+.text-health-full {
+  @apply text-[var(--color-health-full)];
+}
+
+.text-health-mid {
+  @apply text-[var(--color-health-mid)];
+}
+
+.text-health-low {
+  @apply text-[var(--color-health-low)];
+}
+
+.text-armor {
+  @apply text-[var(--color-armor)];
+}
+
+.text-money {
+  @apply text-[var(--color-money)];
+}
+
+.text-ammo-reload {
+  @apply text-[var(--color-ammo-reload)];
+}
+
+.text-accent-gold {
+  @apply text-[var(--color-accent-gold)];
+}
+
+.text-accent-purple {
+  @apply text-[var(--color-accent-purple)];
+}
+
+.text-accent-cyan {
+  @apply text-[var(--color-accent-cyan)];
+}
+
+.bg-health-low {
+  @apply bg-[var(--color-health-low)];
+}
+
+.border-accent-gold {
+  @apply border-[var(--color-accent-gold)];
+}

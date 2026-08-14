@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useWeaponStore } from '../../stores/useWeaponStore'
 import { useGameStore } from '../../stores/useGameStore'
+import { WeaponAnimator } from './WeaponAnimator'
 
 const WEAPON_POSITIONS: Record<string, [number, number, number]> = {
   // Primary rifles
@@ -20,6 +21,8 @@ const WEAPON_POSITIONS: Record<string, [number, number, number]> = {
   combatknife: [0.18, -0.18, -0.28],
 }
 
+const weaponAnimator = new WeaponAnimator()
+
 export function WeaponModel() {
   const groupRef = useRef<THREE.Group>(null)
   const recoilGroupRef = useRef<THREE.Group>(null)
@@ -28,7 +31,6 @@ export function WeaponModel() {
 
   const isMoving = useRef(false)
   const moveIntensity = useRef(0)
-  const currentSway = useRef({ x: 0, y: 0 })
   const lastSwingTime = useRef(0)
   const swingProgress = useRef(0)
 
@@ -53,7 +55,6 @@ export function WeaponModel() {
       if (e.button === 0) {
         const now = performance.now()
         if (now - lastSwingTime.current > 500) {
-          // 500ms cooldown
           lastSwingTime.current = now
           swingProgress.current = 1
         }
@@ -63,43 +64,43 @@ export function WeaponModel() {
     return () => window.removeEventListener('mousedown', handleMouseDown)
   }, [])
 
+  // Play reload animation
+  useEffect(() => {
+    if (isReloading) {
+      weaponAnimator.play('reload')
+    }
+  }, [isReloading])
+
+  // Play draw animation on weapon switch
+  useEffect(() => {
+    if (isSwitching) {
+      weaponAnimator.play('draw')
+    }
+  }, [isSwitching])
+
+  // Play ADS animations
+  useEffect(() => {
+    if (isADS) {
+      weaponAnimator.play('ads_in')
+    } else {
+      weaponAnimator.play('ads_out')
+    }
+  }, [isADS])
+
   useFrame(({ camera, clock }) => {
     if (!groupRef.current || !recoilGroupRef.current || !activeWeapon) return
 
-    const time = clock.getElapsedTime()
+    const dt = clock.getDelta()
 
-    // Weapon sway modulated by movement state
-    const moveMult = 1 + moveIntensity.current * 0.8
-    const targetSwayX = Math.sin(time * 1.5) * 0.003 * moveMult
-    const targetSwayY = Math.sin(time * 2) * 0.0015 * moveMult
+    // Update weapon animator
+    weaponAnimator.update(dt)
+    weaponAnimator.updateBob(dt, moveIntensity.current * 5, moveIntensity.current > 1, isMoving.current)
+    weaponAnimator.updateKick(dt)
 
-    // Smooth sway transitions
-    currentSway.current.x += (targetSwayX - currentSway.current.x) * 0.1
-    currentSway.current.y += (targetSwayY - currentSway.current.y) * 0.1
-    const swayX = currentSway.current.x
-    const swayY = currentSway.current.y
-
-    // Weapon bob during sprint
-    const sprintBob =
-      isMoving.current && moveIntensity.current > 1
-        ? Math.sin(time * 8) * 0.008
-        : 0
-    const sprintBobY =
-      isMoving.current && moveIntensity.current > 1
-        ? Math.abs(Math.sin(time * 8)) * 0.005
-        : 0
-
-    // Recoil kick tuned for a smoother, less violent FPS feel.
-    const kickScale = isADS ? 0.45 : 1
-    const kickZ = Math.min(recoilOffset.y * 0.0065 * kickScale, 0.016)
-    const kickY = Math.min(recoilOffset.x * 0.0032 * kickScale, 0.008)
-
-    // Slightly soften the visual punch while keeping the transient feel alive.
-    const visualPunch = recoilOffset.y * 0.0018
-
-    // Reload animation — gun tilts down and back up
-    const reloadProgress = isReloading ? Math.sin(time * 3) * 0.08 : 0
-    const reloadTilt = isReloading ? Math.sin(time * 3) * 0.3 : 0
+    // Add kick from recoil
+    if (recoilOffset.y > 0) {
+      weaponAnimator.addKick(recoilOffset.x, recoilOffset.y, 0)
+    }
 
     // Knife swing animation
     const isKnife = activeWeapon === 'knife' || activeWeapon === 'combatknife'
@@ -121,23 +122,17 @@ export function WeaponModel() {
     groupRef.current.position.copy(camera.position)
     groupRef.current.quaternion.copy(camera.quaternion)
 
-    // Child group applies local FPV offset
+    // Child group applies local FPV offset with animator
     recoilGroupRef.current.position.set(
-      basePos[0] + swayX + sprintBob,
-      basePos[1] +
-        swayY +
-        sprintBobY +
-        kickY +
-        visualPunch +
-        reloadProgress +
-        swingY,
-      basePos[2] + kickZ + deployOffset
+      basePos[0] + weaponAnimator.position.x,
+      basePos[1] + weaponAnimator.position.y + swingY,
+      basePos[2] + weaponAnimator.position.z + deployOffset
     )
 
     recoilGroupRef.current.rotation.set(
-      -kickZ * 0.45 + reloadTilt + swingAngle,
-      -kickY * 0.5,
-      0
+      weaponAnimator.rotation.x + swingAngle,
+      weaponAnimator.rotation.y,
+      weaponAnimator.rotation.z
     )
   })
 

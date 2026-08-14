@@ -44,6 +44,9 @@ export class PlayerState extends Schema {
   isDefusing: boolean
   plantProgress: number
   defuseProgress: number
+  reconnectExpiresAt: number
+  isBot: number
+  botDifficulty: number
 
   constructor() {
     super()
@@ -86,6 +89,9 @@ export class PlayerState extends Schema {
     this.isDefusing = false
     this.plantProgress = 0
     this.defuseProgress = 0
+    this.reconnectExpiresAt = 0
+    this.isBot = 0
+    this.botDifficulty = 0
   }
 }
 
@@ -129,6 +135,9 @@ defineTypes(PlayerState, {
   plantProgress: 'number',
   defuseProgress: 'number',
   isReady: 'boolean',
+  reconnectExpiresAt: 'number',
+  isBot: 'number',
+  botDifficulty: 'number',
 })
 
 // ─── Game State ─────────────────────────────────────────────────

@@ -26,13 +26,9 @@ import {
 } from "@cs-game/shared";
 import {
   MAX_ORIGIN_DISTANCE_SQ,
-  FIRE_RATE_TOLERANCE,
   SPAWN_PROTECTION_MS,
-  HEAD_HEIGHT_THRESHOLD,
-  PERP_DISTANCE_THRESHOLD_SQ,
   MAX_HP,
   ARMOR_VALUE,
-  ARMOR_DAMAGE_MULTIPLIER,
   CHAT_COOLDOWN_MS,
   RADIO_COOLDOWN_MS,
   MAX_CHAT_LENGTH,
@@ -46,9 +42,10 @@ import {
   GRENADE_OFFSET,
   MIN_SPAWN_DISTANCE_SQ,
   ROUND_RESET_DELAY_MS,
-  AWP_MAX_RANGE,
-  DEFAULT_MAX_RANGE,
 } from "./constants";
+import { WeaponManager } from "./WeaponManager";
+import { EconomySystem } from "./EconomySystem";
+import { BombController } from "./BombController";
 
 const { Room } = colyseus;
 
@@ -64,12 +61,6 @@ interface KillEvent {
   timestamp: number;
 }
 
-interface PositionSample {
-  t: number;
-  x: number;
-  z: number;
-}
-
 interface GrenadeSim {
   id: string;
   type: "he" | "smoke" | "flash";
@@ -83,10 +74,6 @@ interface GrenadeSim {
   spawnTime: number;
   detonated: boolean;
 }
-
-const MAX_PIERCE = 2;
-const HISTORY_WINDOW_MS = 1000;
-const MAX_REWIND_MS = 500;
 
 // ray vs AABB (slab method). Returns entry distance or null.
 function rayVsBox(
@@ -166,13 +153,12 @@ function bounceAxis(
 
 export class GameRoom extends Room<GameState> {
   private tickInterval: ReturnType<typeof setInterval> | null = null;
-  private lastFireTime: Map<string, number> = new Map();
   private respawnTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
-  private bombTimerId: ReturnType<typeof setTimeout> | null = null;
   private phaseTimerId: ReturnType<typeof setTimeout> | null = null;
-  private bombCarrierId: string | null = null;
-  private droppedBombPos: { x: number; y: number; z: number } | null = null;
   private spawnProtection: Map<string, number> = new Map();
+  private weaponManager = new WeaponManager();
+  private economyManager = new EconomySystem();
+  private bombCtrl = new BombController();
 
   private vote: {
     targetId: string;
@@ -181,20 +167,11 @@ export class GameRoom extends Room<GameState> {
     timer: ReturnType<typeof setTimeout>;
   } | null = null;
 
-  // Lag compensation: per-player position history for server rewind
-  private shootHistory: Map<string, PositionSample[]> = new Map();
   // Track last input time per player for real-time dt calculation
   private lastInputTime: Map<string, number> = new Map();
-  // Track server-measured RTT per client for lag compensation validation
-  private serverRTT: Map<string, number> = new Map();
-  private pingTimestamps: Map<string, number> = new Map();
   // Rate limiting for chat and radio
   private lastChatTime: Map<string, number> = new Map();
   private lastRadioTime: Map<string, number> = new Map();
-  // Track reload timers for cleanup on disconnect
-  private reloadTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
-  // Rate limiting for input messages
-  private lastInputMessageTime: Map<string, number> = new Map();
   // Rate limiting for vote kick requests
   private lastVoteTime: Map<string, number> = new Map();
   // Server-side grenade simulation (not synced as schema; transient)
@@ -213,11 +190,7 @@ export class GameRoom extends Room<GameState> {
       if (!player || player.isDead) return;
       if (this.state.phase !== "active") return;
 
-      // Rate limit input messages (max 2x tick rate)
-      const now = performance.now();
-      const lastInput = this.lastInputMessageTime.get(client.sessionId) || 0;
-      if (now - lastInput < (TICK_MS * 2)) return;
-      this.lastInputMessageTime.set(client.sessionId, now);
+      if (!this.weaponManager.canProcessInput(client.sessionId, TICK_MS)) return;
 
       this.processMovement(client.sessionId, player, input);
 
@@ -235,43 +208,26 @@ export class GameRoom extends Room<GameState> {
       if (!shooter || shooter.isDead) return;
       if (this.state.phase !== "active") return;
 
-      const now = performance.now();
-      // Anti-cheat: the server is the source of truth for the weapon.
       const weaponKey = shooter.currentWeapon as keyof typeof WEAPONS;
-      const weaponStats = WEAPONS[weaponKey];
-      if (!weaponStats) return;
+      if (!WEAPONS[weaponKey]) return;
 
-      // Anti-cheat: shoot origin must be near the player's server position.
-      const ox = data.origin.x - shooter.x;
-      const oy = data.origin.y - (shooter.y + 1.6);
-      const oz = data.origin.z - shooter.z;
-      if (ox * ox + oy * oy + oz * oz > MAX_ORIGIN_DISTANCE_SQ) return;
-
-      const lastFire = this.lastFireTime.get(client.sessionId) || 0;
-      const minInterval = 1000 / weaponStats.fireRate;
-      if (now - lastFire < minInterval * FIRE_RATE_TOLERANCE) return;
-
+      if (!this.weaponManager.validateShootOrigin(shooter, data)) return;
+      if (!this.weaponManager.canFire(client.sessionId, weaponKey)) return;
       if (shooter.ammo <= 0) return;
 
       shooter.ammo--;
-      this.lastFireTime.set(client.sessionId, now);
+      this.weaponManager.recordFire(client.sessionId);
 
-      const hitResult = this.checkHit(client.sessionId, shooter, data);
+      const hitResult = this.weaponManager.checkHit(client.sessionId, shooter, data, this.state);
       if (!hitResult) return;
 
       const victim = this.state.players.get(hitResult.victimId);
       if (!victim || victim.isDead) return;
 
-      // Spawn protection: invulnerability after respawn
-      const spawnTime = this.spawnProtection.get(hitResult.victimId);
-      if (spawnTime !== undefined && performance.now() - spawnTime < SPAWN_PROTECTION_MS) return;
+      if (this.weaponManager.isSpawnProtected(this.spawnProtection, hitResult.victimId)) return;
 
-      const damage = this.calculateDamage(
-        weaponKey,
-        hitResult.zone,
-        victim.armor,
-        victim.hasHelmet,
-        hitResult.wallbangFactor
+      const damage = this.weaponManager.calculateDamage(
+        weaponKey, hitResult.zone, victim.armor, victim.hasHelmet, hitResult.wallbangFactor
       );
       victim.hp -= damage;
 
@@ -311,10 +267,10 @@ export class GameRoom extends Room<GameState> {
         p.reserveAmmo -= toLoad;
         p.isReloading = false;
 
-        this.reloadTimers.delete(client.sessionId);
+        this.weaponManager.clearReload(client.sessionId);
         this.broadcast("reloadEnd", { playerId: client.sessionId });
       }, weaponStats.reload * 1000);
-      this.reloadTimers.set(client.sessionId, reloadTimer);
+      this.weaponManager.trackReload(client.sessionId, reloadTimer);
 
       this.broadcast("reloadStart", { playerId: client.sessionId });
     });
@@ -333,7 +289,7 @@ export class GameRoom extends Room<GameState> {
         if (Math.sqrt(dx * dx + dz * dz) > buyZone.radius) return;
       }
 
-      this.processBuy(client.sessionId, data);
+      this.economyManager.processBuy(client.sessionId, data, this.state, this.broadcast.bind(this));
     });
 
     this.onMessage("switch_weapon", (client, data: { slot: number }) => {
@@ -457,18 +413,18 @@ export class GameRoom extends Room<GameState> {
       if (!player || player.isDead) return;
       if (player.team !== "T") return;
       if (player.hasBomb) return;
-      if (this.bombCarrierId) return;
+      if (this.bombCtrl.bombCarrierId) return;
       if (this.state.bombPlanted) return;
-      if (!this.droppedBombPos) return;
+      if (!this.bombCtrl.droppedBombPos) return;
 
       // Check distance to dropped bomb (within 2 units)
-      const dx = player.x - this.droppedBombPos.x;
-      const dz = player.z - this.droppedBombPos.z;
+      const dx = player.x - this.bombCtrl.droppedBombPos.x;
+      const dz = player.z - this.bombCtrl.droppedBombPos.z;
       if (Math.sqrt(dx * dx + dz * dz) > 2) return;
 
       player.hasBomb = true;
-      this.bombCarrierId = client.sessionId;
-      this.droppedBombPos = null;
+      this.bombCtrl.bombCarrierId = client.sessionId;
+      this.bombCtrl.droppedBombPos = null;
       this.broadcast("bombPickedUp", { playerId: client.sessionId });
     });
 
@@ -573,9 +529,13 @@ export class GameRoom extends Room<GameState> {
     });
 
     this.onMessage("ping", (client, data: { timestamp: number }) => {
-      // Track when we received this ping for RTT estimation
-      this.pingTimestamps.set(client.sessionId, performance.now());
       client.send("pong", { timestamp: data.timestamp });
+    });
+
+    this.onMessage("clientRTT", (client, data: { rtt: number }) => {
+      if (typeof data.rtt === "number" && data.rtt > 0 && data.rtt < 5000) {
+        this.weaponManager.trackServerRTT(client.sessionId, data.rtt);
+      }
     });
 
     this.onMessage("chat", (client, data: { message?: unknown }) => {
@@ -770,9 +730,9 @@ export class GameRoom extends Room<GameState> {
     player.ammo = WEAPONS.deagle.mag;
     player.reserveAmmo = WEAPONS.deagle.reserveAmmo;
 
-    if (team === "T" && !this.bombCarrierId) {
+    if (team === "T" && !this.bombCtrl.bombCarrierId) {
       player.hasBomb = true;
-      this.bombCarrierId = client.sessionId;
+      this.bombCtrl.bombCarrierId = client.sessionId;
     }
 
     this.state.players.set(client.sessionId, player);
@@ -798,8 +758,8 @@ export class GameRoom extends Room<GameState> {
     if (player) {
       if (player.isPlanting) this.cancelPlant(sessionId, player);
       if (player.isDefusing) this.cancelDefuse(sessionId, player);
-      if (player.hasBomb && this.bombCarrierId === sessionId) {
-        this.bombCarrierId = null;
+      if (player.hasBomb && this.bombCtrl.bombCarrierId === sessionId) {
+        this.bombCtrl.bombCarrierId = null;
         this.dropBomb(player);
       }
     }
@@ -808,12 +768,6 @@ export class GameRoom extends Room<GameState> {
     if (timer) {
       clearTimeout(timer);
       this.respawnTimers.delete(sessionId);
-    }
-
-    const reloadTimer = this.reloadTimers.get(sessionId);
-    if (reloadTimer) {
-      clearTimeout(reloadTimer);
-      this.reloadTimers.delete(sessionId);
     }
 
     if (this.vote && this.vote.targetId === sessionId) {
@@ -825,22 +779,23 @@ export class GameRoom extends Room<GameState> {
     this.lastInputTime.delete(sessionId);
     this.lastChatTime.delete(sessionId);
     this.lastRadioTime.delete(sessionId);
-    this.lastInputMessageTime.delete(sessionId);
     this.lastVoteTime.delete(sessionId);
 
     // ─── Reconnect window: player state is preserved for 60s ───
     if (player && this.state.phase !== "waiting") {
+      // Set expiry timestamp so clients can display countdown
+      player.reconnectExpiresAt = Date.now() + SERVER.reconnectTTL * 1000;
       const allow = this.allowReconnection(client, SERVER.reconnectTTL);
       const pendingTimer = setTimeout(() => {
         // Reconnect window expired → hard cleanup.
         const p = this.state.players.get(sessionId);
         this.state.players.delete(sessionId);
-        this.lastFireTime.delete(sessionId);
+        this.weaponManager.clearAll(sessionId);
         this.spawnProtection.delete(sessionId);
-        this.shootHistory.delete(sessionId);
         this.pendingReconnect.delete(sessionId);
 
         if (p) {
+          p.reconnectExpiresAt = 0; // Clear expiry before deletion
           this.broadcast("playerLeft", {
             sessionId,
             nickname: p.nickname,
@@ -871,6 +826,7 @@ export class GameRoom extends Room<GameState> {
           }
           const p = this.state.players.get(sessionId);
           if (p) {
+            p.reconnectExpiresAt = 0; // Reset expiry on successful reconnect
             this.broadcast("playerReconnected", {
               sessionId,
               nickname: p.nickname,
@@ -887,9 +843,8 @@ export class GameRoom extends Room<GameState> {
 
     // ─── No reconnect candidate → immediate cleanup ───
     this.state.players.delete(sessionId);
-    this.lastFireTime.delete(sessionId);
+    this.weaponManager.clearAll(sessionId);
     this.spawnProtection.delete(sessionId);
-    this.shootHistory.delete(sessionId);
 
     this.broadcast("playerLeft", {
       sessionId,
@@ -918,7 +873,7 @@ export class GameRoom extends Room<GameState> {
 
   private clearAllTimers() {
     if (this.tickInterval) { clearInterval(this.tickInterval); this.tickInterval = null; }
-    if (this.bombTimerId) { clearTimeout(this.bombTimerId); this.bombTimerId = null; }
+    if (this.bombCtrl.bombTimerId) { clearTimeout(this.bombCtrl.bombTimerId); this.bombCtrl.bombTimerId = null; }
     if (this.phaseTimerId) { clearTimeout(this.phaseTimerId); this.phaseTimerId = null; }
     this.respawnTimers.forEach((t) => clearTimeout(t));
     this.respawnTimers.clear();
@@ -1011,208 +966,10 @@ export class GameRoom extends Room<GameState> {
     player.isAirborne = player.y > 0.1;
 
     // Record position sample for lag compensation
-    let history = this.shootHistory.get(sessionId);
-    if (!history) {
-      history = [];
-      this.shootHistory.set(sessionId, history);
-    }
-    history.push({ t: now, x: player.x, z: player.z });
-    // Cap history length to prevent unbounded growth (~2 seconds at 30 tick)
-    while (history.length > 60) {
-      history.shift();
-    }
-    // Also prune by time window
-    while (history.length > 0 && now - history[0].t > HISTORY_WINDOW_MS) {
-      history.shift();
-    }
+    this.weaponManager.recordPosition(sessionId, player, now);
 
     // Update last processed sequence
     player.lastProcessedSeq = input.seq;
-  }
-
-  private samplePosition(
-    sessionId: string,
-    targetTime: number
-  ): { x: number; z: number } | null {
-    const history = this.shootHistory.get(sessionId);
-    const player = this.state.players.get(sessionId);
-    if (!player) return null;
-    if (!history || history.length === 0) {
-      return { x: player.x, z: player.z };
-    }
-
-    // Clamp to the newest sample
-    const last = history[history.length - 1];
-    if (targetTime >= last.t) return { x: last.x, z: last.z };
-
-    // Clamp to the oldest sample
-    const first = history[0];
-    if (targetTime <= first.t) return { x: first.x, z: first.z };
-
-    // Interpolate between surrounding samples
-    for (let i = 0; i < history.length - 1; i++) {
-      const a = history[i];
-      const b = history[i + 1];
-      if (targetTime >= a.t && targetTime <= b.t) {
-        const f = (targetTime - a.t) / (b.t - a.t);
-        return {
-          x: a.x + (b.x - a.x) * f,
-          z: a.z + (b.z - a.z) * f,
-        };
-      }
-    }
-    return { x: last.x, z: last.z };
-  }
-
-  // ─── Hit Detection ─────────────────────────────────────────────
-  private checkHit(
-    shooterId: string,
-    shooter: PlayerState,
-    data: ShootInput
-  ): { victimId: string; zone: "head" | "torso" | "limbs"; distance: number; wallbangFactor: number } | null {
-    const now = performance.now();
-    const shooterPos = { x: shooter.x, y: shooter.y + 1.6, z: shooter.z };
-    const dir = data.direction;
-    const dirLength = Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
-    if (dirLength === 0) return null;
-
-    const normDir = { x: dir.x / dirLength, y: dir.y / dirLength, z: dir.z / dirLength };
-
-    // Lag compensation: rewind to when the shot was fired client-side.
-    // Validate client-reported latency against server-measured RTT to prevent exploitation
-    const serverRTT = this.serverRTT.get(shooterId) || 0;
-    const clientLatency = Math.max(0, data.latency ?? 0);
-    // Use the smaller of client-reported and 1.5x server-measured RTT
-    const latency = serverRTT > 0
-      ? Math.min(clientLatency, serverRTT * 1.5, MAX_REWIND_MS)
-      : Math.min(clientLatency, MAX_REWIND_MS);
-    const targetTime = now - latency;
-
-    let closestHit: {
-      victimId: string;
-      zone: "head" | "torso" | "limbs";
-      distance: number;
-      wallbangFactor: number;
-    } | null = null;
-
-    this.state.players.forEach((player, id) => {
-      if (id === shooterId || player.isDead) return;
-
-      // FFA = free for all; TDM/Defusal = team vs team.
-      if (this.state.gameMode !== "ffa" && player.team === shooter.team) return;
-
-      // Rewound position of the victim at shot time.
-      const rewound = this.samplePosition(id, targetTime);
-      const targetX = rewound ? rewound.x : player.x;
-      const targetZ = rewound ? rewound.z : player.z;
-
-      const dx = targetX - shooterPos.x;
-      const dy = player.y - shooterPos.y;
-      const dz = targetZ - shooterPos.z;
-
-      const weaponKey = shooter.currentWeapon as keyof typeof WEAPONS;
-      const maxRange = weaponKey === "awp" ? AWP_MAX_RANGE : DEFAULT_MAX_RANGE;
-      const distToTarget = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (distToTarget > maxRange) return;
-
-      // Project target onto shooting ray direction vector
-      const dot = dx * normDir.x + (dy + 0.9) * normDir.y + dz * normDir.z;
-      if (dot <= 0) return; // Behind or perpendicular to shooter
-
-      // Perpendicular distance squared from ray
-      const closestX = shooterPos.x + normDir.x * dot;
-      const closestY = shooterPos.y + normDir.y * dot;
-      const closestZ = shooterPos.z + normDir.z * dot;
-
-      const perpDx = targetX - closestX;
-      const perpDz = targetZ - closestZ;
-      const perpDistSq = perpDx * perpDx + perpDz * perpDz;
-
-      // Hitbox cylinder radius
-      if (perpDistSq > PERP_DISTANCE_THRESHOLD_SQ) return;
-
-      const relY = closestY - player.y;
-      if (relY < -0.2 || relY > 2.0) return; // Out of height bounds
-
-      let zone: "head" | "torso" | "limbs" = "torso";
-      if (relY >= 1.35) zone = "head";
-      else if (relY <= HEAD_HEIGHT_THRESHOLD) zone = "limbs";
-
-      // Line of sight + wallbang: cast a ray from the muzzle to the hit
-      // point. Wood surfaces can be pierced (max 2), metal blocks fully.
-      let pierce = 0;
-      let wallbangFactor = 1;
-
-      for (const obs of MAP_OBSTACLES) {
-        const t = rayVsBox(
-          shooterPos.x, shooterPos.y, shooterPos.z,
-          normDir.x, normDir.y, normDir.z,
-          obs
-        );
-        if (t === null) continue;
-        // Only obstacles before the target matter.
-        if (t > dot) continue;
-
-        if (obs.material === "wood" && pierce < MAX_PIERCE) {
-          pierce++;
-          wallbangFactor *= 0.5;
-        } else {
-          return; // Metal/concrete wall (or too many pierces) = blocked
-        }
-      }
-
-      // Smoke grenades block line of sight entirely.
-      const smokeBlocked =
-        this.state.smokes.size > 0 &&
-        Array.from(this.state.smokes.values()).some((smoke) => {
-          const sx = targetX - smoke.x;
-          const sz = targetZ - smoke.z;
-          const t = (normDir.x * (-(shooterPos.x - smoke.x)) + normDir.z * (-(shooterPos.z - smoke.z)));
-          if (t <= 0 || t > dot) return false;
-          const px = shooterPos.x + normDir.x * t;
-          const pz = shooterPos.z + normDir.z * t;
-          const d = Math.sqrt((px - smoke.x) ** 2 + (pz - smoke.z) ** 2);
-          return d < GRENADE.smokeRadius;
-        });
-      if (smokeBlocked) return;
-
-      if (!closestHit || dot < closestHit.distance) {
-        closestHit = { victimId: id, zone, distance: dot, wallbangFactor };
-      }
-    });
-
-    return closestHit;
-  }
-
-  private calculateDamage(
-    weapon: string,
-    zone: "head" | "torso" | "limbs",
-    armor: number,
-    hasHelmet: boolean,
-    wallbangFactor = 1
-  ): number {
-    const weaponStats = WEAPONS[weapon as keyof typeof WEAPONS];
-    if (!weaponStats) return 0;
-
-    let baseDmg: number;
-    switch (zone) {
-      case "head": baseDmg = weaponStats.headshot; break;
-      case "torso": baseDmg = weaponStats.dmg; break;
-      case "limbs": baseDmg = weaponStats.dmg * 0.7; break;
-      default: baseDmg = weaponStats.dmg;
-    }
-
-    if (armor > 0) {
-      if (zone === "head" && !hasHelmet) {
-        // Headshot with no helmet = full damage
-      } else if (zone === "head" && hasHelmet) {
-        baseDmg *= 0.5;
-      } else if (zone === "torso") {
-        baseDmg *= ARMOR_DAMAGE_MULTIPLIER;
-      }
-    }
-
-    return Math.max(1, Math.round(baseDmg * wallbangFactor));
   }
 
   // ─── Grenade Simulation ───────────────────────────────────────
@@ -1413,7 +1170,7 @@ export class GameRoom extends Room<GameState> {
     killer.money = Math.min(killer.money + killReward, ECONOMY.maxMoney);
 
     if (victim.hasBomb) {
-      this.bombCarrierId = null;
+      this.bombCtrl.bombCarrierId = null;
       this.dropBomb(victim);
     }
 
@@ -1523,14 +1280,14 @@ export class GameRoom extends Room<GameState> {
     player.isPlanting = false;
     player.plantProgress = 0;
     player.hasBomb = false;
-    this.bombCarrierId = null;
-    this.droppedBombPos = null;
+    this.bombCtrl.bombCarrierId = null;
+    this.bombCtrl.droppedBombPos = null;
 
     this.state.bombPlanted = true;
     this.state.bombTimeLeft = ROUND.bombTimer;
     this.state.bombSite = this.findNearestBombSite(player);
 
-    player.money = Math.min(player.money + ECONOMY.plantBonus, ECONOMY.maxMoney);
+    this.economyManager.givePlantBonus(player);
 
     this.broadcast("bombPlanted", {
       planterId: sessionId,
@@ -1567,7 +1324,7 @@ export class GameRoom extends Room<GameState> {
     this.state.bombTimeLeft = 0;
     this.state.bombSite = "";
 
-    player.money = Math.min(player.money + ECONOMY.defuseBonus, ECONOMY.maxMoney);
+    this.economyManager.giveDefuseBonus(player);
 
     this.broadcast("bombDefused", { defuserId: sessionId });
 
@@ -1682,7 +1439,7 @@ export class GameRoom extends Room<GameState> {
   }
 
   private dropBomb(player: PlayerState) {
-    this.droppedBombPos = { x: player.x, y: player.y, z: player.z };
+    this.bombCtrl.droppedBombPos = { x: player.x, y: player.y, z: player.z };
     this.broadcast("bombDropped", {
       x: player.x,
       y: player.y,
@@ -1703,69 +1460,6 @@ export class GameRoom extends Room<GameState> {
     });
 
     return nearest;
-  }
-
-  // ─── Buy System ────────────────────────────────────────────────
-  private processBuy(sessionId: string, data: BuyRequest) {
-    const player = this.state.players.get(sessionId);
-    if (!player) return;
-
-    const item = data.item;
-
-    const weaponStats = WEAPONS[item as keyof typeof WEAPONS];
-    if (weaponStats) {
-      if (weaponStats.price > player.money) return;
-      if (weaponStats.team !== "both" && weaponStats.team !== player.team) return;
-
-      player.money -= weaponStats.price;
-
-      // Assign to correct slot
-      const isPrimary = ["ak47", "m4a1", "awp", "mp5"].includes(item);
-      const isSecondary = ["deagle", "glock", "tec9", "autopistol"].includes(item);
-      const isKnife = ["knife", "combatknife"].includes(item);
-
-      if (isPrimary) {
-        player.primaryWeapon = item;
-      } else if (isSecondary) {
-        player.secondaryWeapon = item;
-      } else if (isKnife) {
-        player.knifeSlot = item;
-      }
-
-      // Equip the bought weapon
-      player.currentWeapon = item;
-      player.ammo = weaponStats.mag;
-      player.reserveAmmo = weaponStats.reserveAmmo;
-      player.isReloading = false;
-
-      this.broadcast("itemBought", { playerId: sessionId, item, slot: "weapon" });
-      return;
-    }
-
-    const gearItem = GEAR[item as keyof typeof GEAR];
-    if (gearItem) {
-      if ((gearItem as any).price > player.money) return;
-      if ((gearItem as any).team && (gearItem as any).team !== player.team) return;
-
-      player.money -= (gearItem as any).price;
-
-      if (item === "kevlar") {
-        player.armor = ARMOR_VALUE;
-      } else if (item === "helmet") {
-        player.armor = ARMOR_VALUE;
-        player.hasHelmet = true;
-      } else if (item === "defuseKit") {
-        player.hasDefuseKit = true;
-      } else if (item === "grenadeHE") {
-        player.grenadeHE = Math.min(player.grenadeHE + 1, 4);
-      } else if (item === "grenadeSmoke") {
-        player.grenadeSmoke = Math.min(player.grenadeSmoke + 1, 4);
-      } else if (item === "grenadeFlash") {
-        player.grenadeFlash = Math.min(player.grenadeFlash + 1, 4);
-      }
-
-      this.broadcast("itemBought", { playerId: sessionId, item, slot: "gear" });
-    }
   }
 
   // ─── Round System ──────────────────────────────────────────────
@@ -1870,7 +1564,7 @@ export class GameRoom extends Room<GameState> {
       this.state.teamBlueScore++;
     }
 
-    this.giveRoundRewards(winner);
+    this.economyManager.giveRoundRewards(winner, this.state);
 
     this.broadcast("roundEnd", {
       winner,
@@ -1953,8 +1647,8 @@ export class GameRoom extends Room<GameState> {
         p.reserveAmmo = WEAPONS.deagle.reserveAmmo;
       });
 
-      this.bombCarrierId = null;
-      this.droppedBombPos = null;
+      this.bombCtrl.bombCarrierId = null;
+      this.bombCtrl.droppedBombPos = null;
       this.state.bombPlanted = false;
       this.state.bombTimeLeft = 0;
       this.state.bombSite = "";
@@ -2006,39 +1700,14 @@ export class GameRoom extends Room<GameState> {
         p.reserveAmmo = WEAPONS.deagle.reserveAmmo;
       });
 
-      this.bombCarrierId = null;
-      this.droppedBombPos = null;
+      this.bombCtrl.bombCarrierId = null;
+      this.bombCtrl.droppedBombPos = null;
       this.state.bombPlanted = false;
       this.state.bombTimeLeft = 0;
       this.state.bombSite = "";
 
       this.broadcast("matchReset", {});
     }, ROUND_RESET_DELAY_MS);
-  }
-
-  private giveRoundRewards(winner: "T" | "CT") {
-    const loser = winner === "T" ? "CT" : "T";
-
-    // Update loss streaks BEFORE calculating bonuses
-    if (winner === "CT") {
-      this.state.lossStreakT = Math.min(this.state.lossStreakT + 1, 3);
-      this.state.lossStreakCT = 0;
-    } else {
-      this.state.lossStreakCT = Math.min(this.state.lossStreakCT + 1, 3);
-      this.state.lossStreakT = 0;
-    }
-
-    this.state.players.forEach((p) => {
-      const isWinner = p.team === winner;
-
-      if (isWinner) {
-        p.money = Math.min(p.money + ECONOMY.roundWinBonus, ECONOMY.maxMoney);
-      } else {
-        const streak = p.team === "T" ? this.state.lossStreakT : this.state.lossStreakCT;
-        const bonus = streak >= 2 ? ECONOMY.lossBonus2 : ECONOMY.lossBonus1;
-        p.money = Math.min(p.money + bonus, ECONOMY.maxMoney);
-      }
-    });
   }
 
   private swapTeams() {
@@ -2050,7 +1719,7 @@ export class GameRoom extends Room<GameState> {
       p.z = spawn.z;
     });
 
-    this.bombCarrierId = null;
+    this.bombCtrl.bombCarrierId = null;
     this.assignBombToRandomT();
   }
 
@@ -2084,7 +1753,7 @@ export class GameRoom extends Room<GameState> {
     const bombHolder = this.state.players.get(tPlayers[idx]);
     if (bombHolder) {
       bombHolder.hasBomb = true;
-      this.bombCarrierId = tPlayers[idx];
+      this.bombCtrl.bombCarrierId = tPlayers[idx];
     }
   }
 
