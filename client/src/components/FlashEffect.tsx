@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNetworkStore } from "../stores/useNetworkStore";
+import { gameEvents } from "../lib/gameEvents";
 
 interface FlashState {
   opacity: number;
@@ -12,13 +13,7 @@ export function FlashEffect() {
   const sessionId = useNetworkStore((s) => s.sessionId);
 
   useEffect(() => {
-    const onFlash = (e: Event) => {
-      const detail = (e as CustomEvent).detail as {
-        x: number;
-        y: number;
-        z: number;
-        throwerId: string;
-      };
+    const onFlash = (detail: { x: number; y: number; z: number; throwerId: string }) => {
       if (!detail) return;
       const { localX, localZ } = useNetworkStore.getState();
       const dist = Math.sqrt(
@@ -27,7 +22,6 @@ export function FlashEffect() {
       const maxDist = 15;
       if (dist > maxDist) return;
 
-      // Closer = stronger flash; self-thrown is slightly reduced (better awareness)
       const strength = Math.max(0.2, 1 - dist / maxDist);
       const selfThrown = detail.throwerId === sessionId;
       const opacity = selfThrown ? strength * 0.7 : strength;
@@ -38,8 +32,8 @@ export function FlashEffect() {
         duration: selfThrown ? 1.2 : 2.4,
       });
     };
-    window.addEventListener("flashbang", onFlash);
-    return () => window.removeEventListener("flashbang", onFlash);
+    gameEvents.on("flashbang", onFlash);
+    return () => gameEvents.off("flashbang", onFlash);
   }, [sessionId]);
 
   useEffect(() => {

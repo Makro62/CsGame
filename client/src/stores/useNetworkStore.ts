@@ -4,6 +4,7 @@ import { GameState, PlayerState, Snapshot, ROUND, WEAPONS } from "@cs-game/share
 import { useWeaponStore, type WeaponKey } from "./useWeaponStore";
 import { startKillCamRecording, stopKillCamRecording } from "./useKillCamStore";
 import { SERVER_URL } from "../config/network";
+import { gameEvents } from "../lib/gameEvents";
 
 interface RemotePlayer {
   x: number;
@@ -616,15 +617,15 @@ function setupRoom(
   });
 
   room.onMessage("grenadeThrown", (data: { id: string; type: string; throwerId: string; x: number; y: number; z: number; vx: number; vy: number; vz: number }) => {
-    window.dispatchEvent(new CustomEvent("nadeThrown", { detail: data }));
+    gameEvents.emit("nadeThrown", data);
   });
 
   room.onMessage("grenadeDetonated", (data: { id: string; type: string; x: number; y: number; z: number }) => {
-    window.dispatchEvent(new CustomEvent("nadeDetonated", { detail: data }));
+    gameEvents.emit("nadeDetonated", data);
   });
 
   room.onMessage("flash", (data: { x: number; y: number; z: number; throwerId: string }) => {
-    window.dispatchEvent(new CustomEvent("flashbang", { detail: data }));
+    gameEvents.emit("flashbang", data);
   });
 
   room.onMessage("pong", (data: { timestamp: number }) => {
@@ -655,11 +656,11 @@ function setupRoom(
   });
 
   room.onMessage("radio", (data: { sender: string; code: number; team: string }) => {
-    window.dispatchEvent(new CustomEvent("radioCommand", { detail: data }));
+    gameEvents.emit("radioCommand", { sessionId: data.sender, command: String(data.code), nickname: data.sender });
   });
 
   room.onMessage("playerReconnected", (data: { sessionId: string; nickname: string }) => {
-    window.dispatchEvent(new CustomEvent("playerReconnected", { detail: data }));
+    gameEvents.emit("playerReconnected", data);
   });
 
   room.onLeave(() => {

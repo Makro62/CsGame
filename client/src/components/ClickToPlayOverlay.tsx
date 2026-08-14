@@ -48,7 +48,7 @@ export function ClickToPlayOverlay({ onLock }: ClickToPlayOverlayProps) {
         flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
-        zIndex: 9999,
+        zIndex: 50,
         cursor: "pointer",
         pointerEvents: "auto",
       }}

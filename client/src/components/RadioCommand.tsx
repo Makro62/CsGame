@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNetworkStore } from '../stores/useNetworkStore'
+import { gameEvents } from '../lib/gameEvents'
 
 export default function RadioCommand() {
   const [open, setOpen] = useState(false)
@@ -13,14 +14,14 @@ export default function RadioCommand() {
       3: "Enemy spotted!",
     };
 
-    const handleRadioEvent = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { sender: string; code: number; team: string };
-      const text = RADIO_TEXTS[detail.code] || `Radio ${detail.code}`;
-      setMsg(`[${detail.sender}]: ${text}`);
+    const handleRadioEvent = (detail: { sessionId: string; command: string; nickname: string }) => {
+      const code = parseInt(detail.command, 10);
+      const text = RADIO_TEXTS[code] || `Radio ${code}`;
+      setMsg(`[${detail.nickname}]: ${text}`);
       setTimeout(() => setMsg(null), 3500);
     };
 
-    window.addEventListener("radioCommand", handleRadioEvent);
+    gameEvents.on("radioCommand", handleRadioEvent);
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === 'z') {
@@ -35,7 +36,7 @@ export default function RadioCommand() {
     };
     window.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener("radioCommand", handleRadioEvent);
+      gameEvents.off("radioCommand", handleRadioEvent);
       window.removeEventListener('keydown', onKey);
     };
   }, [open, room]);

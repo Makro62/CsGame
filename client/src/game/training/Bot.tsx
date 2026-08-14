@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react"
 import { useFrame, useThree } from "@react-three/fiber"
 import * as THREE from "three"
+import { gameEvents } from "../../lib/gameEvents"
 
 export type BotDifficulty = 1 | 2 | 3 | 4 | 5
 export type BotBehavior = "peeker" | "rusher" | "camper" | "awper"
@@ -206,11 +207,7 @@ export function Bot({
         if (Math.random() < config.accuracy) {
           const isHS = Math.random() < config.hsRate
           // Emit bot shot event (parent handles player damage)
-          window.dispatchEvent(
-            new CustomEvent("botShoot", {
-              detail: { botId: id, isHeadshot: isHS, damage: isHS ? 100 : 15 },
-            })
-          )
+          gameEvents.emit("botShoot", { botId: id, isHeadshot: isHS, damage: isHS ? 100 : 15 })
         }
         lastShootTime.current = now
       }

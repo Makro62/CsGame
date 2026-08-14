@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { GRENADE } from "@cs-game/shared";
 import { useNetworkStore } from "../../stores/useNetworkStore";
 import { useWeaponStore } from "../../stores/useWeaponStore";
+import { gameEvents } from "../../lib/gameEvents";
 
 interface ThrownGrenade {
   id: string;
@@ -42,18 +43,7 @@ export function GrenadeSystem() {
 
   // Server-driven events
   useEffect(() => {
-    const onThrown = (e: Event) => {
-      const data = (e as CustomEvent).detail as {
-        id: string;
-        type: string;
-        throwerId: string;
-        x: number;
-        y: number;
-        z: number;
-        vx: number;
-        vy: number;
-        vz: number;
-      };
+    const onThrown = (data: { id: string; type: string; throwerId: string; x: number; y: number; z: number; vx: number; vy: number; vz: number }) => {
       setGrenades((prev) => [
         ...prev.filter((g) => g.id !== data.id),
         {
@@ -68,15 +58,7 @@ export function GrenadeSystem() {
       ]);
     };
 
-    const onDetonated = (e: Event) => {
-      const data = (e as CustomEvent).detail as {
-        id: string;
-        type: string;
-        throwerId: string;
-        x: number;
-        y: number;
-        z: number;
-      };
+    const onDetonated = (data: { id: string; type: string; x: number; y: number; z: number }) => {
       setGrenades((prev) =>
         prev.map((g) =>
           g.id === data.id
@@ -91,11 +73,11 @@ export function GrenadeSystem() {
       );
     };
 
-    window.addEventListener("nadeThrown", onThrown);
-    window.addEventListener("nadeDetonated", onDetonated);
+    gameEvents.on("nadeThrown", onThrown);
+    gameEvents.on("nadeDetonated", onDetonated);
     return () => {
-      window.removeEventListener("nadeThrown", onThrown);
-      window.removeEventListener("nadeDetonated", onDetonated);
+      gameEvents.off("nadeThrown", onThrown);
+      gameEvents.off("nadeDetonated", onDetonated);
     };
   }, []);
 

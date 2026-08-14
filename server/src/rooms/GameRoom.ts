@@ -46,6 +46,7 @@ import {
 import { WeaponManager } from "./WeaponManager";
 import { EconomySystem } from "./EconomySystem";
 import { BombController } from "./BombController";
+import { BotAgent, BotConfig } from "../ai/BotAgent";
 
 const { Room } = colyseus;
 
@@ -180,6 +181,11 @@ export class GameRoom extends Room<GameState> {
   private grenadeSeq = 0;
   // Reconnect: players keep their state during the TTL window
   private pendingReconnect: Map<string, { timer: ReturnType<typeof setTimeout> }> = new Map();
+  // Bot backfill for low-population matches
+  private botAgents: Map<string, BotAgent> = new Map();
+  private botDifficulty = 3;
+  private maxBots = 5;
+  private botSeq = 0;
 
   onCreate() {
     this.setState(new GameState());
@@ -699,6 +705,7 @@ export class GameRoom extends Room<GameState> {
       this.processPlanting();
       this.processDefusing();
       this.processKOTH();
+      this.updateBots(1 / SERVER.tickRate);
     }, TICK_MS);
   }
 
@@ -813,6 +820,9 @@ export class GameRoom extends Room<GameState> {
           this.clearAllTimers();
         }
 
+        // Bot backfill: if fewer than 2 humans, spawn bots
+        this.backfillBots();
+
         this.checkRoundEnd();
       }, SERVER.reconnectTTL * 1000);
 
@@ -868,6 +878,7 @@ export class GameRoom extends Room<GameState> {
   onDispose() {
     this.pendingReconnect.forEach(({ timer }) => clearTimeout(timer));
     this.pendingReconnect.clear();
+    this.botAgents.clear();
     this.clearAllTimers();
   }
 
@@ -1780,5 +1791,70 @@ export class GameRoom extends Room<GameState> {
       this.endRound("T");
       return;
     }
+  }
+
+  private countHumans(): number {
+    let count = 0;
+    this.state.players.forEach((p: any) => {
+      if (!p.isBot) count++;
+    });
+    return count;
+  }
+
+  private backfillBots() {
+    const humans = this.countHumans();
+    const targetBots = Math.max(0, Math.min(this.maxBots, 2 - humans));
+    const currentBots = this.botAgents.size;
+    const toAdd = targetBots - currentBots;
+
+    for (let i = 0; i < toAdd; i++) {
+      const botId = `bot_${++this.botSeq}`;
+      const team = (this.botSeq % 2 === 0) ? "T" : "CT";
+      const spawn = SPAWN[team as keyof typeof SPAWN];
+      const botPlayer = new PlayerState();
+      botPlayer.x = spawn.x + (Math.random() - 0.5) * 10;
+      botPlayer.y = 0;
+      botPlayer.z = spawn.z + (Math.random() - 0.5) * 10;
+      botPlayer.team = team;
+      botPlayer.nickname = `Bot ${this.botSeq}`;
+      botPlayer.hp = MAX_HP;
+      (botPlayer as any).isBot = 1;
+      (botPlayer as any).botDifficulty = this.botDifficulty;
+      botPlayer.currentWeapon = "ak47";
+      botPlayer.primaryWeapon = "ak47";
+      botPlayer.secondaryWeapon = "deagle";
+      botPlayer.knifeSlot = "knife";
+      botPlayer.ammo = WEAPONS.ak47.mag;
+      botPlayer.reserveAmmo = WEAPONS.ak47.reserveAmmo;
+
+      this.state.players.set(botId, botPlayer);
+
+      const behavior = (["peeker", "rusher", "camper", "support", "awper"] as const)[this.botSeq % 5];
+      const config: BotConfig = {
+        difficulty: this.botDifficulty,
+        behavior,
+        team,
+        spawnPos: { x: botPlayer.x, z: botPlayer.z },
+      };
+      this.botAgents.set(botId, new BotAgent(config));
+    }
+
+    if (toAdd > 0) {
+      this.broadcast("playerCount", { count: this.state.players.size });
+    }
+  }
+
+  private updateBots(dt: number) {
+    if (this.state.phase !== "active") return;
+    this.botAgents.forEach((agent, botId) => {
+      const botPlayer = this.state.players.get(botId);
+      if (!botPlayer || botPlayer.isDead) return;
+      agent.think(this.state.players, botPlayer, this.state, dt);
+
+      // Apply bot movement
+      botPlayer.x = agent.pos.x;
+      botPlayer.z = agent.pos.z;
+      botPlayer.rotationY = agent.rotationY;
+    });
   }
 }
