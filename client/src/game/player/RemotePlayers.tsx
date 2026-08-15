@@ -2,9 +2,23 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useNetworkStore } from "../../stores/useNetworkStore";
+import { MinecraftCharacter } from "./MinecraftCharacter";
 
 const CULL_DISTANCE = 60;
+const OUTLINE_SCALE = 1.05;
+const OUTLINE_COLOR_ENEMY = "#f97316";
+const SMOKE_RADIUS = 4;
 const lerpVec3 = new THREE.Vector3();
+
+// Reusable outline material (BackSide rendering for glow silhouette)
+const outlineMaterial = new THREE.MeshBasicMaterial({
+  color: OUTLINE_COLOR_ENEMY,
+  side: THREE.BackSide,
+  transparent: true,
+  opacity: 0.6,
+  depthTest: false,
+  depthWrite: false,
+});
 
 function RemotePlayer({
   x,
@@ -17,6 +31,7 @@ function RemotePlayer({
   isDead,
   localX,
   localZ,
+  localTeam,
   isSprinting,
   isCrouching,
 }: {
@@ -30,11 +45,13 @@ function RemotePlayer({
   isDead: boolean;
   localX: number;
   localZ: number;
+  localTeam: string;
   isSprinting: boolean;
   isCrouching: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const weaponRef = useRef<THREE.Group>(null);
+  const outlineRef = useRef<THREE.Group>(null);
   const currentPos = useRef(new THREE.Vector3(x, y, z));
   const targetPos = useRef(new THREE.Vector3(x, y, z));
   const deathY = useRef(0);
@@ -53,6 +70,16 @@ function RemotePlayer({
     groupRef.current.position.copy(currentPos.current);
     groupRef.current.rotation.y = rotationY;
 
+    // Outline glow: only for enemies, not dead, not in smoke
+    const isEnemy = team !== localTeam;
+    const smokes = useNetworkStore.getState().smokes;
+    const inSmoke = smokes.some(
+      (s) => Math.sqrt((x - s.x) ** 2 + (z - s.z) ** 2) < SMOKE_RADIUS
+    );
+    if (outlineRef.current) {
+      outlineRef.current.visible = isEnemy && !isDead && !inSmoke;
+    }
+
     // Death fall animation (lerp towards ground, stays as corpse briefly)
     if (isDead) {
       deathY.current = Math.min(deathY.current + 0.05, 0.5);
@@ -61,8 +88,6 @@ function RemotePlayer({
     } else {
       deathY.current = 0;
       groupRef.current.rotation.z = 0;
-      // Crouch: lower the character visually
-      groupRef.current.scale.y = isCrouching ? 0.7 : 1;
     }
 
     // Weapon sway/bob for remote players
@@ -88,26 +113,47 @@ function RemotePlayer({
     }
   });
 
-  const color = team === "CT" ? "#2f6fe4" : "#e4562f";
   const hpColor = hp > 60 ? "#4ade80" : hp > 25 ? "#fbbf24" : "#ef4444";
 
   return (
     <group ref={groupRef}>
-      {/* Head */}
-      <mesh position={[0, 1.4, 0]} castShadow>
-        <boxGeometry args={[0.4, 0.4, 0.4]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} />
-      </mesh>
-      {/* Torso */}
-      <mesh position={[0, 0.8, 0]} castShadow>
-        <boxGeometry args={[0.5, 0.8, 0.3]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} />
-      </mesh>
-      {/* Legs */}
-      <mesh position={[0, 0.2, 0]} castShadow>
-        <boxGeometry args={[0.5, 0.4, 0.3]} />
-        <meshStandardMaterial color="#374151" />
-      </mesh>
+      {/* Minecraft Character Model */}
+      <MinecraftCharacter
+        team={team}
+        isSprinting={isSprinting}
+        isCrouching={isCrouching}
+        isJumping={false}
+        isDead={isDead}
+        limbSwingSpeed={isSprinting ? 10 : isCrouching ? 3 : 6}
+      />
+
+      {/* Enemy outline glow silhouette (1.05x BackSide mesh) */}
+      <group ref={outlineRef} scale={[OUTLINE_SCALE, OUTLINE_SCALE, OUTLINE_SCALE]}>
+        {/* Head outline */}
+        <mesh position={[0, 1.45, 0]} material={outlineMaterial}>
+          <boxGeometry args={[0.40, 0.40, 0.40]} />
+        </mesh>
+        {/* Torso outline */}
+        <mesh position={[0, 0.8, 0]} material={outlineMaterial}>
+          <boxGeometry args={[0.5, 0.8, 0.3]} />
+        </mesh>
+        {/* Left arm outline */}
+        <mesh position={[-0.35, 0.8, 0]} material={outlineMaterial}>
+          <boxGeometry args={[0.2, 0.7, 0.2]} />
+        </mesh>
+        {/* Right arm outline */}
+        <mesh position={[0.35, 0.8, 0]} material={outlineMaterial}>
+          <boxGeometry args={[0.2, 0.7, 0.2]} />
+        </mesh>
+        {/* Left leg outline */}
+        <mesh position={[-0.11, 0.1, 0]} material={outlineMaterial}>
+          <boxGeometry args={[0.22, 0.7, 0.22]} />
+        </mesh>
+        {/* Right leg outline */}
+        <mesh position={[0.11, 0.1, 0]} material={outlineMaterial}>
+          <boxGeometry args={[0.22, 0.7, 0.22]} />
+        </mesh>
+      </group>
 
       {/* Weapon model (simplified box) */}
       {!isDead && (
@@ -183,6 +229,7 @@ export function RemotePlayers() {
   const remotePlayers = useNetworkStore((s) => s.remotePlayers);
   const localX = useNetworkStore((s) => s.localX);
   const localZ = useNetworkStore((s) => s.localZ);
+  const localTeam = useNetworkStore((s) => s.localTeam);
 
   return (
     <group>
@@ -199,6 +246,7 @@ export function RemotePlayers() {
           isDead={player.isDead}
           localX={localX}
           localZ={localZ}
+          localTeam={localTeam}
           isSprinting={player.isSprinting}
           isCrouching={player.isCrouching}
         />

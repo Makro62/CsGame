@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from "react"
 import { useFrame, useThree } from "@react-three/fiber"
 import * as THREE from "three"
 import { gameEvents } from "../../lib/gameEvents"
+import { useGameStore } from "../../stores/useGameStore"
 
 export type BotDifficulty = 1 | 2 | 3 | 4 | 5
 export type BotBehavior = "peeker" | "rusher" | "camper" | "awper"
@@ -58,6 +59,42 @@ export function Bot({
   const lastShootTime = useRef(0)
   const aggroTimer = useRef(0)
 
+  // Register in gameStore targets
+  useEffect(() => {
+    useGameStore.getState().addTarget({
+      id,
+      x: position[0],
+      y: position[1],
+      z: position[2],
+      hp: 100,
+      maxHp: 100,
+      isAlive: true,
+    })
+
+    const onDamage = (data: { id: string; damage: number; isHeadshot: boolean; isDead: boolean; newHp: number }) => {
+      if (data.id !== id) return
+
+      if (data.isDead) {
+        setHp(0)
+        setBotState("dead")
+        onHit(data.isHeadshot)
+        onKill?.()
+      } else {
+        setHp(data.newHp)
+        setBotState("strafe")
+        strafeTimer.current = 1.5 + Math.random()
+        strafeDir.current = Math.random() > 0.5 ? 1 : -1
+      }
+    }
+
+    gameEvents.on("targetDamaged", onDamage)
+
+    return () => {
+      gameEvents.off("targetDamaged", onDamage)
+      useGameStore.getState().removeTarget(id)
+    }
+  }, [id, onHit, onKill, position])
+
   // Respawn
   useEffect(() => {
     if (botState === "dead") {
@@ -65,13 +102,22 @@ export function Bot({
         setHp(100)
         setBotState("patrol")
         currentPos.current.copy(spawnPos.current)
+        useGameStore.getState().addTarget({
+          id,
+          x: spawnPos.current.x,
+          y: spawnPos.current.y,
+          z: spawnPos.current.z,
+          hp: 100,
+          maxHp: 100,
+          isAlive: true,
+        })
         pickPatrolTarget()
       }, respawnTime)
     }
     return () => {
       if (respawnTimer.current) clearTimeout(respawnTimer.current)
     }
-  }, [botState, respawnTime])
+  }, [botState, id, respawnTime])
 
   const pickPatrolTarget = useCallback(() => {
     const angle = Math.random() * Math.PI * 2
@@ -97,21 +143,9 @@ export function Bot({
       const isHeadshot = point.y > headY - 0.2
 
       const damage = isHeadshot ? 100 : 35
-      const newHp = hp - damage
-
-      if (newHp <= 0) {
-        setHp(0)
-        setBotState("dead")
-        onHit(isHeadshot)
-        onKill?.()
-      } else {
-        setHp(newHp)
-        setBotState("strafe")
-        strafeTimer.current = 1.5 + Math.random()
-        strafeDir.current = Math.random() > 0.5 ? 1 : -1
-      }
+      useGameStore.getState().damageTarget(id, damage, isHeadshot)
     },
-    [botState, hp, onHit, onKill]
+    [botState, id]
   )
 
   // AI + Animation
@@ -248,7 +282,7 @@ export function Bot({
       </mesh>
 
       {/* Neck */}
-      <mesh position={[0, 1.35, 0]}>
+      <mesh position={[0, 1.35, 0]} userData={{ targetId: id, isHead: true }}>
         <boxGeometry args={[0.15, 0.1, 0.15]} />
         <meshStandardMaterial color="#fda4af" />
       </mesh>
@@ -265,18 +299,18 @@ export function Bot({
       </mesh>
 
       {/* Belt */}
-      <mesh position={[0, 0.6, 0]}>
+      <mesh position={[0, 0.6, 0]} userData={{ targetId: id, isHead: false }}>
         <boxGeometry args={[0.52, 0.08, 0.32]} />
         <meshStandardMaterial color="#1f2937" />
       </mesh>
 
       {/* Left Arm */}
       <group position={[0.35, 1.1, 0]}>
-        <mesh position={[0, -0.15, 0]} rotation={[armSwing * 0.5, 0, 0]}>
+        <mesh position={[0, -0.15, 0]} rotation={[armSwing * 0.5, 0, 0]} userData={{ targetId: id, isHead: false }}>
           <boxGeometry args={[0.15, 0.35, 0.15]} />
           <meshStandardMaterial color={bodyColor} />
         </mesh>
-        <mesh position={[0, -0.4, 0]} rotation={[armSwing * 0.5, 0, 0]}>
+        <mesh position={[0, -0.4, 0]} rotation={[armSwing * 0.5, 0, 0]} userData={{ targetId: id, isHead: false }}>
           <boxGeometry args={[0.12, 0.25, 0.12]} />
           <meshStandardMaterial color="#fda4af" />
         </mesh>
@@ -284,11 +318,11 @@ export function Bot({
 
       {/* Right Arm */}
       <group position={[-0.35, 1.1, 0]}>
-        <mesh position={[0, -0.15, 0]} rotation={[-armSwing * 0.5, 0, 0]}>
+        <mesh position={[0, -0.15, 0]} rotation={[-armSwing * 0.5, 0, 0]} userData={{ targetId: id, isHead: false }}>
           <boxGeometry args={[0.15, 0.35, 0.15]} />
           <meshStandardMaterial color={bodyColor} />
         </mesh>
-        <mesh position={[0, -0.4, 0]} rotation={[-armSwing * 0.5, 0, 0]}>
+        <mesh position={[0, -0.4, 0]} rotation={[-armSwing * 0.5, 0, 0]} userData={{ targetId: id, isHead: false }}>
           <boxGeometry args={[0.12, 0.25, 0.12]} />
           <meshStandardMaterial color="#fda4af" />
         </mesh>
@@ -296,11 +330,11 @@ export function Bot({
 
       {/* Left Leg */}
       <group position={[0.12, 0.45, 0]}>
-        <mesh position={[0, -0.15, 0]} rotation={[legSwing, 0, 0]}>
+        <mesh position={[0, -0.15, 0]} rotation={[legSwing, 0, 0]} userData={{ targetId: id, isHead: false }}>
           <boxGeometry args={[0.18, 0.4, 0.18]} />
           <meshStandardMaterial color="#1e293b" />
         </mesh>
-        <mesh position={[0, -0.42, 0]} rotation={[legSwing, 0, 0]}>
+        <mesh position={[0, -0.42, 0]} rotation={[legSwing, 0, 0]} userData={{ targetId: id, isHead: false }}>
           <boxGeometry args={[0.16, 0.2, 0.2]} />
           <meshStandardMaterial color="#374151" />
         </mesh>
@@ -308,11 +342,11 @@ export function Bot({
 
       {/* Right Leg */}
       <group position={[-0.12, 0.45, 0]}>
-        <mesh position={[0, -0.15, 0]} rotation={[-legSwing, 0, 0]}>
+        <mesh position={[0, -0.15, 0]} rotation={[-legSwing, 0, 0]} userData={{ targetId: id, isHead: false }}>
           <boxGeometry args={[0.18, 0.4, 0.18]} />
           <meshStandardMaterial color="#1e293b" />
         </mesh>
-        <mesh position={[0, -0.42, 0]} rotation={[-legSwing, 0, 0]}>
+        <mesh position={[0, -0.42, 0]} rotation={[-legSwing, 0, 0]} userData={{ targetId: id, isHead: false }}>
           <boxGeometry args={[0.16, 0.2, 0.2]} />
           <meshStandardMaterial color="#374151" />
         </mesh>

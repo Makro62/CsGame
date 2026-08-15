@@ -308,6 +308,21 @@ export function ShootingSystem() {
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
+        const weaponState = useWeaponStore.getState();
+        if (
+          weaponState.activeWeapon &&
+          weaponState.currentAmmo === 0 &&
+          !weaponState.isReloading &&
+          !weaponState.isSwitching
+        ) {
+          const stats = WEAPONS[weaponState.activeWeapon];
+          if (stats && stats.reload > 0) {
+            Sound.dryFire();
+            weaponState.startReload();
+            useNetworkStore.getState().sendReload();
+          }
+          return;
+        }
         mouseHeld.current = true;
         shoot();
       }

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { gameEvents } from '../lib/gameEvents'
 
 export type GameMode = 'menu' | 'training' | 'multiplayer'
 
@@ -31,6 +32,8 @@ interface GameState {
   stats: TrainingStats
   timer: number
   isTimerRunning: boolean
+  botDifficulty: number
+  botCount: number
   lastInput: {
     forward: boolean
     backward: boolean
@@ -41,11 +44,16 @@ interface GameState {
   spectatorTargetIndex: number
   shootEvent: number
   tracerEvent: { start: { x: number; y: number; z: number }; end: { x: number; y: number; z: number } } | null
+  // Jump Stamina
+  jumpStamina: number
+  maxJumpStamina: number
 
   setNickname: (name: string) => void
   setMode: (mode: GameMode) => void
   setServerMode: (mode: string) => void
   setCurrentMap: (map: string) => void
+  setBotDifficulty: (diff: number) => void
+  setBotCount: (count: number) => void
   setLastInput: (
     input: {
       forward: boolean
@@ -70,6 +78,10 @@ interface GameState {
   saveBestTime: () => void
   triggerShoot: () => void
   setTracerEvent: (tracer: { start: { x: number; y: number; z: number }; end: { x: number; y: number; z: number } } | null) => void
+  // Jump Stamina actions
+  useJumpStamina: () => boolean
+  regenJumpStamina: (amount: number) => void
+  resetJumpStamina: () => void
 }
 
 export const useGameStore = create<GameState>()((set, get) => {
@@ -90,10 +102,15 @@ export const useGameStore = create<GameState>()((set, get) => {
     },
     timer: 60,
     isTimerRunning: false,
+    botDifficulty: 2,
+    botCount: 3,
     lastInput: null,
     spectatorTargetIndex: 0,
     shootEvent: 0,
     tracerEvent: null,
+    // Jump Stamina
+    jumpStamina: 3,
+    maxJumpStamina: 3,
 
     setNickname: (name: string) => {
       set({ nickname: name || 'Player' })
@@ -105,6 +122,14 @@ export const useGameStore = create<GameState>()((set, get) => {
 
     setCurrentMap: (map: string) => {
       set({ currentMap: map })
+    },
+
+    setBotDifficulty: (diff: number) => {
+      set({ botDifficulty: diff })
+    },
+
+    setBotCount: (count: number) => {
+      set({ botCount: Math.max(1, Math.min(5, count)) })
     },
 
     setLastInput: (
@@ -149,14 +174,16 @@ export const useGameStore = create<GameState>()((set, get) => {
 
     damageTarget: (id: string, damage: number, isHeadshot: boolean) => {
       const { targets } = get()
-      const target = targets[id]
-      if (!target || !target.isAlive) return
+      const target = targets[id] || { id, x: 0, y: 0, z: 0, hp: 100, maxHp: 100, isAlive: true }
+      if (!target.isAlive) return
 
       const newHp = target.hp - damage
       const isDead = newHp <= 0
 
+      // Emit event so Bot instance can react immediately
+      gameEvents.emit('targetDamaged', { id, damage, isHeadshot, isDead, newHp: Math.max(0, newHp) })
+
       if (isDead) {
-        get().removeTarget(id)
         set(state => {
           const newStats = {
             ...state.stats,
@@ -165,7 +192,8 @@ export const useGameStore = create<GameState>()((set, get) => {
           }
           newStats.hsRate =
             newStats.kills > 0 ? (newStats.headshots / newStats.kills) * 100 : 0
-          return { stats: newStats }
+          const { [id]: _, ...rest } = state.targets
+          return { stats: newStats, targets: rest }
         })
       } else {
         set(state => ({
@@ -255,6 +283,28 @@ export const useGameStore = create<GameState>()((set, get) => {
 
     setTracerEvent: (tracer) => {
       set({ tracerEvent: tracer })
+    },
+
+    // Jump Stamina actions
+    useJumpStamina: () => {
+      const { jumpStamina } = get()
+      if (jumpStamina > 0) {
+        set({ jumpStamina: jumpStamina - 1 })
+        return true
+      }
+      return false
+    },
+
+    regenJumpStamina: (amount: number) => {
+      const { jumpStamina, maxJumpStamina } = get()
+      if (jumpStamina < maxJumpStamina) {
+        set({ jumpStamina: Math.min(maxJumpStamina, jumpStamina + amount) })
+      }
+    },
+
+    resetJumpStamina: () => {
+      const { maxJumpStamina } = get()
+      set({ jumpStamina: maxJumpStamina })
     },
   }
 

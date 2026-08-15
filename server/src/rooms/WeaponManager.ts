@@ -190,9 +190,14 @@ export class WeaponManager {
       const relY = closestY - player.y;
       if (relY < -0.2 || relY > 2.0) return;
 
+      // Crouch hitbox compression: 50% vertical when crouching
+      const crouchMult = player.isCrouching ? 0.5 : 1.0;
+      const headThreshold = 1.35 * crouchMult;
+      const limbsThreshold = HEAD_HEIGHT_THRESHOLD * crouchMult;
+
       let zone: "head" | "torso" | "limbs" = "torso";
-      if (relY >= 1.35) zone = "head";
-      else if (relY <= HEAD_HEIGHT_THRESHOLD) zone = "limbs";
+      if (relY >= headThreshold) zone = "head";
+      else if (relY <= limbsThreshold) zone = "limbs";
 
       let pierce = 0;
       let wallbangFactor = 1;

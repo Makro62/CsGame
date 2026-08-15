@@ -310,22 +310,37 @@ export interface BombDefuseRequest {
 
 // ─── Constants ──────────────────────────────────────────────────
 export const PHYSICS = {
-  walkSpeed: 5.6,
-  sprintSpeed: 8.1,
-  crouchSpeed: 2.8,
-  jumpVelocity: 5.4,
+  walkSpeed: 5.0,
+  sprintSpeed: 7.5,
+  crouchSpeed: 2.5,
+  jumpVelocity: 5.0,
   gravity: 9.81,
-  strafeMultiplier: 1.15,
+  strafeMultiplier: 1.20,
   slideBoost: 1.45,
-  slideDuration: 0.62,
-  maxVelocity: 12.5,
-  maxStrafeTurnDeg: 32,
-  friction: { walk: 6, sprint: 4, slide: 1, air: 0.2 },
-  airControl: 0.82,
-  moonJumpMult: 1.45,
-  shortHopMult: 0.62,
+  slideDuration: 0.6,
+  maxVelocity: 12.0,
+  maxStrafeTurnDeg: 30,
+  friction: { walk: 5, sprint: 3, slide: 0.5, air: 0 },
+  airControl: 0.75,
+  moonJumpMult: 1.4,
+  shortHopMult: 0.6,
   inputWindowMs: 100,
   slideControlDefault: 6,
+  // Perfect Jump Boost
+  perfectJumpWindow: 100,       // ms timing window after landing
+  perfectJumpBoost: 1.3,        // 30% higher jump on perfect timing
+  // Double Jump
+  doubleJumpEnabled: true,
+  doubleJumpBoost: 0.7,         // 70% of normal jump height
+  // Wall Jump
+  wallJumpEnabled: true,
+  wallJumpBoost: 6.0,           // vertical velocity
+  wallJumpHorizontal: 5.0,      // push away from wall
+  wallJumpCooldown: 500,        // ms between wall jumps
+  wallJumpRayDist: 0.6,         // raycast distance to detect wall
+  // Jump Stamina
+  jumpStaminaMax: 3,            // max jumps (regular + double + wall combined)
+  jumpStaminaRegen: 1.0,        // regen per second while grounded
 } as const
 
 export const SERVER = {

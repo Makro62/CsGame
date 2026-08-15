@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { WEAPONS } from "@cs-game/shared";
+import { Sound } from "../components/AudioManager";
 import { useNetworkStore } from "./useNetworkStore";
 
 export type WeaponKey = keyof typeof WEAPONS;
@@ -48,19 +49,6 @@ export type GrenadeType = "he" | "smoke" | "flash";
 
 const GRENADE_CYCLE: GrenadeType[] = ["he", "smoke", "flash"];
 
-const DEPLOY_TIMES: Record<WeaponKey, number> = {
-  ak47: 0.6,
-  m4a1: 0.6,
-  awp: 1.0,
-  deagle: 0.4,
-  mp5: 0.5,
-  glock: 0.35,
-  tec9: 0.4,
-  autopistol: 0.35,
-  knife: 0.3,
-  combatknife: 0.25,
-};
-
 let switchTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 function clearSwitchTimeout() {
@@ -71,15 +59,15 @@ function clearSwitchTimeout() {
 }
 
 export const useWeaponStore = create<WeaponState>()((set, get) => ({
-  activeWeapon: null,
-  primaryWeapon: null,
+  activeWeapon: "ak47",
+  primaryWeapon: "ak47",
   secondaryWeapon: "deagle",
   knifeSlot: "knife",
-  currentAmmo: 0,
-  maxAmmo: 0,
-  primaryAmmo: 0,
-  primaryMaxAmmo: 0,
-  primaryReserve: 0,
+  currentAmmo: 30,
+  maxAmmo: 30,
+  primaryAmmo: 30,
+  primaryMaxAmmo: 30,
+  primaryReserve: 90,
   secondaryAmmo: 7,
   secondaryMaxAmmo: 7,
   secondaryReserve: 42,
@@ -112,62 +100,76 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
 
     set((state) => ({
       activeWeapon: weapon,
-      primaryWeapon: isPrimary ? weapon : state.primaryWeapon,
-      secondaryWeapon: isSecondary ? weapon : state.secondaryWeapon,
-      knifeSlot: isKnife ? weapon : state.knifeSlot,
-      currentAmmo: stats.mag,
-      maxAmmo: stats.mag,
+      primaryWeapon: isPrimary ? weapon : (state.primaryWeapon || "ak47"),
+      secondaryWeapon: isSecondary ? weapon : (state.secondaryWeapon || "deagle"),
+      knifeSlot: isKnife ? weapon : (state.knifeSlot || "knife"),
+      currentAmmo: isKnife ? 0 : stats.mag,
+      maxAmmo: isKnife ? 0 : stats.mag,
+      primaryAmmo: isPrimary ? stats.mag : state.primaryAmmo,
+      secondaryAmmo: isSecondary ? stats.mag : state.secondaryAmmo,
+      primaryMaxAmmo: isPrimary ? stats.mag : state.primaryMaxAmmo,
+      secondaryMaxAmmo: isSecondary ? stats.mag : state.secondaryMaxAmmo,
       isReloading: false,
       reloadStartTime: null,
       isADS: false,
       recoilOffset: { x: 0, y: 0 },
       lastFireTime: 0,
       isSwitching: true,
-      switchTimer: DEPLOY_TIMES[weapon],
+      switchTimer: 0.15,
       bulletsFired: 0,
       lastFireTimestamp: 0,
     }));
+
+    Sound.cancelReload();
+    Sound.deploy(weapon);
 
     clearSwitchTimeout();
     switchTimeoutId = setTimeout(() => {
       set({ isSwitching: false, switchTimer: 0 });
       switchTimeoutId = null;
-    }, DEPLOY_TIMES[weapon] * 1000);
+    }, 150);
   },
 
   switchToSlot: (slot: 1 | 2 | 3) => {
-    const { primaryWeapon, secondaryWeapon, knifeSlot, activeWeapon, currentAmmo } = get();
+    const state = get();
+    const { primaryWeapon, secondaryWeapon, knifeSlot, activeWeapon, currentAmmo } = state;
     let target: WeaponKey | null = null;
 
-    if (slot === 1) target = primaryWeapon;
-    else if (slot === 2) target = secondaryWeapon;
-    else if (slot === 3) target = knifeSlot;
+    if (slot === 1) target = primaryWeapon || "ak47";
+    else if (slot === 2) target = secondaryWeapon || "deagle";
+    else if (slot === 3) target = knifeSlot || "knife";
 
     if (!target || target === activeWeapon) return;
 
     const stats = WEAPONS[target];
 
-    // Save current slot's ammo before switching
-    if (activeWeapon && (activeWeapon === primaryWeapon)) {
-      set({ primaryAmmo: currentAmmo });
-    } else if (activeWeapon && (activeWeapon === secondaryWeapon)) {
-      set({ secondaryAmmo: currentAmmo });
+    // Save current active weapon's ammo
+    let currentPrimaryAmmo = state.primaryAmmo;
+    let currentSecondaryAmmo = state.secondaryAmmo;
+    if (activeWeapon && ["ak47", "m4a1", "awp", "mp5"].includes(activeWeapon)) {
+      currentPrimaryAmmo = currentAmmo;
+    } else if (activeWeapon && ["deagle", "glock", "tec9", "autopistol"].includes(activeWeapon)) {
+      currentSecondaryAmmo = currentAmmo;
     }
 
-    // Load target slot's saved ammo
+    // Determine target slot's ammo
     let ammo: number = stats.mag;
     if (slot === 1) {
-      const saved = get().primaryAmmo;
-      ammo = saved > 0 ? saved : stats.mag;
+      ammo = typeof currentPrimaryAmmo === 'number' ? currentPrimaryAmmo : stats.mag;
     } else if (slot === 2) {
-      const saved = get().secondaryAmmo;
-      ammo = saved > 0 ? saved : stats.mag;
+      ammo = typeof currentSecondaryAmmo === 'number' ? currentSecondaryAmmo : stats.mag;
+    } else if (slot === 3) {
+      ammo = 0;
     }
-    // Knife: ammo = 0
 
-    set({
+    set((s) => ({
       activeWeapon: target,
-      currentAmmo: slot === 3 ? 0 : ammo,
+      primaryWeapon: slot === 1 ? target : (s.primaryWeapon || "ak47"),
+      secondaryWeapon: slot === 2 ? target : (s.secondaryWeapon || "deagle"),
+      knifeSlot: slot === 3 ? target : (s.knifeSlot || "knife"),
+      primaryAmmo: currentPrimaryAmmo,
+      secondaryAmmo: currentSecondaryAmmo,
+      currentAmmo: ammo,
       maxAmmo: slot === 3 ? 0 : (stats.mag as number),
       isReloading: false,
       reloadStartTime: null,
@@ -175,10 +177,13 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       recoilOffset: { x: 0, y: 0 },
       lastFireTime: 0,
       isSwitching: true,
-      switchTimer: DEPLOY_TIMES[target],
+      switchTimer: 0.15,
       bulletsFired: 0,
       lastFireTimestamp: 0,
-    });
+    }));
+
+    Sound.cancelReload();
+    Sound.deploy(target);
 
     // Send to server
     useNetworkStore.getState().sendSwitchWeapon(slot);
@@ -187,13 +192,15 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     switchTimeoutId = setTimeout(() => {
       set({ isSwitching: false, switchTimer: 0 });
       switchTimeoutId = null;
-    }, DEPLOY_TIMES[target] * 1000);
+    }, 150);
   },
 
   startReload: () => {
-    const { activeWeapon, isReloading, currentAmmo, maxAmmo } = get();
-    if (!activeWeapon || isReloading || currentAmmo === maxAmmo) return;
-    set({ isReloading: true, reloadStartTime: Date.now() });
+    const { activeWeapon, isReloading, isSwitching, currentAmmo, maxAmmo } = get();
+    if (!activeWeapon || isReloading || isSwitching || currentAmmo === maxAmmo) return;
+    const stats = WEAPONS[activeWeapon];
+    if (!stats || !stats.reload || stats.reload <= 0) return;
+    set({ isReloading: true, reloadStartTime: Date.now(), isADS: false });
   },
 
   cancelReload: () => {
@@ -206,7 +213,16 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     const { activeWeapon } = get();
     if (!activeWeapon) return;
     const stats = WEAPONS[activeWeapon];
-    set({ currentAmmo: stats.mag, isReloading: false, reloadStartTime: null });
+    const isPrimary = ["ak47", "m4a1", "awp", "mp5"].includes(activeWeapon);
+    const isSecondary = ["deagle", "glock", "tec9", "autopistol"].includes(activeWeapon);
+
+    set((state) => ({
+      currentAmmo: stats.mag,
+      primaryAmmo: isPrimary ? stats.mag : state.primaryAmmo,
+      secondaryAmmo: isSecondary ? stats.mag : state.secondaryAmmo,
+      isReloading: false,
+      reloadStartTime: null,
+    }));
   },
 
   setADS: (ads: boolean) => {
@@ -218,12 +234,18 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   },
 
   incrementBullets: () => {
-    const { bulletsFired, currentAmmo } = get();
-    set({
+    const { bulletsFired, currentAmmo, activeWeapon } = get();
+    const newAmmo = Math.max(0, currentAmmo - 1);
+    const isPrimary = activeWeapon && ["ak47", "m4a1", "awp", "mp5"].includes(activeWeapon);
+    const isSecondary = activeWeapon && ["deagle", "glock", "tec9", "autopistol"].includes(activeWeapon);
+
+    set((state) => ({
       bulletsFired: bulletsFired + 1,
-      currentAmmo: Math.max(0, currentAmmo - 1),
+      currentAmmo: newAmmo,
+      primaryAmmo: isPrimary ? newAmmo : state.primaryAmmo,
+      secondaryAmmo: isSecondary ? newAmmo : state.secondaryAmmo,
       lastFireTimestamp: performance.now(),
-    });
+    }));
   },
 
   resetBullets: () => {

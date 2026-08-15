@@ -49,12 +49,12 @@ export function Crosshair() {
         <div
           style={{
             position: "absolute",
-            width: `${4 * sizeMultiplier}px`,
-            height: `${4 * sizeMultiplier}px`,
+            width: `${6 * sizeMultiplier}px`,
+            height: `${6 * sizeMultiplier}px`,
             backgroundColor: crosshairColor,
             borderRadius: "50%",
             transform: "translate(-50%, -50%)",
-            boxShadow: "0 0 2px rgba(0,0,0,0.8)",
+            boxShadow: "0 0 0 1.5px rgba(0,0,0,0.9)",
           }}
         />
       )}

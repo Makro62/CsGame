@@ -44,11 +44,14 @@ export function HUD() {
     }
   }, [ping])
 
-  if (mode !== 'multiplayer' || !connected) return null
+  const isMultiplayer = mode === 'multiplayer' && connected
+  if (!isMultiplayer && mode !== 'training') return null
 
-  const isDefusal = round.gameMode === 'bomb_defusal'
-  const isFfa = round.gameMode === 'ffa'
-  const isTdm = round.gameMode === 'tdm'
+  const displayHp = isMultiplayer ? localHp : 100
+  const displayArmor = isMultiplayer ? localArmor : 0
+  const isDefusal = isMultiplayer && round.gameMode === 'bomb_defusal'
+  const isFfa = isMultiplayer && round.gameMode === 'ffa'
+  const isTdm = isMultiplayer && round.gameMode === 'tdm'
 
   const grenadeCount =
     grenadeType === 'he' ? localGrenadeHE : grenadeType === 'smoke' ? localGrenadeSmoke : localGrenadeFlash
@@ -80,286 +83,292 @@ export function HUD() {
 
   return (
     <>
-      {/* Top bar - Round info */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: '16px',
-          padding: '12px 24px',
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          color: 'white',
-          textShadow: '1px 1px 3px rgba(0,0,0,0.9)',
-          zIndex: 100,
-          pointerEvents: 'none',
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 100%)',
-        }}
-      >
-        {/* Left score */}
-        {isDefusal && (
-          <div
-            style={{
-              background: 'rgba(59,130,246,0.8)',
-              padding: '6px 20px',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              fontSize: '22px',
-              minWidth: '80px',
-              textAlign: 'center',
-              border: '1px solid rgba(59,130,246,0.5)',
-            }}
-          >
-            CT {round.teamBlueScore}
-          </div>
-        )}
-        {isFfa && ffaTop && (
-          <div
-            style={{
-              background: 'rgba(59,130,246,0.8)',
-              padding: '6px 20px',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              fontSize: '16px',
-              border: '1px solid rgba(59,130,246,0.5)',
-            }}
-          >
-            TOP {ffaTop.name}: {ffaTop.score}
-          </div>
-        )}
-        {isTdm && (
-          <div
-            style={{
-              background: 'rgba(239,68,68,0.8)',
-              padding: '6px 20px',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              fontSize: '22px',
-              minWidth: '80px',
-              textAlign: 'center',
-              border: '1px solid rgba(239,68,68,0.5)',
-            }}
-          >
-            T {tdmScoreT}
-          </div>
-        )}
-
-        {/* Round timer */}
+      {/* Top bar - Round info (Multiplayer only) */}
+      {isMultiplayer && (
         <div
           style={{
-            background: 'rgba(0,0,0,0.8)',
-            padding: '8px 24px',
-            borderRadius: '8px',
-            fontSize: '18px',
-            minWidth: '120px',
-            textAlign: 'center',
-            border: '1px solid rgba(255,255,255,0.2)',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '16px',
+            padding: '12px 24px',
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            color: 'white',
+            textShadow: '1px 1px 3px rgba(0,0,0,0.9)',
+            zIndex: 100,
+            pointerEvents: 'none',
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 100%)',
           }}
         >
-          <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '2px', textTransform: 'uppercase' }}>
-            {round.phase === 'buy'
-              ? 'BUY PHASE'
-              : round.phase === 'active'
-                ? isDefusal
-                  ? `ROUND ${round.roundNumber}`
-                  : round.gameMode.toUpperCase()
-                : round.phase
-                  ? round.phase.toUpperCase()
-                  : 'WAITING'}
+          {/* Left score */}
+          {isDefusal && (
+            <div
+              style={{
+                background: 'rgba(59,130,246,0.8)',
+                padding: '6px 20px',
+                borderRadius: '6px',
+                fontWeight: 'bold',
+                fontSize: '22px',
+                minWidth: '80px',
+                textAlign: 'center',
+                border: '1px solid rgba(59,130,246,0.5)',
+              }}
+            >
+              CT {round.teamBlueScore}
+            </div>
+          )}
+
+          {isTdm && (
+            <div
+              style={{
+                background: 'rgba(59,130,246,0.8)',
+                padding: '6px 20px',
+                borderRadius: '6px',
+                fontWeight: 'bold',
+                fontSize: '22px',
+                minWidth: '80px',
+                textAlign: 'center',
+                border: '1px solid rgba(59,130,246,0.5)',
+              }}
+            >
+              CT {tdmScoreCT}
+            </div>
+          )}
+
+          {/* Center info */}
+          <div
+            style={{
+              background: 'rgba(0,0,0,0.7)',
+              padding: '6px 24px',
+              borderRadius: '6px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+          >
+            {isFfa ? (
+              <>
+                <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase' }}>
+                  FFA - {ffaTop ? `Leader: ${ffaTop.name} (${ffaTop.score})` : 'Free For All'}
+                </div>
+                <div
+                  style={{
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    color: round.roundTimeLeft <= 10 ? '#ef4444' : 'white',
+                  }}
+                >
+                  {formatTime(round.roundTimeLeft)}
+                </div>
+              </>
+            ) : isTdm ? (
+              <>
+                <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase' }}>
+                  TDM - First to 50
+                </div>
+                <div
+                  style={{
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    color: round.roundTimeLeft <= 10 ? '#ef4444' : 'white',
+                  }}
+                >
+                  {formatTime(round.roundTimeLeft)}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase' }}>
+                  {round.phase === 'buy'
+                    ? `BUY PHASE (${round.buyPhaseTimeLeft}s)`
+                    : round.bombPlanted
+                      ? `BOMB PLANTED - SITE ${round.bombSite || 'A'}`
+                      : `ROUND ${round.roundNumber}`}
+                </div>
+                <div
+                  style={{
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    color:
+                      round.phase === 'buy'
+                        ? '#fbbf24'
+                        : round.bombPlanted
+                          ? '#ef4444'
+                          : round.roundTimeLeft <= 10
+                            ? '#ef4444'
+                            : 'white',
+                  }}
+                >
+                  {round.phase === 'buy'
+                    ? `${round.buyPhaseTimeLeft}s`
+                    : round.bombPlanted
+                      ? `${Math.max(0, Math.ceil(round.bombTimeLeft))}s`
+                      : formatTime(round.roundTimeLeft)}
+                </div>
+              </>
+            )}
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold', fontVariantNumeric: 'tabular-nums' }}>
-            {round.phase === 'buy'
-              ? formatTime(round.buyPhaseTimeLeft)
-              : round.phase === 'active'
-                ? formatTime(round.roundTimeLeft)
-                : ''}
-          </div>
+
+          {/* Right score */}
+          {isDefusal && (
+            <div
+              style={{
+                background: 'rgba(239,68,68,0.8)',
+                padding: '6px 20px',
+                borderRadius: '6px',
+                fontWeight: 'bold',
+                fontSize: '22px',
+                minWidth: '80px',
+                textAlign: 'center',
+                border: '1px solid rgba(239,68,68,0.5)',
+              }}
+            >
+              T {round.teamRedScore}
+            </div>
+          )}
+
+          {isTdm && (
+            <div
+              style={{
+                background: 'rgba(239,68,68,0.8)',
+                padding: '6px 20px',
+                borderRadius: '6px',
+                fontWeight: 'bold',
+                fontSize: '22px',
+                minWidth: '80px',
+                textAlign: 'center',
+                border: '1px solid rgba(239,68,68,0.5)',
+              }}
+            >
+              T {tdmScoreT}
+            </div>
+          )}
         </div>
+      )}
 
-        {/* Right score */}
-        {isDefusal && (
-          <div
-            style={{
-              background: 'rgba(239,68,68,0.8)',
-              padding: '6px 20px',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              fontSize: '22px',
-              minWidth: '80px',
-              textAlign: 'center',
-              border: '1px solid rgba(239,68,68,0.5)',
-            }}
-          >
-            {round.teamRedScore} T
-          </div>
-        )}
-        {isFfa && (
-          <div
-            style={{
-              background: 'rgba(0,0,0,0.6)',
-              padding: '6px 20px',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              fontSize: '14px',
-              color: '#93c5fd',
-              border: '1px solid rgba(147,197,253,0.3)',
-            }}
-          >
-            FFA
-          </div>
-        )}
-        {isTdm && (
-          <div
-            style={{
-              background: 'rgba(59,130,246,0.8)',
-              padding: '6px 20px',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              fontSize: '22px',
-              minWidth: '80px',
-              textAlign: 'center',
-              border: '1px solid rgba(59,130,246,0.5)',
-            }}
-          >
-            CT {tdmScoreCT}
-          </div>
-        )}
-      </div>
-
-      {/* Bomb status */}
-      {round.bombPlanted && (
+      {/* Lag / High ping banner */}
+      {isMultiplayer && showLagBanner && (
         <div
           style={{
             position: 'fixed',
             top: '70px',
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(239,68,68,0.9)',
-            padding: '8px 24px',
-            borderRadius: '8px',
-            fontFamily: 'monospace',
-            fontSize: '16px',
-            fontWeight: 'bold',
+            background: 'rgba(239,68,68,0.85)',
             color: 'white',
-            textShadow: '1px 1px 3px rgba(0,0,0,0.9)',
+            padding: '4px 16px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            fontWeight: 'bold',
             zIndex: 100,
-            animation: 'pulse 1s infinite',
             pointerEvents: 'none',
-            border: '1px solid rgba(239,68,68,0.5)',
           }}
         >
-          BOMB PLANTED - SITE {round.bombSite} -{' '}
-          {formatTime(round.bombTimeLeft)}
+          HIGH PING: {ping}ms - Connection unstable
         </div>
       )}
 
-      {/* Lag banner */}
-      {showLagBanner && (
+      {/* Halftime indicator */}
+      {isMultiplayer && round.isHalfTime && (
         <div
           style={{
             position: 'fixed',
-            top: '120px',
+            top: '50px',
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(239,68,68,0.95)',
-            padding: '10px 24px',
+            background: 'rgba(0,0,0,0.85)',
+            padding: '12px 32px',
             borderRadius: '8px',
+            fontFamily: 'monospace',
+            fontSize: '22px',
+            fontWeight: 'bold',
+            color: '#fbbf24',
+            zIndex: 100,
+            textAlign: 'center',
+            border: '1px solid rgba(251,191,36,0.4)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div>HALF TIME - SWITCHING SIDES</div>
+          <div style={{ fontSize: '13px', color: '#aaa', marginTop: '4px' }}>
+            CT {round.teamBlueScore} - {round.teamRedScore} T
+          </div>
+        </div>
+      )}
+
+      {/* Ready indicator */}
+      {isMultiplayer && round.phase === 'waiting' && !localReady && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '120px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.8)',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            color: 'white',
+            zIndex: 100,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '8px',
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}
+        >
+          <div>Waiting for players ({round.readyCount ?? 0} ready)</div>
+          <button
+            onClick={() => sendReady()}
+            style={{
+              padding: '6px 20px',
+              backgroundColor: '#22c55e',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontFamily: 'monospace',
+              fontSize: '14px',
+            }}
+          >
+            READY (F key)
+          </button>
+        </div>
+      )}
+
+      {/* Reconnecting banner */}
+      {isMultiplayer && reconnecting && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '80px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(234,88,12,0.9)',
+            padding: '8px 24px',
+            borderRadius: '6px',
             fontFamily: 'monospace',
             fontSize: '14px',
             fontWeight: 'bold',
             color: 'white',
-            zIndex: 150,
+            zIndex: 100,
             pointerEvents: 'none',
-            animation: 'pulse 1s infinite',
-            border: '1px solid rgba(239,68,68,0.5)',
-          }}
-        >
-          NETWORK LAG DETECTED
-        </div>
-      )}
-
-      {/* Reconnecting overlay */}
-      {reconnecting && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            background: 'rgba(0,0,0,0.9)',
-            padding: '20px 36px',
-            borderRadius: '12px',
-            fontFamily: 'monospace',
-            fontSize: '18px',
-            fontWeight: 'bold',
-            color: '#fbbf24',
-            zIndex: 300,
-            animation: 'pulse 1s infinite',
-            border: '1px solid rgba(251,191,36,0.3)',
           }}
         >
           RECONNECTING...
         </div>
       )}
 
-      {/* Ready UI (buy phase) */}
-      {isDefusal && round.phase === 'buy' && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '120px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '8px',
-            zIndex: 100,
-          }}
-        >
-          {!localReady ? (
-            <button
-              onClick={() => sendReady()}
-              style={{
-                background: 'rgba(34,197,94,0.8)',
-                border: '1px solid rgba(34,197,94,0.5)',
-                color: 'white',
-                padding: '10px 28px',
-                borderRadius: '8px',
-                fontFamily: 'monospace',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-            >
-              READY ({round.readyCount})
-            </button>
-          ) : (
-            <div
-              style={{
-                background: 'rgba(34,197,94,0.3)',
-                border: '1px solid rgba(34,197,94,0.5)',
-                color: '#4ade80',
-                padding: '10px 28px',
-                borderRadius: '8px',
-                fontFamily: 'monospace',
-                fontSize: '14px',
-                fontWeight: 'bold',
-              }}
-            >
-              READY ✓ ({round.readyCount})
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Bottom HUD */}
+      {/* Bottom bar - HP, Armor, Ammo, Weapons */}
       <div
         style={{
           position: 'fixed',
@@ -396,16 +405,16 @@ export function HUD() {
               <span
                 style={{
                   color:
-                    localHp > 60
+                    displayHp > 60
                       ? '#4ade80'
-                      : localHp > 25
+                      : displayHp > 25
                         ? '#fbbf24'
                         : '#ef4444',
                   fontWeight: 'bold',
                   fontSize: '24px',
                 }}
               >
-                {localHp}
+                {displayHp}
               </span>
               <span style={{ color: '#888', margin: '0 6px', fontSize: '12px' }}>HP</span>
               {/* Health bar */}
@@ -418,17 +427,17 @@ export function HUD() {
                 marginTop: '4px'
               }}>
                 <div style={{
-                  width: `${localHp}%`,
+                  width: `${displayHp}%`,
                   height: '100%',
-                  background: localHp > 60 ? '#4ade80' : localHp > 25 ? '#fbbf24' : '#ef4444',
+                  background: displayHp > 60 ? '#4ade80' : displayHp > 25 ? '#fbbf24' : '#ef4444',
                   transition: 'width 0.2s ease-out'
                 }} />
               </div>
             </div>
-            {localArmor > 0 && (
+            {displayArmor > 0 && (
               <div style={{ color: '#60a5fa', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '14px' }}>🛡</span>
-                {localHelmet ? 'HELM' : 'KEVLAR'} {localArmor}
+                {localHelmet ? 'HELM' : 'KEVLAR'} {displayArmor}
               </div>
             )}
             {grenadeTotal > 0 && (
@@ -489,9 +498,11 @@ export function HUD() {
             <div style={{ color: activeWeapon === knifeSlot ? '#4ade80' : '#666', fontWeight: activeWeapon === knifeSlot ? 'bold' : 'normal' }}>
               3: {knifeSlot ? knifeSlot.toUpperCase() : '-'}
             </div>
-            <div style={{ color: grenadeCount > 0 ? '#a78bfa' : '#666', fontWeight: grenadeCount > 0 ? 'bold' : 'normal' }}>
-              4: {grenadeType.toUpperCase()} x{grenadeCount}
-            </div>
+            {grenadeCount > 0 && (
+              <div style={{ color: '#a78bfa', fontWeight: 'bold' }}>
+                4: {grenadeType.toUpperCase()} x{grenadeCount}
+              </div>
+            )}
           </div>
 
           {activeWeapon && (
@@ -522,7 +533,7 @@ export function HUD() {
                     <div style={{ width: '120px', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
                       <div
                         style={{
-                          width: reloadStartTime && activeWeapon ? `${Math.min(100, ((Date.now() - reloadStartTime) / (WEAPONS[activeWeapon].reload * 1000)) * 100)}%` : '0%',
+                          width: reloadStartTime && activeWeapon && WEAPONS[activeWeapon]?.reload ? `${Math.min(100, ((Date.now() - reloadStartTime) / (WEAPONS[activeWeapon].reload * 1000)) * 100)}%` : '0%',
                           height: '100%',
                           background: '#fbbf24',
                           transition: 'width 0.1s linear',
@@ -548,8 +559,8 @@ export function HUD() {
         </div>
       </div>
 
-      {/* Overtime / Sudden Death indicator */}
-      {round.isSuddenDeath && (
+      {/* Overtime / Sudden Death indicator (Multiplayer only) */}
+      {isMultiplayer && round.isSuddenDeath && (
         <div
           style={{
             position: 'fixed',
@@ -572,7 +583,7 @@ export function HUD() {
           SUDDEN DEATH
         </div>
       )}
-      {round.isOvertime && !round.isSuddenDeath && (
+      {isMultiplayer && round.isOvertime && !round.isSuddenDeath && (
         <div
           style={{
             position: 'fixed',
@@ -595,9 +606,13 @@ export function HUD() {
         </div>
       )}
 
-      {/* Extra HUD components */}
-      <RadioCommand />
-      <SpectatorHUD />
+      {/* Extra HUD components (Multiplayer only) */}
+      {isMultiplayer && (
+        <>
+          <RadioCommand />
+          <SpectatorHUD />
+        </>
+      )}
     </>
   )
 }

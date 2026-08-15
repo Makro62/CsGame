@@ -7,9 +7,8 @@ const MAX_BOTS = 5
 const BEHAVIORS: BotBehavior[] = ["peeker", "rusher", "camper", "awper"]
 
 export function AimTrainer() {
-  const isTimerRunning = useGameStore((s) => s.isTimerRunning)
-  const [difficulty] = useState<BotDifficulty>(2)
-  const [botCount] = useState(3)
+  const botDifficulty = useGameStore((s) => (s.botDifficulty || 2) as BotDifficulty)
+  const botCount = useGameStore((s) => s.botCount || 3)
   const [activeBots, setActiveBots] = useState<
     Array<{
       id: string
@@ -20,73 +19,35 @@ export function AimTrainer() {
     }>
   >([])
 
-  const spawnTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Ensure bots are continuously populated up to botCount
+  useEffect(() => {
+    setActiveBots((prev) => {
+      if (prev.length === botCount) return prev
+      if (prev.length > botCount) return prev.slice(0, botCount)
 
-  const spawnBot = useCallback(() => {
-    if (activeBots.length >= botCount) return
-
-    const id = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-    const x =
-      SPAWN_RANGE.x[0] +
-      Math.random() * (SPAWN_RANGE.x[1] - SPAWN_RANGE.x[0])
-    const z =
-      SPAWN_RANGE.z[0] +
-      Math.random() * (SPAWN_RANGE.z[1] - SPAWN_RANGE.z[0])
-    const behavior = BEHAVIORS[Math.floor(Math.random() * BEHAVIORS.length)]
-
-    setActiveBots((prev) => [...prev, { id, x, z: x > 0 ? z + 5 : z, behavior, difficulty }])
-  }, [activeBots.length, botCount, difficulty])
+      const next = [...prev]
+      while (next.length < botCount) {
+        const id = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        const x =
+          SPAWN_RANGE.x[0] +
+          Math.random() * (SPAWN_RANGE.x[1] - SPAWN_RANGE.x[0])
+        const z =
+          SPAWN_RANGE.z[0] +
+          Math.random() * (SPAWN_RANGE.z[1] - SPAWN_RANGE.z[0])
+        const behavior = BEHAVIORS[Math.floor(Math.random() * BEHAVIORS.length)]
+        next.push({ id, x, z: x > 0 ? z + 5 : z, behavior, difficulty: botDifficulty })
+      }
+      return next
+    })
+  }, [botCount, botDifficulty])
 
   const handleBotKill = useCallback(() => {
-    useGameStore.getState().incrementShots()
-    useGameStore.getState().incrementHits()
+    // Kill stats are incremented in damageTarget
   }, [])
 
   const handleBotHit = useCallback((_headshot: boolean) => {
     // Hit tracking handled by store
   }, [])
-
-  // Spawn bots periodically
-  useEffect(() => {
-    if (spawnTimer.current) {
-      clearInterval(spawnTimer.current)
-      spawnTimer.current = null
-    }
-
-    if (!isTimerRunning) {
-      setActiveBots([])
-      return
-    }
-
-    // Spawn immediately
-    if (activeBots.length < botCount) {
-      spawnBot()
-    }
-
-    spawnTimer.current = setInterval(() => {
-      // Respawn dead bots
-      setActiveBots((prev) => {
-        if (prev.length < botCount) {
-          const id = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-          const x =
-            SPAWN_RANGE.x[0] +
-            Math.random() * (SPAWN_RANGE.x[1] - SPAWN_RANGE.x[0])
-          const z =
-            SPAWN_RANGE.z[0] +
-            Math.random() * (SPAWN_RANGE.z[1] - SPAWN_RANGE.z[0])
-          const behavior = BEHAVIORS[Math.floor(Math.random() * BEHAVIORS.length)]
-          return [...prev, { id, x, z, behavior, difficulty }]
-        }
-        return prev
-      })
-    }, 2000)
-
-    return () => {
-      if (spawnTimer.current) {
-        clearInterval(spawnTimer.current)
-      }
-    }
-  }, [isTimerRunning, botCount, difficulty])
 
   return (
     <group>
@@ -98,7 +59,7 @@ export function AimTrainer() {
           position={[bot.x, 0, bot.z]}
           onHit={handleBotHit}
           onKill={handleBotKill}
-          difficulty={bot.difficulty}
+          difficulty={botDifficulty}
           behavior={bot.behavior}
           respawnTime={2000}
         />
@@ -152,10 +113,11 @@ export function AimTrainerUI() {
   const setTimer = useGameStore((s) => s.setTimer)
   const resetStats = useGameStore((s) => s.resetStats)
   const resetTargets = useGameStore((s) => s.resetTargets)
+  const difficulty = useGameStore((s) => (s.botDifficulty || 2) as BotDifficulty)
+  const setDifficulty = useGameStore((s) => s.setBotDifficulty)
+  const botCount = useGameStore((s) => s.botCount || 3)
+  const setBotCount = useGameStore((s) => s.setBotCount)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const [difficulty, setDifficulty] = useState<BotDifficulty>(2)
-  const [botCount, setBotCount] = useState(3)
 
   // Countdown timer
   useEffect(() => {

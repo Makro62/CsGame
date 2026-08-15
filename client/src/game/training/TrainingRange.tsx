@@ -33,7 +33,7 @@ function WeaponSelection() {
     <div
       style={{
         position: "fixed",
-        bottom: "20px",
+        bottom: "80px",
         left: "50%",
         transform: "translateX(-50%)",
         display: "flex",
@@ -46,17 +46,18 @@ function WeaponSelection() {
           key={slot.key}
           onClick={() => equipWeapon(slot.weapon)}
           style={{
-            padding: "8px 16px",
+            padding: "6px 14px",
             backgroundColor:
               activeWeapon === slot.weapon
                 ? "rgba(255,255,255,0.3)"
-                : "rgba(0,0,0,0.5)",
+                : "rgba(0,0,0,0.6)",
             color: "white",
-            border: "1px solid rgba(255,255,255,0.3)",
+            border: "1px solid rgba(255,255,255,0.25)",
             borderRadius: "4px",
             cursor: "pointer",
             fontSize: "12px",
             textTransform: "uppercase",
+            fontFamily: "monospace",
           }}
         >
           {slot.label}
@@ -143,8 +144,9 @@ export function TrainingRange() {
   const MapComponent = getMapById(currentMap).component;
 
   useEffect(() => {
-    // Auto-equip default weapon on mount
-    useWeaponStore.getState().equipWeapon("deagle");
+    useGameStore.getState().setMode("training");
+    const state = useWeaponStore.getState();
+    state.equipWeapon(state.activeWeapon || "ak47");
   }, []);
 
   return (

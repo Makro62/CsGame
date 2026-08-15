@@ -7,6 +7,7 @@ export type GameEvents = {
   radioCommand: { sessionId: string; command: string; nickname: string }
   playerReconnected: { sessionId: string; nickname: string }
   botShoot: { botId: string; isHeadshot: boolean; damage: number }
+  targetDamaged: { id: string; damage: number; isHeadshot: boolean; isDead: boolean; newHp: number }
 }
 
 export const gameEvents = mitt<GameEvents>()

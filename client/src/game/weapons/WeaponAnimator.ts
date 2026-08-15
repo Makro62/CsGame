@@ -28,6 +28,7 @@ export class WeaponAnimator {
   private clips: Map<string, AnimationClip> = new Map()
   private currentClip: string | null = null
   private currentTime: number = 0
+  private activeDuration: number = 1.0
   private playing: boolean = false
   private onComplete: (() => void) | null = null
 
@@ -37,7 +38,7 @@ export class WeaponAnimator {
   public scale = new THREE.Vector3(1, 1, 1)
 
   /** Base idle transform (relative to camera) */
-  public basePosition = new THREE.Vector3(0.2, -0.15, -0.4)
+  public basePosition = new THREE.Vector3(0.22, -0.22, -0.40)
   public baseRotation = new THREE.Euler(0, 0, 0)
 
   /** Procedural modifiers (additive) */
@@ -66,49 +67,44 @@ export class WeaponAnimator {
       name: 'fire',
       keyframes: [
         { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
-        { time: 0.1, position: new THREE.Vector3(0, 0.02, 0.05), rotation: new THREE.Euler(-0.15, 0, 0) },
-        { time: 0.3, position: new THREE.Vector3(0, -0.01, -0.02), rotation: new THREE.Euler(0.05, 0, 0) },
+        { time: 0.1, position: new THREE.Vector3(0, 0.015, 0.04), rotation: new THREE.Euler(-0.12, 0, 0) },
+        { time: 0.35, position: new THREE.Vector3(0, -0.005, -0.01), rotation: new THREE.Euler(0.04, 0, 0) },
         { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
       ],
-      duration: 0.25,
+      duration: 0.22,
       loop: false,
     })
 
-    // Reload animation
+    // Steady Reload animation (no extra tilting/raising/dipping)
     this.addClip({
       name: 'reload',
       keyframes: [
         { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
-        { time: 0.15, position: new THREE.Vector3(0.05, -0.08, 0.05), rotation: new THREE.Euler(0.3, 0.2, 0.1) },
-        { time: 0.5, position: new THREE.Vector3(0.08, -0.12, 0.08), rotation: new THREE.Euler(0.5, 0.3, 0.15) },
-        { time: 0.85, position: new THREE.Vector3(0.03, -0.05, 0.02), rotation: new THREE.Euler(0.2, 0.1, 0.05) },
         { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
       ],
-      duration: 2.0,
+      duration: 2.2,
       loop: false,
     })
 
-    // Draw animation (equip)
+    // Draw animation (steady equip)
     this.addClip({
       name: 'draw',
       keyframes: [
-        { time: 0, position: new THREE.Vector3(0.2, -0.3, -0.1), rotation: new THREE.Euler(0.5, 0.3, 0) },
-        { time: 0.6, position: new THREE.Vector3(0.05, -0.08, -0.1), rotation: new THREE.Euler(0.1, 0.1, 0) },
+        { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
         { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
       ],
-      duration: 0.5,
+      duration: 0.15,
       loop: false,
     })
 
-    // Holster animation
+    // Holster animation (steady holster)
     this.addClip({
       name: 'holster',
       keyframes: [
         { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
-        { time: 0.4, position: new THREE.Vector3(0.1, -0.2, -0.1), rotation: new THREE.Euler(0.3, 0.2, 0) },
-        { time: 1, position: new THREE.Vector3(0.2, -0.35, 0.1), rotation: new THREE.Euler(0.6, 0.4, 0) },
+        { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
       ],
-      duration: 0.4,
+      duration: 0.15,
       loop: false,
     })
 
@@ -117,9 +113,9 @@ export class WeaponAnimator {
       name: 'ads_in',
       keyframes: [
         { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
-        { time: 1, position: new THREE.Vector3(-0.05, 0.02, 0.08), rotation: new THREE.Euler(0, 0, 0) },
+        { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
       ],
-      duration: 0.2,
+      duration: 0.18,
       loop: false,
     })
 
@@ -127,10 +123,10 @@ export class WeaponAnimator {
     this.addClip({
       name: 'ads_out',
       keyframes: [
-        { time: 0, position: new THREE.Vector3(-0.05, 0.02, 0.08), rotation: new THREE.Euler(0, 0, 0) },
+        { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
         { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
       ],
-      duration: 0.2,
+      duration: 0.18,
       loop: false,
     })
   }
@@ -140,12 +136,13 @@ export class WeaponAnimator {
     this.clips.set(clip.name, clip)
   }
 
-  play(clipName: string, onComplete?: () => void) {
+  play(clipName: string, customDuration?: number, onComplete?: () => void) {
     const clip = this.clips.get(clipName)
     if (!clip) return
 
     this.currentClip = clipName
     this.currentTime = 0
+    this.activeDuration = customDuration && customDuration > 0 ? customDuration : clip.duration
     this.playing = true
     this.onComplete = onComplete ?? null
   }
@@ -165,69 +162,83 @@ export class WeaponAnimator {
     return this.currentClip
   }
 
+  getNormalizedProgress(): number {
+    if (!this.playing || this.activeDuration <= 0) return 0
+    return Math.min(1, Math.max(0, this.currentTime / this.activeDuration))
+  }
+
   // ─── Procedural Bob ───────────────────────────────────────
   updateBob(dt: number, speed: number, isSprinting: boolean, isGrounded: boolean) {
     if (isGrounded && speed > 0.5) {
-      const bobSpeed = isSprinting ? 14 : 8
+      const bobSpeed = isSprinting ? 13 : 7.5
       this.bobPhase += dt * bobSpeed
       this.bobIntensity = THREE.MathUtils.lerp(
         this.bobIntensity,
-        isSprinting ? 1.0 : 0.6,
+        isSprinting ? 1.0 : 0.5,
         dt * 8
       )
     } else {
-      this.bobIntensity = THREE.MathUtils.lerp(this.bobIntensity, 0, dt * 6)
+      // Subtle idle breathing motion
+      this.bobPhase += dt * 2.0
+      this.bobIntensity = THREE.MathUtils.lerp(this.bobIntensity, 0.12, dt * 4)
     }
 
-    const bobX = Math.sin(this.bobPhase) * 0.003 * this.bobIntensity
-    const bobY = Math.abs(Math.cos(this.bobPhase)) * 0.004 * this.bobIntensity
+    const bobX = Math.sin(this.bobPhase) * 0.0025 * this.bobIntensity
+    const bobY = Math.abs(Math.cos(this.bobPhase)) * 0.0035 * this.bobIntensity
     this.bobOffset.set(bobX, bobY, 0)
   }
 
   // ─── Procedural Sway ─────────────────────────────────────
-  updateSway(dt: number, mouseX: number, mouseY: number) {
-    this.swayTarget.set(-mouseX * 0.002, -mouseY * 0.002)
-    this.swayCurrent.lerp(this.swayTarget, 1 - Math.exp(-8 * dt))
+  updateSway(dt: number, mouseDeltaX: number, mouseDeltaY: number) {
+    // Smooth mouse sway with clamping
+    const clampedX = Math.max(-25, Math.min(25, mouseDeltaX))
+    const clampedY = Math.max(-25, Math.min(25, mouseDeltaY))
+
+    this.swayTarget.set(-clampedX * 0.0008, -clampedY * 0.0008)
+    this.swayCurrent.lerp(this.swayTarget, 1 - Math.exp(-12 * dt))
 
     this.swayOffset.set(
-      this.swayCurrent.x * 0.01,
-      this.swayCurrent.y * 0.01,
+      this.swayCurrent.x * 0.015,
+      this.swayCurrent.y * 0.015,
       0
     )
     this.swayRotation.set(
-      this.swayCurrent.y * 0.01,
-      this.swayCurrent.x * 0.01,
-      0
+      this.swayCurrent.y * 0.02,
+      this.swayCurrent.x * 0.02,
+      this.swayCurrent.x * 0.015
     )
   }
 
   // ─── Kick (recoil) ───────────────────────────────────────
   addKick(recoilX: number, recoilY: number, recoilZ: number) {
-    this.kickOffset.set(0, recoilY * 0.01, recoilZ * 0.005)
-    this.kickRotation.set(recoilX * 0.02, 0, 0)
+    this.kickOffset.set(0, recoilY * 0.008, recoilZ * 0.005)
+    this.kickRotation.set(recoilX * 0.015, 0, 0)
   }
 
   updateKick(dt: number) {
-    this.kickOffset.lerp(new THREE.Vector3(), dt * 12)
-    this.kickRotation.x = THREE.MathUtils.lerp(this.kickRotation.x, 0, dt * 12)
-    this.kickRotation.y = THREE.MathUtils.lerp(this.kickRotation.y, 0, dt * 12)
-    this.kickRotation.z = THREE.MathUtils.lerp(this.kickRotation.z, 0, dt * 12)
+    this.kickOffset.lerp(new THREE.Vector3(), dt * 14)
+    this.kickRotation.x = THREE.MathUtils.lerp(this.kickRotation.x, 0, dt * 14)
+    this.kickRotation.y = THREE.MathUtils.lerp(this.kickRotation.y, 0, dt * 14)
+    this.kickRotation.z = THREE.MathUtils.lerp(this.kickRotation.z, 0, dt * 14)
   }
 
   // ─── Update ──────────────────────────────────────────────
   update(dt: number): void {
+    const clipPos = new THREE.Vector3(0, 0, 0)
+    const clipRot = new THREE.Euler(0, 0, 0)
+
     // Update clip animation
     if (this.playing && this.currentClip) {
       const clip = this.clips.get(this.currentClip)
       if (clip) {
         this.currentTime += dt
 
-        if (this.currentTime >= clip.duration) {
+        if (this.currentTime >= this.activeDuration) {
           if (clip.loop) {
-            this.currentTime %= clip.duration
+            this.currentTime %= this.activeDuration
           } else {
             this.playing = false
-            this.currentTime = clip.duration
+            this.currentTime = this.activeDuration
             const cb = this.onComplete
             this.onComplete = null
             if (cb) cb()
@@ -235,14 +246,18 @@ export class WeaponAnimator {
         }
 
         // Interpolate keyframes
-        const t = this.currentTime / clip.duration
+        const t = Math.min(1, Math.max(0, this.currentTime / this.activeDuration))
         const interpolated = this.interpolateKeyframes(clip.keyframes, t)
-        this.position.copy(interpolated.position)
-        this.rotation.copy(interpolated.rotation)
+        clipPos.copy(interpolated.position)
+        clipRot.copy(interpolated.rotation)
       }
     }
 
-    // Apply procedural offsets (additive)
+    // Set clean base from clip (or zero when idle)
+    this.position.copy(clipPos)
+    this.rotation.copy(clipRot)
+
+    // Apply procedural offsets (fresh per-frame, no accumulation)
     this.position.add(this.bobOffset)
     this.position.add(this.swayOffset)
     this.position.add(this.kickOffset)

@@ -1,19 +1,46 @@
 import { useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { WEAPONS } from '@cs-game/shared'
 import { useWeaponStore } from '../../stores/useWeaponStore'
 import { useGameStore } from '../../stores/useGameStore'
 import { WeaponAnimator } from './WeaponAnimator'
 
 const WEAPON_POSITIONS: Record<string, [number, number, number]> = {
-  ak47: [0.25, -0.25, -0.42],
-  m4a1: [0.25, -0.25, -0.42],
-  awp: [0.28, -0.28, -0.52],
-  mp5: [0.24, -0.24, -0.38],
-  deagle: [0.2, -0.2, -0.33],
-  glock: [0.18, -0.18, -0.3],
-  tec9: [0.19, -0.19, -0.32],
-  autopistol: [0.18, -0.18, -0.3],
+  ak47: [0.22, -0.22, -0.40],
+  m4a1: [0.22, -0.22, -0.40],
+  awp: [0.24, -0.24, -0.46],
+  mp5: [0.21, -0.21, -0.36],
+  deagle: [0.17, -0.17, -0.32],
+  glock: [0.16, -0.16, -0.29],
+  tec9: [0.16, -0.16, -0.29],
+  autopistol: [0.16, -0.16, -0.29],
+  knife: [0.18, -0.18, -0.28],
+  combatknife: [0.18, -0.18, -0.28],
+}
+
+const WEAPON_ROTATIONS: Record<string, [number, number, number]> = {
+  ak47: [-0.02, -0.05, 0.02],
+  m4a1: [-0.02, -0.05, 0.02],
+  awp: [-0.01, -0.04, 0.01],
+  mp5: [-0.02, -0.05, 0.02],
+  deagle: [-0.01, -0.03, 0.02],
+  glock: [-0.01, -0.03, 0.02],
+  tec9: [-0.01, -0.03, 0.02],
+  autopistol: [-0.01, -0.03, 0.02],
+  knife: [0.06, -0.08, -0.05],
+  combatknife: [0.06, -0.08, -0.05],
+}
+
+const ADS_POSITIONS: Record<string, [number, number, number]> = {
+  ak47: [0, -0.145, -0.30],
+  m4a1: [0, -0.145, -0.30],
+  awp: [0, -0.155, -0.32],
+  mp5: [0, -0.135, -0.26],
+  deagle: [0, -0.125, -0.24],
+  glock: [0, -0.120, -0.23],
+  tec9: [0, -0.120, -0.23],
+  autopistol: [0, -0.120, -0.23],
   knife: [0.18, -0.18, -0.28],
   combatknife: [0.18, -0.18, -0.28],
 }
@@ -30,6 +57,8 @@ export function WeaponModel() {
   const moveIntensity = useRef(0)
   const lastSwingTime = useRef(0)
   const swingProgress = useRef(0)
+  const mouseDelta = useRef({ x: 0, y: 0 })
+  const adsProgress = useRef(0)
 
   useEffect(() => {
     const checkMovement = () => {
@@ -47,6 +76,15 @@ export function WeaponModel() {
   }, [])
 
   useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseDelta.current.x += e.movementX
+      mouseDelta.current.y += e.movementY
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [])
+
+  useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
         const now = performance.now()
@@ -60,25 +98,24 @@ export function WeaponModel() {
     return () => window.removeEventListener('mousedown', handleMouseDown)
   }, [])
 
+  // Sync reload animation duration with weapon stats
   useEffect(() => {
-    if (isReloading) {
-      weaponAnimator.play('reload')
+    if (isReloading && activeWeapon) {
+      const stats = WEAPONS[activeWeapon]
+      const duration = stats?.reload || 2.2
+      weaponAnimator.play('reload', duration)
+    } else if (!isReloading) {
+      if (weaponAnimator.getCurrentClip() === 'reload') {
+        weaponAnimator.stop()
+      }
     }
-  }, [isReloading])
+  }, [isReloading, activeWeapon])
 
   useEffect(() => {
     if (isSwitching) {
       weaponAnimator.play('draw')
     }
   }, [isSwitching])
-
-  useEffect(() => {
-    if (isADS) {
-      weaponAnimator.play('ads_in')
-    } else {
-      weaponAnimator.play('ads_out')
-    }
-  }, [isADS])
 
   useFrame(({ camera, clock }) => {
     if (!groupRef.current || !recoilGroupRef.current || !activeWeapon) return
@@ -88,6 +125,11 @@ export function WeaponModel() {
     weaponAnimator.update(dt)
     weaponAnimator.updateBob(dt, moveIntensity.current * 5, moveIntensity.current > 1, isMoving.current)
     weaponAnimator.updateKick(dt)
+
+    // Update sway and decay mouse delta
+    weaponAnimator.updateSway(dt, mouseDelta.current.x, mouseDelta.current.y)
+    mouseDelta.current.x = THREE.MathUtils.lerp(mouseDelta.current.x, 0, dt * 15)
+    mouseDelta.current.y = THREE.MathUtils.lerp(mouseDelta.current.y, 0, dt * 15)
 
     if (recoilOffset.y > 0) {
       weaponAnimator.addKick(recoilOffset.x, recoilOffset.y, 0)
@@ -102,24 +144,31 @@ export function WeaponModel() {
       if (swingProgress.current < 0.01) swingProgress.current = 0
     }
 
-    const deployOffset = isSwitching ? -0.25 : 0
+    // Smooth ADS interpolation
+    adsProgress.current = THREE.MathUtils.lerp(
+      adsProgress.current,
+      isADS && !isReloading && !isSwitching ? 1 : 0,
+      dt * 14
+    )
+    const adsFactor = adsProgress.current
 
-    const basePos = WEAPON_POSITIONS[activeWeapon] || [0.28, -0.28, -0.45]
+    const basePos = WEAPON_POSITIONS[activeWeapon] || [0.22, -0.22, -0.40]
+    const baseRot = WEAPON_ROTATIONS[activeWeapon] || [0, 0, 0]
+    const adsPos = ADS_POSITIONS[activeWeapon] || [0, -0.145, -0.30]
 
     groupRef.current.position.copy(camera.position)
     groupRef.current.quaternion.copy(camera.quaternion)
 
-    recoilGroupRef.current.position.set(
-      basePos[0] + weaponAnimator.position.x,
-      basePos[1] + weaponAnimator.position.y + swingY,
-      basePos[2] + weaponAnimator.position.z + deployOffset
-    )
+    const posX = THREE.MathUtils.lerp(basePos[0], adsPos[0], adsFactor) + weaponAnimator.position.x
+    const posY = THREE.MathUtils.lerp(basePos[1], adsPos[1], adsFactor) + weaponAnimator.position.y + swingY
+    const posZ = THREE.MathUtils.lerp(basePos[2], adsPos[2], adsFactor) + weaponAnimator.position.z
 
-    recoilGroupRef.current.rotation.set(
-      weaponAnimator.rotation.x + swingAngle,
-      weaponAnimator.rotation.y,
-      weaponAnimator.rotation.z
-    )
+    const rotX = THREE.MathUtils.lerp(baseRot[0], 0, adsFactor) + weaponAnimator.rotation.x + swingAngle
+    const rotY = THREE.MathUtils.lerp(baseRot[1], 0, adsFactor) + weaponAnimator.rotation.y
+    const rotZ = THREE.MathUtils.lerp(baseRot[2], 0, adsFactor) + weaponAnimator.rotation.z
+
+    recoilGroupRef.current.position.set(posX, posY, posZ)
+    recoilGroupRef.current.rotation.set(rotX, rotY, rotZ)
   })
 
   if (!activeWeapon) return null
@@ -467,35 +516,39 @@ function M4A1Model() {
 }
 
 // ─── AWP ────────────────────────────────────────────────────────
-// AWP狙击步枪 — long barrel, large scope, bolt action
+// Accuracy International AWM/AWP: thumbhole stock, massive scope, bolt action
 function AWPModel() {
   return (
     <group>
-      {/* Action body — long receiver */}
+      {/* Receiver body — olive drab polymer chassis */}
       <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[0.048, 0.055, 0.48]} />
-        <meshStandardMaterial color="#1a3a1a" metalness={0.5} roughness={0.4} />
+        <boxGeometry args={[0.048, 0.06, 0.45]} />
+        <meshStandardMaterial color="#2d4a2d" roughness={0.55} />
       </mesh>
-      {/* Action body top */}
-      <mesh position={[0, 0.032, 0]}>
-        <boxGeometry args={[0.046, 0.01, 0.48]} />
-        <meshStandardMaterial color="#2a4a2a" metalness={0.5} roughness={0.4} />
+      {/* Receiver top flat — action */}
+      <mesh position={[0, 0.035, 0]}>
+        <boxGeometry args={[0.042, 0.015, 0.35]} />
+        <meshStandardMaterial color="#222222" metalness={0.6} roughness={0.35} />
       </mesh>
-      {/* Barrel — long, heavy profile */}
+      {/* Barrel — long, free-floating, fluted */}
       <mesh position={[0, 0.005, -0.42]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.014, 0.014, 0.38, 14]} />
-        <meshStandardMaterial color="#2a2a2a" metalness={0.7} roughness={0.3} />
+        <cylinderGeometry args={[0.014, 0.014, 0.42, 12]} />
+        <meshStandardMaterial color="#1a1a1a" metalness={0.7} roughness={0.3} />
       </mesh>
-      {/* Barrel fluting — weight reduction */}
-      {[0, 1, 2].map(i => (
-        <mesh key={`flute-${i}`} position={[0.012, 0.005, -0.32 - i * 0.06]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.002, 0.002, 0.04, 4]} />
-          <meshStandardMaterial color="#1a1a1a" />
+      {/* Barrel flutes — longitudinal grooves */}
+      {[0, 1, 2, 3].map(i => (
+        <mesh
+          key={`flute-${i}`}
+          position={[0.012 * Math.cos((i * Math.PI) / 2), 0.005 + 0.012 * Math.sin((i * Math.PI) / 2), -0.4]}
+          rotation={[Math.PI / 2, 0, 0]}
+        >
+          <cylinderGeometry args={[0.002, 0.002, 0.3, 6]} />
+          <meshStandardMaterial color="#111111" />
         </mesh>
       ))}
-      {/* Muzzle brake — multi-port */}
-      <mesh position={[0, 0.005, -0.62]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.018, 0.016, 0.06, 14]} />
+      {/* Muzzle brake — large cylindrical with side ports */}
+      <mesh position={[0, 0.005, -0.64]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, 0.06, 12]} />
         <meshStandardMaterial color="#3a3a3a" metalness={0.6} roughness={0.35} />
       </mesh>
       {/* Muzzle brake ports */}
@@ -669,7 +722,7 @@ function AWPModel() {
 // Desert Eagle .50 AE — massive, iconic, gold finish
 function DeagleModel() {
   return (
-    <group rotation={[0.15, -0.3, 0.1]}>
+    <group>
       {/* Slide — massive, squared */}
       <mesh position={[0, 0.012, 0]}>
         <boxGeometry args={[0.038, 0.052, 0.22]} />
@@ -946,7 +999,7 @@ function MP5Model() {
 // Glock 17/18 — polymer frame, striker-fired
 function GlockModel() {
   return (
-    <group rotation={[0.15, -0.3, 0.1]}>
+    <group>
       {/* Slide — blocky, Tenifer finish */}
       <mesh position={[0, 0.012, 0]}>
         <boxGeometry args={[0.034, 0.042, 0.2]} />
@@ -1060,7 +1113,7 @@ function GlockModel() {
 // Intratec Tec-9 — open-bolt, simple construction
 function Tec9Model() {
   return (
-    <group rotation={[0.15, -0.3, 0.1]}>
+    <group>
       {/* Receiver — cylindrical upper */}
       <mesh position={[0, 0.008, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.018, 0.018, 0.22, 10]} />
@@ -1174,7 +1227,7 @@ function Tec9Model() {
 // Auto Pistol — full-auto compact, similar to Glock 18C
 function AutoPistolModel() {
   return (
-    <group rotation={[0.15, -0.3, 0.1]}>
+    <group>
       {/* Slide — extended for full-auto */}
       <mesh position={[0, 0.012, 0]}>
         <boxGeometry args={[0.034, 0.045, 0.21]} />
@@ -1274,7 +1327,7 @@ function AutoPistolModel() {
 // Standard combat knife — clip point blade
 function KnifeModel() {
   return (
-    <group rotation={[0.2, -0.4, 0.15]}>
+    <group>
       {/* Blade — clip point */}
       <mesh position={[0, 0.08, -0.01]} rotation={[0.08, 0, 0]}>
         <boxGeometry args={[0.012, 0.14, 0.035]} />
@@ -1343,7 +1396,7 @@ function KnifeModel() {
 // Tactical combat knife — tanto blade, more aggressive
 function CombatKnifeModel() {
   return (
-    <group rotation={[0.2, -0.4, 0.15]}>
+    <group>
       {/* Blade — tanto style, angular */}
       <mesh position={[0, 0.09, -0.01]} rotation={[0.06, 0, 0]}>
         <boxGeometry args={[0.014, 0.16, 0.04]} />

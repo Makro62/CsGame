@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react";
 import * as THREE from "three";
-import { StaticBox, StaticCylinder } from "./MapHelpers";
+import { RigidBody, CuboidCollider } from "@react-three/rapier";
+import { StaticBox, StaticCylinder, FloorZone } from "./MapHelpers";
 
 // ============================================================================
 // Color Constants - Desert Theme
@@ -24,23 +25,29 @@ function Ground() {
   useEffect(() => {
     if (!meshRef.current) return;
     const geo = meshRef.current.geometry as THREE.PlaneGeometry;
-    const pos = geo.attributes.position;
+    const pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
-      pos.setZ(i, pos.getZ(i) + (Math.random() - 0.5) * 0.15);
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      const height = Math.sin(x * 0.1) * Math.cos(z * 0.08) * 0.3 + (Math.random() - 0.5) * 0.1;
+      pos.setY(i, height);
     }
     geo.computeVertexNormals();
   }, []);
 
   return (
-    <mesh
-      ref={meshRef}
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, -0.5, 0]}
-      receiveShadow
-    >
-      <planeGeometry args={[60, 40, 40, 40]} />
-      <meshStandardMaterial color={COLORS.ground} />
-    </mesh>
+    <RigidBody type="fixed" position={[0, -0.5, 0]}>
+      <mesh
+        ref={meshRef}
+        receiveShadow
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.5, 0]}
+      >
+        <planeGeometry args={[60, 40, 40, 40]} />
+        <meshStandardMaterial color={COLORS.ground} roughness={0.9} metalness={0.02} flatShading />
+      </mesh>
+      <CuboidCollider args={[30, 1.0, 20]} />
+    </RigidBody>
   );
 }
 
@@ -88,11 +95,8 @@ function SiteA() {
       <StaticBox position={[5, 1, -18]} size={[4, 2, 4]} color={COLORS.sand} />
       {/* Cover */}
       <StaticBox position={[0, 0.5, -14]} size={[2, 1, 2]} color={COLORS.wood} />
-      {/* Site marker - simple box */}
-      <mesh position={[0, 0.01, -18]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6, 6]} />
-        <meshBasicMaterial color="#ff4444" transparent opacity={0.3} />
-      </mesh>
+      {/* Site marker */}
+      <FloorZone position={[0, 0.01, -18]} size={[6, 6]} color="#ff4444" opacity={0.3} />
     </group>
   );
 }
@@ -108,10 +112,7 @@ function SiteB() {
       <StaticBox position={[-3, 1.5, 20]} size={[2, 2, 2]} color={COLORS.stone} />
       <StaticBox position={[3, 1.5, 20]} size={[2, 2, 2]} color={COLORS.stone} />
       {/* Site marker */}
-      <mesh position={[0, 1.01, 18]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6, 6]} />
-        <meshBasicMaterial color="#3b82f6" transparent opacity={0.3} />
-      </mesh>
+      <FloorZone position={[0, 1.01, 18]} size={[6, 6]} color="#3b82f6" opacity={0.3} />
     </group>
   );
 }

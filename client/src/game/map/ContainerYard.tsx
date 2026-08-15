@@ -1,7 +1,7 @@
 import { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { RigidBody, CuboidCollider } from "@react-three/rapier";
-import { StaticBox, StaticCylinder } from "./MapHelpers";
+import { StaticBox, StaticCylinder, FloorZone } from "./MapHelpers";
 
 // ============================================================================
 // Color Constants
@@ -16,35 +16,6 @@ const COLORS = {
   concrete: "#666666",
   ramp: "#888888",
 } as const;
-
-// ============================================================================
-// Floor Zone Indicator (visual-only, no collider)
-// ============================================================================
-
-type FloorZoneProps = {
-  position: [number, number, number];
-  size: [number, number];
-  color: string;
-  opacity?: number;
-};
-
-function FloorZone({ position, size, color, opacity = 0.25 }: FloorZoneProps) {
-  return (
-    <mesh
-      position={position}
-      rotation={[-Math.PI / 2, 0, 0]}
-      receiveShadow={false}
-    >
-      <planeGeometry args={size} />
-      <meshStandardMaterial
-        color={color}
-        transparent
-        opacity={opacity}
-        depthWrite={false}
-      />
-    </mesh>
-  );
-}
 
 // ============================================================================
 // T-Spawn Area (West)
@@ -92,13 +63,13 @@ function MidLane() {
       {/* Iron barrels "Barrels" at [-8, 0.75, -3] and [-8, 0.75, 3] */}
       <StaticCylinder
         position={[-8, 0.75, -3]}
-        radius={0.4}
+        radius={0.35}
         height={1.5}
         color={COLORS.iron}
       />
       <StaticCylinder
         position={[-8, 0.75, 3]}
-        radius={0.4}
+        radius={0.35}
         height={1.5}
         color={COLORS.iron}
       />
@@ -137,7 +108,7 @@ function SiteA() {
       {/* Iron barrel at [-7, 0.75, -18] */}
       <StaticCylinder
         position={[-7, 0.75, -18]}
-        radius={0.4}
+        radius={0.35}
         height={1.5}
         color={COLORS.iron}
       />

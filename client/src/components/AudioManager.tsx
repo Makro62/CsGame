@@ -9,6 +9,7 @@ function getEffectiveVolume(): number {
 
 let audioCtx: AudioContext | null = null
 let unlocked = false
+const reloadAudioTimers: ReturnType<typeof setTimeout>[] = []
 
 function getCtx(): AudioContext {
   if (!audioCtx) audioCtx = new AudioContext()
@@ -113,6 +114,68 @@ export const Sound = {
 
   headshot() {
     playTone(1800, 0.05, 0.4 * getEffectiveVolume())
+  },
+
+  dryFire() {
+    const vol = getEffectiveVolume()
+    playNoise(0.015, 0.25 * vol, 4500)
+    playTone(550, 0.02, 0.15 * vol, 'triangle')
+  },
+
+  deploy(weapon: string) {
+    const vol = getEffectiveVolume()
+    const isKnife = weapon === 'knife' || weapon === 'combatknife'
+    if (isKnife) {
+      playNoise(0.03, 0.25 * vol, 5500)
+      playTone(1100, 0.03, 0.15 * vol, 'sine')
+    } else {
+      playNoise(0.025, 0.2 * vol, 3500)
+      playTone(380, 0.025, 0.12 * vol, 'triangle')
+    }
+  },
+
+  reloadSequence(weapon: string, duration: number) {
+    this.cancelReload()
+    const vol = getEffectiveVolume()
+    const isPistol = ['deagle', 'glock', 'tec9', 'autopistol'].includes(weapon)
+    const isSniper = weapon === 'awp'
+
+    // Stage 1: Magazine release / unseat click & slide (~18% of duration)
+    const t1 = setTimeout(() => {
+      // Mag release click
+      playNoise(0.025, 0.22 * vol, 3800)
+      playTone(400, 0.03, 0.12 * vol, 'triangle')
+    }, Math.max(50, duration * 0.18 * 1000))
+    reloadAudioTimers.push(t1)
+
+    // Stage 2: Magazine insert snap / heavy lock (~58% of duration)
+    const t2 = setTimeout(() => {
+      // Solid mechanical click
+      playNoise(0.035, 0.32 * vol, 2800)
+      playTone(isSniper ? 280 : isPistol ? 480 : 350, 0.04, 0.25 * vol, 'sine')
+      playTone(isSniper ? 550 : isPistol ? 850 : 700, 0.03, 0.18 * vol, 'square')
+    }, Math.max(100, duration * 0.58 * 1000))
+    reloadAudioTimers.push(t2)
+
+    // Stage 3: Bolt cock / slide rack release (~80% of duration)
+    const t3 = setTimeout(() => {
+      // Bolt / slide rack mechanical sound
+      playNoise(0.03, 0.28 * vol, 4200)
+      playTone(isSniper ? 220 : isPistol ? 600 : 450, 0.035, 0.2 * vol, 'triangle')
+      // Second snap (bolt release forward)
+      setTimeout(() => {
+        playNoise(0.02, 0.22 * vol, 4800)
+        playTone(isSniper ? 300 : isPistol ? 700 : 520, 0.025, 0.15 * vol, 'sine')
+      }, 50)
+    }, Math.max(150, duration * 0.80 * 1000))
+    reloadAudioTimers.push(t3)
+  },
+
+  cancelReload() {
+    while (reloadAudioTimers.length > 0) {
+      const timer = reloadAudioTimers.pop()
+      if (timer) clearTimeout(timer)
+    }
   },
 
   reloadClick() {

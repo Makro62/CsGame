@@ -53,3 +53,32 @@ export function StaticCylinder({
     </RigidBody>
   );
 }
+
+// ============================================================================
+// Floor Zone Indicator (visual-only, no collider)
+// ============================================================================
+
+export type FloorZoneProps = {
+  position: [number, number, number];
+  size: [number, number];
+  color: string;
+  opacity?: number;
+};
+
+export function FloorZone({ position, size, color, opacity = 0.25 }: FloorZoneProps) {
+  return (
+    <mesh
+      position={position}
+      rotation={[-Math.PI / 2, 0, 0]}
+      receiveShadow={false}
+    >
+      <planeGeometry args={size} />
+      <meshStandardMaterial
+        color={color}
+        transparent
+        opacity={opacity}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}

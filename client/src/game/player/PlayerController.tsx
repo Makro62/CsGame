@@ -7,7 +7,7 @@ import {
   CapsuleCollider,
 } from '@react-three/rapier'
 import * as THREE from 'three'
-import { PHYSICS, SPAWN } from '@cs-game/shared'
+import { PHYSICS, SPAWN, MAP_OBSTACLES } from '@cs-game/shared'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
 import { useNetwork } from '../../hooks/useNetwork'
 import { useGameStore } from '../../stores/useGameStore'
@@ -37,6 +37,48 @@ const _euler = new THREE.Euler()
 
 const POINTER_LOCK_SENSITIVITY = 0.002
 
+// Simple ray vs AABB intersection for wall jump detection
+function rayVsAABB(
+  origin: { x: number; y: number; z: number },
+  target: { x: number; y: number; z: number },
+  box: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number }
+): boolean {
+  const dx = target.x - origin.x
+  const dy = target.y - origin.y
+  const dz = target.z - origin.z
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz)
+  if (len === 0) return false
+  const invDx = dx / len
+  const invDy = dy / len
+  const invDz = dz / len
+
+  let tmin = -Infinity
+  let tmax = Infinity
+
+  if (invDx !== 0) {
+    const t1 = (box.minX - origin.x) / invDx
+    const t2 = (box.maxX - origin.x) / invDx
+    tmin = Math.max(tmin, Math.min(t1, t2))
+    tmax = Math.min(tmax, Math.max(t1, t2))
+  } else if (origin.x < box.minX || origin.x > box.maxX) return false
+
+  if (invDy !== 0) {
+    const t1 = (box.minY - origin.y) / invDy
+    const t2 = (box.maxY - origin.y) / invDy
+    tmin = Math.max(tmin, Math.min(t1, t2))
+    tmax = Math.min(tmax, Math.max(t1, t2))
+  } else if (origin.y < box.minY || origin.y > box.maxY) return false
+
+  if (invDz !== 0) {
+    const t1 = (box.minZ - origin.z) / invDz
+    const t2 = (box.maxZ - origin.z) / invDz
+    tmin = Math.max(tmin, Math.min(t1, t2))
+    tmax = Math.min(tmax, Math.max(t1, t2))
+  } else if (origin.z < box.minZ || origin.z > box.maxZ) return false
+
+  return tmax >= tmin && tmax >= 0 && tmin <= len
+}
+
 const WALK_SPEED = PHYSICS.walkSpeed as number
 const SPRINT_SPEED = PHYSICS.sprintSpeed as number
 const JUMP_VELOCITY = PHYSICS.jumpVelocity as number
@@ -50,6 +92,20 @@ const MOON_JUMP_MULT = PHYSICS.moonJumpMult as number
 const SHORT_HOP_MULT = PHYSICS.shortHopMult as number
 const INPUT_WINDOW_MS = PHYSICS.inputWindowMs as number
 const SLIDE_BOOST = PHYSICS.slideBoost as number
+
+// Perfect Jump Boost
+const PERFECT_JUMP_WINDOW = PHYSICS.perfectJumpWindow as number
+const PERFECT_JUMP_BOOST = PHYSICS.perfectJumpBoost as number
+
+// Double Jump
+const DOUBLE_JUMP_BOOST = PHYSICS.doubleJumpBoost as number
+
+// Wall Jump
+const WALL_JUMP_ENABLED = PHYSICS.wallJumpEnabled as boolean
+const WALL_JUMP_BOOST = PHYSICS.wallJumpBoost as number
+const WALL_JUMP_HORIZONTAL = PHYSICS.wallJumpHorizontal as number
+const WALL_JUMP_COOLDOWN = PHYSICS.wallJumpCooldown as number
+const WALL_JUMP_RAY_DIST = PHYSICS.wallJumpRayDist as number
 
 export function PlayerController() {
   const { camera } = useThree()
@@ -96,6 +152,15 @@ export function PlayerController() {
 
   const weaponEquipped = useRef(false)
   const adsPressedInAir = useRef(false)
+
+  // Perfect Jump Boost
+  const lastLandTime = useRef(0)
+
+  // Double Jump
+  const doubleJumpUsed = useRef(false)
+
+  // Wall Jump
+  const lastWallJumpTime = useRef(0)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -437,10 +502,18 @@ export function PlayerController() {
       coyoteTimeRef.current > 0 ||
       _currentPos.y <= TOTAL_HEIGHT / 2 + 0.1
 
+    // Perfect Jump Boost: check if jump is within timing window after landing
+    const timeSinceLand = now - lastLandTime.current
+    const isPerfectJump = timeSinceLand <= PERFECT_JUMP_WINDOW && timeSinceLand > 0
+
+    // Use jump stamina from store
+    const useJumpStamina = useGameStore.getState().useJumpStamina
+
     if (canJump && hasJumpBuffer) {
       const timeSinceCrouchRelease = now - getCrouchReleasedAt()
       if (timeSinceCrouchRelease <= 150) {
         velocityY.current = JUMP_VELOCITY * MOON_JUMP_MULT
+        useJumpStamina()
       } else if (slideState.current.active) {
         velocityXZ.multiplyScalar(SLIDE_BOOST)
         const currentSpeed = velocityXZ.length()
@@ -449,12 +522,66 @@ export function PlayerController() {
         }
         velocityY.current = JUMP_VELOCITY
         slideState.current.active = false
+        useJumpStamina()
       } else {
-        velocityY.current = JUMP_VELOCITY
+        // Perfect Jump Boost
+        velocityY.current = isPerfectJump ? JUMP_VELOCITY * PERFECT_JUMP_BOOST : JUMP_VELOCITY
+        useJumpStamina()
       }
       input.jumpBuffer.length = 0
       coyoteTimeRef.current = 0
       grounded.current = false
+      doubleJumpUsed.current = false
+    } else if (!grounded.current && hasJumpBuffer && !doubleJumpUsed.current) {
+      // Double Jump
+      const hasStamina = useJumpStamina()
+      if (hasStamina && PHYSICS.doubleJumpEnabled) {
+        velocityY.current = JUMP_VELOCITY * DOUBLE_JUMP_BOOST
+        doubleJumpUsed.current = true
+        input.jumpBuffer.length = 0
+      }
+    }
+
+    // Wall Jump: detect nearby walls via raycast in strafe directions
+    if (!grounded.current && hasJumpBuffer && WALL_JUMP_ENABLED) {
+      const timeSinceWallJump = now - lastWallJumpTime.current
+      if (timeSinceWallJump >= WALL_JUMP_COOLDOWN) {
+        // Cast rays left and right relative to camera yaw
+        const yaw = _euler.y
+        const rayDirs = [
+          { x: -Math.cos(yaw), z: Math.sin(yaw) },   // left
+          { x: Math.cos(yaw), z: -Math.sin(yaw) },    // right
+          { x: -Math.sin(yaw), z: -Math.cos(yaw) },   // forward-left
+          { x: Math.sin(yaw), z: Math.cos(yaw) },     // forward-right
+        ]
+        for (const dir of rayDirs) {
+          const rayOrigin = { x: _currentPos.x, y: _currentPos.y, z: _currentPos.z }
+          const rayTarget = { x: rayOrigin.x + dir.x * WALL_JUMP_RAY_DIST, y: rayOrigin.y, z: rayOrigin.z + dir.z * WALL_JUMP_RAY_DIST }
+          // Simple AABB ray check against map obstacles
+          let hitWall = false
+          for (const obs of MAP_OBSTACLES) {
+            if (rayVsAABB(rayOrigin, rayTarget, obs)) {
+              hitWall = true
+              break
+            }
+          }
+          if (hitWall) {
+            const hasStamina = useJumpStamina()
+            if (hasStamina) {
+              velocityY.current = WALL_JUMP_BOOST
+              // Push away from wall
+              velocityXZ.x += dir.x * WALL_JUMP_HORIZONTAL
+              velocityXZ.y += dir.z * WALL_JUMP_HORIZONTAL
+              // Clamp to max velocity
+              const spd = velocityXZ.length()
+              if (spd > MAX_VELOCITY) velocityXZ.normalize().multiplyScalar(MAX_VELOCITY)
+              lastWallJumpTime.current = now
+              input.jumpBuffer.length = 0
+              break
+            }
+          }
+        }
+      }
     }
 
     if (!input.jump && velocityY.current > 0) {
@@ -488,6 +615,8 @@ export function PlayerController() {
       coyoteTimeRef.current = 0.12
       // Keep grounded velocity small downward for ground detection
       velocityY.current = -2
+      // Regen jump stamina while grounded
+      useGameStore.getState().regenJumpStamina(PHYSICS.jumpStaminaRegen * dt)
     }
 
     // Movement
@@ -516,6 +645,10 @@ export function PlayerController() {
     } else if (controller.computedGrounded()) {
       if (!grounded.current && velocityY.current < 0) {
         velocityY.current = 0
+        lastLandTime.current = now
+        doubleJumpUsed.current = false
+        // Regen stamina on landing
+        useGameStore.getState().regenJumpStamina(1)
       }
       grounded.current = true
       adsPressedInAir.current = false
