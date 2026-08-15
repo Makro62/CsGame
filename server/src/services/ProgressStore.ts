@@ -1,5 +1,6 @@
 /**
  * ProgressStore — In-memory player progress tracking
+ * TODO: [Roadmap Feature] Diintegrasikan ke GameRoom saat fitur Ranked Match & Profile Persistence diaktifkan
  * For production, replace with SQLite/Redis persistence
  */
 

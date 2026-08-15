@@ -19,8 +19,8 @@ import {
 } from "./constants";
 
 const MAX_PIERCE = 2;
-const MAX_REWIND_MS = 500;
-const HISTORY_WINDOW_MS = 1000;
+const MAX_REWIND_MS = 200;  // Audit: reduced from 500ms to 200ms (6-7 ticks at 30Hz)
+const HISTORY_WINDOW_MS = 500;
 
 interface PositionSample {
   t: number;
@@ -57,6 +57,10 @@ export class WeaponManager {
 
   recordFire(sessionId: string): void {
     this.lastFireTime.set(sessionId, performance.now());
+  }
+
+  getLastFireTime(sessionId: string): number {
+    return this.lastFireTime.get(sessionId) || 0;
   }
 
   validateShootOrigin(
@@ -215,6 +219,7 @@ export class WeaponManager {
           pierce++;
           wallbangFactor *= 0.5;
         } else {
+          // metal, concrete, or wood at max pierce = blocked
           return;
         }
       }

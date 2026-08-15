@@ -1,3 +1,5 @@
+// @ts-ignore
+import express from "express";
 import { Server, LobbyRoom } from "colyseus";
 import { monitor } from "@colyseus/monitor";
 import { createServer } from "http";
@@ -5,7 +7,11 @@ import { GameRoom } from "./rooms/GameRoom.js";
 
 const port = Number(process.env.PORT) || 2567;
 
-const httpServer = createServer();
+const app = express();
+app.use(express.json());
+app.use("/colyseus", monitor());
+
+const httpServer = createServer(app);
 const gameServer = new Server({ server: httpServer });
 
 // Lobby room for server browser

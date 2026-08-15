@@ -16,6 +16,46 @@ function getCtx(): AudioContext {
   return audioCtx
 }
 
+// ─── Spatial Audio: bind Web Audio listener to camera position ───
+// Must be called every frame from the game loop to keep spatial audio accurate.
+export function updateAudioListener(
+  camX: number, camY: number, camZ: number,
+  lookAtX: number, lookAtY: number, lookAtZ: number,
+) {
+  const ctx = getCtx()
+  const listener = ctx.listener
+  if (!listener) return
+
+  // Position the listener at the camera
+  if (listener.positionX) {
+    listener.positionX.setValueAtTime(camX, ctx.currentTime)
+    listener.positionY.setValueAtTime(camY, ctx.currentTime)
+    listener.positionZ.setValueAtTime(camZ, ctx.currentTime)
+  } else if ('setPosition' in listener) {
+    (listener as any).setPosition(camX, camY, camZ)
+  }
+
+  // Orientation: forward vector (lookAt - position) and up vector
+  const dx = lookAtX - camX
+  const dy = lookAtY - camY
+  const dz = lookAtZ - camZ
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1
+  const fwdX = dx / len
+  const fwdY = dy / len
+  const fwdZ = dz / len
+
+  if (listener.forwardX) {
+    listener.forwardX.setValueAtTime(fwdX, ctx.currentTime)
+    listener.forwardY.setValueAtTime(fwdY, ctx.currentTime)
+    listener.forwardZ.setValueAtTime(fwdZ, ctx.currentTime)
+    listener.upX.setValueAtTime(0, ctx.currentTime)
+    listener.upY.setValueAtTime(1, ctx.currentTime)
+    listener.upZ.setValueAtTime(0, ctx.currentTime)
+  } else if ('setOrientation' in listener) {
+    (listener as any).setOrientation(fwdX, fwdY, fwdZ, 0, 1, 0)
+  }
+}
+
 async function ensureUnlocked() {
   if (unlocked) return
   const ctx = getCtx()

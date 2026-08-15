@@ -26,7 +26,6 @@ import { ClickToPlayOverlay } from './components/ClickToPlayOverlay'
 import VoteKick from './components/VoteKick'
 import { FlashEffect } from './components/FlashEffect'
 import FootstepPlayer from './components/FootstepPlayer'
-import { KillCam } from './components/KillCam'
 import { KOTH } from './components/KOTH'
 import { TracerManager } from './game/effects/TracerManager'
 import SettingsMenu from './screens/SettingsMenu'
@@ -87,7 +86,6 @@ function MultiplayerMode() {
       <KillConfirm />
       <DamageVignette />
       <DeathScreen />
-      <KillCam />
       <KOTH />
       <Leaderboard />
       <Minimap />

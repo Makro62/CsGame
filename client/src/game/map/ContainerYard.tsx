@@ -14,37 +14,10 @@ const COLORS = {
   wood: "#8B6914",
   iron: "#444444",
   concrete: "#666666",
+  metal: "#5577aa",
   ramp: "#888888",
+  tunnel: "#333333",
 } as const;
-
-// ============================================================================
-// T-Spawn Area (West)
-// ============================================================================
-
-function TSpawnArea() {
-  return (
-    <>
-      {/* Red Base container at [-25, 1.2, -8] - 4x2.4x8m */}
-      <StaticBox
-        position={[-25, 1.2, -8]}
-        size={[4, 2.4, 8]}
-        color={COLORS.red}
-      />
-
-      {/* T-Cover: 2 wooden boxes at [-20, 0.6, -3] and [-20, 0.6, 3] */}
-      <StaticBox
-        position={[-20, 0.6, -3]}
-        size={[1.2, 1.2, 1.2]}
-        color={COLORS.wood}
-      />
-      <StaticBox
-        position={[-20, 0.6, 3]}
-        size={[1.2, 1.2, 1.2]}
-        color={COLORS.wood}
-      />
-    </>
-  );
-}
 
 // ============================================================================
 // Mid Lane (Center)
@@ -53,101 +26,155 @@ function TSpawnArea() {
 function MidLane() {
   return (
     <>
-      {/* Yellow container stack "Mid Box" at [0, 1.2, 0] - 4x2.4x6m */}
+      {/* Mid Box Center — wallbangable wood cover */}
       <StaticBox
-        position={[0, 1.2, 0]}
-        size={[4, 2.4, 6]}
-        color={COLORS.yellow}
+        position={[0, 0.6, 0]}
+        size={[1.2, 1.2, 1.2]}
+        color={COLORS.wood}
       />
 
-      {/* Iron barrels "Barrels" at [-8, 0.75, -3] and [-8, 0.75, 3] */}
+      {/* T-Mid Barrels — iron cover for T peeking mid */}
       <StaticCylinder
-        position={[-8, 0.75, -3]}
+        position={[-15, 0.75, -2]}
         radius={0.35}
         height={1.5}
         color={COLORS.iron}
       />
       <StaticCylinder
-        position={[-8, 0.75, 3]}
+        position={[-15, 0.75, 2]}
         radius={0.35}
         height={1.5}
         color={COLORS.iron}
+      />
+
+      {/* CT Sniper Window — two solid blocks with 3m gap for CT sniper */}
+      <StaticBox
+        position={[15, 0.6, -2.5]}
+        size={[2.4, 1.2, 1.2]}
+        color={COLORS.concrete}
+      />
+      <StaticBox
+        position={[15, 0.6, 2.5]}
+        size={[2.4, 1.2, 1.2]}
+        color={COLORS.concrete}
       />
     </>
   );
 }
 
 // ============================================================================
-// Site A (North, z = -15 area)
+// Site A (North, z = -15)
 // ============================================================================
 
 function SiteA() {
   return (
     <>
-      {/* L-Shape container tunnel: two containers forming an L */}
-      {/* Horizontal container at [-10, 1.2, -12] */}
+      {/* Site A Core — main container for bombsite */}
       <StaticBox
-        position={[-10, 1.2, -12]}
-        size={[6, 2.4, 4]}
-        color={COLORS.concrete}
-      />
-      {/* Vertical container at [-12, 1.2, -15] */}
-      <StaticBox
-        position={[-14, 1.2, -15]}
-        size={[4, 2.4, 6]}
-        color={COLORS.concrete}
+        position={[15, 1.2, -15]}
+        size={[6.0, 2.4, 2.4]}
+        color={COLORS.metal}
       />
 
-      {/* A Corner cover: wooden box at [-3, 0.6, -18] */}
+      {/* A-Main Choke — forces T into narrow entry */}
       <StaticBox
-        position={[-3, 0.6, -18]}
+        position={[-5, 1.2, -15]}
+        size={[2.4, 2.4, 6.0]}
+        color={COLORS.metal}
+      />
+
+      {/* A Ninja Corner — stacked wood boxes for ninja defuse */}
+      <StaticBox
+        position={[10, 0.6, -18]}
+        size={[1.2, 1.2, 1.2]}
+        color={COLORS.wood}
+      />
+      <StaticBox
+        position={[10, 1.8, -18]}
         size={[1.2, 1.2, 1.2]}
         color={COLORS.wood}
       />
 
-      {/* Iron barrel at [-7, 0.75, -18] */}
-      <StaticCylinder
-        position={[-7, 0.75, -18]}
-        radius={0.35}
-        height={1.5}
-        color={COLORS.iron}
+      {/* A-Connector — small wood cover for mid→A rotation */}
+      <StaticBox
+        position={[5, 0.6, -8]}
+        size={[1.2, 1.2, 1.2]}
+        color={COLORS.wood}
       />
     </>
   );
 }
 
 // ============================================================================
-// Site B (South, z = +15 area)
+// Site B (South, z = +15)
 // ============================================================================
 
 function SiteB() {
   return (
     <>
-      {/* B Stack: two containers stacked */}
+      {/* B-Stack Bottom — main container pillar */}
       <StaticBox
-        position={[8, 1.2, 12]}
-        size={[4, 2.4, 6]}
-        color={COLORS.blue}
-      />
-      <StaticBox
-        position={[8, 3.6, 12]}
-        size={[4, 2.4, 6]}
+        position={[12, 1.2, 15]}
+        size={[6.0, 2.4, 2.4]}
         color={COLORS.blue}
       />
 
-      {/* Ramp: angled box from ground to container top at [5, 0.5, 14] - 30° incline, 4m long */}
+      {/* B-Ramp — sloped surface for high ground access */}
       <StaticBox
-        position={[5, 0.5, 14]}
-        size={[4, 0.3, 4]}
+        position={[8, 1.2, 15]}
+        size={[4.8, 2.4, 2.4]}
         color={COLORS.ramp}
-        rotation={[-0.5236, 0, 0]}
+        rotation={[0, 0, Math.PI / 6]}
       />
 
-      {/* Wooden boxes on ramp top at [5, 4.0, 12] */}
+      {/* B-Stack Top — elevated container for high ground */}
       <StaticBox
-        position={[5, 4.0, 12]}
-        size={[1.2, 1.2, 1.2]}
-        color={COLORS.wood}
+        position={[13.8, 3.6, 15]}
+        size={[2.4, 2.4, 2.4]}
+        color={COLORS.blue}
+      />
+
+      {/* B-Pillar Cover — iron cylinder for plant cover */}
+      <StaticCylinder
+        position={[16, 0.75, 12]}
+        radius={0.35}
+        height={1.5}
+        color={COLORS.iron}
+      />
+
+      {/* B-Tunnel walls — forming the tunnel corridor */}
+      <StaticBox
+        position={[-5, 1.2, 12.5]}
+        size={[10.0, 2.4, 0.5]}
+        color={COLORS.tunnel}
+      />
+      <StaticBox
+        position={[-5, 1.2, 17.5]}
+        size={[10.0, 2.4, 0.5]}
+        color={COLORS.tunnel}
+      />
+      {/* B-Tunnel roof — blocks overhead grenades */}
+      <StaticBox
+        position={[-5, 2.4, 15]}
+        size={[10.0, 0.3, 5.0]}
+        color={COLORS.tunnel}
+      />
+    </>
+  );
+}
+
+// ============================================================================
+// T-Spawn Area (West)
+// ============================================================================
+
+function TSpawnArea() {
+  return (
+    <>
+      {/* T-Spawn marker */}
+      <StaticBox
+        position={[-25, 0.05, 0]}
+        size={[8, 0.1, 12]}
+        color={COLORS.red}
       />
     </>
   );
@@ -160,23 +187,11 @@ function SiteB() {
 function CTSpawnArea() {
   return (
     <>
-      {/* Blue Base container at [25, 1.2, -8] - 4x2.4x8m */}
+      {/* CT-Spawn marker */}
       <StaticBox
-        position={[25, 1.2, -8]}
-        size={[4, 2.4, 8]}
+        position={[25, 0.05, 0]}
+        size={[8, 0.1, 12]}
         color={COLORS.blue}
-      />
-
-      {/* CT-Cover: 2 wooden boxes at [20, 0.6, -3] and [20, 0.6, 3] */}
-      <StaticBox
-        position={[20, 0.6, -3]}
-        size={[1.2, 1.2, 1.2]}
-        color={COLORS.wood}
-      />
-      <StaticBox
-        position={[20, 0.6, 3]}
-        size={[1.2, 1.2, 1.2]}
-        color={COLORS.wood}
       />
     </>
   );
@@ -188,35 +203,34 @@ function CTSpawnArea() {
 
 function PerimeterWalls() {
   const wallHeight = 7.2;
-  const wallThickness = 4.0;
 
   return (
     <>
-      {/* North wall: centered at z=-21.5, size 68x7.2x4m */}
+      {/* North wall */}
       <StaticBox
-        position={[0, wallHeight / 2, -21.5]}
-        size={[68, wallHeight, wallThickness]}
+        position={[0, wallHeight / 2, -20.25]}
+        size={[60, wallHeight, 0.5]}
         color={COLORS.concrete}
       />
 
-      {/* South wall: centered at z=21.5, size 68x7.2x4m */}
+      {/* South wall */}
       <StaticBox
-        position={[0, wallHeight / 2, 21.5]}
-        size={[68, wallHeight, wallThickness]}
+        position={[0, wallHeight / 2, 20.25]}
+        size={[60, wallHeight, 0.5]}
         color={COLORS.concrete}
       />
 
-      {/* West wall: centered at x=-31.5, size 4x7.2x44m */}
+      {/* West wall */}
       <StaticBox
-        position={[-31.5, wallHeight / 2, 0]}
-        size={[wallThickness, wallHeight, 44]}
+        position={[-30.25, wallHeight / 2, 0]}
+        size={[0.5, wallHeight, 40]}
         color={COLORS.concrete}
       />
 
-      {/* East wall: centered at x=31.5, size 4x7.2x44m */}
+      {/* East wall */}
       <StaticBox
-        position={[31.5, wallHeight / 2, 0]}
-        size={[wallThickness, wallHeight, 44]}
+        position={[30.25, wallHeight / 2, 0]}
+        size={[0.5, wallHeight, 40]}
         color={COLORS.concrete}
       />
     </>
@@ -230,34 +244,34 @@ function PerimeterWalls() {
 function FloorZones() {
   return (
     <>
-      {/* Buy Zone T: red tint at [-25, 0.02, 0], 6x6m */}
+      {/* Buy Zone T: red tint */}
       <FloorZone
         position={[-25, 0.02, 0]}
-        size={[6, 6]}
+        size={[8, 12]}
         color={COLORS.red}
         opacity={0.3}
       />
 
-      {/* Buy Zone CT: blue tint at [25, 0.02, 0], 6x6m */}
+      {/* Buy Zone CT: blue tint */}
       <FloorZone
         position={[25, 0.02, 0]}
-        size={[6, 6]}
+        size={[8, 12]}
         color={COLORS.blue}
         opacity={0.3}
       />
 
-      {/* Site A: red/yellow tint at [0, 0.02, -20], 8x8m */}
+      {/* Site A: orange tint at [15, 0.02, -15] */}
       <FloorZone
-        position={[0, 0.02, -20]}
-        size={[8, 8]}
+        position={[15, 0.02, -15]}
+        size={[6, 6]}
         color="#cc6633"
         opacity={0.2}
       />
 
-      {/* Site B: blue tint at [0, 0.02, 20], 8x8m */}
+      {/* Site B: blue tint at [12, 0.02, 15] */}
       <FloorZone
-        position={[0, 0.02, 20]}
-        size={[8, 8]}
+        position={[12, 0.02, 15]}
+        size={[6, 6]}
         color={COLORS.blue}
         opacity={0.2}
       />
@@ -272,7 +286,7 @@ function FloorZones() {
 function DecorativeDetails() {
   return (
     <>
-      {/* small low crates and pipes scattered for visual interest */}
+      {/* small low crates scattered for visual interest */}
       <StaticBox position={[-4, 0.3, 6]} size={[0.8, 0.6, 0.8]} color={COLORS.wood} />
       <StaticBox position={[3, 0.3, -6]} size={[1.0, 0.6, 0.6]} color={COLORS.wood} rotation={[0, 0.3, 0]} />
 
@@ -280,7 +294,7 @@ function DecorativeDetails() {
       <StaticCylinder position={[12, 0.45, -2]} radius={0.25} height={0.9} color={COLORS.concrete} />
       <StaticCylinder position={[14, 0.45, 2]} radius={0.25} height={0.9} color={COLORS.concrete} />
 
-      {/* a small sloped metal panel to add angular variety */}
+      {/* a small sloped metal panel */}
       <StaticBox position={[-6, 0.4, -10]} size={[2.5, 0.2, 1.6]} color={COLORS.ramp} rotation={[-0.35, 0.15, 0]} />
     </>
   );
@@ -327,7 +341,7 @@ function Ground() {
         <planeGeometry args={[60, 40, 60, 40]} />
         <meshStandardMaterial color={COLORS.ground} roughness={0.86} metalness={0.05} flatShading />
       </mesh>
-      {/* collider remains a simple box for stable physics; make it slightly thicker */}
+      {/* collider remains a simple box for stable physics */}
       <CuboidCollider args={[30, 1.0, 20]} />
     </RigidBody>
   );
@@ -341,10 +355,10 @@ export function ContainerYard() {
   return (
     <group>
       <Ground />
-      <TSpawnArea />
       <MidLane />
       <SiteA />
       <SiteB />
+      <TSpawnArea />
       <CTSpawnArea />
       <PerimeterWalls />
       <FloorZones />

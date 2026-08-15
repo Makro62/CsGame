@@ -19,9 +19,11 @@ describe('BombController', () => {
 
   describe('findNearestBombSite', () => {
     it('should find the nearest bomb site', () => {
-      const player = { x: -20, y: 0, z: 0 } as any;
-      const site = bomb.findNearestBombSite(player);
-      expect(site).toBe('A');
+      const playerNearA = { x: 15, y: 0, z: -14 } as any;
+      expect(bomb.findNearestBombSite(playerNearA)).toBe('A');
+
+      const playerNearB = { x: 12, y: 0, z: 14 } as any;
+      expect(bomb.findNearestBombSite(playerNearB)).toBe('B');
     });
   });
 
@@ -34,6 +36,103 @@ describe('BombController', () => {
 
       expect(bomb.bombCarrierId).toBeNull();
       expect(bomb.droppedBombPos).toBeNull();
+    });
+  });
+
+  describe('plant and defuse lifecycle', () => {
+    it('should handle complete plant workflow', () => {
+      const state = {
+        players: new Map(),
+        bombPlanted: false,
+        bombTimeLeft: 0,
+        bombSite: '',
+      } as any;
+
+      const player = {
+        isPlanting: true,
+        plantProgress: 3,
+        hasBomb: true,
+        x: 15,
+        y: 0,
+        z: -15,
+      } as any;
+
+      let plantBonusGiven = false;
+      let broadcastEvent = '';
+
+      bomb.completePlant(
+        'player1',
+        player,
+        state,
+        (p) => bomb.findNearestBombSite(p),
+        (type) => {
+          broadcastEvent = type;
+        },
+        () => {
+          plantBonusGiven = true;
+        }
+      );
+
+      expect(player.isPlanting).toBe(false);
+      expect(player.hasBomb).toBe(false);
+      expect(state.bombPlanted).toBe(true);
+      expect(state.bombSite).toBe('A');
+      expect(plantBonusGiven).toBe(true);
+      expect(broadcastEvent).toBe('bombPlanted');
+    });
+
+    it('should handle complete defuse workflow', () => {
+      const state = {
+        bombPlanted: true,
+        bombTimeLeft: 30,
+        bombSite: 'A',
+      } as any;
+
+      const player = {
+        isDefusing: true,
+        defuseProgress: 5,
+      } as any;
+
+      let defuseBonusGiven = false;
+      let roundWinner = '';
+
+      bomb.completeDefuse(
+        'player2',
+        player,
+        state,
+        () => {
+          defuseBonusGiven = true;
+        },
+        () => {},
+        (winner) => {
+          roundWinner = winner;
+        }
+      );
+
+      expect(player.isDefusing).toBe(false);
+      expect(state.bombPlanted).toBe(false);
+      expect(defuseBonusGiven).toBe(true);
+      expect(roundWinner).toBe('CT');
+    });
+
+    it('should handle bomb explode workflow', () => {
+      const state = {
+        bombPlanted: true,
+        bombTimeLeft: 1,
+        bombSite: 'A',
+      } as any;
+
+      let roundWinner = '';
+      bomb.bombExplode(
+        state,
+        () => {},
+        (winner) => {
+          roundWinner = winner;
+        }
+      );
+
+      expect(state.bombPlanted).toBe(false);
+      expect(roundWinner).toBe('T');
     });
   });
 });

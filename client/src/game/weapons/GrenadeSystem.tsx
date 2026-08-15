@@ -6,6 +6,14 @@ import { useNetworkStore } from "../../stores/useNetworkStore";
 import { useWeaponStore } from "../../stores/useWeaponStore";
 import { gameEvents } from "../../lib/gameEvents";
 
+// ─── Object Pool: reusable Vector3 instances (avoids GC spikes) ───
+const _dir = new THREE.Vector3();
+const _pos = new THREE.Vector3();
+const _origin = new THREE.Vector3();
+const _velocity = new THREE.Vector3();
+const _simPos = new THREE.Vector3();
+const _simVel = new THREE.Vector3();
+
 interface ThrownGrenade {
   id: string;
   type: "he" | "smoke" | "flash";
@@ -111,23 +119,21 @@ export function GrenadeSystem() {
         if (performance.now() - lastThrow.current < GRENADE.cooldownMs) return;
         lastThrow.current = performance.now();
 
-        const dir = new THREE.Vector3();
-        const pos = new THREE.Vector3();
-        camera.getWorldDirection(dir);
-        camera.getWorldPosition(pos);
-        const origin = pos
-          .clone()
-          .add(dir.clone().multiplyScalar(GRENADE.startPosOffset));
         const power = 0.35 + charge.current * 0.65; // 0.35x .. 1x throw speed
-        const velocity = dir
-          .clone()
-          .multiplyScalar(GRENADE.throwSpeed * power)
-          .add(new THREE.Vector3(0, GRENADE.throwUpSpeed, 0));
+
+        // Reuse pooled Vector3 objects to avoid GC spikes
+        camera.getWorldDirection(_dir);
+        camera.getWorldPosition(_pos);
+        _origin.copy(_pos).addScaledVector(_dir, GRENADE.startPosOffset);
+        _velocity
+          .copy(_dir)
+          .multiplyScalar(GRENADE.throwSpeed * power);
+        _velocity.y += GRENADE.throwUpSpeed;
 
         sendThrowGrenade({
           type: grenadeType,
-          origin: { x: origin.x, y: origin.y, z: origin.z },
-          velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
+          origin: { x: _origin.x, y: _origin.y, z: _origin.z },
+          velocity: { x: _velocity.x, y: _velocity.y, z: _velocity.z },
         });
       }
     };
@@ -183,31 +189,31 @@ export function GrenadeSystem() {
 function PreviewArc({ power }: { power: number }) {
   const { camera } = useThree();
   const points = useMemo(() => {
-    const dir = new THREE.Vector3();
-    const pos = new THREE.Vector3();
-    camera.getWorldDirection(dir);
-    camera.getWorldPosition(pos);
-    const origin = pos.clone().add(dir.clone().multiplyScalar(GRENADE.startPosOffset));
+    // Reuse pooled Vector3 to avoid per-frame allocations
+    camera.getWorldDirection(_dir);
+    camera.getWorldPosition(_pos);
+    _origin.copy(_pos).addScaledVector(_dir, GRENADE.startPosOffset);
     const speed = 0.35 + power * 0.65;
-    const velocity = dir
-      .clone()
-      .multiplyScalar(GRENADE.throwSpeed * speed)
-      .add(new THREE.Vector3(0, GRENADE.throwUpSpeed, 0));
+    _velocity
+      .copy(_dir)
+      .multiplyScalar(GRENADE.throwSpeed * speed);
+    _velocity.y += GRENADE.throwUpSpeed;
+
+    _simPos.copy(_origin);
+    _simVel.copy(_velocity);
 
     const pts: THREE.Vector3[] = [];
-    let p = origin.clone();
-    let v = velocity.clone();
     const dt = 0.03;
     for (let t = 0; t < 1.8; t += dt) {
-      v.y -= 9.81 * dt;
-      p = p.clone().addScaledVector(v, dt);
-      if (p.y <= 0.15) {
-        p.y = 0.15;
-        v.y = -v.y * GRENADE.bounce;
-        v.x *= GRENADE.bounceXZ;
-        v.z *= GRENADE.bounceXZ;
+      _simVel.y -= 9.81 * dt;
+      _simPos.addScaledVector(_simVel, dt);
+      if (_simPos.y <= 0.15) {
+        _simPos.y = 0.15;
+        _simVel.y = -_simVel.y * GRENADE.bounce;
+        _simVel.x *= GRENADE.bounceXZ;
+        _simVel.z *= GRENADE.bounceXZ;
       }
-      pts.push(p.clone());
+      pts.push(_simPos.clone());
     }
     return pts;
   }, [camera, power]);

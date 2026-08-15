@@ -16,6 +16,7 @@ import {
   MAP_OBSTACLES,
   MAP_BOUNDARY,
   GRENADE,
+  GUN_GAME_WEAPONS,
   ClientInput,
   ShootInput,
   BuyRequest,
@@ -32,6 +33,7 @@ import {
   CHAT_COOLDOWN_MS,
   RADIO_COOLDOWN_MS,
   MAX_CHAT_LENGTH,
+  MAX_NICKNAME_LENGTH,
   VOTE_TIMEOUT_MS,
   VOTE_KICK_EXIT_CODE,
   KOTH_CAPTURE_RATE_PER_PLAYER,
@@ -46,11 +48,22 @@ import {
 import { WeaponManager } from "./WeaponManager";
 import { EconomySystem } from "./EconomySystem";
 import { BombController } from "./BombController";
+import { AntiCheatSystem } from "./AntiCheatSystem";
+import { InterestManager } from "./InterestManager";
 import { BotAgent, BotConfig } from "../ai/BotAgent";
 
 const { Room } = colyseus;
 
 const TICK_MS = 1000 / SERVER.tickRate;
+
+function sanitizeNickname(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw
+    .replace(/[\u0000-\u001f\u007f\u200b-\u200f\ufeff]/g, "")
+    .replace(/[<>"'`]/g, "")
+    .trim()
+    .slice(0, MAX_NICKNAME_LENGTH);
+}
 
 interface KillEvent {
   killerId: string;
@@ -98,6 +111,7 @@ function hasLineOfSight(
 
   for (const obs of obstacles) {
     if (obs.material === "wood") continue; // Wood is wallbangable, don't block LOS
+    // metal and concrete block LOS
     const t = rayVsBox(x1, y1, z1, ndx, ndy, ndz, obs);
     if (t !== null && t < dist) return false;
   }
@@ -134,10 +148,19 @@ export class GameRoom extends Room<GameState> {
   private weaponManager = new WeaponManager();
   private economyManager = new EconomySystem();
   private bombCtrl = new BombController();
+  private antiCheat = new AntiCheatSystem();
+  private interestManager = new InterestManager();
 
   private vote: {
     targetId: string;
     targetNickname: string;
+    yesVotes: Set<string>;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
+
+  private ffVote: {
+    initiatorId: string;
+    team: string;
     yesVotes: Set<string>;
     timer: ReturnType<typeof setTimeout>;
   } | null = null;
@@ -172,7 +195,16 @@ export class GameRoom extends Room<GameState> {
       if (!player || player.isDead) return;
       if (this.state.phase !== "active") return;
 
+      // Anti-cheat: input flood protection
+      if (!this.antiCheat.validateInputRate(client.sessionId, performance.now())) return;
+
       if (!this.weaponManager.canProcessInput(client.sessionId, TICK_MS)) return;
+
+      // Anti-cheat: kick if too many speed violations
+      if (this.antiCheat.shouldKick(client.sessionId)) {
+        client.leave(4001, "Anti-cheat: speed hack detected");
+        return;
+      }
 
       this.processMovement(client.sessionId, player, input);
 
@@ -194,8 +226,17 @@ export class GameRoom extends Room<GameState> {
       if (!WEAPONS[weaponKey]) return;
 
       if (!this.weaponManager.validateShootOrigin(shooter, data)) return;
+
+      // Anti-cheat: validate fire rate
+      const now = performance.now();
+      const lastFire = this.weaponManager.getLastFireTime(client.sessionId);
+      if (!this.antiCheat.validateFireRate(client.sessionId, weaponKey, lastFire, now)) return;
+
       if (!this.weaponManager.canFire(client.sessionId, weaponKey)) return;
       if (shooter.ammo <= 0) return;
+
+      // Anti-cheat: validate ammo is sane
+      if (!this.antiCheat.validateAmmo(client.sessionId, shooter, weaponKey)) return;
 
       shooter.ammo--;
       this.weaponManager.recordFire(client.sessionId);
@@ -508,20 +549,12 @@ export class GameRoom extends Room<GameState> {
     });
 
     this.onMessage("set_game_mode", (client, data: { mode: string }) => {
-      const validModes = ["bomb_defusal", "ffa", "tdm", "koth"];
+      if (this.state.phase !== "waiting") return;
+      const validModes = ["bomb_defusal", "ffa", "tdm", "koth", "gun_game"];
       if (!validModes.includes(data.mode)) return;
 
       this.state.gameMode = data.mode;
-
-      // Reset scores for new mode
       this.state.playerScores.clear();
-
-      // Restart the match with the new mode (mode is applied after join).
-      if (this.state.phase !== "waiting" && this.state.players.size >= 1) {
-        this.clearAllTimers();
-        this.startMatch();
-      }
-
       this.broadcast("gameModeChanged", { mode: data.mode });
     });
 
@@ -552,6 +585,12 @@ export class GameRoom extends Room<GameState> {
         .trim()
         .slice(0, MAX_CHAT_LENGTH);
       if (!message) return;
+
+      // Check for /ff (forfeit/surrender) command
+      if (message.toLowerCase() === "/ff" || message.toLowerCase() === "ff") {
+        this.handleForfeitRequest(client.sessionId, player);
+        return;
+      }
 
       this.broadcast("chat", {
         senderId: client.sessionId,
@@ -619,6 +658,32 @@ export class GameRoom extends Room<GameState> {
         }
       }
     );
+
+    this.onMessage("ff_vote", (client, data: { vote: boolean }) => {
+      if (!this.ffVote) return;
+      if (client.sessionId === this.ffVote.initiatorId) return;
+
+      const player = this.state.players.get(client.sessionId);
+      if (!player || player.team !== this.ffVote.team) return;
+
+      if (data.vote) this.ffVote.yesVotes.add(client.sessionId);
+
+      // Need majority of team to agree
+      let teamCount = 0;
+      this.state.players.forEach((p) => {
+        if (p.team === this.ffVote!.team && !p.isDead) teamCount++;
+      });
+
+      const yesCount = this.ffVote.yesVotes.size;
+      if (yesCount >= Math.ceil(teamCount / 2)) {
+        // Forfeit accepted — other team wins
+        const winner = this.ffVote.team === "T" ? "CT" : "T";
+        if (this.ffVote.timer) clearTimeout(this.ffVote.timer);
+        this.ffVote = null;
+        this.broadcast("forfeitAccepted", { surrenderedTeam: player.team, winner });
+        this.endRound(winner as "T" | "CT");
+      }
+    });
 
     this.onMessage("radio", (client, data: { code: number }) => {
       const player = this.state.players.get(client.sessionId);
@@ -698,6 +763,18 @@ export class GameRoom extends Room<GameState> {
       this.processKOTH();
       this.updateBots(1 / SERVER.tickRate);
 
+      // Interest Management: broadcast filtered player positions
+      if (this.interestManager.shouldUpdate(now)) {
+        const visibility = this.interestManager.computeVisibility(this.state.players);
+        const payloads = this.interestManager.buildFilteredPayloads(this.state.players, visibility);
+        payloads.forEach((playerData, viewerId) => {
+          const client = this.clients.find((c) => c.sessionId === viewerId);
+          if (client) {
+            client.send("interestUpdate", playerData);
+          }
+        });
+      }
+
       const elapsed = performance.now() - startTime;
       this.tickTimer = setTimeout(tick, Math.max(1, TICK_MS - elapsed));
     };
@@ -722,7 +799,8 @@ export class GameRoom extends Room<GameState> {
     player.y = spawn.y;
     player.z = spawn.z;
     player.team = team;
-    player.nickname = options.nickname || `Player${playerCount + 1}`;
+    const cleanNickname = sanitizeNickname(options.nickname);
+    player.nickname = cleanNickname || `Player${playerCount + 1}`;
     player.money = ECONOMY.startMoney;
     player.hp = MAX_HP;
     player.currentWeapon = "deagle";
@@ -783,6 +861,7 @@ export class GameRoom extends Room<GameState> {
     this.lastRadioTime.delete(sessionId);
     this.lastVoteTime.delete(sessionId);
     this.lastBuyTime.delete(sessionId);
+    this.antiCheat.clearAll(sessionId);
 
     // ─── Reconnect window: player state is preserved for 60s ───
     if (player && this.state.phase !== "waiting") {
@@ -886,6 +965,7 @@ export class GameRoom extends Room<GameState> {
     this.respawnTimers.clear();
     this.pendingReconnect.forEach(({ timer }) => clearTimeout(timer));
     this.pendingReconnect.clear();
+    if (this.ffVote) { clearTimeout(this.ffVote.timer); this.ffVote = null; }
   }
 
   // ─── Movement ──────────────────────────────────────────────────
@@ -931,6 +1011,20 @@ export class GameRoom extends Room<GameState> {
     if (delta <= maxDelta) {
       let nextX = player.x + moveX;
       let nextZ = player.z + moveZ;
+
+      // Anti-cheat: validate speed (must be checked before position is written)
+      if (!this.antiCheat.validateSpeed(sessionId, player, nextX, nextZ, dt)) {
+        // Speed violation — clamp movement to max allowed
+        const allowedDist = PHYSICS.sprintSpeed * 1.35 * dt;
+        const actualDist = Math.sqrt(moveX * moveX + moveZ * moveZ);
+        if (actualDist > 0.001) {
+          const scale = allowedDist / actualDist;
+          moveX *= scale;
+          moveZ *= scale;
+        }
+        nextX = player.x + moveX;
+        nextZ = player.z + moveZ;
+      }
 
       // Perimeter wall clamping
       nextX = Math.max(MAP_BOUNDARY.minX, Math.min(MAP_BOUNDARY.maxX, nextX));
@@ -1177,6 +1271,29 @@ export class GameRoom extends Room<GameState> {
       }
     }
 
+    // Gun Game: advance weapon on kill
+    if (this.state.gameMode === "gun_game") {
+      const currentLevel = this.state.playerScores.get(killerId) || 0;
+      const nextLevel = currentLevel + 1;
+      this.state.playerScores.set(killerId, nextLevel);
+
+      // Winner: first to complete all weapons
+      if (nextLevel >= GUN_GAME_WEAPONS.length) {
+        this.endMatch(killerId);
+      } else {
+        // Upgrade weapon
+        const nextWeapon = GUN_GAME_WEAPONS[nextLevel];
+        killer.currentWeapon = nextWeapon;
+        killer.primaryWeapon = nextWeapon;
+        const weaponStats = WEAPONS[nextWeapon as keyof typeof WEAPONS];
+        if (weaponStats) {
+          killer.ammo = weaponStats.mag;
+          killer.reserveAmmo = weaponStats.reserveAmmo;
+        }
+        killer.isReloading = false;
+      }
+    }
+
     const weaponKey = weapon as keyof typeof WEAPONS;
     let killReward: number = ECONOMY.killRifle;
     if (weapon === "awp") killReward = ECONOMY.killAWP;
@@ -1266,6 +1383,7 @@ export class GameRoom extends Room<GameState> {
       player.armor = 0;
       player.hasHelmet = false;
       player.hasDefuseKit = false;
+      player.hasBomb = false;
       player.grenadeHE = 0;
       player.grenadeSmoke = 0;
       player.grenadeFlash = 0;
@@ -1280,86 +1398,53 @@ export class GameRoom extends Room<GameState> {
 
   // ─── Bomb Mechanics ────────────────────────────────────────────
   private processPlanting() {
-    this.state.players.forEach((player, id) => {
-      if (!player.isPlanting) return;
-
-      player.plantProgress += 1 / SERVER.tickRate;
-
-      if (player.plantProgress >= ROUND.plantDuration) {
-        this.completePlant(id, player);
-      }
+    this.bombCtrl.processPlanting(this.state, SERVER.tickRate, (id, player) => {
+      this.completePlant(id, player);
     });
   }
 
   private completePlant(sessionId: string, player: PlayerState) {
-    player.isPlanting = false;
-    player.plantProgress = 0;
-    player.hasBomb = false;
-    this.bombCtrl.bombCarrierId = null;
-    this.bombCtrl.droppedBombPos = null;
-
-    this.state.bombPlanted = true;
-    this.state.bombTimeLeft = ROUND.bombTimer;
-    this.state.bombSite = this.findNearestBombSite(player);
-
-    this.economyManager.givePlantBonus(player);
-
-    this.broadcast("bombPlanted", {
-      planterId: sessionId,
-      site: this.state.bombSite,
-      bombTimeLeft: this.state.bombTimeLeft,
-    });
+    this.bombCtrl.completePlant(
+      sessionId,
+      player,
+      this.state,
+      (p) => this.findNearestBombSite(p),
+      this.broadcast.bind(this),
+      (p) => this.economyManager.givePlantBonus(p)
+    );
   }
 
   private cancelPlant(sessionId: string, player: PlayerState) {
-    player.isPlanting = false;
-    player.plantProgress = 0;
-    this.broadcast("plantCancel", { playerId: sessionId });
+    this.bombCtrl.cancelPlant(sessionId, player, this.broadcast.bind(this));
   }
 
   private processDefusing() {
-    this.state.players.forEach((player, id) => {
-      if (!player.isDefusing) return;
-
-      player.defuseProgress += 1 / SERVER.tickRate;
-
-      const defuseTime = player.hasDefuseKit ? ROUND.defuseKitDuration : ROUND.defuseDuration;
-
-      if (player.defuseProgress >= defuseTime) {
-        this.completeDefuse(id, player);
-      }
+    this.bombCtrl.processDefusing(this.state, SERVER.tickRate, (id, player) => {
+      this.completeDefuse(id, player);
     });
   }
 
   private completeDefuse(sessionId: string, player: PlayerState) {
-    player.isDefusing = false;
-    player.defuseProgress = 0;
-
-    this.state.bombPlanted = false;
-    this.state.bombTimeLeft = 0;
-    this.state.bombSite = "";
-
-    this.economyManager.giveDefuseBonus(player);
-
-    this.broadcast("bombDefused", { defuserId: sessionId });
-
-    this.endRound("CT");
+    this.bombCtrl.completeDefuse(
+      sessionId,
+      player,
+      this.state,
+      (p) => this.economyManager.giveDefuseBonus(p),
+      this.broadcast.bind(this),
+      (winner) => this.endRound(winner)
+    );
   }
 
   private cancelDefuse(sessionId: string, player: PlayerState) {
-    player.isDefusing = false;
-    player.defuseProgress = 0;
-    this.broadcast("defuseCancel", { playerId: sessionId });
+    this.bombCtrl.cancelDefuse(sessionId, player, this.broadcast.bind(this));
   }
 
   private bombExplode() {
-    this.state.bombPlanted = false;
-    this.state.bombTimeLeft = 0;
-    this.state.bombSite = "";
-
-    this.broadcast("bombExploded", {});
-
-    this.endRound("T");
+    this.bombCtrl.bombExplode(
+      this.state,
+      this.broadcast.bind(this),
+      (winner) => this.endRound(winner)
+    );
   }
 
   private processKOTH() {
@@ -1454,7 +1539,7 @@ export class GameRoom extends Room<GameState> {
   }
 
   private dropBomb(player: PlayerState) {
-    this.bombCtrl.droppedBombPos = { x: player.x, y: player.y, z: player.z };
+    this.bombCtrl.dropBomb(player);
     this.broadcast("bombDropped", {
       x: player.x,
       y: player.y,
@@ -1463,18 +1548,7 @@ export class GameRoom extends Room<GameState> {
   }
 
   private findNearestBombSite(player: PlayerState): string {
-    let nearest = "A";
-    let minDist = Infinity;
-
-    (Object.keys(BOMB_SITES) as Array<keyof typeof BOMB_SITES>).forEach((key) => {
-      const site = BOMB_SITES[key];
-      const dx = player.x - site.x;
-      const dz = player.z - site.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      if (dist < minDist) { minDist = dist; nearest = key; }
-    });
-
-    return nearest;
+    return this.bombCtrl.findNearestBombSite(player);
   }
 
   // ─── Round System ──────────────────────────────────────────────
@@ -1518,6 +1592,23 @@ export class GameRoom extends Room<GameState> {
 
     if (this.state.gameMode === "bomb_defusal") {
       this.startBuyPhase();
+    } else if (this.state.gameMode === "gun_game") {
+      // Gun Game: FFA, no buy phase, everyone starts with weapon level 0
+      this.state.players.forEach((p) => {
+        p.grenadeHE = 0;
+        p.grenadeSmoke = 0;
+        p.grenadeFlash = 0;
+        p.currentWeapon = GUN_GAME_WEAPONS[0];
+        p.primaryWeapon = GUN_GAME_WEAPONS[0];
+        p.ammo = WEAPONS[GUN_GAME_WEAPONS[0]].mag;
+        p.reserveAmmo = WEAPONS[GUN_GAME_WEAPONS[0]].reserveAmmo;
+      });
+      this.state.phase = "active";
+      this.state.roundTimeLeft = ROUND.activePhaseDuration;
+      this.state.bombPlanted = false;
+      this.state.bombTimeLeft = 0;
+      this.state.bombSite = "";
+      this.broadcast("phaseChange", { phase: "active", timeLeft: this.state.roundTimeLeft });
     } else {
       // FFA/TDM: no buy phase, no bomb — run until win condition.
       // Give every player one of each grenade since buy menu is unavailable.
@@ -1567,6 +1658,34 @@ export class GameRoom extends Room<GameState> {
 
     this.state.roundTimeLeft += 10;
     this.startActivePhase();
+  }
+
+  private handleForfeitRequest(sessionId: string, player: PlayerState) {
+    if (this.state.phase !== "active" && this.state.phase !== "buy") return;
+    if (this.ffVote) return; // already an active ff vote
+
+    // Count teammates
+    let teamCount = 0;
+    this.state.players.forEach((p) => {
+      if (p.team === player.team && !p.isDead) teamCount++;
+    });
+
+    if (teamCount < 2) return; // need at least 2 alive teammates
+
+    this.ffVote = {
+      initiatorId: sessionId,
+      team: player.team,
+      yesVotes: new Set([sessionId]),
+      timer: setTimeout(() => {
+        this.ffVote = null;
+      }, 30000), // 30 second timeout
+    };
+
+    this.broadcast("ffVoteStarted", {
+      initiatorId: sessionId,
+      initiatorName: player.nickname,
+      team: player.team,
+    });
   }
 
   private endRound(winner: "T" | "CT") {
@@ -1774,7 +1893,7 @@ export class GameRoom extends Room<GameState> {
 
   private checkRoundEnd() {
     if (this.state.phase !== "active") return;
-    // FFA/TDM resolve only via the score win-condition.
+    // FFA/TDM/Gun Game resolve only via the score win-condition.
     if (this.state.gameMode !== "bomb_defusal") return;
 
     const aliveT: string[] = [];

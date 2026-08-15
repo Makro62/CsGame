@@ -1,5 +1,6 @@
 /**
  * Skill Rating System (ELO-like)
+ * TODO: [Roadmap Feature] Diintegrasikan ke GameRoom saat fitur Competitive Matchmaking / ELO rating diaktifkan
  * Based on patterns from competitive FPS games
  */
 

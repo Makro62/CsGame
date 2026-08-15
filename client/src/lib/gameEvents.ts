@@ -8,6 +8,8 @@ export type GameEvents = {
   playerReconnected: { sessionId: string; nickname: string }
   botShoot: { botId: string; isHeadshot: boolean; damage: number }
   targetDamaged: { id: string; damage: number; isHeadshot: boolean; isDead: boolean; newHp: number }
+  ffVoteStarted: { initiatorId: string; initiatorName: string; team: string }
+  forfeitAccepted: { surrenderedTeam: string; winner: string }
 }
 
 export const gameEvents = mitt<GameEvents>()

@@ -142,6 +142,7 @@ interface NetworkState {
   sendPickupBomb: () => void;
   sendSwitchWeapon: (slot: number) => void;
   sendThrowGrenade: (data: { type: "he" | "smoke" | "flash"; origin: { x: number; y: number; z: number }; velocity: { x: number; y: number; z: number } }) => void;
+  sendFFVote: (vote: boolean) => void;
   sendGameMode: (mode: string) => void;
   sendVoteRequest: (targetId: string) => void;
   sendVote: (targetId: string, vote: boolean) => void;
@@ -425,6 +426,11 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
     if (room) room.send("throw_grenade", data);
   },
 
+  sendFFVote: (vote: boolean) => {
+    const { room } = get();
+    if (room) room.send("ff_vote", { vote });
+  },
+
   sendGameMode: (mode: string) => {
     const { room } = get();
     if (room) room.send("set_game_mode", { mode });
@@ -674,6 +680,14 @@ function setupRoom(
 
   room.onMessage("radio", (data: { sender: string; code: number; team: string }) => {
     gameEvents.emit("radioCommand", { sessionId: data.sender, command: String(data.code), nickname: data.sender });
+  });
+
+  room.onMessage("ffVoteStarted", (data: { initiatorId: string; initiatorName: string; team: string }) => {
+    gameEvents.emit("ffVoteStarted", data);
+  });
+
+  room.onMessage("forfeitAccepted", (data: { surrenderedTeam: string; winner: string }) => {
+    gameEvents.emit("forfeitAccepted", data);
   });
 
   room.onMessage("playerReconnected", (data: { sessionId: string; nickname: string }) => {

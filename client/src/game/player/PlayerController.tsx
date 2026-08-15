@@ -8,6 +8,7 @@ import {
 } from '@react-three/rapier'
 import * as THREE from 'three'
 import { PHYSICS, SPAWN, MAP_OBSTACLES } from '@cs-game/shared'
+import { updateAudioListener } from '../../components/AudioManager'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
 import { useNetwork } from '../../hooks/useNetwork'
 import { useGameStore } from '../../stores/useGameStore'
@@ -731,6 +732,17 @@ export function PlayerController() {
     // Camera position XZ
     camera.position.x = _currentPos.x
     camera.position.z = _currentPos.z
+
+    // Update Web Audio listener to match camera for spatial audio
+    _lookTarget.set(
+      camera.position.x - Math.sin(_euler.y),
+      camera.position.y,
+      camera.position.z - Math.cos(_euler.y)
+    )
+    updateAudioListener(
+      camera.position.x, camera.position.y, camera.position.z,
+      _lookTarget.x, _lookTarget.y, _lookTarget.z
+    )
 
     // Auto-pickup dropped bomb (T team only)
     if (!localHasBomb && droppedBombPos) {

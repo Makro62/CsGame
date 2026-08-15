@@ -352,6 +352,17 @@ export const SERVER = {
   maxVelocity: 12,
 } as const
 
+export const GUN_GAME_WEAPONS = [
+  'glock',
+  'tec9',
+  'deagle',
+  'mp5',
+  'ak47',
+  'm4a1',
+  'awp',
+  'combatknife',
+] as const
+
 export const ROUND = {
   buyPhaseDuration: 15,
   activePhaseDuration: 115,
@@ -504,8 +515,8 @@ export const SPAWN = {
 } as const
 
 export const BOMB_SITES = {
-  A: { x: 0, y: 0, z: -20, radius: 8 },
-  B: { x: 0, y: 0, z: 20, radius: 8 },
+  A: { x: 15, y: 0, z: -15, radius: 6 },
+  B: { x: 12, y: 0, z: 15, radius: 6 },
 } as const
 
 export const BUY_ZONE = {
@@ -516,8 +527,8 @@ export const BUY_ZONE = {
 // ─── Map Colliders (AABB) ───────────────────────────────────────
 // Single source of truth shared by server (movement/LOS/wallbang) and
 // client (grenade bounce). Mirrors the visuals in ContainerYard.tsx.
-// material: "wood" = wallbangable (-50% dmg), "metal" = bulletproof.
-export type ObstacleMaterial = 'wood' | 'metal'
+// material: "wood" = wallbangable (-50% dmg), "metal" = bulletproof, "concrete" = solid wall.
+export type ObstacleMaterial = 'wood' | 'metal' | 'concrete'
 
 export interface MapObstacle {
   id: string
@@ -530,264 +541,79 @@ export interface MapObstacle {
   maxZ: number
 }
 
+// Helper: center + size → AABB
+function box(id: string, material: ObstacleMaterial, cx: number, cy: number, cz: number, sx: number, sy: number, sz: number): MapObstacle {
+  return {
+    id,
+    material,
+    minX: cx - sx / 2,
+    maxX: cx + sx / 2,
+    minY: cy - sy / 2,
+    maxY: cy + sy / 2,
+    minZ: cz - sz / 2,
+    maxZ: cz + sz / 2,
+  }
+}
+
+// ─── v2.2 3-Lane Layout ──────────────────────────────────────────
 export const MAP_OBSTACLES = [
-  // T spawn
-  {
-    id: 'red_base',
-    material: 'metal',
-    minX: -27,
-    maxX: -23,
-    minY: 0,
-    maxY: 2.4,
-    minZ: -12,
-    maxZ: -4,
-  },
-  {
-    id: 't_cover_1',
-    material: 'wood',
-    minX: -20.6,
-    maxX: -19.4,
-    minY: 0,
-    maxY: 1.2,
-    minZ: -3.6,
-    maxZ: -2.4,
-  },
-  {
-    id: 't_cover_2',
-    material: 'wood',
-    minX: -20.6,
-    maxX: -19.4,
-    minY: 0,
-    maxY: 1.2,
-    minZ: 2.4,
-    maxZ: 3.6,
-  },
-  // Mid
-  {
-    id: 'mid_box',
-    material: 'wood',
-    minX: -2,
-    maxX: 2,
-    minY: 0,
-    maxY: 2.4,
-    minZ: -3,
-    maxZ: 3,
-  },
-  {
-    id: 'barrel_1',
-    material: 'metal',
-    minX: -8.4,
-    maxX: -7.6,
-    minY: 0,
-    maxY: 1.5,
-    minZ: -3.4,
-    maxZ: -2.6,
-  },
-  {
-    id: 'barrel_2',
-    material: 'metal',
-    minX: -8.4,
-    maxX: -7.6,
-    minY: 0,
-    maxY: 1.5,
-    minZ: 2.6,
-    maxZ: 3.4,
-  },
-  // Site A
-  {
-    id: 'a_container_1',
-    material: 'metal',
-    minX: -13,
-    maxX: -7,
-    minY: 0,
-    maxY: 2.4,
-    minZ: -14,
-    maxZ: -10,
-  },
-  {
-    id: 'a_container_2',
-    material: 'metal',
-    minX: -16,
-    maxX: -12,
-    minY: 0,
-    maxY: 2.4,
-    minZ: -18,
-    maxZ: -12,
-  },
-  {
-    id: 'a_corner_box',
-    material: 'wood',
-    minX: -3.6,
-    maxX: -2.4,
-    minY: 0,
-    maxY: 1.2,
-    minZ: -18.6,
-    maxZ: -17.4,
-  },
-  {
-    id: 'a_barrel',
-    material: 'metal',
-    minX: -7.4,
-    maxX: -6.6,
-    minY: 0,
-    maxY: 1.5,
-    minZ: -18.4,
-    maxZ: -17.6,
-  },
-  // Site B
-  {
-    id: 'b_stack_1',
-    material: 'metal',
-    minX: 6,
-    maxX: 10,
-    minY: 0,
-    maxY: 2.4,
-    minZ: 9,
-    maxZ: 15,
-  },
-  {
-    id: 'b_stack_2',
-    material: 'metal',
-    minX: 6,
-    maxX: 10,
-    minY: 2.4,
-    maxY: 4.8,
-    minZ: 9,
-    maxZ: 15,
-  },
-  {
-    id: 'b_top_box',
-    material: 'wood',
-    minX: 4.4,
-    maxX: 5.6,
-    minY: 3.4,
-    maxY: 4.6,
-    minZ: 11.4,
-    maxZ: 12.6,
-  },
-  // CT spawn
-  {
-    id: 'ct_base',
-    material: 'metal',
-    minX: 23,
-    maxX: 27,
-    minY: 0,
-    maxY: 2.4,
-    minZ: -12,
-    maxZ: -4,
-  },
-  {
-    id: 'ct_cover_1',
-    material: 'wood',
-    minX: 19.4,
-    maxX: 20.6,
-    minY: 0,
-    maxY: 1.2,
-    minZ: -3.6,
-    maxZ: -2.4,
-  },
-  {
-    id: 'ct_cover_2',
-    material: 'wood',
-    minX: 19.4,
-    maxX: 20.6,
-    minY: 0,
-    maxY: 1.2,
-    minZ: 2.4,
-    maxZ: 3.6,
-  },
-  // Perimeter walls (beyond player clamp; block bullets/grenades)
-  {
-    id: 'wall_north',
-    material: 'metal',
-    minX: -34,
-    maxX: 34,
-    minY: 0,
-    maxY: 7.2,
-    minZ: 19.5,
-    maxZ: 23.5,
-  },
-  {
-    id: 'wall_south',
-    material: 'metal',
-    minX: -34,
-    maxX: 34,
-    minY: 0,
-    maxY: 7.2,
-    minZ: -23.5,
-    maxZ: -19.5,
-  },
-  {
-    id: 'wall_west',
-    material: 'metal',
-    minX: -33.5,
-    maxX: -29.5,
-    minY: 0,
-    maxY: 7.2,
-    minZ: -22,
-    maxZ: 22,
-  },
-  {
-    id: 'wall_east',
-    material: 'metal',
-    minX: 29.5,
-    maxX: 33.5,
-    minY: 0,
-    maxY: 7.2,
-    minZ: -22,
-    maxZ: 22,
-  },
-  // Decorative props
-  {
-    id: 'dec_crate_1',
-    material: 'wood',
-    minX: -4.4,
-    maxX: -3.6,
-    minY: 0,
-    maxY: 0.6,
-    minZ: 5.6,
-    maxZ: 6.4,
-  },
-  {
-    id: 'dec_crate_2',
-    material: 'wood',
-    minX: 2.5,
-    maxX: 3.5,
-    minY: 0,
-    maxY: 0.6,
-    minZ: -6.3,
-    maxZ: -5.7,
-  },
-  {
-    id: 'dec_bollard_1',
-    material: 'metal',
-    minX: 11.75,
-    maxX: 12.25,
-    minY: 0,
-    maxY: 0.9,
-    minZ: -2.25,
-    maxZ: -1.75,
-  },
-  {
-    id: 'dec_bollard_2',
-    material: 'metal',
-    minX: 13.75,
-    maxX: 14.25,
-    minY: 0,
-    maxY: 0.9,
-    minZ: 1.75,
-    maxZ: 2.25,
-  },
-  {
-    id: 'dec_panel',
-    material: 'metal',
-    minX: -7.25,
-    maxX: -4.75,
-    minY: 0,
-    maxY: 0.5,
-    minZ: -10.8,
-    maxZ: -9.2,
-  },
+  // ═══ MID LANE ═══
+  // Mid Box Center — wallbangable cover in open field
+  box('mid_box', 'wood', 0, 0.6, 0, 1.2, 1.2, 1.2),
+
+  // T-Mid Barrels — solid iron cover for T peeking mid
+  { id: 'mid_barrel_1', material: 'metal', minX: -15.35, maxX: -14.65, minY: 0, maxY: 1.5, minZ: -2.35, maxZ: -1.65 },
+  { id: 'mid_barrel_2', material: 'metal', minX: -15.35, maxX: -14.65, minY: 0, maxY: 1.5, minZ: 1.65, maxZ: 2.35 },
+
+  // CT Sniper Window — two solid blocks with 3m gap for CT sniper
+  box('mid_sniper_nest_L', 'metal', 15, 0.6, -2.5, 2.4, 1.2, 1.2),
+  box('mid_sniper_nest_R', 'metal', 15, 0.6, 2.5, 2.4, 1.2, 1.2),
+
+  // ═══ SITE A (NORTH) ═══
+  // Site A Core — main container, bombsite planted beside it
+  box('site_a_core', 'metal', 15, 1.2, -15, 6.0, 2.4, 2.4),
+
+  // A-Main Choke — forces T into narrow entry, grenade bait
+  box('a_main_choke', 'metal', -5, 1.2, -15, 2.4, 2.4, 6.0),
+
+  // A Ninja Corner — stacked wood boxes for ninja defuse / hold angle
+  { id: 'a_ninja_box_1', material: 'wood', minX: 9.4, maxX: 10.6, minY: 0, maxY: 1.2, minZ: -18.6, maxZ: -17.4 },
+  { id: 'a_ninja_box_2', material: 'wood', minX: 9.4, maxX: 10.6, minY: 1.2, maxY: 2.4, minZ: -18.6, maxZ: -17.4 },
+
+  // A-Connector — small wood cover for mid→A rotation
+  box('a_connector_box', 'wood', 5, 0.6, -8, 1.2, 1.2, 1.2),
+
+  // ═══ SITE B (SOUTH) ═══
+  // B-Stack Bottom — main container pillar
+  box('site_b_bottom', 'metal', 12, 1.2, 15, 6.0, 2.4, 2.4),
+
+  // B-Ramp — sloped surface (approximated as tilted box for physics)
+  { id: 'site_b_ramp', material: 'metal', minX: 5.6, maxX: 10.4, minY: 0, maxY: 2.4, minZ: 13.8, maxZ: 16.2 },
+
+  // B-Stack Top — elevated container for high ground
+  box('site_b_top', 'metal', 13.8, 3.6, 15, 2.4, 2.4, 2.4),
+
+  // B-Pillar Cover — iron cylinder for plant cover
+  { id: 'site_b_plant_cover', material: 'metal', minX: 15.65, maxX: 16.35, minY: 0, maxY: 1.5, minZ: 11.65, maxZ: 12.35 },
+
+  // B-Tunnels — walls forming the tunnel corridor
+  box('b_tunnel_wall_1', 'metal', -5, 1.2, 12.5, 10.0, 2.4, 0.5),
+  box('b_tunnel_wall_2', 'metal', -5, 1.2, 17.5, 10.0, 2.4, 0.5),
+  // B-Tunnel roof (blocks overhead grenades)
+  box('b_tunnel_roof', 'metal', -5, 2.4, 15, 10.0, 0.3, 5.0),
+
+  // ═══ WALLS (Perimeter Map) ═══
+  { id: 'wall_north', material: 'concrete', minX: -30, maxX: 30, minY: 0, maxY: 7.2, minZ: -20.5, maxZ: -20 },
+  { id: 'wall_south', material: 'concrete', minX: -30, maxX: 30, minY: 0, maxY: 7.2, minZ: 20, maxZ: 20.5 },
+  { id: 'wall_west', material: 'concrete', minX: -30.5, maxX: -30, minY: 0, maxY: 7.2, minZ: -20, maxZ: 20 },
+  { id: 'wall_east', material: 'concrete', minX: 30, maxX: 30.5, minY: 0, maxY: 7.2, minZ: -20, maxZ: 20 },
+
+  // ═══ DECORATIVE PROPS ═══
+  { id: 'dec_crate_1', material: 'wood', minX: -4.4, maxX: -3.6, minY: 0, maxY: 0.6, minZ: 5.6, maxZ: 6.4 },
+  { id: 'dec_crate_2', material: 'wood', minX: 2.5, maxX: 3.5, minY: 0, maxY: 0.6, minZ: -6.3, maxZ: -5.7 },
+  { id: 'dec_bollard_1', material: 'metal', minX: 11.75, maxX: 12.25, minY: 0, maxY: 0.9, minZ: -2.25, maxZ: -1.75 },
+  { id: 'dec_bollard_2', material: 'metal', minX: 13.75, maxX: 14.25, minY: 0, maxY: 0.9, minZ: 1.75, maxZ: 2.25 },
+  { id: 'dec_panel', material: 'metal', minX: -7.25, maxX: -4.75, minY: 0, maxY: 0.5, minZ: -10.8, maxZ: -9.2 },
 ] as const satisfies readonly MapObstacle[]
 
 export const MAP_BOUNDARY = {

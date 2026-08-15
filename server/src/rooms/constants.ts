@@ -18,6 +18,7 @@ export const ARMOR_DAMAGE_MULTIPLIER = 0.65; // damage multiplier when armored
 export const CHAT_COOLDOWN_MS = 500;
 export const RADIO_COOLDOWN_MS = 2000;
 export const MAX_CHAT_LENGTH = 120;
+export const MAX_NICKNAME_LENGTH = 20;
 
 // Vote
 export const VOTE_TIMEOUT_MS = 30000;
