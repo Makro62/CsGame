@@ -4,6 +4,7 @@ import { Canvas } from "@react-three/fiber";
 import { Sky } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
 import { getMapById } from "../map/MapRegistry";
+import { CalloutLabels } from "../map/CalloutLabels";
 import { PlayerController } from "../player/PlayerController";
 import { WeaponModel } from "../weapons/WeaponModel";
 import { ShootingSystem } from "../weapons/ShootingSystem";
@@ -169,6 +170,7 @@ export function TrainingRange() {
         <ShootingSystem />
         <ReloadSystem />
         <TracerManager />
+        <CalloutLabels />
       </Canvas>
       <Crosshair />
       <HitMarker />

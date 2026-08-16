@@ -29,11 +29,6 @@ export const KOTH_CAPTURE_RATE_PER_PLAYER = 10; // seconds to capture with 1 pla
 export const KOTH_DECAY_RATE = 15; // seconds to decay
 export const KOTH_MAX_PROGRESS = 100;
 
-// Grenade physics
-export const GRENADE_BOUNCE_DAMPING = 0.45;
-export const GRENADE_GROUND_MIN_Y = 0.15;
-export const GRENADE_OFFSET = 0.01;
-
 // Spawn
 export const MIN_SPAWN_DISTANCE_SQ = 100; // 10 * 10
 

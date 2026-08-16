@@ -32,7 +32,7 @@ export function updateAudioListener(
     listener.positionY.setValueAtTime(camY, ctx.currentTime)
     listener.positionZ.setValueAtTime(camZ, ctx.currentTime)
   } else if ('setPosition' in listener) {
-    (listener as any).setPosition(camX, camY, camZ)
+    listener.setPosition(camX, camY, camZ)
   }
 
   // Orientation: forward vector (lookAt - position) and up vector
@@ -52,7 +52,7 @@ export function updateAudioListener(
     listener.upY.setValueAtTime(1, ctx.currentTime)
     listener.upZ.setValueAtTime(0, ctx.currentTime)
   } else if ('setOrientation' in listener) {
-    (listener as any).setOrientation(fwdX, fwdY, fwdZ, 0, 1, 0)
+    listener.setOrientation(fwdX, fwdY, fwdZ, 0, 1, 0)
   }
 }
 

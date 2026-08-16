@@ -219,15 +219,21 @@ function PreviewArc({ power }: { power: number }) {
   }, [camera, power]);
 
   const lineGeo = useMemo(() => {
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    return geo;
+    return new THREE.BufferGeometry().setFromPoints(points);
   }, [points]);
 
   return (
-    <line>
+    <points>
       <primitive object={lineGeo} attach="geometry" />
-      <lineBasicMaterial color="#ffd54a" transparent opacity={0.7} depthWrite={false} />
-    </line>
+      <pointsMaterial
+        color="#ffd54a"
+        size={0.09}
+        sizeAttenuation
+        transparent
+        opacity={0.8}
+        depthWrite={false}
+      />
+    </points>
   );
 }
 

@@ -1,8 +1,8 @@
-# 🎨 Spesifikasi Desain Vanilla CSS UI & HUD (v2.0 - Zero Assets)
+# 🎨 Spesifikasi Desain UI & HUD (v2.2 - GlassPanel System)
 
-Standar UI/HUD **Vanilla CSS murni** tanpa file gambar eksternal. Semua ikon/efek/overlay dibuat dari properti CSS3.
+Standar UI/HUD **CSS murni** tanpa file gambar eksternal. Semua ikon/efek/overlay dibuat dari properti CSS3.
 
-> **Referensi:** [Design_UI_Flow_Geometry.md](Design_UI_Flow_Geometry.md) (alur layar) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md) (daftar HUD lengkap)
+> **Referensi:** [Design_UI_Flow_Geometry.md](Design_UI_Flow_Geometry.md) (alur layar) • [Impl_Guide_New_UI_System.md](Impl_Guide_New_UI_System.md) (component library aktif) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md) (daftar HUD lengkap)
 
 ---
 
@@ -13,14 +13,33 @@ Standar UI/HUD **Vanilla CSS murni** tanpa file gambar eksternal. Semua ikon/efe
 | Zero HTTP request untuk ikon | Tidak ada `.png/.svg/.webp` untuk HUD |
 | CSS Geometry | `border-radius`, `clip-path`, `box-shadow`, `::before/::after` |
 | Animasi CSS | `@keyframes` murni |
+| Component library | `GlassPanel`, `AnimatedNumber`, design tokens (lihat Impl_Guide_New_UI_System) |
 | Font | Google Fonts 1 CDN request (Outfit + Roboto Mono) |
 
 ---
 
 ## 2. CSS Design Tokens & Typography
 
+### 2.1 Design Tokens (konsisten dengan Impl_Guide_New_UI_System.md)
+
 ```css
 :root {
+  /* Background & text */
+  --color-bg-primary: #0a0a0f;
+  --color-bg-secondary: #12121a;
+  --color-text-primary: #ffffff;
+  --color-text-muted: rgba(255, 255, 255, 0.4);
+
+  /* Team colors */
+  --color-terrorist: #ff4444;
+  --color-counter: #4488ff;
+
+  /* Status */
+  --ping-ok: #22c55e;      /* ping < 80ms */
+  --ping-mid: #f59e0b;     /* ping 80-150ms */
+  --ping-bad: #ef4444;     /* ping > 150ms */
+
+  /* Legacy aliases (kompatibilitas komponen lama) */
   --team-red: #ef4444;
   --team-blue: #3b82f6;
   --cs-gold: #f59e0b;
@@ -29,9 +48,6 @@ Standar UI/HUD **Vanilla CSS murni** tanpa file gambar eksternal. Semua ikon/efe
   --border-glass: rgba(255, 255, 255, 0.12);
   --slate-950: #020617;
   --emerald-400: #34d399;
-  --ping-ok: #22c55e;      /* BARU: ping < 80ms */
-  --ping-mid: #f59e0b;     /* BARU: ping 80-150ms */
-  --ping-bad: #ef4444;     /* BARU: ping > 150ms */
 }
 ```
 

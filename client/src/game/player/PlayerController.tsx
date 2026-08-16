@@ -7,6 +7,7 @@ import {
   CapsuleCollider,
 } from '@react-three/rapier'
 import * as THREE from 'three'
+import { KinematicCharacterController } from '@dimforge/rapier3d-compat'
 import { PHYSICS, SPAWN, MAP_OBSTACLES } from '@cs-game/shared'
 import { updateAudioListener } from '../../components/AudioManager'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
@@ -134,7 +135,7 @@ export function PlayerController() {
   })
 
   const rigidBodyRef = useRef<RapierRigidBody>(null)
-  const controllerRef = useRef<any>(null)
+  const controllerRef = useRef<KinematicCharacterController | null>(null)
   const initDone = useRef(false)
 
   const velocityY = useRef(0)

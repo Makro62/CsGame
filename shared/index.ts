@@ -45,7 +45,7 @@ export class PlayerState extends Schema {
   plantProgress: number
   defuseProgress: number
   reconnectExpiresAt: number
-  isBot: number
+  isBot: boolean
   botDifficulty: number
 
   constructor() {
@@ -79,18 +79,18 @@ export class PlayerState extends Schema {
     this.grenadeHE = 0
     this.grenadeSmoke = 0
     this.grenadeFlash = 0
-    this.ammo = 7
-    this.reserveAmmo = 42
+    this.ammo = 14
+    this.reserveAmmo = 70
     this.primaryAmmo = 0
     this.primaryReserveAmmo = 0
-    this.secondaryAmmo = 7
-    this.secondaryReserveAmmo = 42
+    this.secondaryAmmo = 14
+    this.secondaryReserveAmmo = 70
     this.isPlanting = false
     this.isDefusing = false
     this.plantProgress = 0
     this.defuseProgress = 0
     this.reconnectExpiresAt = 0
-    this.isBot = 0
+    this.isBot = false
     this.botDifficulty = 0
   }
 }
@@ -136,7 +136,7 @@ defineTypes(PlayerState, {
   defuseProgress: 'number',
   isReady: 'boolean',
   reconnectExpiresAt: 'number',
-  isBot: 'number',
+  isBot: 'boolean',
   botDifficulty: 'number',
 })
 
@@ -160,8 +160,10 @@ defineTypes(SmokeState, {
   timeLeft: 'number',
 })
 
+export type RoundPhase = 'buy' | 'active' | 'roundEnd' | 'matchEnd' | 'waiting'
+
 export class GameState extends Schema {
-  phase: string
+  phase: RoundPhase
   roundTimeLeft: number
   teamRedScore: number
   teamBlueScore: number
@@ -441,11 +443,11 @@ export const WEAPONS = {
     dmg: 53,
     headshot: 100,
     fireRate: 1 / 0.3,
-    mag: 7,
+    mag: 14,
     reload: 2.2,
     price: 700,
     team: 'both',
-    reserveAmmo: 35,
+    reserveAmmo: 70,
   },
   glock: {
     dmg: 22,
@@ -623,6 +625,35 @@ export const MAP_BOUNDARY = {
   maxZ: 19,
 } as const
 
+// ─── Callout Labels (strategic spot names) ───────────────────────
+// Shown when the player toggles callouts (V key). Mirrors the
+// 3-lane Container Yard layout built from MAP_OBSTACLES above.
+export interface MapCallout {
+  id: string
+  label: string
+  x: number
+  z: number
+}
+
+export const MAP_CALLOUTS: readonly MapCallout[] = [
+  // Mid lane
+  { id: 'mid', label: 'MID', x: 0, z: 0 },
+  { id: 't_mid', label: 'T MID', x: -15, z: 0 },
+  { id: 'ct_sniper', label: 'CT SNIPER', x: 15, z: 0 },
+  // Site A
+  { id: 'site_a', label: 'SITE A', x: 15, z: -12 },
+  { id: 'a_main', label: 'A MAIN', x: -5, z: -15 },
+  { id: 'a_connector', label: 'A CONNECTOR', x: 5, z: -8 },
+  { id: 'a_ninja', label: 'A NINJA', x: 10, z: -18 },
+  // Site B
+  { id: 'site_b', label: 'SITE B', x: 12, z: 12 },
+  { id: 'b_tunnel', label: 'B TUNNEL', x: -5, z: 15 },
+  { id: 'b_ramp', label: 'B RAMP', x: 8, z: 15 },
+  // Spawns
+  { id: 't_spawn', label: 'T SPAWN', x: -25, z: 0 },
+  { id: 'ct_spawn', label: 'CT SPAWN', x: 25, z: 0 },
+]
+
 // ─── Grenades ───────────────────────────────────────────────────
 export const GRENADE = {
   fuse: 2, // seconds until detonation
@@ -635,6 +666,9 @@ export const GRENADE = {
   throwUpSpeed: 3,
   bounce: 0.4, // vertical restitution on ground
   bounceXZ: 0.6, // horizontal dampening on ground
+  wallBounceDamping: 0.45, // wall collision restitution
+  groundMinY: 0.15, // ground floor plane
+  collisionOffset: 0.01, // push-out distance from obstacles
   cooldownMs: 600,
   maxThrowSpeed: 25, // anti-cheat clamp
   startPosOffset: 0.5, // spawn distance from camera

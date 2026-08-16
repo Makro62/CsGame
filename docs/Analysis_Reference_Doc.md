@@ -372,15 +372,4 @@ Final Damage = Base Damage × Hitbox Multiplier × Wallbang Modifier
 
 ## 18. Prioritas Implementasi
 
-- **[Fase 0: Monorepo Setup & Shared Schema](Phase_0_Monorepo_Setup.md)** — NPM workspaces, Shared Types, & Colyseus Schema.
-- **[Fase 1: Setup & Environment](Phase_1_Setup_Environment.md)** — React + Vite + R3F Canvas dasar.
-- **[Fase 2: Player Controller & Movement Tech](Phase_2_Player_Controller.md)** — Rapier Kinematic Controller, slide-hop, air strafe, curve slide, moon-jump.
-- **[Fase 2.5: Network Prototype](Phase_2.5_Colyseus_Sync.md)** — Colyseus Room dasar, sync 2 client, client prediction validation.
-- **[Fase 3: Weapon Mechanics](Phase_3_Weapon_Mechanics.md)** — Raycast tembakan, recoil pattern "7", reload.
-- **[Fase 4: Combat System & Multiplayer Setup](Phase_4_Multiplayer_Setup.md)** — Health/damage, kill feed, respawn, spectator broadcast.
-- **[Fase 4.5: Training Range (Offline Mode)](Phase_4.5_Training_Range.md)** — Dummy target, aim trainer, movement course, recoil grid.
-- **[Fase 5: Bomb Defusal Mode & Ekonomi](Phase_5_Bomb_Defusal.md)** — Round loop 15 ronde, Buy Menu, C4 plant/defuse, ekonomi ($16,000 cap).
-- **[Fase 5.5: Integrasi Map Container Yard](Phase_5.5_Map_Integration.md)** — 3D map 60×40m, buy/plant zones, wallbangable boxes.
-- **[Fase 6: Audio 3D Positional & UI](Phase_6_Audio_3D.md)** — Spatial HRTF, wall occlusion filter, Howler.js UI sounds.
-- **[Fase 7: Polish, HUD & Network Monitor](Phase_7_Polish_HUD.md)** — Pure CSS HUD, Minimap 2D, FPS/ping display, lag warning banner.
-- **[Fase 8: Roadmap Mode (Post-MVP)](Phase_8_Roadmap_Modes.md)** — FFA Deathmatch, Arms Race / Gun Game, Team Deathmatch.
+Implementasi mengikuti alur fase yang didokumentasikan di [Gameplay_Mechanics_Bible.md](Gameplay_Mechanics_Bible.md), [Impl_Guide_Server.md](Impl_Guide_Server.md), dan [Impl_Guide_Movement.md](Impl_Guide_Movement.md). Dokumentasi fase historis (Phase_0 — Phase_8) sudah diarsipkan; status terkini 75 fitur ada di [Master_Implementation_Checklist.md](Master_Implementation_Checklist.md).

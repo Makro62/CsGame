@@ -1,5 +1,5 @@
 import { Room, Client } from "colyseus"
-import { GameState, PlayerState, WEAPONS, SPAWN } from "@cs-game/shared"
+import { GameState, PlayerState, WEAPONS, SPAWN, ClientInput, ShootInput } from "@cs-game/shared"
 
 export type TrainingMode =
   | "static_aim"
@@ -61,7 +61,7 @@ class BotAgent {
     let nearest: { id: string; player: PlayerState; dist: number } | null = null
     const entries = Array.from(targets.entries())
     for (const [id, player] of entries) {
-      if ((player as any).isDead || (player as any).isBot) continue
+      if (player.isDead || player.isBot) continue
       if (player.team === botPlayer.team) continue
       const dx = player.x - this.pos.x
       const dz = player.z - this.pos.z
@@ -281,13 +281,13 @@ export class TrainingRoom extends Room<GameState> {
     this.trainingMode = options.mode || "1v1_bot"
     this.difficulty = options.difficulty || 2
 
-    this.onMessage("input", (client, input: any) => {
+    this.onMessage("input", (client, input: ClientInput) => {
       const player = this.state.players.get(client.sessionId)
       if (!player || player.isDead) return
       this.processMovement(player, input)
     })
 
-    this.onMessage("shoot", (client, data: any) => {
+    this.onMessage("shoot", (client, data: ShootInput) => {
       const shooter = this.state.players.get(client.sessionId)
       if (!shooter || shooter.isDead) return
       // Training mode: no friendly fire check needed
@@ -329,7 +329,7 @@ export class TrainingRoom extends Room<GameState> {
     const toDelete: string[] = []
     const playerEntries = Array.from(this.state.players.entries())
     for (const [id, p] of playerEntries) {
-      if ((p as any).isBot) toDelete.push(id)
+      if (p.isBot) toDelete.push(id)
     }
     toDelete.forEach((id) => this.state.players.delete(id))
   }
@@ -346,7 +346,7 @@ export class TrainingRoom extends Room<GameState> {
       botPlayer.team = "CT"
       botPlayer.nickname = `Bot ${i + 1} [${this.getDifficultyLabel()}]`
       botPlayer.hp = 100
-      botPlayer.isBot = 1
+      botPlayer.isBot = true
       botPlayer.botDifficulty = this.difficulty
       botPlayer.currentWeapon = "ak47"
       this.state.players.set(botId, botPlayer)
@@ -370,7 +370,7 @@ export class TrainingRoom extends Room<GameState> {
     })
   }
 
-  private processMovement(player: PlayerState, input: any) {
+  private processMovement(player: PlayerState, input: ClientInput) {
     const speed = input.sprint ? 11.5 : 8.5
     const sin = Math.sin(input.rotationY)
     const cos = Math.cos(input.rotationY)

@@ -28,6 +28,8 @@ import { FlashEffect } from './components/FlashEffect'
 import FootstepPlayer from './components/FootstepPlayer'
 import { KOTH } from './components/KOTH'
 import { TracerManager } from './game/effects/TracerManager'
+import { CalloutLabels } from './game/map/CalloutLabels'
+import { ReconnectOverlay } from './components/ReconnectOverlay'
 import SettingsMenu from './screens/SettingsMenu'
 import { MainMenu } from './screens/MainMenu'
 import { TrainingRange } from './game/training/TrainingRange'
@@ -78,6 +80,7 @@ function MultiplayerMode() {
         <ReloadSystem />
         <GrenadeSystem />
         <TracerManager />
+        <CalloutLabels />
       </Canvas>
       <Crosshair />
       <SniperScope />
@@ -99,6 +102,7 @@ function MultiplayerMode() {
         <BuyMenu onClose={closeBuyMenu} />
       )}
       <ClickToPlayOverlay onLock={noop} />
+      <ReconnectOverlay />
     </div>
   )
 }

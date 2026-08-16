@@ -73,7 +73,7 @@ export function Leaderboard() {
   });
 
   // Score-based header for FFA/TDM, team split for defusal
-  const isScoreMode = gameMode === "ffa" || gameMode === "tdm";
+  const isScoreMode = gameMode === "ffa" || gameMode === "tdm" || gameMode === "gun_game";
 
   const sortedPlayers = isScoreMode
     ? [...players].sort((a, b) => b.score - a.score)
@@ -184,7 +184,7 @@ export function Leaderboard() {
       {isScoreMode ? (
         <div style={{ width: "min(720px, 90vw)" }}>
           {renderTeam(
-            gameMode === "ffa" ? "FREE FOR ALL" : "TEAM DEATHMATCH",
+            gameMode === "ffa" ? "FREE FOR ALL" : gameMode === "gun_game" ? "GUN GAME" : "TEAM DEATHMATCH",
             "rgba(80,80,80,0.8)",
             renderRows(sortedPlayers)
           )}

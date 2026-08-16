@@ -14,7 +14,7 @@ export function ScoreBoard({
   ffaTop,
 }: ScoreBoardProps) {
   const isDefusal = gameMode === 'bomb_defusal'
-  const isFfa = gameMode === 'ffa'
+  const isFfa = gameMode === 'ffa' || gameMode === 'gun_game'
   const isTdm = gameMode === 'tdm'
 
   return (

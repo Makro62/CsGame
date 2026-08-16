@@ -60,8 +60,8 @@ export class BotAgent {
     let nearest: { id: string; player: PlayerState; dist: number } | null = null
     const entries = Array.from(allPlayers.entries())
     for (const [id, player] of entries) {
-      if ((player as any).isDead) continue
-      if ((player as any).isBot) continue
+      if (player.isDead) continue
+      if (player.isBot) continue
       if (this.config.team === player.team && gameState.gameMode !== "ffa") continue
 
       const dx = player.x - this.pos.x

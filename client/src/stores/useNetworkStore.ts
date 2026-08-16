@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { Client, Room } from "colyseus.js";
-import { GameState, PlayerState, Snapshot, ROUND, WEAPONS } from "@cs-game/shared";
+import { GameState, PlayerState, Snapshot, ROUND, WEAPONS, RoundPhase } from "@cs-game/shared";
 import { useWeaponStore, type WeaponKey } from "./useWeaponStore";
 import { useGameStore } from "./useGameStore";
 import { startKillCamRecording, stopKillCamRecording } from "./useKillCamStore";
@@ -43,7 +43,7 @@ interface DamageEvent {
 }
 
 interface RoundState {
-  phase: string;
+  phase: RoundPhase;
   roundTimeLeft: number;
   buyPhaseTimeLeft: number;
   roundNumber: number;
@@ -126,6 +126,7 @@ interface NetworkState {
   chatMessages: ChatMessage[];
   deathRecap: { killerName: string; weapon: string; headshot: boolean } | null;
   connectionError: string | null;
+  reconnectDeadline: number;
 
   connect: (nickname: string, mode?: string) => Promise<void>;
   joinRoomById: (roomId: string, nickname: string) => Promise<void>;
@@ -176,6 +177,7 @@ const initialRound: RoundState = {
 
 const SESSION_KEY = "cs_game_session";
 const MAX_RECONNECT_ATTEMPTS = 12;
+const RECONNECT_WINDOW_MS = 60_000; // matches SERVER.reconnectTTL (60s)
 
 // ─── Reconnect bookkeeping ──────────────────────────────────────
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -232,6 +234,7 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
   chatMessages: [],
   deathRecap: null,
   connectionError: null,
+  reconnectDeadline: 0,
 
   connect: async (nickname: string, mode = "bomb_defusal") => {
     clearRetry();
@@ -277,6 +280,7 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
         connected: true,
         reconnecting: false,
         connectionError: null,
+        reconnectDeadline: 0,
       });
 
       setupRoom(room, nickname, mode, isReconnect);
@@ -312,6 +316,7 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
         connected: true,
         reconnecting: false,
         connectionError: null,
+        reconnectDeadline: 0,
       });
 
       setupRoom(room, nickname, "bomb_defusal", false);
@@ -705,6 +710,7 @@ function setupRoom(
       killFeed: [],
       hitMarker: null,
       voteRequest: null,
+      reconnectDeadline: Date.now() + RECONNECT_WINDOW_MS,
     });
     // Only attempt reconnect in multiplayer mode, not training
     const currentMode = useGameStore.getState().mode;
@@ -730,7 +736,7 @@ function scheduleReconnect(nickname: string, mode: string) {
   retryCount++;
   useNetworkStore.setState({ reconnecting: true });
 
-  const client = new Client("ws://localhost:2567");
+  const client = new Client(SERVER_URL);
   let reconnectionToken = "";
   try {
     const parsed = JSON.parse(saved);

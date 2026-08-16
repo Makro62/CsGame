@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
+import * as THREE from "three";
 import { useNetworkStore } from "../stores/useNetworkStore";
 import { useGameStore } from "../stores/useGameStore";
 import { ServerPredictionManager } from "../game/network/ServerPredictionManager";
@@ -73,7 +74,7 @@ export function useNetwork(nickname: string) {
 
       // Use ServerPredictionManager for enhanced reconciliation
       const result = predictionRef.current.reconcile(
-        { x: localPos.x, y: localPos.y, z: localPos.z } as any,
+        new THREE.Vector3(localPos.x, localPos.y, localPos.z),
         { seq: 0, x: snapshot.x, y: snapshot.y, z: snapshot.z },
         RECONCILE_SNAP,
         RECONCILE_LERP

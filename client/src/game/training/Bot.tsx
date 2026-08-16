@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react"
-import { useFrame, useThree } from "@react-three/fiber"
+import { useFrame, useThree, ThreeEvent } from "@react-three/fiber"
 import * as THREE from "three"
 import { gameEvents } from "../../lib/gameEvents"
 import { useGameStore } from "../../stores/useGameStore"
@@ -134,7 +134,7 @@ export function Bot({
   }, [pickPatrolTarget])
 
   const handleClick = useCallback(
-    (e: any) => {
+    (e: ThreeEvent<MouseEvent>) => {
       if (botState === "dead") return
       e.stopPropagation?.()
 

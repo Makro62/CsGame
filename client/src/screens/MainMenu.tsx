@@ -10,6 +10,7 @@ const SERVER_MODES: { id: string; name: string; desc: string }[] = [
   { id: "ffa", name: "FFA DEATHMATCH", desc: "Free-for-all • first to 20 kills" },
   { id: "tdm", name: "TEAM DEATHMATCH", desc: "T vs CT • first to 75 kills" },
   { id: "koth", name: "KING OF THE HILL", desc: "Capture zone • first to 3 captures" },
+  { id: "gun_game", name: "GUN GAME", desc: "FFA • level up per kill, first to knife wins" },
 ];
 
 export function MainMenu() {

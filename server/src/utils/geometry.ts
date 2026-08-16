@@ -36,11 +36,3 @@ export function rayVsBox(
   }
   return tmax >= 0 ? Math.max(tmin, 0) : null;
 }
-
-/** Returns the dominant collision axis ("x" | "y" | "z") from a surface normal. */
-export function bounceAxis(nx: number, ny: number, nz: number): "x" | "y" | "z" {
-  const ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
-  if (ax >= ay && ax >= az) return "x";
-  if (ay >= ax && ay >= az) return "y";
-  return "z";
-}

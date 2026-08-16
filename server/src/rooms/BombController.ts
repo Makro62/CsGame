@@ -29,7 +29,7 @@ export class BombController {
     player: PlayerState,
     state: GameState,
     findNearestBombSite: (player: PlayerState) => string,
-    broadcast: (type: string, message: any) => void,
+    broadcast: (type: string, message: unknown) => void,
     onPlantBonus: (player: PlayerState) => void
   ): void {
     player.isPlanting = false;
@@ -54,7 +54,7 @@ export class BombController {
   cancelPlant(
     sessionId: string,
     player: PlayerState,
-    broadcast: (type: string, message: any) => void
+    broadcast: (type: string, message: unknown) => void
   ): void {
     player.isPlanting = false;
     player.plantProgress = 0;
@@ -81,7 +81,7 @@ export class BombController {
     player: PlayerState,
     state: GameState,
     onDefuseBonus: (player: PlayerState) => void,
-    broadcast: (type: string, message: any) => void,
+    broadcast: (type: string, message: unknown) => void,
     endRound: (winner: "T" | "CT") => void
   ): void {
     player.isDefusing = false;
@@ -100,7 +100,7 @@ export class BombController {
   cancelDefuse(
     sessionId: string,
     player: PlayerState,
-    broadcast: (type: string, message: any) => void
+    broadcast: (type: string, message: unknown) => void
   ): void {
     player.isDefusing = false;
     player.defuseProgress = 0;
@@ -109,7 +109,7 @@ export class BombController {
 
   bombExplode(
     state: GameState,
-    broadcast: (type: string, message: any) => void,
+    broadcast: (type: string, message: unknown) => void,
     endRound: (winner: "T" | "CT") => void
   ): void {
     state.bombPlanted = false;

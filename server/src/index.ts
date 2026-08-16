@@ -1,4 +1,3 @@
-// @ts-ignore
 import express from "express";
 import { Server, LobbyRoom } from "colyseus";
 import { monitor } from "@colyseus/monitor";

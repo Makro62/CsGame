@@ -13,7 +13,7 @@ export class EconomySystem {
     sessionId: string,
     data: BuyRequest,
     state: GameState,
-    broadcast: (type: string, message: any) => void
+    broadcast: (type: string, message: unknown) => void
   ): void {
     const player = state.players.get(sessionId);
     if (!player) return;

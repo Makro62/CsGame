@@ -50,7 +50,7 @@ export function HUD() {
   const displayHp = isMultiplayer ? localHp : 100
   const displayArmor = isMultiplayer ? localArmor : 0
   const isDefusal = isMultiplayer && round.gameMode === 'bomb_defusal'
-  const isFfa = isMultiplayer && round.gameMode === 'ffa'
+  const isFfa = isMultiplayer && (round.gameMode === 'ffa' || round.gameMode === 'gun_game')
   const isTdm = isMultiplayer && round.gameMode === 'tdm'
 
   const grenadeCount =

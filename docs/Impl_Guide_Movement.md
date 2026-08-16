@@ -2,7 +2,7 @@
 
 Panduan langkah-demi-langkah implementasi movement menggunakan **Rapier.js KinematicCharacterController** + full **Movement Tech Suite** (slide-hop, air strafe, curve slide, moon-jump, short-hop, frame-perfect buffer, slide control).
 
-> **Referensi:** [Design_Player.md](Design_Player.md#4-movement-physics-bible) (parameter) • [Phase_2_Player_Controller.md](Phase_2_Player_Controller.md)
+> **Referensi:** [Design_Player.md](Design_Player.md#4-movement-physics-bible) (parameter) • [Master_Implementation_Checklist.md](Master_Implementation_Checklist.md) (status fitur #18-32)
 
 ---
 

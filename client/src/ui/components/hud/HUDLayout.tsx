@@ -92,7 +92,7 @@ export function HUDLayout() {
   if (mode !== 'multiplayer' || !connected) return null
 
   const isDefusal = round.gameMode === 'bomb_defusal'
-  const isFfa = round.gameMode === 'ffa'
+  const isFfa = round.gameMode === 'ffa' || round.gameMode === 'gun_game'
   const isTdm = round.gameMode === 'tdm'
 
   const grenadeTotal = localGrenadeHE + localGrenadeSmoke + localGrenadeFlash
@@ -150,7 +150,7 @@ export function HUDLayout() {
 
         {/* Round timer */}
         <RoundTimer
-          phase={round.phase as any}
+          phase={round.phase}
           timeLeft={timeLeft}
           roundNumber={round.roundNumber}
           teamRedScore={round.teamRedScore}

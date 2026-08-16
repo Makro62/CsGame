@@ -62,10 +62,6 @@ export function ServerBrowser({ onClose, onJoinRoom, onCreateRoom }: ServerBrows
           setError("Failed to connect to lobby");
           setLoading(false);
         });
-
-        lobby.onLeave(() => {
-          console.log("Left lobby");
-        });
       } catch (err) {
         console.error("Failed to connect to lobby:", err);
         setError("Failed to connect to server");

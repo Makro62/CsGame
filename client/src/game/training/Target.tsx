@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 
 interface TargetProps {
@@ -39,7 +39,7 @@ export function Target({ id, position, onHit, respawnTime = 2000 }: TargetProps)
     groupRef.current.position.y = position[1] + Math.sin(time * 2) * 0.1;
   });
 
-  const handleClick = (e: any) => {
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (!isAlive) return;
     e.stopPropagation?.();
 

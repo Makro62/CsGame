@@ -1,5 +1,4 @@
-import colyseus from "colyseus";
-import type { Client } from "colyseus";
+import { Room, Client } from "colyseus";
 import {
   GameState,
   PlayerState,
@@ -39,9 +38,6 @@ import {
   KOTH_CAPTURE_RATE_PER_PLAYER,
   KOTH_DECAY_RATE,
   KOTH_MAX_PROGRESS,
-  GRENADE_BOUNCE_DAMPING,
-  GRENADE_GROUND_MIN_Y,
-  GRENADE_OFFSET,
   MIN_SPAWN_DISTANCE_SQ,
   ROUND_RESET_DELAY_MS,
 } from "./constants";
@@ -51,8 +47,6 @@ import { BombController } from "./BombController";
 import { AntiCheatSystem } from "./AntiCheatSystem";
 import { InterestManager } from "./InterestManager";
 import { BotAgent, BotConfig } from "../ai/BotAgent";
-
-const { Room } = colyseus;
 
 const TICK_MS = 1000 / SERVER.tickRate;
 
@@ -760,7 +754,7 @@ export class GameRoom extends Room<GameState> {
       this.simulateGrenades(now);
       this.processPlanting();
       this.processDefusing();
-      this.processKOTH();
+      this.processKoth();
       this.updateBots(1 / SERVER.tickRate);
 
       // Interest Management: broadcast filtered player positions
@@ -1076,9 +1070,6 @@ export class GameRoom extends Room<GameState> {
 
     // Record position sample for lag compensation
     this.weaponManager.recordPosition(sessionId, player, now);
-
-    // Update last processed sequence
-    player.lastProcessedSeq = input.seq;
   }
 
   // ─── Grenade Simulation ───────────────────────────────────────
@@ -1097,8 +1088,8 @@ export class GameRoom extends Room<GameState> {
       grenade.z += grenade.vz * dt;
 
       // Ground bounce
-      if (grenade.y <= GRENADE_GROUND_MIN_Y) {
-        grenade.y = GRENADE_GROUND_MIN_Y;
+      if (grenade.y <= GRENADE.groundMinY) {
+        grenade.y = GRENADE.groundMinY;
         grenade.vy = -grenade.vy * GRENADE.bounce;
         grenade.vx *= GRENADE.bounceXZ;
         grenade.vz *= GRENADE.bounceXZ;
@@ -1117,17 +1108,17 @@ export class GameRoom extends Room<GameState> {
             grenade.vx, grenade.vy, grenade.vz,
             obs
           );
-          if (axis === "x") grenade.vx = -grenade.vx * GRENADE_BOUNCE_DAMPING;
-          else if (axis === "y") grenade.vy = -grenade.vy * GRENADE_BOUNCE_DAMPING;
-          else grenade.vz = -grenade.vz * GRENADE_BOUNCE_DAMPING;
+          if (axis === "x") grenade.vx = -grenade.vx * GRENADE.wallBounceDamping;
+          else if (axis === "y") grenade.vy = -grenade.vy * GRENADE.wallBounceDamping;
+          else grenade.vz = -grenade.vz * GRENADE.wallBounceDamping;
           if (axis !== "y") {
             // push out of the box along the dominant axis
             const center = (obs.minX + obs.maxX) / 2;
             const cz = (obs.minZ + obs.maxZ) / 2;
             if (axis === "x") {
-              grenade.x = grenade.x < center ? obs.minX - GRENADE_OFFSET : obs.maxX + GRENADE_OFFSET;
+              grenade.x = grenade.x < center ? obs.minX - GRENADE.collisionOffset : obs.maxX + GRENADE.collisionOffset;
             } else {
-              grenade.z = grenade.z < cz ? obs.minZ - GRENADE_OFFSET : obs.maxZ + GRENADE_OFFSET;
+              grenade.z = grenade.z < cz ? obs.minZ - GRENADE.collisionOffset : obs.maxZ + GRENADE.collisionOffset;
             }
           }
           break;
@@ -1447,7 +1438,7 @@ export class GameRoom extends Room<GameState> {
     );
   }
 
-  private processKOTH() {
+  private processKoth() {
     if (this.state.gameMode !== "koth" || this.state.phase !== "active") {
       return;
     }
@@ -1587,7 +1578,6 @@ export class GameRoom extends Room<GameState> {
       p.grenadeFlash = 0;
       p.isPlanting = false;
       p.isDefusing = false;
-      if (p.team === "T") p.team = "T";
     });
 
     if (this.state.gameMode === "bomb_defusal") {
@@ -1918,7 +1908,7 @@ export class GameRoom extends Room<GameState> {
 
   private countHumans(): number {
     let count = 0;
-    this.state.players.forEach((p: any) => {
+    this.state.players.forEach((p) => {
       if (!p.isBot) count++;
     });
     return count;
@@ -1941,8 +1931,8 @@ export class GameRoom extends Room<GameState> {
       botPlayer.team = team;
       botPlayer.nickname = `Bot ${this.botSeq}`;
       botPlayer.hp = MAX_HP;
-      (botPlayer as any).isBot = 1;
-      (botPlayer as any).botDifficulty = this.botDifficulty;
+      botPlayer.isBot = true;
+      botPlayer.botDifficulty = this.botDifficulty;
       botPlayer.currentWeapon = "ak47";
       botPlayer.primaryWeapon = "ak47";
       botPlayer.secondaryWeapon = "deagle";
