@@ -149,10 +149,33 @@ export class RecoilController {
   }
 }
 
+export type MovementState = 'idle' | 'walk' | 'sprint' | 'slide' | 'airborne'
+
+// Single derivation of the movement state so the raycast spread and the
+// crosshair gap can never disagree.
+export function getMovementState(
+  input: {
+    forward: boolean
+    backward: boolean
+    left: boolean
+    right: boolean
+    sprint: boolean
+    slide: boolean
+    airborne: boolean
+  } | null
+): MovementState {
+  if (!input) return 'idle'
+  if (input.airborne) return 'airborne'
+  if (input.slide) return 'slide'
+  if (input.sprint) return 'sprint'
+  if (input.forward || input.backward || input.left || input.right) return 'walk'
+  return 'idle'
+}
+
 // Spray spread
 export function getSpreadRadius(
   weapon: string,
-  movementState: 'idle' | 'walk' | 'sprint' | 'slide' | 'airborne',
+  movementState: MovementState,
   isADS: boolean,
   sprayCount: number
 ): number {

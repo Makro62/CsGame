@@ -2,7 +2,8 @@ import { useEffect, useRef, useCallback, useState } from "react"
 import { useGameStore } from "../../stores/useGameStore"
 import { Bot, type BotDifficulty, type BotBehavior } from "./Bot"
 
-const SPAWN_RANGE = { x: [-15, 15], z: [-30, -10] }
+// Bot zone of TrainingArena, kept clear of the firing line
+const SPAWN_RANGE = { x: [-16, 16], z: [-40, -14] }
 const MAX_BOTS = 5
 const BEHAVIORS: BotBehavior[] = ["peeker", "rusher", "camper", "awper"]
 
@@ -35,7 +36,7 @@ export function AimTrainer() {
           SPAWN_RANGE.z[0] +
           Math.random() * (SPAWN_RANGE.z[1] - SPAWN_RANGE.z[0])
         const behavior = BEHAVIORS[Math.floor(Math.random() * BEHAVIORS.length)]
-        next.push({ id, x, z: x > 0 ? z + 5 : z, behavior, difficulty: botDifficulty })
+        next.push({ id, x, z, behavior, difficulty: botDifficulty })
       }
       return next
     })
@@ -64,42 +65,6 @@ export function AimTrainer() {
           respawnTime={2000}
         />
       ))}
-
-      {/* Training Area Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.49, -20]} receiveShadow>
-        <boxGeometry args={[40, 30, 1]} />
-        <meshStandardMaterial color="#4a5568" />
-      </mesh>
-
-      {/* Back Wall */}
-      <mesh position={[0, 5, -35]}>
-        <boxGeometry args={[40, 10, 1]} />
-        <meshStandardMaterial color="#2d3748" />
-      </mesh>
-
-      {/* Side Walls */}
-      <mesh position={[-20, 5, -20]}>
-        <boxGeometry args={[1, 10, 30]} />
-        <meshStandardMaterial color="#2d3748" />
-      </mesh>
-      <mesh position={[20, 5, -20]}>
-        <boxGeometry args={[1, 10, 30]} />
-        <meshStandardMaterial color="#2d3748" />
-      </mesh>
-
-      {/* Cover objects */}
-      <mesh position={[-8, 0.75, -15]}>
-        <boxGeometry args={[3, 1.5, 1]} />
-        <meshStandardMaterial color="#6b7280" />
-      </mesh>
-      <mesh position={[10, 0.5, -22]}>
-        <boxGeometry args={[2, 1, 2]} />
-        <meshStandardMaterial color="#6b7280" />
-      </mesh>
-      <mesh position={[0, 0.6, -28]}>
-        <boxGeometry args={[4, 1.2, 1]} />
-        <meshStandardMaterial color="#6b7280" />
-      </mesh>
     </group>
   )
 }
@@ -182,95 +147,131 @@ export function AimTrainerUI() {
     <div
       style={{
         position: "fixed",
-        top: "20px",
-        left: "20px",
+        top: "80px",
+        left: "24px",
         color: "white",
-        fontFamily: "monospace",
+        fontFamily: "'Inter', monospace, sans-serif",
         zIndex: 100,
+        userSelect: "none",
       }}
     >
       <div
         style={{
-          background: "rgba(0,0,0,0.8)",
-          padding: "16px",
-          borderRadius: "8px",
-          border: "1px solid rgba(255,255,255,0.1)",
-          width: "220px",
+          background: "linear-gradient(145deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.75))",
+          backdropFilter: "blur(16px)",
+          padding: "20px",
+          borderRadius: "16px",
+          border: "1px solid rgba(59, 130, 246, 0.3)",
+          boxShadow: "0 16px 36px rgba(0,0,0,0.5), 0 0 20px rgba(59,130,246,0.1)",
+          width: "250px",
         }}
       >
-        <h2 style={{ margin: "0 0 12px 0", fontSize: "16px", color: "#fbbf24" }}>
-          TRAINING RANGE
-        </h2>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "16px" }}>🎯</span>
+            <span style={{ fontSize: "13px", fontWeight: 900, letterSpacing: "1.5px", color: "#60a5fa" }}>
+              AIM DRILL V3
+            </span>
+          </div>
+          <span
+            style={{
+              fontSize: "9px",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              background: isTimerRunning ? "rgba(34, 197, 94, 0.2)" : "rgba(100, 116, 139, 0.2)",
+              color: isTimerRunning ? "#4ade80" : "#94a3b8",
+              border: `1px solid ${isTimerRunning ? "rgba(34, 197, 94, 0.4)" : "rgba(100, 116, 139, 0.3)"}`,
+              fontWeight: "bold",
+              letterSpacing: "1px",
+            }}
+          >
+            {isTimerRunning ? "● ACTIVE" : "IDLE"}
+          </span>
+        </div>
 
-        {/* Timer */}
-        <div style={{ fontSize: "28px", fontWeight: "bold", marginBottom: "8px", textAlign: "center" }}>
-          {timer}s
+        {/* Timer Digital Display */}
+        <div
+          style={{
+            background: "rgba(0, 0, 0, 0.45)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "12px",
+            padding: "10px",
+            marginBottom: "14px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "32px", fontWeight: 900, fontFamily: "monospace", color: isTimerRunning ? "#22d3ee" : "#f1f5f9", textShadow: isTimerRunning ? "0 0 16px rgba(34, 211, 238, 0.5)" : "none" }}>
+            {timer}<span style={{ fontSize: "16px", color: "#64748b", marginLeft: "2px" }}>s</span>
+          </div>
+          <div style={{ fontSize: "10px", color: "#94a3b8", letterSpacing: "1px" }}>SESSION TIMER (60s)</div>
         </div>
 
         {/* Difficulty Selector */}
-        <div style={{ marginBottom: "8px" }}>
-          <div style={{ fontSize: "10px", color: "#9ca3af", marginBottom: "4px" }}>DIFFICULTY</div>
-          <div style={{ display: "flex", gap: "4px" }}>
+        <div style={{ marginBottom: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#94a3b8", marginBottom: "6px", fontWeight: "bold" }}>
+            <span>DIFFICULTY</span>
+            <span style={{ color: diffColors[difficulty] }}>{diffLabels[difficulty].toUpperCase()}</span>
+          </div>
+          <div style={{ display: "flex", gap: "5px" }}>
             {([1, 2, 3, 4, 5] as BotDifficulty[]).map((d) => (
               <button
                 key={d}
                 onClick={() => setDifficulty(d)}
                 style={{
                   flex: 1,
-                  padding: "4px 0",
-                  fontSize: "10px",
-                  fontWeight: "bold",
-                  background: difficulty === d ? diffColors[d] : "rgba(255,255,255,0.1)",
-                  color: difficulty === d ? "white" : "#9ca3af",
-                  border: "none",
-                  borderRadius: "4px",
+                  padding: "6px 0",
+                  fontSize: "11px",
+                  fontWeight: 900,
+                  background: difficulty === d ? diffColors[d] : "rgba(255,255,255,0.06)",
+                  color: difficulty === d ? "white" : "#94a3b8",
+                  border: difficulty === d ? `1px solid ${diffColors[d]}` : "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "6px",
                   cursor: "pointer",
-                  transition: "all 0.15s",
+                  boxShadow: difficulty === d ? `0 0 10px ${diffColors[d]}88` : "none",
+                  transition: "all 0.2s",
                 }}
               >
                 {d}
               </button>
             ))}
           </div>
-          <div style={{ fontSize: "10px", color: diffColors[difficulty], textAlign: "center", marginTop: "2px" }}>
-            {diffLabels[difficulty]}
-          </div>
         </div>
 
         {/* Bot Count */}
-        <div style={{ marginBottom: "10px" }}>
-          <div style={{ fontSize: "10px", color: "#9ca3af", marginBottom: "4px" }}>BOTS</div>
-          <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+        <div style={{ marginBottom: "14px" }}>
+          <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "6px", fontWeight: "bold" }}>TARGET DUMMIES / BOTS</div>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: "4px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.06)" }}>
             <button
               onClick={() => setBotCount(Math.max(1, botCount - 1))}
               style={{
-                width: "24px",
-                height: "24px",
+                width: "28px",
+                height: "28px",
                 fontSize: "14px",
                 fontWeight: "bold",
-                background: "rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.08)",
                 color: "white",
                 border: "none",
-                borderRadius: "4px",
+                borderRadius: "6px",
                 cursor: "pointer",
               }}
             >
               -
             </button>
-            <div style={{ flex: 1, textAlign: "center", fontSize: "16px", fontWeight: "bold" }}>
-              {botCount}
+            <div style={{ flex: 1, textAlign: "center", fontSize: "14px", fontWeight: 800, color: "#38bdf8" }}>
+              {botCount} ACTIVE
             </div>
             <button
               onClick={() => setBotCount(Math.min(MAX_BOTS, botCount + 1))}
               style={{
-                width: "24px",
-                height: "24px",
+                width: "28px",
+                height: "28px",
                 fontSize: "14px",
                 fontWeight: "bold",
-                background: "rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.08)",
                 color: "white",
                 border: "none",
-                borderRadius: "4px",
+                borderRadius: "6px",
                 cursor: "pointer",
               }}
             >
@@ -279,80 +280,86 @@ export function AimTrainerUI() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div style={{ fontSize: "11px", marginBottom: "12px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "8px" }}>
+        {/* Stats Telemetry */}
+        <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: "10px", padding: "10px", marginBottom: "14px", border: "1px solid rgba(255,255,255,0.05)", fontSize: "11px", display: "flex", flexDirection: "column", gap: "6px" }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#9ca3af" }}>Kills</span>
-            <span style={{ fontWeight: "bold" }}>{stats.kills}</span>
+            <span style={{ color: "#94a3b8" }}>Kills:</span>
+            <span style={{ fontWeight: 800, color: "#f8fafc" }}>{stats.kills}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#9ca3af" }}>Headshots</span>
-            <span style={{ fontWeight: "bold" }}>{stats.headshots}</span>
+            <span style={{ color: "#94a3b8" }}>Headshots:</span>
+            <span style={{ fontWeight: 800, color: "#f87171" }}>{stats.headshots}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#9ca3af" }}>Accuracy</span>
-            <span style={{ fontWeight: "bold" }}>{stats.accuracy.toFixed(1)}%</span>
+            <span style={{ color: "#94a3b8" }}>Accuracy:</span>
+            <span style={{ fontWeight: 800, color: stats.accuracy >= 50 ? "#4ade80" : stats.accuracy >= 25 ? "#facc15" : "#94a3b8" }}>
+              {stats.accuracy.toFixed(1)}%
+            </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#9ca3af" }}>HS Rate</span>
-            <span style={{ fontWeight: "bold" }}>{stats.hsRate.toFixed(1)}%</span>
+            <span style={{ color: "#94a3b8" }}>HS Rate:</span>
+            <span style={{ fontWeight: 800, color: "#38bdf8" }}>{stats.hsRate.toFixed(1)}%</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#9ca3af" }}>Best</span>
-            <span style={{ fontWeight: "bold", color: "#fbbf24" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "4px" }}>
+            <span style={{ color: "#94a3b8" }}>Best Record:</span>
+            <span style={{ fontWeight: 800, color: "#fbbf24" }}>
               {stats.bestTime === Infinity ? "---" : `${stats.bestTime}s`}
             </span>
           </div>
         </div>
 
-        {/* Controls */}
-        <div style={{ display: "flex", gap: "6px" }}>
+        {/* Action Controls */}
+        <div style={{ display: "flex", gap: "8px" }}>
           {!isTimerRunning ? (
             <button
               onClick={handleStart}
               style={{
                 flex: 1,
-                padding: "8px 0",
-                backgroundColor: "#22c55e",
+                padding: "10px 0",
+                background: "linear-gradient(135deg, #16a34a, #15803d)",
                 color: "white",
-                border: "none",
-                borderRadius: "4px",
+                border: "1px solid #4ade80",
+                borderRadius: "8px",
                 cursor: "pointer",
-                fontWeight: "bold",
+                fontWeight: 900,
                 fontSize: "12px",
+                letterSpacing: "1px",
+                boxShadow: "0 0 16px rgba(22, 163, 74, 0.4)",
               }}
             >
-              START
+              ▶ START DRILL
             </button>
           ) : (
             <button
               onClick={stopTimer}
               style={{
                 flex: 1,
-                padding: "8px 0",
-                backgroundColor: "#ef4444",
+                padding: "10px 0",
+                background: "linear-gradient(135deg, #dc2626, #b91c1c)",
                 color: "white",
-                border: "none",
-                borderRadius: "4px",
+                border: "1px solid #f87171",
+                borderRadius: "8px",
                 cursor: "pointer",
-                fontWeight: "bold",
+                fontWeight: 900,
                 fontSize: "12px",
+                letterSpacing: "1px",
+                boxShadow: "0 0 16px rgba(220, 38, 38, 0.4)",
               }}
             >
-              STOP
+              ⏹ STOP DRILL
             </button>
           )}
           <button
             onClick={handleReset}
             style={{
-              padding: "8px 12px",
-              backgroundColor: "#6b7280",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
+              padding: "10px 14px",
+              backgroundColor: "rgba(255,255,255,0.08)",
+              color: "#cbd5e1",
+              border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: "8px",
               cursor: "pointer",
               fontWeight: "bold",
-              fontSize: "12px",
+              fontSize: "11px",
             }}
           >
             RESET

@@ -265,8 +265,24 @@ function setupZombieRoom(room: Room<GameState>) {
 
     // Update zombie store
     const zombies: ZombieState[] = [];
-    state.zombies.forEach((zombie) => {
-      zombies.push(zombie);
+    state.zombies.forEach((z) => {
+      if (!z.isDead) {
+        zombies.push({
+          id: z.id,
+          type: z.type,
+          x: z.x,
+          y: z.y ?? 0,
+          z: z.z,
+          hp: z.hp,
+          maxHp: z.maxHp,
+          speed: z.speed,
+          rotationY: z.rotationY,
+          targetId: z.targetId,
+          isDead: z.isDead,
+          isAttacking: z.isAttacking,
+          attackCooldown: z.attackCooldown,
+        } as any);
+      }
     });
 
     const powerUps: import("@cs-game/shared").PowerUpState[] = [];

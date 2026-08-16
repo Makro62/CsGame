@@ -1,44 +1,151 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNetworkStore } from "../stores/useNetworkStore";
-import { WEAPONS, GEAR, BUY_ZONE } from "@cs-game/shared";
+import {
+  WEAPONS,
+  GEAR,
+  BUY_ZONE,
+  PRIMARY_WEAPONS,
+  SECONDARY_WEAPONS,
+  type BuyFailReason,
+} from "@cs-game/shared";
+import { gameEvents } from "../lib/gameEvents";
 
 interface BuyItem {
   id: string;
   name: string;
   price: number;
   category: "weapon" | "gear" | "utility";
+  /** Which team may buy it; undefined means both */
   team?: string;
+  hotkey: string;
+}
+
+const WEAPON_NAMES: Record<string, string> = {
+  ak47: "AK-47",
+  m4a1: "M4A1-S",
+  awp: "AWP",
+  mp5: "MP5",
+  deagle: "Desert Eagle",
+  glock: "Glock-18",
+  tec9: "Tec-9",
+  autopistol: "Auto Pistol",
+  combatknife: "Combat Knife",
+};
+
+const GEAR_NAMES: Record<string, string> = {
+  kevlar: "Kevlar Vest",
+  helmet: "Helmet + Kevlar",
+  defuseKit: "Defuse Kit",
+  grenadeHE: "HE Grenade",
+  grenadeSmoke: "Smoke Grenade",
+  grenadeFlash: "Flashbang",
+};
+
+const FAIL_MESSAGES: Record<BuyFailReason, string> = {
+  not_buy_phase: "Buy phase is over",
+  outside_buy_zone: "Move into your buy zone first",
+  too_fast: "Slow down — one purchase at a time",
+  unknown_item: "That item does not exist",
+  wrong_team: "Not available for your team",
+  no_money: "Not enough money",
+  already_owned: "You already have that",
+  max_grenades: "Grenade limit reached",
+};
+
+// Team restrictions come straight from the weapon table so the menu can never
+// disagree with what the server accepts.
+function weaponItem(id: string, hotkey: string): BuyItem {
+  const stats = WEAPONS[id as keyof typeof WEAPONS];
+  return {
+    id,
+    name: WEAPON_NAMES[id] ?? id,
+    price: stats.price,
+    category: "weapon",
+    team: stats.team === "both" ? undefined : stats.team,
+    hotkey,
+  };
+}
+
+function gearItem(id: string, category: "gear" | "utility", hotkey: string): BuyItem {
+  const entry = GEAR[id as keyof typeof GEAR] as { price: number; team?: string };
+  return {
+    id,
+    name: GEAR_NAMES[id] ?? id,
+    price: entry.price,
+    category,
+    team: entry.team,
+    hotkey,
+  };
 }
 
 const BUY_CATALOG: BuyItem[] = [
-  // Primary Rifles
-  { id: "ak47", name: "AK-47", price: WEAPONS.ak47.price, category: "weapon", team: "T" },
-  { id: "m4a1", name: "M4A1-S", price: WEAPONS.m4a1.price, category: "weapon", team: "CT" },
-  { id: "awp", name: "AWP", price: WEAPONS.awp.price, category: "weapon" },
-  { id: "mp5", name: "MP5", price: WEAPONS.mp5.price, category: "weapon" },
-  // Pistols
-  { id: "deagle", name: "Desert Eagle", price: WEAPONS.deagle.price, category: "weapon" },
-  { id: "glock", name: "Glock-18", price: WEAPONS.glock.price, category: "weapon" },
-  { id: "tec9", name: "Tec-9", price: WEAPONS.tec9.price, category: "weapon", team: "T" },
-  { id: "autopistol", name: "Auto Pistol", price: WEAPONS.autopistol.price, category: "weapon", team: "CT" },
-  // Melee
-  { id: "knife", name: "Knife", price: WEAPONS.knife.price, category: "weapon" },
-  { id: "combatknife", name: "Combat Knife", price: WEAPONS.combatknife.price, category: "weapon" },
-  // Gear
-  { id: "kevlar", name: "Kevlar Vest", price: GEAR.kevlar.price, category: "gear" },
-  { id: "helmet", name: "Helmet + Kevlar", price: GEAR.helmet.price, category: "gear" },
-  { id: "defuseKit", name: "Defuse Kit", price: GEAR.defuseKit.price, category: "gear", team: "CT" },
-  // Utility
-  { id: "grenadeHE", name: "HE Grenade", price: GEAR.grenadeHE.price, category: "utility" },
-  { id: "grenadeSmoke", name: "Smoke Grenade", price: GEAR.grenadeSmoke.price, category: "utility" },
-  { id: "grenadeFlash", name: "Flashbang", price: GEAR.grenadeFlash.price, category: "utility" },
+  ...PRIMARY_WEAPONS.map((id, i) => weaponItem(id, `${i + 1}`)),
+  ...SECONDARY_WEAPONS.map((id, i) => weaponItem(id, `${i + 5}`)),
+  weaponItem("combatknife", "9"),
+  gearItem("kevlar", "gear", "Q"),
+  gearItem("helmet", "gear", "W"),
+  gearItem("defuseKit", "gear", "E"),
+  gearItem("grenadeHE", "utility", "A"),
+  gearItem("grenadeSmoke", "utility", "S"),
+  gearItem("grenadeFlash", "utility", "D"),
 ];
 
 export function BuyMenu({ onClose }: { onClose: () => void }) {
-  const { sendBuy, round, localMoney, localTeam, localX, localZ } = useNetworkStore();
-  const isBuyPhase = round.phase === "buy";
+  const {
+    sendBuy,
+    round,
+    localMoney,
+    localTeam,
+    localX,
+    localZ,
+    localPrimaryWeapon,
+    localSecondaryWeapon,
+    localKnifeSlot,
+    localArmor,
+    localHelmet,
+    localGrenadeHE,
+    localGrenadeSmoke,
+    localGrenadeFlash,
+  } = useNetworkStore();
+  const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
 
-  if (!isBuyPhase) return null;
+  // The game holds pointer lock, so the cursor cannot reach these buttons
+  // until we release it. Re-lock when the menu closes.
+  useEffect(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    return () => {
+      const canvas = document.querySelector("canvas");
+      canvas?.requestPointerLock();
+    };
+  }, []);
+
+  useEffect(() => {
+    const onResult = ({
+      item,
+      ok,
+      reason,
+    }: {
+      item: string;
+      ok: boolean;
+      reason?: BuyFailReason;
+    }) => {
+      const name =
+        WEAPON_NAMES[item] ?? GEAR_NAMES[item] ?? item;
+      setFeedback(
+        ok
+          ? { text: `${name} purchased`, ok: true }
+          : { text: reason ? FAIL_MESSAGES[reason] : "Purchase rejected", ok: false }
+      );
+    };
+    gameEvents.on("buyResult", onResult);
+    return () => gameEvents.off("buyResult", onResult);
+  }, []);
+
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => setFeedback(null), 1800);
+    return () => clearTimeout(timer);
+  }, [feedback]);
 
   const buyZone = BUY_ZONE[localTeam as keyof typeof BUY_ZONE];
   let inBuyZone = true;
@@ -48,17 +155,98 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
     inBuyZone = Math.sqrt(dx * dx + dz * dz) <= buyZone.radius;
   }
 
+  const ownedLabel = (item: BuyItem): string | null => {
+    switch (item.id) {
+      case "kevlar":
+        return localArmor > 0 ? "OWNED" : null;
+      case "helmet":
+        return localHelmet && localArmor > 0 ? "OWNED" : null;
+      case "grenadeHE":
+        return localGrenadeHE > 0 ? `x${localGrenadeHE}` : null;
+      case "grenadeSmoke":
+        return localGrenadeSmoke > 0 ? `x${localGrenadeSmoke}` : null;
+      case "grenadeFlash":
+        return localGrenadeFlash > 0 ? `x${localGrenadeFlash}` : null;
+      default:
+        break;
+    }
+    if (item.category !== "weapon") return null;
+    if (
+      item.id === localPrimaryWeapon ||
+      item.id === localSecondaryWeapon ||
+      item.id === localKnifeSlot
+    ) {
+      return "OWNED";
+    }
+    return null;
+  };
+
   const handleBuy = (item: BuyItem) => {
-    if (!inBuyZone) return;
-    if (localMoney < item.price) return;
     if (item.team && item.team !== localTeam) return;
+    if (!inBuyZone) {
+      setFeedback({ text: FAIL_MESSAGES.outside_buy_zone, ok: false });
+      return;
+    }
+    if (localMoney < item.price) {
+      setFeedback({ text: FAIL_MESSAGES.no_money, ok: false });
+      return;
+    }
     sendBuy(item.id);
   };
 
-  const isAllowed = (item: BuyItem) => {
-    if (item.team && item.team !== localTeam) return false;
-    return true;
-  };
+  const isAllowed = (item: BuyItem) => !item.team || item.team === localTeam;
+
+  // Keyboard shortcuts: the whole point of a CS buy menu is buying fast.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      const item = BUY_CATALOG.find(
+        (i) => i.hotkey.toLowerCase() === e.key.toLowerCase() && isAllowed(i)
+      );
+      if (item) {
+        e.preventDefault();
+        handleBuy(item);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
+  const renderSection = (
+    title: string,
+    color: string,
+    category: BuyItem["category"]
+  ) => (
+    <div style={{ marginBottom: "16px" }}>
+      <div
+        style={{
+          fontSize: "12px",
+          color,
+          textTransform: "uppercase",
+          marginBottom: "8px",
+          fontWeight: "bold",
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        {BUY_CATALOG.filter((i) => i.category === category && isAllowed(i)).map((item) => (
+          <BuyItemButton
+            key={item.id}
+            item={item}
+            localMoney={localMoney}
+            disabled={!inBuyZone}
+            owned={ownedLabel(item)}
+            onBuy={handleBuy}
+          />
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -127,69 +315,30 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
+        {feedback && (
+          <div
+            style={{
+              marginBottom: "12px",
+              padding: "8px 12px",
+              borderRadius: "6px",
+              fontSize: "12px",
+              fontWeight: "bold",
+              color: feedback.ok ? "#4ade80" : "#fca5a5",
+              background: feedback.ok ? "rgba(74,222,128,0.12)" : "rgba(239,68,68,0.12)",
+              border: `1px solid ${feedback.ok ? "rgba(74,222,128,0.35)" : "rgba(239,68,68,0.35)"}`,
+            }}
+          >
+            {feedback.text}
+          </div>
+        )}
+
         <div style={{ marginBottom: "12px", fontSize: "12px", color: "#888" }}>
           Buy Phase: {round.buyPhaseTimeLeft.toFixed(1)}s remaining
         </div>
 
-        {/* Weapons */}
-        <div style={{ marginBottom: "16px" }}>
-          <div
-            style={{
-              fontSize: "12px",
-              color: "#60a5fa",
-              textTransform: "uppercase",
-              marginBottom: "8px",
-              fontWeight: "bold",
-            }}
-          >
-            Weapons
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            {BUY_CATALOG.filter((i) => i.category === "weapon" && isAllowed(i)).map((item) => (
-              <BuyItemButton key={item.id} item={item} localMoney={localMoney} disabled={!inBuyZone} onBuy={handleBuy} />
-            ))}
-          </div>
-        </div>
-
-        {/* Gear */}
-        <div style={{ marginBottom: "16px" }}>
-          <div
-            style={{
-              fontSize: "12px",
-              color: "#fbbf24",
-              textTransform: "uppercase",
-              marginBottom: "8px",
-              fontWeight: "bold",
-            }}
-          >
-            Gear
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            {BUY_CATALOG.filter((i) => i.category === "gear" && isAllowed(i)).map((item) => (
-              <BuyItemButton key={item.id} item={item} localMoney={localMoney} disabled={!inBuyZone} onBuy={handleBuy} />
-            ))}
-          </div>
-        </div>
-
-        {/* Utility */}
-        <div>
-          <div
-            style={{
-              fontSize: "12px",
-              color: "#a78bfa",
-              textTransform: "uppercase",
-              marginBottom: "8px",
-              fontWeight: "bold",
-            }}
-          >
-            Utility
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            {BUY_CATALOG.filter((i) => i.category === "utility" && isAllowed(i)).map((item) => (
-              <BuyItemButton key={item.id} item={item} localMoney={localMoney} disabled={!inBuyZone} onBuy={handleBuy} />
-            ))}
-          </div>
-        </div>
+        {renderSection("Weapons", "#60a5fa", "weapon")}
+        {renderSection("Gear", "#fbbf24", "gear")}
+        {renderSection("Utility", "#a78bfa", "utility")}
 
         <div
           style={{
@@ -199,7 +348,7 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
             textAlign: "center",
           }}
         >
-          Press B to close • Prices are per-item
+          Press the key on a card to buy • B or ESC to close
         </div>
       </div>
     </div>
@@ -210,15 +359,18 @@ function BuyItemButton({
   item,
   localMoney,
   disabled,
+  owned,
   onBuy,
 }: {
   item: BuyItem;
   localMoney: number;
   disabled?: boolean;
+  owned: string | null;
   onBuy: (item: BuyItem) => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
-  const canAfford = localMoney >= item.price && !disabled;
+  const isOwned = owned === "OWNED";
+  const canAfford = localMoney >= item.price && !disabled && !isOwned;
   const weaponStats = item.category === "weapon" ? WEAPONS[item.id as keyof typeof WEAPONS] : null;
   const dps = weaponStats ? (weaponStats.dmg * weaponStats.fireRate).toFixed(1) : null;
 
@@ -256,11 +408,18 @@ function BuyItemButton({
         }
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span>{item.name}</span>
-        <span style={{ color: canAfford ? "#4ade80" : "#ef4444", fontWeight: "bold" }}>
-          ${item.price.toLocaleString()}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+        <span>
+          <span style={{ color: "#64748b", marginRight: "6px" }}>[{item.hotkey}]</span>
+          {item.name}
         </span>
+        {owned ? (
+          <span style={{ color: "#38bdf8", fontWeight: "bold" }}>{owned}</span>
+        ) : (
+          <span style={{ color: canAfford ? "#4ade80" : "#ef4444", fontWeight: "bold" }}>
+            ${item.price.toLocaleString()}
+          </span>
+        )}
       </div>
       {weaponStats && isHovered && (
         <div style={{ marginTop: "8px", fontSize: "10px", color: "#888", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "6px" }}>

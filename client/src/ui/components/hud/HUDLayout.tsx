@@ -43,6 +43,7 @@ export function HUDLayout() {
     localGrenadeHE,
     localGrenadeSmoke,
     localGrenadeFlash,
+    localReserveAmmo,
     localReady,
     sendReady,
     playerScores,
@@ -237,7 +238,7 @@ export function HUDLayout() {
             armor={displayArmor}
             hasHelmet={isMultiplayer && localHelmet}
           />
-          {isDefusal && (
+          {isMultiplayer && isDefusal && (
             <MoneyDisplay
               amount={localMoney}
               maxAmount={16000}
@@ -261,7 +262,7 @@ export function HUDLayout() {
             <AmmoCounter
               current={currentAmmo}
               max={maxAmmo}
-              reserve={0}
+              reserve={isMultiplayer ? localReserveAmmo : 0}
               isReloading={isReloading}
               isSwitching={isSwitching}
               weaponName={activeWeapon}
@@ -277,9 +278,13 @@ export function HUDLayout() {
         </div>
       )}
 
-      {/* Network monitor - bottom right */}
+      {/* Network monitor - bottom right. Training is offline, so ping is FPS only */}
       <div className="fixed bottom-4 right-4 z-[100] pointer-events-none opacity-60 hover:opacity-100 transition-opacity">
-        <NetworkMonitor ping={ping} fps={fps} showHistory={false} />
+        <NetworkMonitor
+          ping={isMultiplayer ? ping : undefined}
+          fps={fps}
+          showHistory={false}
+        />
       </div>
 
       {/* Overtime / Sudden Death indicator */}

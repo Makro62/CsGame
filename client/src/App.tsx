@@ -99,6 +99,30 @@ function MultiplayerMode() {
       <SettingsMenu />
       <VoteKick />
       <FlashEffect />
+      {/* Top Left Menu / Back Button */}
+      <button
+        onClick={() => window.dispatchEvent(new CustomEvent('openSettings'))}
+        style={{
+          position: 'absolute',
+          top: 14,
+          left: 14,
+          zIndex: 400,
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(59, 130, 246, 0.4)',
+          borderRadius: 8,
+          padding: '6px 12px',
+          color: '#93c5fd',
+          fontSize: 11,
+          fontWeight: 'bold',
+          letterSpacing: 1,
+          cursor: 'pointer',
+          fontFamily: 'monospace',
+          backdropFilter: 'blur(8px)',
+        }}
+      >
+        ⚙️ MENU / BACK [ESC / P]
+      </button>
+
       {buyMenuOpen && round.phase === 'buy' && (
         <BuyMenu onClose={closeBuyMenu} />
       )}

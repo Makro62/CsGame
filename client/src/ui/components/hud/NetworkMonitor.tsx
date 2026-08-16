@@ -3,7 +3,8 @@ import { GlassPanel } from '../shared/GlassPanel'
 import { cn } from '../../../utils/cn'
 
 interface NetworkMonitorProps {
-  ping: number
+  /** Omit in offline modes to show FPS only */
+  ping?: number
   fps: number
   packetLoss?: number
   showHistory?: boolean
@@ -21,9 +22,11 @@ export function NetworkMonitor({
 }: NetworkMonitorProps) {
   const [pingHistory, setPingHistory] = useState<number[]>([])
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const hasPing = ping !== undefined
 
   // Update ping history
   useEffect(() => {
+    if (ping === undefined) return
     setPingHistory(prev => [...prev.slice(-59), ping])
   }, [ping])
 
@@ -59,6 +62,7 @@ export function NetworkMonitor({
   }, [pingHistory, showHistory])
 
   const getPingColor = () => {
+    if (ping === undefined) return 'text-text-secondary'
     if (ping < 50) return 'text-health-full'
     if (ping < 100) return 'text-health-mid'
     return 'text-health-low'
@@ -67,20 +71,22 @@ export function NetworkMonitor({
   return (
     <GlassPanel className="p-2 min-w-[100px]">
       <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-1">
-        NET
+        {hasPing ? 'NET' : 'PERF'}
       </div>
 
       {/* Stats */}
       <div className="space-y-0.5">
-        <div
-          className={cn(
-            'text-sm font-mono font-bold flex justify-between',
-            getPingColor()
-          )}
-        >
-          <span>PING</span>
-          <span>{ping}ms</span>
-        </div>
+        {hasPing && (
+          <div
+            className={cn(
+              'text-sm font-mono font-bold flex justify-between',
+              getPingColor()
+            )}
+          >
+            <span>PING</span>
+            <span>{ping}ms</span>
+          </div>
+        )}
         <div className="text-sm font-mono font-bold text-text-secondary flex justify-between">
           <span>FPS</span>
           <span>{Math.round(fps)}</span>
@@ -94,7 +100,7 @@ export function NetworkMonitor({
       </div>
 
       {/* History graph */}
-      {showHistory && (
+      {showHistory && hasPing && (
         <canvas
           ref={canvasRef}
           width={80}

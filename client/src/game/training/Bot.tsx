@@ -211,9 +211,9 @@ export function Bot({
       }
     }
 
-    // Clamp to training area
-    pos.x = THREE.MathUtils.clamp(pos.x, -18, 18)
-    pos.z = THREE.MathUtils.clamp(pos.z, -33, -5)
+    // Clamp to the bot zone of TrainingArena
+    pos.x = THREE.MathUtils.clamp(pos.x, -17, 17)
+    pos.z = THREE.MathUtils.clamp(pos.z, -41, -13)
 
     // Update visual
     groupRef.current.position.copy(pos)
@@ -271,18 +271,18 @@ export function Bot({
         <meshStandardMaterial color={headColor} />
       </mesh>
 
-      {/* Eyes */}
-      <mesh position={[0.08, 1.65, -0.18]}>
+      {/* Eyes — raycast must fall through to the head mesh behind them */}
+      <mesh position={[0.08, 1.65, -0.18]} raycast={() => null}>
         <boxGeometry args={[0.06, 0.06, 0.02]} />
         <meshBasicMaterial color="#ffffff" />
       </mesh>
-      <mesh position={[-0.08, 1.65, -0.18]}>
+      <mesh position={[-0.08, 1.65, -0.18]} raycast={() => null}>
         <boxGeometry args={[0.06, 0.06, 0.02]} />
         <meshBasicMaterial color="#ffffff" />
       </mesh>
 
-      {/* Neck */}
-      <mesh position={[0, 1.35, 0]} userData={{ targetId: id, isHead: true }}>
+      {/* Neck counts as body, so only the head box gives a headshot */}
+      <mesh position={[0, 1.35, 0]} userData={{ targetId: id, isHead: false }}>
         <boxGeometry args={[0.15, 0.1, 0.15]} />
         <meshStandardMaterial color="#fda4af" />
       </mesh>

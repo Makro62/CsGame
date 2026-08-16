@@ -1,9 +1,28 @@
 import { create } from "zustand";
-import { WEAPONS } from "@cs-game/shared";
+import {
+  WEAPONS,
+  isPrimaryWeapon,
+  isSecondaryWeapon,
+  isMeleeWeapon,
+} from "@cs-game/shared";
 import { Sound } from "../components/AudioManager";
 import { useNetworkStore } from "./useNetworkStore";
 
 export type WeaponKey = keyof typeof WEAPONS;
+
+interface EquipOptions {
+  /** Ammo reported by the server, so a slot keeps the magazine it was left with */
+  ammo?: number;
+  reserveAmmo?: number;
+  /** Skip the deploy sound/animation (used when reconciling with the server) */
+  silent?: boolean;
+}
+
+interface Loadout {
+  primary: string;
+  secondary: string;
+  knife: string;
+}
 
 interface WeaponState {
   activeWeapon: WeaponKey | null;
@@ -22,15 +41,20 @@ interface WeaponState {
   reloadStartTime: number | null;
   isADS: boolean;
   recoilOffset: { x: number; y: number };
+  /** Accumulated recoil applied to the camera, in radians */
+  recoilAim: { yaw: number; pitch: number };
   lastFireTime: number;
   isSwitching: boolean;
   switchTimer: number;
   bulletsFired: number;
   lastFireTimestamp: number;
   grenadeType: "he" | "smoke" | "flash";
+  /** Training modes fire without draining the magazine */
+  infiniteAmmo: boolean;
 
-  equipWeapon: (weapon: WeaponKey) => void;
+  equipWeapon: (weapon: WeaponKey, options?: EquipOptions) => void;
   switchToSlot: (slot: 1 | 2 | 3) => void;
+  syncLoadout: (loadout: Loadout) => void;
   cycleGrenadeType: () => void;
   setGrenadeType: (type: "he" | "smoke" | "flash") => void;
   startReload: () => void;
@@ -38,6 +62,8 @@ interface WeaponState {
   finishReload: () => void;
   setADS: (ads: boolean) => void;
   updateRecoil: (x: number, y: number) => void;
+  setRecoilAim: (yaw: number, pitch: number) => void;
+  setInfiniteAmmo: (enabled: boolean) => void;
   incrementBullets: () => void;
   resetBullets: () => void;
   setSwitching: (switching: boolean) => void;
@@ -59,28 +85,32 @@ function clearSwitchTimeout() {
 }
 
 export const useWeaponStore = create<WeaponState>()((set, get) => ({
-  activeWeapon: "ak47",
-  primaryWeapon: "ak47",
-  secondaryWeapon: "deagle",
+  // Slots stay empty until a mode fills them (server loadout, training preset,
+  // zombie starter pistol). Faking an AK-47 here desyncs us from the server.
+  activeWeapon: null,
+  primaryWeapon: null,
+  secondaryWeapon: null,
   knifeSlot: "knife",
-  currentAmmo: 30,
-  maxAmmo: 30,
-  primaryAmmo: 30,
-  primaryMaxAmmo: 30,
-  primaryReserve: 90,
-  secondaryAmmo: 7,
-  secondaryMaxAmmo: 7,
-  secondaryReserve: 42,
+  currentAmmo: 0,
+  maxAmmo: 0,
+  primaryAmmo: 0,
+  primaryMaxAmmo: 0,
+  primaryReserve: 0,
+  secondaryAmmo: 0,
+  secondaryMaxAmmo: 0,
+  secondaryReserve: 0,
   isReloading: false,
   reloadStartTime: null,
   isADS: false,
   recoilOffset: { x: 0, y: 0 },
+  recoilAim: { yaw: 0, pitch: 0 },
   lastFireTime: 0,
   isSwitching: false,
   switchTimer: 0,
   bulletsFired: 0,
   lastFireTimestamp: 0,
   grenadeType: "he",
+  infiniteAmmo: false,
 
   cycleGrenadeType: () => {
     const { grenadeType } = get();
@@ -92,27 +122,33 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     set({ grenadeType: type });
   },
 
-  equipWeapon: (weapon: WeaponKey) => {
+  equipWeapon: (weapon: WeaponKey, options?: EquipOptions) => {
     const stats = WEAPONS[weapon];
-    const isPrimary = ["ak47", "m4a1", "awp", "mp5"].includes(weapon);
-    const isSecondary = ["deagle", "glock", "tec9", "autopistol"].includes(weapon);
-    const isKnife = ["knife", "combatknife"].includes(weapon);
+    const melee = isMeleeWeapon(weapon);
+    const ammoCount = melee ? 0 : (options?.ammo ?? stats.mag);
+
+    // Already holding it: reconcile the magazine without replaying the draw.
+    if (get().activeWeapon === weapon) {
+      if (options?.ammo !== undefined) set({ currentAmmo: ammoCount });
+      return;
+    }
 
     set((state) => ({
       activeWeapon: weapon,
-      primaryWeapon: isPrimary ? weapon : (state.primaryWeapon || "ak47"),
-      secondaryWeapon: isSecondary ? weapon : (state.secondaryWeapon || "deagle"),
-      knifeSlot: isKnife ? weapon : (state.knifeSlot || "knife"),
-      currentAmmo: isKnife ? 0 : stats.mag,
-      maxAmmo: isKnife ? 0 : stats.mag,
-      primaryAmmo: isPrimary ? stats.mag : state.primaryAmmo,
-      secondaryAmmo: isSecondary ? stats.mag : state.secondaryAmmo,
-      primaryMaxAmmo: isPrimary ? stats.mag : state.primaryMaxAmmo,
-      secondaryMaxAmmo: isSecondary ? stats.mag : state.secondaryMaxAmmo,
+      primaryWeapon: isPrimaryWeapon(weapon) ? weapon : state.primaryWeapon,
+      secondaryWeapon: isSecondaryWeapon(weapon) ? weapon : state.secondaryWeapon,
+      knifeSlot: melee ? weapon : state.knifeSlot,
+      currentAmmo: ammoCount,
+      maxAmmo: melee ? 0 : stats.mag,
+      primaryAmmo: isPrimaryWeapon(weapon) ? ammoCount : state.primaryAmmo,
+      secondaryAmmo: isSecondaryWeapon(weapon) ? ammoCount : state.secondaryAmmo,
+      primaryMaxAmmo: isPrimaryWeapon(weapon) ? stats.mag : state.primaryMaxAmmo,
+      secondaryMaxAmmo: isSecondaryWeapon(weapon) ? stats.mag : state.secondaryMaxAmmo,
       isReloading: false,
       reloadStartTime: null,
       isADS: false,
       recoilOffset: { x: 0, y: 0 },
+      recoilAim: { yaw: 0, pitch: 0 },
       lastFireTime: 0,
       isSwitching: true,
       switchTimer: 0.15,
@@ -121,7 +157,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     }));
 
     Sound.cancelReload();
-    Sound.deploy(weapon);
+    if (!options?.silent) Sound.deploy(weapon);
 
     clearSwitchTimeout();
     switchTimeoutId = setTimeout(() => {
@@ -133,40 +169,32 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   switchToSlot: (slot: 1 | 2 | 3) => {
     const state = get();
     const { primaryWeapon, secondaryWeapon, knifeSlot, activeWeapon, currentAmmo } = state;
-    let target: WeaponKey | null = null;
 
-    if (slot === 1) target = primaryWeapon || "ak47";
-    else if (slot === 2) target = secondaryWeapon || "deagle";
-    else if (slot === 3) target = knifeSlot || "knife";
+    const target: WeaponKey | null =
+      slot === 1 ? primaryWeapon : slot === 2 ? secondaryWeapon : knifeSlot;
 
-    if (!target || target === activeWeapon) return;
+    // Empty slot: nothing to draw. A dry click tells the player why.
+    if (!target) {
+      Sound.dryFire();
+      return;
+    }
+    if (target === activeWeapon) return;
 
     const stats = WEAPONS[target];
 
     // Save current active weapon's ammo
     let currentPrimaryAmmo = state.primaryAmmo;
     let currentSecondaryAmmo = state.secondaryAmmo;
-    if (activeWeapon && ["ak47", "m4a1", "awp", "mp5"].includes(activeWeapon)) {
+    if (activeWeapon && isPrimaryWeapon(activeWeapon)) {
       currentPrimaryAmmo = currentAmmo;
-    } else if (activeWeapon && ["deagle", "glock", "tec9", "autopistol"].includes(activeWeapon)) {
+    } else if (activeWeapon && isSecondaryWeapon(activeWeapon)) {
       currentSecondaryAmmo = currentAmmo;
     }
 
-    // Determine target slot's ammo
-    let ammo: number = stats.mag;
-    if (slot === 1) {
-      ammo = typeof currentPrimaryAmmo === 'number' ? currentPrimaryAmmo : stats.mag;
-    } else if (slot === 2) {
-      ammo = typeof currentSecondaryAmmo === 'number' ? currentSecondaryAmmo : stats.mag;
-    } else if (slot === 3) {
-      ammo = 0;
-    }
+    const ammo = slot === 1 ? currentPrimaryAmmo : slot === 2 ? currentSecondaryAmmo : 0;
 
-    set((s) => ({
+    set(() => ({
       activeWeapon: target,
-      primaryWeapon: slot === 1 ? target : (s.primaryWeapon || "ak47"),
-      secondaryWeapon: slot === 2 ? target : (s.secondaryWeapon || "deagle"),
-      knifeSlot: slot === 3 ? target : (s.knifeSlot || "knife"),
       primaryAmmo: currentPrimaryAmmo,
       secondaryAmmo: currentSecondaryAmmo,
       currentAmmo: ammo,
@@ -175,6 +203,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       reloadStartTime: null,
       isADS: false,
       recoilOffset: { x: 0, y: 0 },
+      recoilAim: { yaw: 0, pitch: 0 },
       lastFireTime: 0,
       isSwitching: true,
       switchTimer: 0.15,
@@ -195,6 +224,31 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     }, 150);
   },
 
+  /** Mirror the slots the server says we own, without touching what's in hand. */
+  syncLoadout: ({ primary, secondary, knife }: Loadout) => {
+    const state = get();
+    const toKey = (id: string): WeaponKey | null =>
+      id && id in WEAPONS ? (id as WeaponKey) : null;
+
+    const primaryKey = toKey(primary);
+    const secondaryKey = toKey(secondary);
+    const knifeKey = toKey(knife) ?? "knife";
+
+    if (
+      state.primaryWeapon === primaryKey &&
+      state.secondaryWeapon === secondaryKey &&
+      state.knifeSlot === knifeKey
+    ) {
+      return;
+    }
+
+    set({
+      primaryWeapon: primaryKey,
+      secondaryWeapon: secondaryKey,
+      knifeSlot: knifeKey,
+    });
+  },
+
   startReload: () => {
     const { activeWeapon, isReloading, isSwitching, currentAmmo, maxAmmo } = get();
     if (!activeWeapon || isReloading || isSwitching || currentAmmo === maxAmmo) return;
@@ -213,13 +267,11 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     const { activeWeapon } = get();
     if (!activeWeapon) return;
     const stats = WEAPONS[activeWeapon];
-    const isPrimary = ["ak47", "m4a1", "awp", "mp5"].includes(activeWeapon);
-    const isSecondary = ["deagle", "glock", "tec9", "autopistol"].includes(activeWeapon);
 
     set((state) => ({
       currentAmmo: stats.mag,
-      primaryAmmo: isPrimary ? stats.mag : state.primaryAmmo,
-      secondaryAmmo: isSecondary ? stats.mag : state.secondaryAmmo,
+      primaryAmmo: isPrimaryWeapon(activeWeapon) ? stats.mag : state.primaryAmmo,
+      secondaryAmmo: isSecondaryWeapon(activeWeapon) ? stats.mag : state.secondaryAmmo,
       isReloading: false,
       reloadStartTime: null,
     }));
@@ -233,17 +285,24 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     set({ recoilOffset: { x, y } });
   },
 
+  setRecoilAim: (yaw: number, pitch: number) => {
+    set({ recoilAim: { yaw, pitch } });
+  },
+
+  setInfiniteAmmo: (enabled: boolean) => {
+    set({ infiniteAmmo: enabled });
+  },
+
   incrementBullets: () => {
-    const { bulletsFired, currentAmmo, activeWeapon } = get();
-    const newAmmo = Math.max(0, currentAmmo - 1);
-    const isPrimary = activeWeapon && ["ak47", "m4a1", "awp", "mp5"].includes(activeWeapon);
-    const isSecondary = activeWeapon && ["deagle", "glock", "tec9", "autopistol"].includes(activeWeapon);
+    const { bulletsFired, currentAmmo, activeWeapon, infiniteAmmo } = get();
+    const melee = !!activeWeapon && isMeleeWeapon(activeWeapon);
+    const newAmmo = infiniteAmmo || melee ? currentAmmo : Math.max(0, currentAmmo - 1);
 
     set((state) => ({
       bulletsFired: bulletsFired + 1,
       currentAmmo: newAmmo,
-      primaryAmmo: isPrimary ? newAmmo : state.primaryAmmo,
-      secondaryAmmo: isSecondary ? newAmmo : state.secondaryAmmo,
+      primaryAmmo: activeWeapon && isPrimaryWeapon(activeWeapon) ? newAmmo : state.primaryAmmo,
+      secondaryAmmo: activeWeapon && isSecondaryWeapon(activeWeapon) ? newAmmo : state.secondaryAmmo,
       lastFireTimestamp: performance.now(),
     }));
   },
@@ -262,7 +321,9 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
 
   canFire: () => {
     const { activeWeapon, currentAmmo, isReloading, isSwitching, lastFireTime } = get();
-    if (!activeWeapon || currentAmmo <= 0 || isReloading || isSwitching) return false;
+    if (!activeWeapon || isReloading || isSwitching) return false;
+    // Knives swing without a magazine.
+    if (currentAmmo <= 0 && !isMeleeWeapon(activeWeapon)) return false;
 
     const now = performance.now();
     const stats = WEAPONS[activeWeapon];

@@ -103,8 +103,9 @@ export class WaveSystem {
     if (this.zombiesSpawned >= this.zombiesToSpawn) return
 
     const remaining = this.zombiesToSpawn - this.zombiesSpawned
-    const batchSize = Math.min(remaining, Math.max(1, Math.ceil(this.zombiesToSpawn / 10)))
-    const spawnPoints = ZOMBIE_SPAWN.spawnPoints.slice(0, activeSpawnCount)
+    const batchSize = Math.min(remaining, Math.max(3, Math.ceil(this.zombiesToSpawn / 3)))
+    const spawnCount = Math.max(4, activeSpawnCount)
+    const spawnPoints = ZOMBIE_SPAWN.spawnPoints.slice(0, Math.min(spawnCount, ZOMBIE_SPAWN.spawnPoints.length))
 
     for (let i = 0; i < batchSize; i++) {
       const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)]

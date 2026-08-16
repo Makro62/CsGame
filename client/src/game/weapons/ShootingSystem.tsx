@@ -1,14 +1,25 @@
 import { useRef, useCallback, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { WEAPONS } from "@cs-game/shared";
+import { WEAPONS, MELEE, isMeleeWeapon } from "@cs-game/shared";
 import { useWeaponStore } from "../../stores/useWeaponStore";
 import { useNetworkStore } from "../../stores/useNetworkStore";
 import { useZombieNetworkStore } from "../../stores/useZombieNetworkStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useGameStore } from "../../stores/useGameStore";
-import { RecoilController, getSpreadRadius } from "./RecoilController";
+import {
+  RecoilController,
+  getSpreadRadius,
+  getMovementState,
+} from "./RecoilController";
 import { Sound } from "../../components/AudioManager";
+import { gameEvents } from "../../lib/gameEvents";
+import { getMuzzleOffset } from "./weaponRig";
+
+// Same idle window RecoilController uses to reset its pattern index
+const SPRAY_RESET_MS = 260;
+
+const CENTER_SCREEN = new THREE.Vector2(0, 0);
 
 const raycaster = new THREE.Raycaster();
 const spreadDir = new THREE.Vector2();
@@ -17,6 +28,8 @@ const shootDirection = new THREE.Vector3();
 const _muzzleOffset = new THREE.Vector3();
 const _casingOffset = new THREE.Vector3();
 const _tempVec3 = new THREE.Vector3();
+const _impactNormal = new THREE.Vector3();
+const _normalMatrix = new THREE.Matrix3();
 
 // Impact pool for reuse
 const impactPool: THREE.Mesh[] = [];
@@ -101,6 +114,7 @@ export function ShootingSystem() {
     bulletsFired,
     canFire,
     updateRecoil,
+    setRecoilAim,
     incrementBullets,
     setLastFireTime,
   } = useWeaponStore();
@@ -125,8 +139,7 @@ export function ShootingSystem() {
     camera.getWorldPosition(shootOrigin);
     camera.getWorldDirection(shootDirection);
 
-    _muzzleOffset.set(0.1, -0.05, -0.5);
-    _muzzleOffset.applyQuaternion(camera.quaternion);
+    _muzzleOffset.copy(getMuzzleOffset(activeWeapon)).applyQuaternion(camera.quaternion);
     flash.position.copy(shootOrigin).add(_muzzleOffset);
     flash.rotation.set(0, 0, Math.random() * Math.PI * 2);
     flash.visible = true;
@@ -137,7 +150,7 @@ export function ShootingSystem() {
       scene.remove(flash);
       recycleMuzzleFlash(flash);
     }, 50);
-  }, [camera, scene]);
+  }, [camera, scene, activeWeapon]);
 
   const createShellCasing = useCallback(() => {
     const casing = getShellCasingMesh();
@@ -185,23 +198,91 @@ export function ShootingSystem() {
     requestAnimationFrame(animate);
   }, [camera, scene]);
 
+  /** Damage the first training dummy the given hit belongs to. */
+  const damageTrainingTarget = useCallback(
+    (hitObject: THREE.Object3D, weapon: keyof typeof WEAPONS) => {
+      let current: THREE.Object3D | null = hitObject;
+      let targetId: string | null = null;
+      let isHead = false;
+
+      while (current) {
+        if (current.userData && current.userData.targetId) {
+          targetId = current.userData.targetId;
+          if (current.userData.isHead) isHead = true;
+          break;
+        }
+        current = current.parent;
+      }
+
+      if (!targetId) return;
+
+      const stats = WEAPONS[weapon];
+      const dmg = isHead ? (stats?.headshot ?? 100) : (stats?.dmg ?? 35);
+      useGameStore.getState().damageTarget(targetId, dmg, isHead);
+      useGameStore.getState().incrementHits();
+      useNetworkStore.getState().showHitMarker(isHead);
+    },
+    []
+  );
+
+  /** Knife swing: arm's length, no bullet, no muzzle flash, no casing. */
+  const meleeAttack = useCallback(
+    (weapon: keyof typeof WEAPONS, gameMode: string) => {
+      raycaster.setFromCamera(CENTER_SCREEN, camera);
+      raycaster.far = MELEE.range;
+      const hits = raycaster
+        .intersectObjects(scene.children, true)
+        .filter((hit) => {
+          let current: THREE.Object3D | null = hit.object;
+          while (current) {
+            if (current.name && current.name.includes("weapon")) return false;
+            current = current.parent;
+          }
+          return true;
+        });
+      raycaster.far = Infinity;
+
+      const hit = hits[0];
+      Sound.melee(!!hit);
+
+      if (hit) {
+        createImpactEffect(hit.point, scene);
+        if (gameMode === "training") damageTrainingTarget(hit.object, weapon);
+      }
+
+      if (gameMode === "training") useGameStore.getState().incrementShots();
+
+      if (gameMode !== "training" && gameMode !== "zombie") {
+        camera.getWorldDirection(shootDirection);
+        useNetworkStore.getState().sendMelee({
+          x: shootDirection.x,
+          y: shootDirection.y,
+          z: shootDirection.z,
+        });
+      }
+
+      incrementBullets();
+      setLastFireTime(performance.now());
+    },
+    [camera, scene, damageTrainingTarget, incrementBullets, setLastFireTime]
+  );
+
   const shoot = useCallback(() => {
     if (!activeWeapon || !canFire()) return;
     const gameMode = useGameStore.getState().mode;
     if (gameMode !== "training" && gameMode !== "zombie" && round.phase !== "active") return;
+
+    if (isMeleeWeapon(activeWeapon)) {
+      meleeAttack(activeWeapon, gameMode);
+      return;
+    }
 
     const controller = recoilController.current;
     if (!controller) return;
 
     controller.fire();
 
-    // Detect actual movement state for spread calculation
-    const lastInput = useGameStore.getState().lastInput;
-    let movementState: 'idle' | 'walk' | 'sprint' | 'slide' | 'airborne' = 'idle';
-    if (lastInput) {
-      if (lastInput.sprint) movementState = 'sprint';
-      else if (lastInput.forward || lastInput.backward || lastInput.left || lastInput.right) movementState = 'walk';
-    }
+    const movementState = getMovementState(useGameStore.getState().lastInput);
 
     const spread = getSpreadRadius(
       activeWeapon,
@@ -231,8 +312,33 @@ export function ShootingSystem() {
       const hit = validHits[0];
       createImpactEffect(hit.point, scene);
 
+      if (hit.face) {
+        _normalMatrix.getNormalMatrix(hit.object.matrixWorld);
+        _impactNormal
+          .copy(hit.face.normal)
+          .applyNormalMatrix(_normalMatrix)
+          .normalize();
+      } else {
+        camera.getWorldDirection(_impactNormal).negate();
+      }
+      gameEvents.emit("bulletImpact", {
+        x: hit.point.x,
+        y: hit.point.y,
+        z: hit.point.z,
+        nx: _impactNormal.x,
+        ny: _impactNormal.y,
+        nz: _impactNormal.z,
+        distance: hit.distance,
+      });
+
       // Tracer via Zustand instead of window.dispatchEvent
       const startPos = camera.getWorldPosition(_tempVec3);
+      _muzzleOffset.copy(getMuzzleOffset(activeWeapon)).applyQuaternion(camera.quaternion);
+      // Point blank: keep the tracer origin behind the impact point.
+      if (hit.distance < _muzzleOffset.length() * 1.5) {
+        _muzzleOffset.multiplyScalar((hit.distance * 0.5) / _muzzleOffset.length());
+      }
+      startPos.add(_muzzleOffset);
       useGameStore.getState().setTracerEvent({
         start: { x: startPos.x, y: startPos.y, z: startPos.z },
         end: { x: hit.point.x, y: hit.point.y, z: hit.point.z },
@@ -240,26 +346,7 @@ export function ShootingSystem() {
 
       if (gameMode === "training") {
         useGameStore.getState().incrementShots();
-        let currentObj: THREE.Object3D | null = hit.object;
-        let targetId: string | null = null;
-        let isHead = false;
-
-        while (currentObj) {
-          if (currentObj.userData && currentObj.userData.targetId) {
-            targetId = currentObj.userData.targetId;
-            if (currentObj.userData.isHead) isHead = true;
-            break;
-          }
-          currentObj = currentObj.parent;
-        }
-
-        if (targetId) {
-          const wStats = WEAPONS[activeWeapon as keyof typeof WEAPONS];
-          const dmg = isHead ? (wStats?.headshot || 100) : (wStats?.dmg || 35);
-          useGameStore.getState().damageTarget(targetId, dmg, isHead);
-          useGameStore.getState().incrementHits();
-          useNetworkStore.getState().showHitMarker(isHead);
-        }
+        damageTrainingTarget(hit.object, activeWeapon);
       }
     } else if (gameMode === "training") {
       useGameStore.getState().incrementShots();
@@ -309,20 +396,27 @@ export function ShootingSystem() {
     round.phase,
     createMuzzleFlash,
     createShellCasing,
+    damageTrainingTarget,
+    meleeAttack,
   ]);
 
   // Mouse down/up tracking
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
+        // Menus release the pointer lock; clicking their buttons must not fire.
+        if (!document.pointerLockElement) return;
+
         const weaponState = useWeaponStore.getState();
+        const weapon = weaponState.activeWeapon;
         if (
-          weaponState.activeWeapon &&
+          weapon &&
+          !isMeleeWeapon(weapon) &&
           weaponState.currentAmmo === 0 &&
           !weaponState.isReloading &&
           !weaponState.isSwitching
         ) {
-          const stats = WEAPONS[weaponState.activeWeapon];
+          const stats = WEAPONS[weapon];
           if (stats && stats.reload > 0) {
             Sound.dryFire();
             weaponState.startReload();
@@ -350,8 +444,18 @@ export function ShootingSystem() {
 
   // Auto-fire + recoil recovery in frame loop
   useFrame(() => {
+    if (!document.pointerLockElement) mouseHeld.current = false;
     if (mouseHeld.current && activeWeapon) {
       shoot();
+    }
+
+    // Spray recovers once the burst is over, matching RecoilController's window
+    const weaponState = useWeaponStore.getState();
+    if (
+      weaponState.bulletsFired > 0 &&
+      performance.now() - weaponState.lastFireTimestamp > SPRAY_RESET_MS
+    ) {
+      weaponState.resetBullets();
     }
 
     const controller = recoilController.current;
@@ -363,6 +467,16 @@ export function ShootingSystem() {
     updateRecoil(
       offsetX * sensitivity * recoilScale,
       offsetY * sensitivity * recoilScale
+    );
+
+    // The pattern is authored in screen space, so convert it to camera angles.
+    // Mouse sensitivity is deliberately left out: recoil must be identical for
+    // every player regardless of their sens.
+    const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 75;
+    const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(fov) / 2);
+    setRecoilAim(
+      -Math.atan(offsetX * recoilScale * tanHalfFov),
+      Math.atan(offsetY * recoilScale * tanHalfFov)
     );
   });
 

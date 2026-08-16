@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import {
   RigidBody,
@@ -8,7 +8,8 @@ import {
 } from '@react-three/rapier'
 import * as THREE from 'three'
 import { KinematicCharacterController } from '@dimforge/rapier3d-compat'
-import { PHYSICS, SPAWN, MAP_OBSTACLES } from '@cs-game/shared'
+import { PHYSICS, SPAWN, MAP_OBSTACLES, WEAPONS } from '@cs-game/shared'
+import { TRAINING_ARENA } from '../training/TrainingArena'
 import { updateAudioListener } from '../../components/AudioManager'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
 import { useNetwork } from '../../hooks/useNetwork'
@@ -37,8 +38,29 @@ const _lookTarget = new THREE.Vector3()
 const _currentPos = new THREE.Vector3()
 const _desiredMovement = new THREE.Vector3()
 const _euler = new THREE.Euler()
+const _lookEuler = new THREE.Euler()
 
 const POINTER_LOCK_SENSITIVITY = 0.002
+const PITCH_LIMIT = 1.55
+
+// Each mode has its own playable area, so the clamp must follow the mode.
+// Values are inset by the capsule radius so the player never clips a wall.
+type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number }
+
+const MODE_BOUNDS: Record<string, Bounds> = {
+  multiplayer: { minX: -29.2, maxX: 29.2, minZ: -19.2, maxZ: 19.2 },
+  training: {
+    minX: TRAINING_ARENA.minX + 0.8,
+    maxX: TRAINING_ARENA.maxX - 0.8,
+    minZ: TRAINING_ARENA.minZ + 0.8,
+    maxZ: TRAINING_ARENA.maxZ - 0.8,
+  },
+  zombie: { minX: -59, maxX: 59, minZ: -59, maxZ: 59 },
+}
+
+export function getBounds(mode: string): Bounds {
+  return MODE_BOUNDS[mode] ?? MODE_BOUNDS.multiplayer
+}
 
 // Simple ray vs AABB intersection for wall jump detection
 function rayVsAABB(
@@ -135,6 +157,13 @@ export function PlayerController() {
     if (isZombieMode) {
       return [0, TOTAL_HEIGHT / 2 + 0.05, -30]
     }
+    if (mode === 'training') {
+      return [
+        TRAINING_ARENA.spawn.x,
+        TOTAL_HEIGHT / 2 + 0.01,
+        TRAINING_ARENA.spawn.z,
+      ]
+    }
     const net = useNetworkStore.getState()
     if (net.localX !== 0 || net.localZ !== 0) {
       return [net.localX, TOTAL_HEIGHT / 2 + 0.01, net.localZ]
@@ -157,6 +186,8 @@ export function PlayerController() {
   })
 
   const headBob = useRef(0)
+  const lookYaw = useRef(0)
+  const lookPitch = useRef(0)
   const lastFrameTime = useRef(performance.now())
   const moveVelocityRef = useRef(new THREE.Vector2(0, 0))
 
@@ -214,8 +245,23 @@ export function PlayerController() {
     }
   }, [])
 
-  // Mouse look: rotates the camera only while the pointer is locked.
-  // Uses quaternion-based yaw/pitch to avoid Euler gimbal lock.
+  // Mouse look keeps its own yaw/pitch so weapon recoil can be layered on top
+  // without the recoil kick feeding back into the player's own aim.
+  const applyLook = useCallback(() => {
+    const { recoilAim } = useWeaponStore.getState()
+    _lookEuler.set(
+      THREE.MathUtils.clamp(
+        lookPitch.current + recoilAim.pitch,
+        -PITCH_LIMIT,
+        PITCH_LIMIT
+      ),
+      lookYaw.current + recoilAim.yaw,
+      0,
+      'YXZ'
+    )
+    camera.quaternion.setFromEuler(_lookEuler)
+  }, [camera])
+
   useEffect(() => {
     let locked = false
 
@@ -228,18 +274,13 @@ export function PlayerController() {
       const sens =
         POINTER_LOCK_SENSITIVITY * useSettingsStore.getState().sensitivity
 
-      // Use a single Euler-based yaw/pitch update for a more natural and stable FPS feel.
-      const current = new THREE.Euler().setFromQuaternion(
-        camera.quaternion,
-        'YXZ'
+      lookYaw.current -= e.movementX * sens
+      lookPitch.current = THREE.MathUtils.clamp(
+        lookPitch.current - e.movementY * sens,
+        -PITCH_LIMIT,
+        PITCH_LIMIT
       )
-
-      current.y -= e.movementX * sens
-      current.x -= e.movementY * sens
-      current.x = THREE.MathUtils.clamp(current.x, -1.55, 1.55)
-      current.z = 0
-
-      camera.quaternion.setFromEuler(current)
+      applyLook()
     }
 
     document.addEventListener('pointerlockchange', onPointerLockChange)
@@ -248,7 +289,7 @@ export function PlayerController() {
       document.removeEventListener('pointerlockchange', onPointerLockChange)
       document.removeEventListener('mousemove', onMouseMove)
     }
-  }, [camera])
+  }, [applyLook])
 
   // Re-equip when server changes our weapon (buy confirmation / round reset)
   useEffect(() => {
@@ -309,6 +350,10 @@ export function PlayerController() {
       return
     }
 
+    // Recoil is an offset on top of mouse look, so the aim (and therefore the
+    // shooting raycast, which uses the camera) climbs with the spray pattern.
+    applyLook()
+
     const input = getInput()
     const controller = controllerRef.current
     const rb = rigidBodyRef.current
@@ -334,10 +379,16 @@ export function PlayerController() {
         _currentPos.z
       )
 
-      // Auto-equip default weapon
+      // Draw whatever the server says we are holding. Training and zombie pick
+      // their own loadout, so don't stomp it.
       if (!weaponEquipped.current) {
         weaponEquipped.current = true
-        useWeaponStore.getState().equipWeapon('deagle')
+        if (mode === 'multiplayer') {
+          const serverWeapon = useNetworkStore.getState().localWeapon
+          if (serverWeapon && serverWeapon in WEAPONS) {
+            useWeaponStore.getState().equipWeapon(serverWeapon as WeaponKey)
+          }
+        }
       }
       return
     }
@@ -556,8 +607,15 @@ export function PlayerController() {
       }
     }
 
-    // Wall Jump: detect nearby walls via raycast in strafe directions
-    if (!grounded.current && hasJumpBuffer && WALL_JUMP_ENABLED) {
+    // Wall Jump: detect nearby walls via raycast in strafe directions.
+    // MAP_OBSTACLES only describes the competitive map, so other modes would
+    // otherwise wall jump off invisible geometry.
+    if (
+      mode === 'multiplayer' &&
+      !grounded.current &&
+      hasJumpBuffer &&
+      WALL_JUMP_ENABLED
+    ) {
       const timeSinceWallJump = now - lastWallJumpTime.current
       if (timeSinceWallJump >= WALL_JUMP_COOLDOWN) {
         // Cast rays left and right relative to camera yaw
@@ -649,9 +707,10 @@ export function PlayerController() {
     const result = controller.computedMovement()
     _currentPos.add(result)
 
-    // Strict wall boundary clamping (-29.2 to 29.2 on X, -19.2 to 19.2 on Z)
-    _currentPos.x = THREE.MathUtils.clamp(_currentPos.x, -29.2, 29.2)
-    _currentPos.z = THREE.MathUtils.clamp(_currentPos.z, -19.2, 19.2)
+    // Keep the player inside the playable area of the current mode
+    const bounds = getBounds(mode)
+    _currentPos.x = THREE.MathUtils.clamp(_currentPos.x, bounds.minX, bounds.maxX)
+    _currentPos.z = THREE.MathUtils.clamp(_currentPos.z, bounds.minZ, bounds.maxZ)
 
     // Ground detection
     if (velocityY.current > 0) {
@@ -703,13 +762,15 @@ export function PlayerController() {
       })
     }
 
-    // Update last input for weapon sway
+    // Update last input for weapon sway and spread
     useGameStore.getState().setLastInput({
       forward: input.forward,
       backward: input.backward,
       left: input.left,
       right: input.right,
       sprint: input.sprint,
+      slide: slideState.current.active,
+      airborne: !grounded.current,
     })
 
     // Update position

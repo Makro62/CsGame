@@ -1,6 +1,5 @@
 import { useEffect, useCallback, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Sky } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
 import { PlayerController } from "../game/player/PlayerController";
 import { WeaponModel } from "../game/weapons/WeaponModel";
@@ -15,6 +14,7 @@ import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
 import { ZombieArena } from "../game/map/ZombieArena";
 import { ZombieRenderer } from "../game/zombie/ZombieRenderer";
 import { PowerUpRenderer } from "../game/zombie/PowerUpRenderer";
+import { ZombieMinimap } from "../components/ZombieMinimap";
 import { WaveHUD } from "../ui/components/hud/WaveHUD";
 import { PointsDisplay } from "../ui/components/hud/PointsDisplay";
 import { ExtractionHUD } from "../ui/components/hud/ExtractionHUD";
@@ -25,6 +25,7 @@ import { PackAPunch } from "../ui/components/zombie/PackAPunch";
 import { AreaUnlockUI } from "../ui/components/zombie/AreaUnlockUI";
 import { ZombieLeaderboard } from "../ui/components/zombie/ZombieLeaderboard";
 import { ZombieSettings } from "../ui/components/zombie/ZombieSettings";
+import { ZombieLobbySetup, DifficultyLevel } from "../ui/components/zombie/ZombieLobbySetup";
 import { ZombieGameOver } from "../ui/components/zombie/ZombieGameOver";
 import { useZombieStore } from "../stores/useZombieStore";
 import { useZombieNetworkStore } from "../stores/useZombieNetworkStore";
@@ -49,7 +50,7 @@ function HotkeyManager({
 }) {
   const sendSwitchWeapon = useZombieNetworkStore((s) => s.sendSwitchWeapon);
   const sendStartGame = useZombieNetworkStore((s) => s.sendStartGame);
-  const equipWeapon = useWeaponStore((s) => s.equipWeapon);
+  const switchToSlot = useWeaponStore((s) => s.switchToSlot);
   const connected = useZombieNetworkStore((s) => s.connected);
   const localIsDead = useZombieNetworkStore((s) => s.localIsDead);
 
@@ -62,13 +63,26 @@ function HotkeyManager({
           onInteractAction();
           break;
         case "Digit1":
-          equipWeapon("deagle");
-          sendSwitchWeapon("deagle");
+        case "Numpad1": {
+          switchToSlot(1);
+          const active = useWeaponStore.getState().activeWeapon;
+          if (active) sendSwitchWeapon(active);
           break;
+        }
         case "Digit2":
-          equipWeapon("ak47");
-          sendSwitchWeapon("ak47");
+        case "Numpad2": {
+          switchToSlot(2);
+          const active = useWeaponStore.getState().activeWeapon;
+          if (active) sendSwitchWeapon(active);
           break;
+        }
+        case "Digit3":
+        case "Numpad3": {
+          switchToSlot(3);
+          const active = useWeaponStore.getState().activeWeapon;
+          if (active) sendSwitchWeapon(active);
+          break;
+        }
         case "Space":
           sendStartGame();
           break;
@@ -86,9 +100,39 @@ function HotkeyManager({
       }
     };
 
+    const handleWheel = (e: WheelEvent) => {
+      if (localIsDead) return;
+      const state = useWeaponStore.getState();
+      const current = state.activeWeapon;
+      const primary = state.primaryWeapon || "ak47";
+      const secondary = state.secondaryWeapon || "deagle";
+
+      const isPrimary = current === primary;
+      const isSecondary = current === secondary;
+
+      if (e.deltaY > 0) {
+        // Wheel down: 1 -> 2 -> 3 -> 1
+        if (isPrimary) switchToSlot(2);
+        else if (isSecondary) switchToSlot(3);
+        else switchToSlot(1);
+      } else if (e.deltaY < 0) {
+        // Wheel up: 1 -> 3 -> 2 -> 1
+        if (isPrimary) switchToSlot(3);
+        else if (isSecondary) switchToSlot(1);
+        else switchToSlot(2);
+      }
+
+      const active = useWeaponStore.getState().activeWeapon;
+      if (active) sendSwitchWeapon(active);
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [connected, localIsDead, sendSwitchWeapon, sendStartGame, equipWeapon, onToggleShop, onToggleSettings, onToggleLeaderboard, onInteractAction]);
+    window.addEventListener("wheel", handleWheel, { passive: true });
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("wheel", handleWheel);
+    };
+  }, [connected, localIsDead, sendSwitchWeapon, sendStartGame, switchToSlot, onToggleShop, onToggleSettings, onToggleLeaderboard, onInteractAction]);
 
   return null;
 }
@@ -102,6 +146,8 @@ function InteractionPrompt() {
   const barricades = useZombieStore((s) => s.barricades);
   const extractionAvailable = useZombieStore((s) => s.extractionAvailable);
   const extractionActive = useZombieStore((s) => s.extractionActive);
+  const waveState = useZombieStore((s) => s.waveState);
+  const currentWave = useZombieStore((s) => s.currentWave);
 
   if (!lastSnapshot) return null;
   const { x, z } = lastSnapshot;
@@ -140,6 +186,13 @@ function InteractionPrompt() {
   if (distToHelipad <= 14 && extractionAvailable && !extractionActive) {
     return (
       <PromptBadge text="Press [F] to Call Helipad Evac (5,000 pts / Free at Wave 10)" />
+    );
+  }
+
+  // Wave start prompt if waiting
+  if (waveState === "waiting" || (waveState === "wave_clear" && currentWave === 0)) {
+    return (
+      <PromptBadge text="Press [SPACE] to Start Wave 1" />
     );
   }
 
@@ -218,12 +271,12 @@ function BossWaveWarning() {
 
 export function ZombieSurvivalMode() {
   const connect = useZombieNetworkStore((s) => s.connect);
-  const connected = useZombieNetworkStore((s) => s.connected);
   const lastSnapshot = useZombieNetworkStore((s) => s.lastSnapshot);
   const kills = useZombieNetworkStore((s) => s.kills);
   const headshots = useZombieNetworkStore((s) => s.headshots);
   const nickname = useGameStore((s) => s.nickname);
 
+  const [lobbyOpen, setLobbyOpen] = useState(true);
   const [shopOpen, setShopOpen] = useState(false);
   const [mysteryBoxOpen, setMysteryBoxOpen] = useState(false);
   const [packAPunchOpen, setPackAPunchOpen] = useState(false);
@@ -249,11 +302,29 @@ export function ZombieSurvivalMode() {
   useEffect(() => {
     useGameStore.getState().setMode("zombie");
     useWeaponStore.getState().equipWeapon("deagle");
-    if (!connected) connect(nickname || "Survivor");
+    connect(nickname || "Survivor");
 
     return () => {
       useZombieNetworkStore.getState().disconnect();
     };
+  }, []);
+
+  const handleStartGameFromLobby = useCallback((_diff: DifficultyLevel) => {
+    setLobbyOpen(false);
+    useGameStore.getState().setMode("zombie");
+    useWeaponStore.getState().equipWeapon("deagle");
+    useZombieNetworkStore.getState().sendStartGame();
+  }, []);
+
+  const handleBackToMenu = useCallback(() => {
+    useZombieNetworkStore.getState().disconnect();
+    useGameStore.getState().setMode("menu");
+  }, []);
+
+  const handleRestart = useCallback(() => {
+    setGameOver(false);
+    setSettingsOpen(false);
+    window.location.reload();
   }, []);
 
   useEffect(() => {
@@ -270,16 +341,6 @@ export function ZombieSurvivalMode() {
 
   const handlePickup = useCallback((id: string) => {
     useZombieNetworkStore.getState().sendPickupPowerUp(id);
-  }, []);
-
-  const handleRestart = useCallback(() => {
-    setGameOver(false);
-    window.location.reload();
-  }, []);
-
-  const handleMenu = useCallback(() => {
-    useZombieNetworkStore.getState().disconnect();
-    useGameStore.getState().setMode("menu");
   }, []);
 
   // Contextual Interaction [F]
@@ -328,17 +389,57 @@ export function ZombieSurvivalMode() {
   const playerPos = { x: lastSnapshot?.x ?? 0, z: lastSnapshot?.z ?? -30 };
 
   return (
-    <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", backgroundColor: "#000" }}>
+    <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", backgroundColor: "#080c14" }}>
+      {lobbyOpen && (
+        <ZombieLobbySetup
+          onStart={handleStartGameFromLobby}
+          onBack={handleBackToMenu}
+        />
+      )}
+
+      {/* Top Left Menu / Back Button */}
+      <button
+        onClick={toggleSettings}
+        style={{
+          position: "fixed",
+          top: "16px",
+          left: "16px",
+          padding: "8px 16px",
+          backgroundColor: "rgba(10, 15, 25, 0.8)",
+          border: "1px solid rgba(220, 38, 38, 0.6)",
+          borderRadius: "8px",
+          color: "#fff",
+          fontSize: "13px",
+          fontWeight: "bold",
+          cursor: "pointer",
+          zIndex: 60,
+          boxShadow: "0 4px 15px rgba(0,0,0,0.6)",
+          transition: "all 0.2s",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = "rgba(220, 38, 38, 0.3)";
+          e.currentTarget.style.borderColor = "#ef4444";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = "rgba(10, 15, 25, 0.8)";
+          e.currentTarget.style.borderColor = "rgba(220, 38, 38, 0.6)";
+        }}
+      >
+        ⚙️ MENU / BACK [ESC]
+      </button>
+
       <HotkeyManager
         onToggleShop={toggleShop}
         onToggleSettings={toggleSettings}
         onToggleLeaderboard={toggleLeaderboard}
         onInteractAction={handleInteract}
       />
+
       <Canvas shadows camera={{ fov: 75, position: [0, 1.6, -30] }}>
-        <Sky sunPosition={[100, 20, 100]} />
-        <ambientLight intensity={0.4} />
-        <directionalLight castShadow position={[10, 20, 10]} intensity={1.2} />
+        <color attach="background" args={["#080c14"]} />
+        <fog attach="fog" args={["#080c14", 15, 80]} />
+        <ambientLight intensity={0.25} color="#556677" />
+        <directionalLight castShadow position={[15, 30, 10]} intensity={0.8} color="#99aabb" />
         <Physics gravity={[0, -9.81, 0]}>
           <ZombieArena />
           <PlayerController />
@@ -349,11 +450,13 @@ export function ZombieSurvivalMode() {
         <ZombieRenderer zombies={zombies} />
         <PowerUpRenderer powerUps={powerUps} onPickup={handlePickup} playerPosition={playerPos} />
       </Canvas>
+
       <Crosshair />
       <HitMarker />
       <DamageVignette />
       <DownedOverlay />
       <AudioManager />
+      <ZombieMinimap />
       <WaveHUD currentWave={currentWave} waveState={waveState} zombiesRemaining={zombiesRemaining} interWaveTimer={interWaveTimer} />
       <PointsDisplay points={points} />
       <ZombiePlayerHUD />
@@ -362,11 +465,17 @@ export function ZombieSurvivalMode() {
       <InteractionPrompt />
       <BossWaveWarning />
       <ActivePowerUpIndicator activePowerUp={activePowerUp} powerUpTimer={powerUpTimer} />
-      <ClickToPlayOverlay onLock={() => {}} />
+      {!lobbyOpen && <ClickToPlayOverlay onLock={() => {}} />}
       {shopOpen && <WeaponShop onClose={toggleShop} />}
       {mysteryBoxOpen && <MysteryBox onClose={() => setMysteryBoxOpen(false)} />}
       {packAPunchOpen && <PackAPunch onClose={() => setPackAPunchOpen(false)} />}
-      {settingsOpen && <ZombieSettings onClose={toggleSettings} />}
+      {settingsOpen && (
+        <ZombieSettings
+          onClose={toggleSettings}
+          onRestart={handleRestart}
+          onMenu={handleBackToMenu}
+        />
+      )}
       {leaderboardOpen && <ZombieLeaderboard onClose={() => setLeaderboardOpen(false)} />}
       {gameOver && (
         <ZombieGameOver
@@ -375,7 +484,7 @@ export function ZombieSurvivalMode() {
           headshots={headshots}
           evacuated={evacSuccess}
           onRestart={handleRestart}
-          onMenu={handleMenu}
+          onMenu={handleBackToMenu}
         />
       )}
     </div>

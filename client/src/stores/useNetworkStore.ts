@@ -1,7 +1,16 @@
 import { create } from "zustand";
 import { Client, Room } from "colyseus.js";
-import { GameState, PlayerState, Snapshot, ROUND, WEAPONS, RoundPhase } from "@cs-game/shared";
+import {
+  GameState,
+  PlayerState,
+  Snapshot,
+  ROUND,
+  WEAPONS,
+  RoundPhase,
+  BuyFailedMessage,
+} from "@cs-game/shared";
 import { useWeaponStore, type WeaponKey } from "./useWeaponStore";
+import { Sound } from "../components/AudioManager";
 import { useGameStore } from "./useGameStore";
 import { startKillCamRecording, stopKillCamRecording } from "./useKillCamStore";
 import { SERVER_URL } from "../config/network";
@@ -109,6 +118,8 @@ interface NetworkState {
   localPrimaryWeapon: string;
   localSecondaryWeapon: string;
   localKnifeSlot: string;
+  localAmmo: number;
+  localReserveAmmo: number;
   localArmor: number;
   localHelmet: boolean;
   localGrenadeHE: number;
@@ -128,7 +139,7 @@ interface NetworkState {
   connectionError: string | null;
   reconnectDeadline: number;
 
-  connect: (nickname: string, mode?: string) => Promise<void>;
+  connect: (nickname: string, mode?: string, team?: "T" | "CT" | "auto") => Promise<void>;
   joinRoomById: (roomId: string, nickname: string) => Promise<void>;
   disconnect: () => void;
   sendInput: (input: Record<string, unknown>) => void;
@@ -142,6 +153,7 @@ interface NetworkState {
   sendDefuseCancel: () => void;
   sendPickupBomb: () => void;
   sendSwitchWeapon: (slot: number) => void;
+  sendMelee: (direction: { x: number; y: number; z: number }) => void;
   sendThrowGrenade: (data: { type: "he" | "smoke" | "flash"; origin: { x: number; y: number; z: number }; velocity: { x: number; y: number; z: number } }) => void;
   sendFFVote: (vote: boolean) => void;
   sendGameMode: (mode: string) => void;
@@ -213,10 +225,12 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
   localIsDead: false,
   localMoney: 800,
   localTeam: "",
-  localWeapon: "deagle",
+  localWeapon: "",
   localPrimaryWeapon: "",
-  localSecondaryWeapon: "deagle",
+  localSecondaryWeapon: "",
   localKnifeSlot: "knife",
+  localAmmo: 0,
+  localReserveAmmo: 0,
   localArmor: 0,
   localHelmet: false,
   localGrenadeHE: 0,
@@ -236,7 +250,7 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
   connectionError: null,
   reconnectDeadline: 0,
 
-  connect: async (nickname: string, mode = "bomb_defusal") => {
+  connect: async (nickname: string, mode = "bomb_defusal", teamChoice?: "T" | "CT" | "auto") => {
     clearRetry();
     retryNickname = nickname;
     retryMode = mode;
@@ -266,6 +280,8 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
       if (!room) {
         room = await client.joinOrCreate<GameState>("fps_room", {
           nickname,
+          mode,
+          team: teamChoice && teamChoice !== "auto" ? teamChoice : undefined,
         });
         sessionStorage.setItem(
           SESSION_KEY,
@@ -355,7 +371,12 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
       localIsDead: false,
       localMoney: 800,
       localTeam: "",
-      localWeapon: "deagle",
+      localWeapon: "",
+      localPrimaryWeapon: "",
+      localSecondaryWeapon: "",
+      localKnifeSlot: "knife",
+      localAmmo: 0,
+      localReserveAmmo: 0,
       localGrenadeHE: 0,
       localGrenadeSmoke: 0,
       localGrenadeFlash: 0,
@@ -424,6 +445,11 @@ export const useNetworkStore = create<NetworkState>()((set, get) => ({
   sendSwitchWeapon: (slot: number) => {
     const { room } = get();
     if (room) room.send("switch_weapon", { slot });
+  },
+
+  sendMelee: (direction: { x: number; y: number; z: number }) => {
+    const { room } = get();
+    if (room) room.send("melee", { direction, timestamp: performance.now() });
   },
 
   sendThrowGrenade: (data) => {
@@ -549,10 +575,12 @@ function setupRoom(
       localIsDead: localPlayer ? localPlayer.isDead : false,
       localMoney: localPlayer ? localPlayer.money : 800,
       localTeam: localPlayer ? localPlayer.team : "",
-      localWeapon: localPlayer ? localPlayer.currentWeapon : "deagle",
+      localWeapon: localPlayer ? localPlayer.currentWeapon : "",
       localPrimaryWeapon: localPlayer ? localPlayer.primaryWeapon : "",
-      localSecondaryWeapon: localPlayer ? localPlayer.secondaryWeapon : "deagle",
+      localSecondaryWeapon: localPlayer ? localPlayer.secondaryWeapon : "",
       localKnifeSlot: localPlayer ? localPlayer.knifeSlot : "knife",
+      localAmmo: localPlayer ? localPlayer.ammo : 0,
+      localReserveAmmo: localPlayer ? localPlayer.reserveAmmo : 0,
       localArmor: localPlayer ? localPlayer.armor : 0,
       localHelmet: localPlayer ? localPlayer.hasHelmet : false,
       localGrenadeHE: localPlayer ? localPlayer.grenadeHE : 0,
@@ -587,6 +615,14 @@ function setupRoom(
         kothScoreCT: state.kothScoreCT || 0,
       },
     });
+
+    if (localPlayer) {
+      useWeaponStore.getState().syncLoadout({
+        primary: localPlayer.primaryWeapon,
+        secondary: localPlayer.secondaryWeapon,
+        knife: localPlayer.knifeSlot,
+      });
+    }
   });
 
   room.onMessage("snapshot", (snapshot: Snapshot) => {
@@ -620,12 +656,28 @@ function setupRoom(
 
   room.onMessage(
     "itemBought",
-    (data: { item: string; slot: "weapon" | "gear" | "utility" }) => {
-      if (data.slot === "weapon" && data.item in WEAPONS) {
-        useWeaponStore.getState().equipWeapon(data.item as WeaponKey);
+    (data: {
+      playerId: string;
+      item: string;
+      slot: "weapon" | "gear";
+      currentWeapon: string;
+    }) => {
+      // Purchases are broadcast to everyone; only react to our own.
+      if (data.playerId !== room.sessionId) return;
+      gameEvents.emit("buyResult", { item: data.item, ok: true });
+      if (data.currentWeapon && data.currentWeapon in WEAPONS) {
+        useWeaponStore.getState().equipWeapon(data.currentWeapon as WeaponKey);
       }
     }
   );
+
+  room.onMessage("buyFailed", (data: BuyFailedMessage) => {
+    gameEvents.emit("buyResult", { item: data.item, ok: false, reason: data.reason });
+  });
+
+  room.onMessage("switchFailed", () => {
+    Sound.dryFire();
+  });
 
   room.onMessage("bombDropped", (data: { x: number; y: number; z: number }) => {
     useNetworkStore.setState({ droppedBombPos: data });
@@ -639,10 +691,15 @@ function setupRoom(
     useNetworkStore.setState({ droppedBombPos: null });
   });
 
-  room.onMessage("weaponSwitched", (data: { playerId: string; weapon: string; slot: number }) => {
-    if (data.playerId !== room.sessionId) return;
-    useWeaponStore.getState().equipWeapon(data.weapon as WeaponKey);
-  });
+  room.onMessage(
+    "weaponSwitched",
+    (data: { playerId: string; weapon: string; slot: number; ammo: number; reserveAmmo: number }) => {
+      if (data.playerId !== room.sessionId) return;
+      useWeaponStore
+        .getState()
+        .equipWeapon(data.weapon as WeaponKey, { ammo: data.ammo, silent: true });
+    }
+  );
 
   room.onMessage("grenadeThrown", (data: { id: string; type: string; throwerId: string; x: number; y: number; z: number; vx: number; vy: number; vz: number }) => {
     gameEvents.emit("nadeThrown", data);

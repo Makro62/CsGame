@@ -12,7 +12,7 @@ function ArenaFloor() {
   const floorMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#2b2d31",
+        color: "#181a1f",
         roughness: 0.95,
         metalness: 0.05,
       }),
@@ -33,7 +33,7 @@ function ArenaBoundary() {
   const wallMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#4a4a4a",
+        color: "#2a2d34",
         roughness: 0.9,
         metalness: 0.1,
       }),
@@ -62,16 +62,16 @@ function ArenaBoundary() {
         <CuboidCollider args={[(size * 2 + wallThickness * 2) / 2, wallHeight / 2, wallThickness / 2]} />
       </RigidBody>
 
-      {/* East wall */}
-      <RigidBody type="fixed" position={[size, wallHeight / 2, 0]} colliders={false}>
+      {/* West wall */}
+      <RigidBody type="fixed" position={[-size, wallHeight / 2, 0]} colliders={false}>
         <mesh castShadow receiveShadow material={wallMat}>
           <boxGeometry args={[wallThickness, wallHeight, size * 2]} />
         </mesh>
         <CuboidCollider args={[wallThickness / 2, wallHeight / 2, size]} />
       </RigidBody>
 
-      {/* West wall */}
-      <RigidBody type="fixed" position={[-size, wallHeight / 2, 0]} colliders={false}>
+      {/* East wall */}
+      <RigidBody type="fixed" position={[size, wallHeight / 2, 0]} colliders={false}>
         <mesh castShadow receiveShadow material={wallMat}>
           <boxGeometry args={[wallThickness, wallHeight, size * 2]} />
         </mesh>
@@ -82,72 +82,59 @@ function ArenaBoundary() {
 }
 
 function SafeHouse() {
-  const wallMat = useMemo(
+  const concreteMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#4f4133",
+        color: "#35383f",
         roughness: 0.85,
         metalness: 0.1,
       }),
     []
   );
 
-  const roofMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: "#2a2a2a",
-        roughness: 0.9,
-        metalness: 0.2,
-      }),
-    []
-  );
-
   return (
     <group position={[0, 0, -40]}>
-      {/* Back wall */}
-      <RigidBody type="fixed" position={[0, 2, -5.5]} colliders={false}>
-        <mesh castShadow receiveShadow material={wallMat}>
-          <boxGeometry args={[14, 4, 1]} />
+      {/* Back Wall */}
+      <RigidBody type="fixed" position={[0, 2.5, -10]} colliders={false}>
+        <mesh castShadow receiveShadow material={concreteMat}>
+          <boxGeometry args={[30, 5, 1]} />
         </mesh>
-        <CuboidCollider args={[7, 2, 0.5]} />
+        <CuboidCollider args={[15, 2.5, 0.5]} />
       </RigidBody>
 
-      {/* Left wall */}
-      <RigidBody type="fixed" position={[-6.5, 2, 0]} colliders={false}>
-        <mesh castShadow receiveShadow material={wallMat}>
-          <boxGeometry args={[1, 4, 12]} />
+      {/* Left Wall */}
+      <RigidBody type="fixed" position={[-15, 2.5, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={concreteMat}>
+          <boxGeometry args={[1, 5, 20]} />
         </mesh>
-        <CuboidCollider args={[0.5, 2, 6]} />
+        <CuboidCollider args={[0.5, 2.5, 10]} />
       </RigidBody>
 
-      {/* Right wall */}
-      <RigidBody type="fixed" position={[6.5, 2, 0]} colliders={false}>
-        <mesh castShadow receiveShadow material={wallMat}>
-          <boxGeometry args={[1, 4, 12]} />
+      {/* Right Wall */}
+      <RigidBody type="fixed" position={[15, 2.5, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={concreteMat}>
+          <boxGeometry args={[1, 5, 20]} />
         </mesh>
-        <CuboidCollider args={[0.5, 2, 6]} />
-      </RigidBody>
-
-      {/* Front Left Wall */}
-      <RigidBody type="fixed" position={[-4.5, 2, 5.5]} colliders={false}>
-        <mesh castShadow receiveShadow material={wallMat}>
-          <boxGeometry args={[4, 4, 1]} />
-        </mesh>
-        <CuboidCollider args={[2, 2, 0.5]} />
-      </RigidBody>
-
-      {/* Front Right Wall */}
-      <RigidBody type="fixed" position={[4.5, 2, 5.5]} colliders={false}>
-        <mesh castShadow receiveShadow material={wallMat}>
-          <boxGeometry args={[4, 4, 1]} />
-        </mesh>
-        <CuboidCollider args={[2, 2, 0.5]} />
+        <CuboidCollider args={[0.5, 2.5, 10]} />
       </RigidBody>
 
       {/* Roof */}
-      <mesh position={[0, 4.2, 0]} castShadow receiveShadow material={roofMat}>
-        <boxGeometry args={[16, 0.4, 14]} />
+      <RigidBody type="fixed" position={[0, 5.2, 0]} colliders={false}>
+        <mesh receiveShadow material={concreteMat}>
+          <boxGeometry args={[32, 0.4, 22]} />
+        </mesh>
+        <CuboidCollider args={[16, 0.2, 11]} />
+      </RigidBody>
+
+      {/* Red Hazard Beacon on Safe House Roof */}
+      <mesh position={[0, 5.8, 0]}>
+        <sphereGeometry args={[0.35, 16, 16]} />
+        <meshStandardMaterial color="#dc2626" emissive="#dc2626" emissiveIntensity={1.2} />
       </mesh>
+      <pointLight position={[0, 6, 0]} intensity={1.5} distance={35} color="#dc2626" />
+
+      {/* Interior warm safe light */}
+      <pointLight position={[0, 3.5, -2]} intensity={1.8} distance={25} color="#ffd8a8" />
     </group>
   );
 }
@@ -159,7 +146,7 @@ function Helipad() {
   const padMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#3a3a3a",
+        color: "#282a30",
         roughness: 0.8,
         metalness: 0.3,
       }),
@@ -167,14 +154,14 @@ function Helipad() {
   );
 
   const isLit = extractionActive || extractionAvailable;
-  const markingColor = isLit ? (extractionActive ? "#10b981" : "#f59e0b") : "#ff6600";
+  const markingColor = isLit ? (extractionActive ? "#10b981" : "#f59e0b") : "#dc2626";
 
   const markingMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         color: markingColor,
         emissive: markingColor,
-        emissiveIntensity: isLit ? 0.9 : 0.3,
+        emissiveIntensity: isLit ? 1.0 : 0.4,
         roughness: 0.7,
         metalness: 0.2,
       }),
@@ -195,14 +182,12 @@ function Helipad() {
       <mesh position={[0, 0.5, 0]} material={markingMat}>
         <sphereGeometry args={[0.4, 16, 16]} />
       </mesh>
-      {isLit && (
-        <pointLight
-          position={[0, 3, 0]}
-          intensity={extractionActive ? 3.0 : 1.5}
-          distance={40}
-          color={extractionActive ? "#10b981" : "#f59e0b"}
-        />
-      )}
+      <pointLight
+        position={[0, 3, 0]}
+        intensity={extractionActive ? 3.5 : isLit ? 2.0 : 1.0}
+        distance={45}
+        color={markingColor}
+      />
     </group>
   );
 }
@@ -211,7 +196,7 @@ function AmmoCrate({ position }: { position: [number, number, number] }) {
   const crateMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#5c4a2a",
+        color: "#4a3c20",
         roughness: 0.9,
         metalness: 0.15,
       }),
@@ -225,6 +210,18 @@ function AmmoCrate({ position }: { position: [number, number, number] }) {
       </mesh>
       <CuboidCollider args={[0.6, 0.4, 0.4]} position={[0, 0.4, 0]} />
     </RigidBody>
+  );
+}
+
+function SpecialStationLights() {
+  return (
+    <group>
+      {/* Mystery Box [0, 5] Amber Spotlight */}
+      <pointLight position={[0, 3.5, 5]} intensity={1.5} distance={15} color="#f59e0b" />
+
+      {/* Pack-a-Punch [0, 0] Purple Spotlight */}
+      <pointLight position={[0, 3.5, 0]} intensity={1.8} distance={15} color="#a855f7" />
+    </group>
   );
 }
 
@@ -244,9 +241,9 @@ function PerimeterLights() {
         <pointLight
           key={i}
           position={[x, y, z]}
-          intensity={0.6}
-          distance={65}
-          color="#ffaa55"
+          intensity={0.5}
+          distance={55}
+          color="#ff9944"
         />
       ))}
     </group>
@@ -268,6 +265,7 @@ export function ZombieArena() {
       <AmmoCrate position={[-5, 0, -33]} />
       <AmmoCrate position={[5, 0, -33]} />
       <AmmoCrate position={[0, 0, -37]} />
+      <SpecialStationLights />
       <PerimeterLights />
     </group>
   );

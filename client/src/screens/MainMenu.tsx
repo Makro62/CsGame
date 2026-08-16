@@ -24,11 +24,15 @@ const MODES: ModeCard[] = [
     id: "training",
     glyph: "◎",
     title: "TRAINING RANGE",
-    tagline: "Latihan aim, recoil & movement tanpa lawan",
+    tagline: "Latihan aim & kontrol recoil tanpa lawan",
     players: "SOLO • OFFLINE",
     accent: "#22c55e",
     accentSoft: "rgba(34,197,94,",
-    features: ["Target dummy & aim trainer", "Recoil wall", "Movement course"],
+    features: [
+      "Target dummy & bot aim trainer",
+      "Recoil wall 25 m",
+      "Marker jarak 5-30 m",
+    ],
     action: "MULAI LATIHAN",
   },
   {
@@ -66,19 +70,23 @@ const KEYFRAMES = `
 }
 `;
 
+import { MatchLobbySetup, TeamChoice } from "../ui/components/match/MatchLobbySetup";
+
 export function MainMenu() {
   const { setMode, nickname, setNickname, setServerMode, currentMap, setCurrentMap } = useGameStore();
   const [, setLocation] = useLocation();
   const [showBrowser, setShowBrowser] = useState(false);
+  const [showMatchLobby, setShowMatchLobby] = useState(false);
   const [selected, setSelected] = useState<ModeId>("match");
   const connect = useNetworkStore((s) => s.connect);
   const joinRoomById = useNetworkStore((s) => s.joinRoomById);
 
   const activeMode = MODES.find((m) => m.id === selected) ?? MODES[2];
 
-  const startMatch = () => {
+  const handleStart5v5 = (teamChoice: TeamChoice) => {
+    setShowMatchLobby(false);
     setServerMode("bomb_defusal");
-    connect(nickname, "bomb_defusal");
+    connect(nickname, "bomb_defusal", teamChoice);
     setMode("multiplayer");
     setLocation("/play");
   };
@@ -94,7 +102,7 @@ export function MainMenu() {
       setLocation("/zombie");
       return;
     }
-    startMatch();
+    setShowMatchLobby(true);
   };
 
   const handleJoinRoom = (roomId: string) => {
@@ -507,7 +515,14 @@ export function MainMenu() {
         <ServerBrowser
           onClose={() => setShowBrowser(false)}
           onJoinRoom={handleJoinRoom}
-          onCreateRoom={startMatch}
+          onCreateRoom={() => setShowMatchLobby(true)}
+        />
+      )}
+
+      {showMatchLobby && (
+        <MatchLobbySetup
+          onStart={handleStart5v5}
+          onBack={() => setShowMatchLobby(false)}
         />
       )}
     </div>

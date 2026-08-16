@@ -13,6 +13,16 @@ interface Target {
   isAlive: boolean
 }
 
+export interface PlayerInputState {
+  forward: boolean
+  backward: boolean
+  left: boolean
+  right: boolean
+  sprint: boolean
+  slide: boolean
+  airborne: boolean
+}
+
 interface TrainingStats {
   kills: number
   headshots: number
@@ -34,13 +44,7 @@ interface GameState {
   isTimerRunning: boolean
   botDifficulty: number
   botCount: number
-  lastInput: {
-    forward: boolean
-    backward: boolean
-    left: boolean
-    right: boolean
-    sprint: boolean
-  } | null
+  lastInput: PlayerInputState | null
   spectatorTargetIndex: number
   shootEvent: number
   tracerEvent: { start: { x: number; y: number; z: number }; end: { x: number; y: number; z: number } } | null
@@ -54,15 +58,7 @@ interface GameState {
   setCurrentMap: (map: string) => void
   setBotDifficulty: (diff: number) => void
   setBotCount: (count: number) => void
-  setLastInput: (
-    input: {
-      forward: boolean
-      backward: boolean
-      left: boolean
-      right: boolean
-      sprint: boolean
-    } | null
-  ) => void
+  setLastInput: (input: PlayerInputState | null) => void
   setSpectatorTargetIndex: (index: number) => void
   addTarget: (target: Target) => void
   removeTarget: (id: string) => void
@@ -132,15 +128,7 @@ export const useGameStore = create<GameState>()((set, get) => {
       set({ botCount: Math.max(1, Math.min(5, count)) })
     },
 
-    setLastInput: (
-      input: {
-        forward: boolean
-        backward: boolean
-        left: boolean
-        right: boolean
-        sprint: boolean
-      } | null
-    ) => {
+    setLastInput: (input: PlayerInputState | null) => {
       set({ lastInput: input })
     },
 

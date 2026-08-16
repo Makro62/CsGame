@@ -6,45 +6,7 @@ import { WEAPONS } from '@cs-game/shared'
 import { useWeaponStore } from '../../stores/useWeaponStore'
 import { useGameStore } from '../../stores/useGameStore'
 import { WeaponAnimator } from './WeaponAnimator'
-
-const WEAPON_POSITIONS: Record<string, [number, number, number]> = {
-  ak47: [0.22, -0.22, -0.40],
-  m4a1: [0.22, -0.22, -0.40],
-  awp: [0.24, -0.24, -0.46],
-  mp5: [0.21, -0.21, -0.36],
-  deagle: [0.17, -0.17, -0.32],
-  glock: [0.16, -0.16, -0.29],
-  tec9: [0.16, -0.16, -0.29],
-  autopistol: [0.16, -0.16, -0.29],
-  knife: [0.18, -0.18, -0.28],
-  combatknife: [0.18, -0.18, -0.28],
-}
-
-const WEAPON_ROTATIONS: Record<string, [number, number, number]> = {
-  ak47: [-0.02, -0.05, 0.02],
-  m4a1: [-0.02, -0.05, 0.02],
-  awp: [-0.01, -0.04, 0.01],
-  mp5: [-0.02, -0.05, 0.02],
-  deagle: [-0.01, -0.03, 0.02],
-  glock: [-0.01, -0.03, 0.02],
-  tec9: [-0.01, -0.03, 0.02],
-  autopistol: [-0.01, -0.03, 0.02],
-  knife: [0.06, -0.08, -0.05],
-  combatknife: [0.06, -0.08, -0.05],
-}
-
-const ADS_POSITIONS: Record<string, [number, number, number]> = {
-  ak47: [0, -0.145, -0.30],
-  m4a1: [0, -0.145, -0.30],
-  awp: [0, -0.155, -0.32],
-  mp5: [0, -0.135, -0.26],
-  deagle: [0, -0.125, -0.24],
-  glock: [0, -0.120, -0.23],
-  tec9: [0, -0.120, -0.23],
-  autopistol: [0, -0.120, -0.23],
-  knife: [0.18, -0.18, -0.28],
-  combatknife: [0.18, -0.18, -0.28],
-}
+import { WEAPON_POSITIONS, WEAPON_ROTATIONS, ADS_POSITIONS } from './weaponRig'
 
 const weaponAnimator = new WeaponAnimator()
 
@@ -67,7 +29,6 @@ function useStudioEnvironment() {
 export function WeaponModel() {
   const groupRef = useRef<THREE.Group>(null)
   const recoilGroupRef = useRef<THREE.Group>(null)
-  const leftGunRef = useRef<THREE.Group>(null)
   const { activeWeapon, recoilOffset, isReloading, isSwitching, isADS } =
     useWeaponStore()
 
@@ -137,10 +98,8 @@ export function WeaponModel() {
     }
   }, [isSwitching])
 
-  useFrame(({ camera, clock }) => {
+  useFrame(({ camera }, dt) => {
     if (!groupRef.current || !recoilGroupRef.current || !activeWeapon) return
-
-    const dt = clock.getDelta()
 
     weaponAnimator.update(dt)
     weaponAnimator.updateBob(dt, moveIntensity.current * 5, moveIntensity.current > 1, isMoving.current)
@@ -189,12 +148,6 @@ export function WeaponModel() {
 
     recoilGroupRef.current.position.set(posX, posY, posZ)
     recoilGroupRef.current.rotation.set(rotX, rotY, rotZ)
-
-    // Akimbo / Dual Pistols: left-hand pistol is 100% symmetrical to the right gun
-    if (leftGunRef.current && activeWeapon === 'deagle') {
-      leftGunRef.current.position.set(-posX, posY, posZ)
-      leftGunRef.current.rotation.set(rotX, -rotY, -rotZ)
-    }
   })
 
   if (!activeWeapon) return null
@@ -213,11 +166,6 @@ export function WeaponModel() {
         {activeWeapon === 'knife' && <KnifeModel />}
         {activeWeapon === 'combatknife' && <CombatKnifeModel />}
       </group>
-      {activeWeapon === 'deagle' && (
-        <group ref={leftGunRef} name="deagle-left">
-          <DeagleModel />
-        </group>
-      )}
     </group>
   )
 }
@@ -286,102 +234,24 @@ function AK47Model() {
         <boxGeometry args={[0.004, 0.02, 0.012]} />
         <meshStandardMaterial color="#484848" />
       </mesh>
-      {/* Scope rail — PICATINNY on receiver top cover (replaces rear sight) */}
-      <mesh position={[0, 0.047, -0.02]}>
-        <boxGeometry args={[0.03, 0.006, 0.16]} />
+      {/* Rear sight block — leaf sight on the rear of the gas tube */}
+      <mesh position={[0, 0.044, -0.055]}>
+        <boxGeometry args={[0.03, 0.014, 0.028]} />
         <meshStandardMaterial color="#3c3c3c" metalness={0.55} roughness={0.4} />
       </mesh>
-      {/* Scope rail teeth */}
-      {[0, 1, 2, 3].map(i => (
-        <mesh key={`railtooth-${i}`} position={[0, 0.0505, -0.07 + i * 0.022]}>
-          <boxGeometry args={[0.024, 0.003, 0.008]} />
-          <meshStandardMaterial color="#4a4a4a" metalness={0.55} roughness={0.4} />
-        </mesh>
-      ))}
-      {/* PSO-1 scope mount — front & rear bracket bases */}
-      <mesh position={[0, 0.052, 0.03]}>
-        <boxGeometry args={[0.024, 0.01, 0.04]} />
-        <meshStandardMaterial color="#3a3a3a" metalness={0.6} roughness={0.35} />
+      {/* Rear sight notch */}
+      <mesh position={[0, 0.053, -0.055]}>
+        <boxGeometry args={[0.01, 0.006, 0.02]} />
+        <meshStandardMaterial color="#1c1c1c" />
       </mesh>
-      <mesh position={[0, 0.052, -0.08]}>
-        <boxGeometry args={[0.024, 0.01, 0.04]} />
-        <meshStandardMaterial color="#3a3a3a" metalness={0.6} roughness={0.35} />
+      {/* Rear sight ears */}
+      <mesh position={[0.012, 0.052, -0.055]}>
+        <boxGeometry args={[0.005, 0.014, 0.02]} />
+        <meshStandardMaterial color="#484848" metalness={0.5} roughness={0.45} />
       </mesh>
-      {/* Mount rings — clamp around the tube */}
-      <mesh position={[0, 0.057, 0.03]}>
-        <boxGeometry args={[0.024, 0.013, 0.014]} />
-        <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.35} />
-      </mesh>
-      <mesh position={[0, 0.057, -0.08]}>
-        <boxGeometry args={[0.024, 0.013, 0.014]} />
-        <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.35} />
-      </mesh>
-      {/* PSO-1 scope tube — compact body */}
-      <mesh position={[0, 0.062, -0.025]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.0105, 0.0105, 0.13, 14]} />
-        <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.35} />
-      </mesh>
-      {/* Objective bell — front flare */}
-      <mesh position={[0, 0.062, -0.095]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.0135, 0.0105, 0.028, 14]} />
-        <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.35} />
-      </mesh>
-      {/* Objective bell lip */}
-      <mesh position={[0, 0.062, -0.111]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.014, 0.0135, 0.006, 14]} />
-        <meshStandardMaterial color="#242424" metalness={0.55} roughness={0.4} />
-      </mesh>
-      {/* Front lens — red coated glass */}
-      <mesh position={[0, 0.062, -0.115]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.0125, 0.0125, 0.003, 16]} />
-        <meshStandardMaterial
-          color="#7a1424"
-          metalness={0.85}
-          roughness={0.08}
-          transparent
-          opacity={0.55}
-        />
-      </mesh>
-      {/* Eyepiece — rear flare */}
-      <mesh position={[0, 0.062, 0.045]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.0105, 0.013, 0.028, 14]} />
-        <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.35} />
-      </mesh>
-      {/* Rear lens — red coated glass */}
-      <mesh position={[0, 0.062, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.012, 0.012, 0.003, 16]} />
-        <meshStandardMaterial
-          color="#7a1424"
-          metalness={0.85}
-          roughness={0.08}
-          transparent
-          opacity={0.55}
-        />
-      </mesh>
-      {/* Elevation turret */}
-      <mesh position={[0, 0.0725, -0.03]}>
-        <cylinderGeometry args={[0.008, 0.008, 0.015, 10]} />
-        <meshStandardMaterial color="#2e2e2e" metalness={0.55} roughness={0.4} />
-      </mesh>
-      {/* Elevation turret cap */}
-      <mesh position={[0, 0.0805, -0.03]}>
-        <cylinderGeometry args={[0.009, 0.009, 0.005, 10]} />
-        <meshStandardMaterial color="#242424" metalness={0.55} roughness={0.4} />
-      </mesh>
-      {/* Windage turret — right side */}
-      <mesh position={[0.0155, 0.062, -0.03]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.006, 0.006, 0.012, 10]} />
-        <meshStandardMaterial color="#2e2e2e" metalness={0.55} roughness={0.4} />
-      </mesh>
-      {/* Parallax adjuster — left side */}
-      <mesh position={[-0.0155, 0.062, -0.055]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.0055, 0.0055, 0.01, 10]} />
-        <meshStandardMaterial color="#2e2e2e" metalness={0.55} roughness={0.4} />
-      </mesh>
-      {/* Eyecup — rubber rear ring */}
-      <mesh position={[0, 0.062, 0.072]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.013, 0.0125, 0.01, 14]} />
-        <meshStandardMaterial color="#111111" roughness={0.85} />
+      <mesh position={[-0.012, 0.052, -0.055]}>
+        <boxGeometry args={[0.005, 0.014, 0.02]} />
+        <meshStandardMaterial color="#484848" metalness={0.5} roughness={0.45} />
       </mesh>
       {/* Muzzle brake — angled frustum */}
       <mesh position={[0, 0.008, -0.425]} rotation={[Math.PI / 2, 0, 0]}>
@@ -530,39 +400,15 @@ function AK47Model() {
         <boxGeometry args={[0.006, 0.02, 0.045]} />
         <meshStandardMaterial color="#1c1c1c" />
       </mesh>
-      {/* Rail under handguard */}
-      <mesh position={[0, -0.034, -0.13]}>
-        <boxGeometry args={[0.035, 0.006, 0.14]} />
+      {/* Lower handguard retainer — where the wood meets the barrel */}
+      <mesh position={[0, -0.03, -0.205]}>
+        <boxGeometry args={[0.03, 0.016, 0.03]} />
         <meshStandardMaterial color="#4a4a4a" metalness={0.5} roughness={0.4} />
       </mesh>
-      {/* Spare mag — strapped on the front rail */}
-      <mesh position={[0, -0.055, -0.175]} rotation={[0.45, 0, 0]}>
-        <boxGeometry args={[0.03, 0.06, 0.05]} />
-        <meshStandardMaterial color="#3d3d3d" metalness={0.5} roughness={0.4} />
-      </mesh>
-      {/* Spare mag taper */}
-      <mesh position={[0, -0.082, -0.172]} rotation={[0.45, 0, 0]}>
-        <boxGeometry args={[0.022, 0.028, 0.042]} />
-        <meshStandardMaterial color="#383838" metalness={0.5} roughness={0.38} />
-      </mesh>
-      {/* Spare mag floor plate */}
-      <mesh position={[0, -0.09, -0.171]} rotation={[0.45, 0, 0]}>
-        <boxGeometry args={[0.034, 0.015, 0.054]} />
-        <meshStandardMaterial color="#555555" metalness={0.55} roughness={0.4} />
-      </mesh>
-      {/* Mag retention strap — clamps it to the rail */}
-      <mesh position={[0, -0.037, -0.175]} rotation={[0.45, 0, 0]}>
-        <boxGeometry args={[0.036, 0.009, 0.054]} />
-        <meshStandardMaterial color="#262626" roughness={0.6} />
-      </mesh>
-      {/* Strap side clamps */}
-      <mesh position={[0.024, -0.05, -0.175]} rotation={[0.45, 0, 0]}>
-        <boxGeometry args={[0.006, 0.062, 0.007]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      <mesh position={[-0.024, -0.05, -0.175]} rotation={[0.45, 0, 0]}>
-        <boxGeometry args={[0.006, 0.062, 0.007]} />
-        <meshStandardMaterial color="#333333" />
+      {/* Sling loop under the front sight */}
+      <mesh position={[0, -0.012, -0.235]}>
+        <boxGeometry args={[0.018, 0.012, 0.018]} />
+        <meshStandardMaterial color="#3a3a3a" metalness={0.6} roughness={0.3} />
       </mesh>
     </group>
   )

@@ -48,6 +48,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   private lastShotTimes = new Map<string, number>();
   private lastRepairTimes = new Map<string, number>();
   private activeMysteryBoxTimers = new Map<string, NodeJS.Timeout>();
+  private soloRevivesCount = new Map<string, number>();
 
   onCreate() {
     this.setState(new GameState());
@@ -125,6 +126,17 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.zombieCtrl.getAllZombies().forEach((zombie) => {
       this.state.zombies.set(zombie.id, zombie);
     });
+
+    // Auto-start wave 1 immediately if game is in waiting phase
+    if (this.state.phase === "waiting" && this.state.currentWave === 0) {
+      setTimeout(() => {
+        if (this.state.players.size > 0 && this.state.currentWave === 0) {
+          this.state.phase = "active";
+          this.waveSystem.startFirstWave();
+          this.broadcast("gameStarted", { wave: 1 });
+        }
+      }, 400);
+    }
   }
 
   onLeave(client: Client) {
@@ -285,11 +297,16 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       if (p.isDowned && !p.isDead) {
         p.downedTimer -= dt;
 
-        // Solo self-revive check with Quick Revive
-        if (p.hasQuickRevive && this.state.players.size === 1 && p.downedTimer <= 27 && !p.selfReviveUsed) {
-          p.selfReviveUsed = true;
+        // Solo self-revive (3 lives per solo match + Quick Revive bonus)
+        const isSolo = this.state.players.size === 1;
+        const revivesRemaining = this.soloRevivesCount.get(sessionId) ?? 3;
+
+        if (isSolo && p.downedTimer <= 26 && (revivesRemaining > 0 || p.hasQuickRevive)) {
+          if (!p.hasQuickRevive) {
+            this.soloRevivesCount.set(sessionId, revivesRemaining - 1);
+          }
           p.isDowned = false;
-          p.hp = 100;
+          p.hp = p.hasJuggernog ? 150 : 100;
           p.downedTimer = 0;
           this.broadcast("playerRevived", { targetId: sessionId, reviverId: sessionId, autoRevive: true });
         } else if (p.downedTimer <= 0) {
@@ -562,6 +579,11 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
     if (!(data.weapon in WEAPONS)) return;
     player.currentWeapon = data.weapon;
+    const stats = WEAPONS[data.weapon as keyof typeof WEAPONS];
+    if (stats) {
+      if (player.ammo <= 0) player.ammo = stats.mag;
+      if (player.reserveAmmo <= 0) player.reserveAmmo = stats.reserveAmmo;
+    }
   }
 
   private handleChat(client: Client, data: { message?: unknown }) {
@@ -582,11 +604,11 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   }
 
   private handleStartGame(client: Client) {
-    if (this.state.phase !== "waiting") return;
-
-    this.state.phase = "active";
-    this.waveSystem.startFirstWave();
-    this.broadcast("gameStarted", { wave: 1 });
+    if (this.state.currentWave === 0 || this.state.phase === "waiting" || this.state.waveState === "waiting" || this.state.waveState === "wave_clear") {
+      this.state.phase = "active";
+      this.waveSystem.startFirstWave();
+      this.broadcast("gameStarted", { wave: this.state.currentWave });
+    }
   }
 
   private handleBuyAmmo(client: Client) {

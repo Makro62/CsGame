@@ -513,6 +513,26 @@ export interface BuyRequest {
   item: string
 }
 
+export type BuyFailReason =
+  | 'not_buy_phase'
+  | 'outside_buy_zone'
+  | 'too_fast'
+  | 'unknown_item'
+  | 'wrong_team'
+  | 'no_money'
+  | 'already_owned'
+  | 'max_grenades'
+
+export interface BuyFailedMessage {
+  item: string
+  reason: BuyFailReason
+}
+
+export interface MeleeInput {
+  direction: { x: number; y: number; z: number }
+  timestamp: number
+}
+
 export interface BombPlantRequest {
   site: 'A' | 'B'
 }
@@ -707,10 +727,43 @@ export const WEAPONS = {
     fireRate: 2.5,
     mag: 1,
     reload: 0,
-    price: 0,
+    price: 500,
     team: 'both',
     reserveAmmo: 0,
   },
+} as const
+
+export type WeaponId = keyof typeof WEAPONS
+
+export const PRIMARY_WEAPONS = ['ak47', 'm4a1', 'awp', 'mp5'] as const
+export const SECONDARY_WEAPONS = ['deagle', 'glock', 'tec9', 'autopistol'] as const
+export const MELEE_WEAPONS = ['knife', 'combatknife'] as const
+
+export function isPrimaryWeapon(id: string): boolean {
+  return (PRIMARY_WEAPONS as readonly string[]).includes(id)
+}
+
+export function isSecondaryWeapon(id: string): boolean {
+  return (SECONDARY_WEAPONS as readonly string[]).includes(id)
+}
+
+export function isMeleeWeapon(id: string): boolean {
+  return (MELEE_WEAPONS as readonly string[]).includes(id)
+}
+
+/** Knife stats: melee only reaches arm's length and rewards flanking. */
+export const MELEE = {
+  range: 1.7,
+  /** Minimum dot(view, toTarget) so the swing only lands in front of you */
+  frontDot: 0.4,
+  /** Damage multiplier when the victim is facing away */
+  backstabMultiplier: 2.5,
+} as const
+
+/** Free pistol handed out at the start of every round, per team. */
+export const DEFAULT_PISTOL = {
+  T: 'glock',
+  CT: 'autopistol',
 } as const
 
 export const GEAR = {
@@ -1038,15 +1091,18 @@ export const ZOMBIE_MAP_BOUNDARY = {
 } as const;
 
 export const ZOMBIE_SPAWN = {
-  player: { x: 0, y: 0, z: -40 },
+  player: { x: 0, y: 0, z: -30 },
   safeHouse: { x: 0, y: 0, z: -40, radius: 15 },
   helipad: { x: 0, y: 0, z: 50, radius: 12 },
   spawnPoints: [
-    { x: 20, z: 40 },
-    { x: -20, z: 40 },
-    { x: 0, z: 45 },
-    { x: 25, z: 35 },
-    { x: -25, z: 35 },
+    { x: 15, z: -20 },
+    { x: -15, z: -20 },
+    { x: 22, z: -10 },
+    { x: -22, z: -10 },
+    { x: 0, z: 0 },
+    { x: 18, z: 15 },
+    { x: -18, z: 15 },
+    { x: 0, z: 30 },
   ],
 }
 

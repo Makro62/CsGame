@@ -16,9 +16,14 @@ import {
   MAP_BOUNDARY,
   GRENADE,
   GUN_GAME_WEAPONS,
+  DEFAULT_PISTOL,
+  MELEE,
+  isMeleeWeapon,
   ClientInput,
   ShootInput,
   BuyRequest,
+  BuyFailReason,
+  MeleeInput,
   BombPlantRequest,
   BombDefuseRequest,
   ThrowGrenadeInput,
@@ -218,6 +223,8 @@ export class GameRoom extends Room<GameState> {
 
       const weaponKey = shooter.currentWeapon as keyof typeof WEAPONS;
       if (!WEAPONS[weaponKey]) return;
+      // Knives go through the "melee" message; they must never hitscan.
+      if (isMeleeWeapon(shooter.currentWeapon)) return;
 
       if (!this.weaponManager.validateShootOrigin(shooter, data)) return;
 
@@ -293,7 +300,12 @@ export class GameRoom extends Room<GameState> {
     });
 
     this.onMessage("buy", (client, data: BuyRequest) => {
-      if (this.state.phase !== "buy") return;
+      const item = typeof data?.item === "string" ? data.item : "";
+      const reject = (reason: BuyFailReason) => {
+        client.send("buyFailed", { item, reason });
+      };
+
+      if (this.state.phase !== "buy") return reject("not_buy_phase");
 
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
@@ -301,7 +313,7 @@ export class GameRoom extends Room<GameState> {
       // Rate limit: 500ms cooldown per player for buy requests
       const now = performance.now();
       const lastBuy = this.lastBuyTime.get(client.sessionId) || 0;
-      if (now - lastBuy < 500) return;
+      if (now - lastBuy < 500) return reject("too_fast");
       this.lastBuyTime.set(client.sessionId, now);
 
       // Verify player is in buy zone
@@ -309,10 +321,65 @@ export class GameRoom extends Room<GameState> {
       if (buyZone) {
         const dx = player.x - buyZone.x;
         const dz = player.z - buyZone.z;
-        if (Math.sqrt(dx * dx + dz * dz) > buyZone.radius) return;
+        if (Math.sqrt(dx * dx + dz * dz) > buyZone.radius) return reject("outside_buy_zone");
       }
 
-      this.economyManager.processBuy(client.sessionId, data, this.state, this.broadcast.bind(this));
+      const result = this.economyManager.processBuy(client.sessionId, data, this.state);
+      if (!result.ok) return reject(result.reason);
+
+      this.broadcast("itemBought", {
+        playerId: client.sessionId,
+        item: result.item,
+        slot: result.slot,
+        currentWeapon: result.currentWeapon,
+      });
+    });
+
+    this.onMessage("melee", (client, data: MeleeInput) => {
+      const attacker = this.state.players.get(client.sessionId);
+      if (!attacker || attacker.isDead) return;
+      if (this.state.phase !== "active") return;
+
+      const weaponKey = attacker.currentWeapon as keyof typeof WEAPONS;
+      if (!isMeleeWeapon(attacker.currentWeapon) || !WEAPONS[weaponKey]) return;
+
+      const now = performance.now();
+      const lastFire = this.weaponManager.getLastFireTime(client.sessionId);
+      if (!this.antiCheat.validateFireRate(client.sessionId, weaponKey, lastFire, now)) return;
+      if (!this.weaponManager.canFire(client.sessionId, weaponKey)) return;
+
+      this.weaponManager.recordFire(client.sessionId);
+
+      const hit = this.weaponManager.checkMeleeHit(
+        client.sessionId,
+        attacker,
+        data?.direction,
+        this.state
+      );
+      if (!hit) return;
+
+      const victim = this.state.players.get(hit.victimId);
+      if (!victim || victim.isDead) return;
+      if (this.weaponManager.isSpawnProtected(this.spawnProtection, hit.victimId)) return;
+
+      // A knife ignores armor; a backstab is meant to be lethal.
+      const stats = WEAPONS[weaponKey];
+      const damage = hit.backstab
+        ? Math.round(stats.dmg * MELEE.backstabMultiplier)
+        : stats.dmg;
+      victim.hp -= damage;
+
+      this.broadcast("damage", {
+        shooterId: client.sessionId,
+        victimId: hit.victimId,
+        damage,
+        hp: victim.hp,
+        headshot: false,
+      });
+
+      if (victim.hp <= 0) {
+        this.handleKill(client.sessionId, attacker, hit.victimId, victim, weaponKey, false);
+      }
     });
 
     this.onMessage("switch_weapon", (client, data: { slot: number }) => {
@@ -339,20 +406,24 @@ export class GameRoom extends Room<GameState> {
         weapon = player.knifeSlot || "knife";
       }
 
-      if (!weapon) return;
+      if (!weapon) {
+        client.send("switchFailed", { slot });
+        return;
+      }
 
       const weaponStats = WEAPONS[weapon as keyof typeof WEAPONS];
       if (!weaponStats) return;
 
       player.currentWeapon = weapon;
 
-      // Load saved ammo for the target slot (or defaults if never used)
+      // Restore exactly what the slot was left with; refilling on switch would
+      // hand out free magazines.
       if (slot === 1 && player.primaryWeapon) {
-        player.ammo = player.primaryAmmo > 0 ? player.primaryAmmo : weaponStats.mag;
-        player.reserveAmmo = player.primaryReserveAmmo > 0 ? player.primaryReserveAmmo : weaponStats.reserveAmmo;
+        player.ammo = player.primaryAmmo;
+        player.reserveAmmo = player.primaryReserveAmmo;
       } else if (slot === 2 && player.secondaryWeapon) {
-        player.ammo = player.secondaryAmmo > 0 ? player.secondaryAmmo : weaponStats.mag;
-        player.reserveAmmo = player.secondaryReserveAmmo > 0 ? player.secondaryReserveAmmo : weaponStats.reserveAmmo;
+        player.ammo = player.secondaryAmmo;
+        player.reserveAmmo = player.secondaryReserveAmmo;
       } else {
         // Knife slot - no ammo needed
         player.ammo = 0;
@@ -365,6 +436,8 @@ export class GameRoom extends Room<GameState> {
         playerId: client.sessionId,
         weapon,
         slot,
+        ammo: player.ammo,
+        reserveAmmo: player.reserveAmmo,
       });
     });
 
@@ -775,7 +848,7 @@ export class GameRoom extends Room<GameState> {
     this.tickTimer = setTimeout(tick, TICK_MS);
   }
 
-  onJoin(client: Client, options: { nickname?: string }) {
+  onJoin(client: Client, options: { nickname?: string; team?: string; mode?: string }) {
     const playerCount = this.state.players.size;
 
     // Balance teams: count players per team
@@ -785,7 +858,10 @@ export class GameRoom extends Room<GameState> {
       if (p.team === "T") countT++;
       else countCT++;
     });
-    const team = countT <= countCT ? "T" : "CT";
+    const chosenTeam = (options.team === "T" || options.team === "CT")
+      ? options.team
+      : countT <= countCT ? "T" : "CT";
+    const team = chosenTeam;
     const spawn = SPAWN[team as keyof typeof SPAWN];
 
     const player = new PlayerState();
@@ -818,6 +894,9 @@ export class GameRoom extends Room<GameState> {
     });
 
     this.broadcast("playerCount", { count: this.state.players.size });
+
+    // Spawn tactical bots for 5v5 balance
+    this.backfillBots();
 
     if (this.state.phase === "waiting" && this.state.players.size >= 1) {
       this.startMatch();
@@ -1363,12 +1442,11 @@ export class GameRoom extends Room<GameState> {
       // Preserve player's weapons, just reset ammo
       const weaponStats = WEAPONS[player.currentWeapon as keyof typeof WEAPONS];
       if (weaponStats) {
-        player.ammo = weaponStats.mag;
-        player.reserveAmmo = weaponStats.reserveAmmo;
+        const melee = isMeleeWeapon(player.currentWeapon);
+        player.ammo = melee ? 0 : weaponStats.mag;
+        player.reserveAmmo = melee ? 0 : weaponStats.reserveAmmo;
       } else {
-        player.currentWeapon = "deagle";
-        player.ammo = WEAPONS.deagle.mag;
-        player.reserveAmmo = WEAPONS.deagle.reserveAmmo;
+        this.giveDefaultLoadout(player);
       }
       player.isReloading = false;
       player.armor = 0;
@@ -1564,12 +1642,7 @@ export class GameRoom extends Room<GameState> {
       p.deaths = 0;
       p.hasBomb = false;
       p.money = ECONOMY.startMoney;
-      p.currentWeapon = "deagle";
-      p.primaryWeapon = "";
-      p.secondaryWeapon = "deagle";
-      p.knifeSlot = "knife";
-      p.ammo = WEAPONS.deagle.mag;
-      p.reserveAmmo = WEAPONS.deagle.reserveAmmo;
+      this.giveDefaultLoadout(p);
       p.armor = 0;
       p.hasHelmet = false;
       p.hasDefuseKit = false;
@@ -1763,12 +1836,7 @@ export class GameRoom extends Room<GameState> {
         p.grenadeHE = 0;
         p.grenadeSmoke = 0;
         p.grenadeFlash = 0;
-        p.currentWeapon = "deagle";
-        p.primaryWeapon = "";
-        p.secondaryWeapon = "deagle";
-        p.knifeSlot = "knife";
-        p.ammo = WEAPONS.deagle.mag;
-        p.reserveAmmo = WEAPONS.deagle.reserveAmmo;
+        this.giveDefaultLoadout(p);
       });
 
       this.bombCtrl.bombCarrierId = null;
@@ -1816,12 +1884,7 @@ export class GameRoom extends Room<GameState> {
         p.grenadeHE = 0;
         p.grenadeSmoke = 0;
         p.grenadeFlash = 0;
-        p.currentWeapon = "deagle";
-        p.primaryWeapon = "";
-        p.secondaryWeapon = "deagle";
-        p.knifeSlot = "knife";
-        p.ammo = WEAPONS.deagle.mag;
-        p.reserveAmmo = WEAPONS.deagle.reserveAmmo;
+        this.giveDefaultLoadout(p);
       });
 
       this.bombCtrl.bombCarrierId = null;
@@ -1857,12 +1920,54 @@ export class GameRoom extends Room<GameState> {
       p.plantProgress = 0;
       p.defuseProgress = 0;
       p.hasBomb = false;
+      this.refillAmmo(p);
 
       const spawn = SPAWN[p.team as keyof typeof SPAWN];
       p.x = spawn.x;
       p.y = spawn.y;
       p.z = spawn.z;
     });
+  }
+
+  /** Team pistol + knife, the loadout everyone starts a fresh buy round with. */
+  private giveDefaultLoadout(player: PlayerState) {
+    const pistol =
+      DEFAULT_PISTOL[player.team as keyof typeof DEFAULT_PISTOL] ?? DEFAULT_PISTOL.T;
+    const stats = WEAPONS[pistol as keyof typeof WEAPONS];
+
+    player.currentWeapon = pistol;
+    player.primaryWeapon = "";
+    player.secondaryWeapon = pistol;
+    player.knifeSlot = "knife";
+    player.ammo = stats.mag;
+    player.reserveAmmo = stats.reserveAmmo;
+    player.primaryAmmo = 0;
+    player.primaryReserveAmmo = 0;
+    player.secondaryAmmo = stats.mag;
+    player.secondaryReserveAmmo = stats.reserveAmmo;
+    player.isReloading = false;
+  }
+
+  /** Top every owned slot back up, matching CS behaviour between rounds. */
+  private refillAmmo(player: PlayerState) {
+    const primary = WEAPONS[player.primaryWeapon as keyof typeof WEAPONS];
+    if (primary) {
+      player.primaryAmmo = primary.mag;
+      player.primaryReserveAmmo = primary.reserveAmmo;
+    }
+
+    const secondary = WEAPONS[player.secondaryWeapon as keyof typeof WEAPONS];
+    if (secondary) {
+      player.secondaryAmmo = secondary.mag;
+      player.secondaryReserveAmmo = secondary.reserveAmmo;
+    }
+
+    const current = WEAPONS[player.currentWeapon as keyof typeof WEAPONS];
+    if (current) {
+      const melee = isMeleeWeapon(player.currentWeapon);
+      player.ammo = melee ? 0 : current.mag;
+      player.reserveAmmo = melee ? 0 : current.reserveAmmo;
+    }
   }
 
   private assignBombToRandomT() {
@@ -1915,30 +2020,35 @@ export class GameRoom extends Room<GameState> {
   }
 
   private backfillBots() {
-    const humans = this.countHumans();
-    const targetBots = Math.max(0, Math.min(this.maxBots, 2 - humans));
-    const currentBots = this.botAgents.size;
-    const toAdd = targetBots - currentBots;
+    let tCount = 0;
+    let ctCount = 0;
+    this.state.players.forEach((p) => {
+      if (p.team === "T") tCount++;
+      else if (p.team === "CT") ctCount++;
+    });
 
-    for (let i = 0; i < toAdd; i++) {
+    const targetPerTeam = 5;
+    const tNeeded = Math.max(0, targetPerTeam - tCount);
+    const ctNeeded = Math.max(0, targetPerTeam - ctCount);
+
+    const spawnBotForTeam = (team: "T" | "CT") => {
       const botId = `bot_${++this.botSeq}`;
-      const team = (this.botSeq % 2 === 0) ? "T" : "CT";
-      const spawn = SPAWN[team as keyof typeof SPAWN];
+      const spawn = SPAWN[team];
       const botPlayer = new PlayerState();
-      botPlayer.x = spawn.x + (Math.random() - 0.5) * 10;
+      botPlayer.x = spawn.x + (Math.random() - 0.5) * 8;
       botPlayer.y = 0;
-      botPlayer.z = spawn.z + (Math.random() - 0.5) * 10;
+      botPlayer.z = spawn.z + (Math.random() - 0.5) * 8;
       botPlayer.team = team;
-      botPlayer.nickname = `Bot ${this.botSeq}`;
+      botPlayer.nickname = `Bot ${this.botSeq} (${team})`;
       botPlayer.hp = MAX_HP;
       botPlayer.isBot = true;
       botPlayer.botDifficulty = this.botDifficulty;
-      botPlayer.currentWeapon = "ak47";
-      botPlayer.primaryWeapon = "ak47";
+      botPlayer.currentWeapon = team === "T" ? "ak47" : "m4a1";
+      botPlayer.primaryWeapon = team === "T" ? "ak47" : "m4a1";
       botPlayer.secondaryWeapon = "deagle";
       botPlayer.knifeSlot = "knife";
-      botPlayer.ammo = WEAPONS.ak47.mag;
-      botPlayer.reserveAmmo = WEAPONS.ak47.reserveAmmo;
+      botPlayer.ammo = 30;
+      botPlayer.reserveAmmo = 90;
 
       this.state.players.set(botId, botPlayer);
 
@@ -1950,9 +2060,12 @@ export class GameRoom extends Room<GameState> {
         spawnPos: { x: botPlayer.x, z: botPlayer.z },
       };
       this.botAgents.set(botId, new BotAgent(config));
-    }
+    };
 
-    if (toAdd > 0) {
+    for (let i = 0; i < tNeeded; i++) spawnBotForTeam("T");
+    for (let i = 0; i < ctNeeded; i++) spawnBotForTeam("CT");
+
+    if (tNeeded > 0 || ctNeeded > 0) {
       this.broadcast("playerCount", { count: this.state.players.size });
     }
   }

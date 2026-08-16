@@ -4,6 +4,7 @@ import {
   WEAPONS,
   MAP_OBSTACLES,
   MAP_BOUNDARY,
+  MELEE,
   ShootInput,
 } from "@cs-game/shared";
 import { rayVsBox } from "../utils/geometry";
@@ -33,6 +34,12 @@ interface HitResult {
   zone: "head" | "torso" | "limbs";
   distance: number;
   wallbangFactor: number;
+}
+
+export interface MeleeHitResult {
+  victimId: string;
+  distance: number;
+  backstab: boolean;
 }
 
 export class WeaponManager {
@@ -247,6 +254,60 @@ export class WeaponManager {
     });
 
     return closestHit;
+  }
+
+  /**
+   * Knife hit test: closest enemy inside arm's reach and inside the forward
+   * cone. No lag compensation — at this range rewinding does more harm than good.
+   */
+  checkMeleeHit(
+    attackerId: string,
+    attacker: PlayerState,
+    direction: { x: number; y: number; z: number } | undefined,
+    state: GameState
+  ): MeleeHitResult | null {
+    if (!direction) return null;
+
+    const len = Math.sqrt(
+      direction.x * direction.x + direction.y * direction.y + direction.z * direction.z
+    );
+    if (len === 0) return null;
+
+    const dirX = direction.x / len;
+    const dirZ = direction.z / len;
+
+    let best: MeleeHitResult | null = null;
+
+    state.players.forEach((victim, id) => {
+      if (id === attackerId || victim.isDead) return;
+      if (state.gameMode !== "ffa" && victim.team === attacker.team) return;
+
+      const dx = victim.x - attacker.x;
+      const dz = victim.z - attacker.z;
+      const dy = victim.y - attacker.y;
+      if (Math.abs(dy) > 2) return;
+
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > MELEE.range) return;
+
+      // Point blank has no meaningful direction, so treat it as a hit.
+      if (dist > 0.01) {
+        const dot = (dx / dist) * dirX + (dz / dist) * dirZ;
+        if (dot < MELEE.frontDot) return;
+      }
+
+      // Backstab: our swing runs along the way the victim is facing, i.e. we
+      // came from behind. Player forward is (-sin, -cos) of rotationY.
+      const facingDot =
+        -Math.sin(victim.rotationY) * dirX + -Math.cos(victim.rotationY) * dirZ;
+      const backstab = facingDot > 0.5;
+
+      if (!best || dist < best.distance) {
+        best = { victimId: id, distance: dist, backstab };
+      }
+    });
+
+    return best;
   }
 
   calculateDamage(

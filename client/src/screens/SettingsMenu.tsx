@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSettingsStore } from '../stores/useSettingsStore'
+import { useNetworkStore } from '../stores/useNetworkStore'
 
 export default function SettingsMenu() {
   const [open, setOpen] = useState(false)
@@ -8,12 +9,22 @@ export default function SettingsMenu() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'p' || e.key === 'P') setOpen(v => !v)
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') setOpen(v => !v)
     }
+    const onOpen = () => setOpen(true)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('openSettings', onOpen)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('openSettings', onOpen)
+    }
   }, [])
+
+  const handleLeaveToMenu = () => {
+    setOpen(false)
+    useNetworkStore.getState().disconnect()
+    window.location.href = '/'
+  }
 
   // Read setters from store at event time to avoid closure staleness
   const handleSensitivityChange = (value: number) => {
@@ -190,19 +201,34 @@ export default function SettingsMenu() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 20 }}>
+          <button
+            onClick={handleLeaveToMenu}
+            style={{
+              padding: '10px 18px',
+              background: 'rgba(239, 68, 68, 0.2)',
+              color: '#f87171',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+          >
+            ← KELUAR KE MENU
+          </button>
           <button
             onClick={() => setOpen(false)}
             style={{
-              padding: '8px 16px',
+              padding: '10px 20px',
               background: '#3b82f6',
               color: 'white',
               border: 'none',
               borderRadius: 6,
               cursor: 'pointer',
+              fontWeight: 'bold',
             }}
           >
-            Close
+            LANJUT MAIN [RESUME]
           </button>
         </div>
       </div>

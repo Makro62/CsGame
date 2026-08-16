@@ -1,6 +1,10 @@
 import { useWeaponStore } from "../stores/useWeaponStore";
 import { useGameStore } from "../stores/useGameStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
+import {
+  getSpreadRadius,
+  getMovementState,
+} from "../game/weapons/RecoilController";
 
 export function Crosshair() {
   const { activeWeapon, isReloading, isSwitching, isADS, bulletsFired } = useWeaponStore();
@@ -9,20 +13,15 @@ export function Crosshair() {
 
   if (!activeWeapon || isReloading || isSwitching) return null;
 
-  // Calculate spread based on movement
-  const isMoving = lastInput && (lastInput.forward || lastInput.backward || lastInput.left || lastInput.right);
-  const isSprinting = lastInput?.sprint;
-  
-  // Base spread values
-  let spreadSize = 0;
-  if (!isADS) {
-    spreadSize = 4; // Base spread
-    if (isMoving) spreadSize += 4;
-    if (isSprinting) spreadSize += 8;
-    if (bulletsFired > 0) spreadSize += Math.min(bulletsFired * 0.5, 4);
-  } else {
-    spreadSize = 0; // ADS = perfect accuracy
-  }
+  // Same spread the shooting raycast uses. ShootingSystem offsets the ray by up
+  // to spread/2 in NDC, and NDC 1.0 is half the viewport height in pixels.
+  const spread = getSpreadRadius(
+    activeWeapon,
+    getMovementState(lastInput),
+    isADS,
+    bulletsFired
+  );
+  const spreadSize = Math.min((spread / 2) * (window.innerHeight / 2), 120);
 
   const sizeMultiplier = crosshairSize;
   const lineLength = 8 * sizeMultiplier;
