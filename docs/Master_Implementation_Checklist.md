@@ -106,23 +106,27 @@ Dokumen ini adalah daftar fitur yang telah **dikonfirmasi untuk diimplementasika
 
 ---
 
-## 5. 🗺️ Map, Environment & Training Range
+## 7. 🧟 Zombie Survival Mode (v3.0)
+
+> **Proses perbaikan:** [Impl_Zombie_Survival.md](Impl_Zombie_Survival.md) · **Defect list:** [Zombie_Survival_Code_Review.md](Zombie_Survival_Code_Review.md)  
+> **Catatan:** Banyak item di bawah pernah ditandai ✅ karena file komponen ada, tetapi wiring/bug masih terbuka. Status dikoreksi 16 Agustus 2026.
 
 | # | Fitur | Prioritas | Dependensi | Testing Criteria | Status |
 | :--- | :--- | :---: | :--- | :--- | :---: |
-| 62 | Map "Container Yard" 5 zona | 🟢 | Phase 1 | Tidak ada gap/clipping | ✅ Selesai |
-| 63 | Boks Kayu (wallbangable -50%) | 🟢 | #62 | Tembus 2 permukaan | ✅ Selesai (Dihitung di server `GameRoom.ts` `wallbangFactor` = 0.5) |
-| 64 | Tong Besi (bulletproof) | 🟢 | #62 | Peluru diblokir + spark | ✅ Selesai |
-| 65 | Kontainer L-Shape (ambush tunnel) | 🟢 | #62 | Pemain bisa masuk, hitbox solid | ✅ Selesai |
-| 66 | Ramp + Atap Kontainer (Site B high ground) | 🟢 | #62 | Autostep + snap-to-ground bekerja | ✅ Selesai |
-| 67 | Buy Zone T & CT (trigger 'B') | 🟢 | #62 | Sensor presisi 6×6m | ✅ Selesai |
-| 68 | Plant Zone A & B | 🟢 | #62 | Radius 8m terdeteksi | ✅ Selesai |
-| 69 | Pencahayaan Sunny Day | 🟢 | #62 | Shadow 2048, tanpa area terlalu gelap | ✅ Selesai |
-| 70 | Tembok Pembatas 7.2m | 🟢 | #62 | Tidak bisa overshoot jump | ✅ Selesai |
-| 71 | **Spawn Protection Zones (radius 5m)** | 🟡 | #62 | Spawn aman + invuln 1.5s | ✅ Selesai |
-| 72 | **Callout Labels (debug → produksi off)** | 🔵 | #62 | Label per spot strategis | ✅ Selesai (`MAP_CALLOUTS` di shared + `CalloutLabels.tsx`, toggle key V, off-by-default) |
-| 73 | **Minimap Data Export (top-down)** | 🟡 | #62 | 2D render cocok dengan map 3D | ✅ Selesai |
-| 74 | **Training Range Arena** | 🟡 | #62 | Dummy + aim trainer + movement course | ✅ Selesai |
+| 76 | **ZombieSurvivalRoom (`zombie_room`)** | 🟢 | Colyseus | Join room 1-4 player; **tidak** dual-connect `fps_room` | 🟨 Parsial (P0-1) |
+| 77 | **5 Zombie Types & Spawning** | 🟢 | Server AI | Walker, Runner, Tank, Spitter, Boss | 🟨 Parsial (Spitter/boss spawn bugs) |
+| 78 | **Wave System & Scaling** | 🟢 | Server AI | Escalating HP/Speed; pause on game over | 🟨 Bug (P0-5, P0-7) |
+| 79 | **Point Economy & Shop** | 🟢 | #76 | Poin 1× sync; perk/senjata tervalidasi server | 🟨 Bug (P1-1, P1-2) |
+| 80 | **Mystery Box Gacha** | 🟡 | #79 | Mounted + wired in-game | 🔲 Tidak wired (P1-3) |
+| 81 | **Pack-a-Punch Upgrade** | 🟡 | #79 | Mounted + event server | 🔲 Tidak wired (P1-3) |
+| 82 | **Map Outpost Z-7 & Area Unlock** | 🟢 | Map 3D | Arena OK; unlock proximity + state sync | 🟨 Parsial |
+| 83 | **Power-Ups (6 Types)** | 🟡 | #77 | Pickup protocol + nuke cleanup | 🔴 Rusak (P0-4, P0-6) |
+| 84 | **Procedural Audio System** | 🟢 | Web Audio | SFX library; waveClear wired | 🟨 Parsial |
+| 85 | **Leaderboard LocalStorage** | 🟡 | Client | Bisa dibuka in-game | 🟨 Parsial |
+| 86 | **A\* Pathfinding** | 🔵 | Map & AI | Throttled pathfinding | 🟨 Parsial (perf) |
+| 87 | **Downed & Revive Mechanic** | 🟡 | Player State | Co-op revive server-driven | 🟨 Parsial (P1-4) |
+| 88 | **Helipad Extraction Sequence** | 🟡 | Map & Wave | Evac + pause wave + server proximity | 🟨 Parsial |
+| 89 | **Interactive Barricade Repair** | 🔵 | Map 3D | Repair dengan cooldown; damage flag benar | 🟨 Parsial |
 
 ---
 
@@ -134,24 +138,11 @@ Dokumen ini adalah daftar fitur yang telah **dikonfirmasi untuk diimplementasika
 | Karakter & Movement | 15 | 10 | 5 | 15 ✅ (100%) |
 | Senjata & Utilitas | 14 | 8 | 6 | 14 ✅ (100%) |
 | Multiplayer & Jaringan | 15 | 10 | 5 | 15 ✅ (100%) |
-| Map, Environment & Training | 13 | 10 | 3 | 13 ✅ (100%) |
-| Game Modes | 1 | 0 | 1 | 1 ✅ (100%) |
-| **Total** | **75 task** | **48** | **27** | **75 ✅ (100%)** |
+| Map, Environment & Training | 13 | 10 | 3 | 13 ✅ v2.2 · perbaikan v3 → [Impl_Map…](Impl_Map_ContainerYard_v3.md) |
+| Game Modes (Classic/GunGame) | 1 | 0 | 1 | 1 ✅ (100%) |
+| Zombie Survival Mode (v3.0) | 14 | 8 | 6 | 🟨 ~60% fondasi — lihat Impl + Code Review |
+| **Total CS klasik** | **75 task** | **48** | **27** | **75 ✅** |
+| **Zombie (terpisah)** | **14 task** | **8** | **6** | **Belum playable co-op** |
 
-> **Catatan status:** ✅ = terverifikasi 100% di kode sumber • 🟨 = parsial • 🔲 = belum diimplementasikan.
-> **Silakan cek juga:** [Gameplay_Mechanics_Bible.md](Gameplay_Mechanics_Bible.md) (mekanik & balance) • [Krunker_Style_Roadmap.md](Krunker_Style_Roadmap.md) (roadmap terbuka)
-
----
-
-## 🗂️ Dependency Graph (Ringkas)
-
-```
-Phase 0 (Monorepo) → Phase 1 (Scene) → Phase 2 (Movement #18-22)
-                                        → #23-30 (Movement Tech)
-Phase 2.5 (Sync #47) → #33-40 (Weapons) → #42-44 (Grenades)
-Phase 3 (Combat: HP/Death/Kill) → #48 (Bomb) → #49 (Economy) → #2 (Buy Menu)
-Map (#62-74) mendukung #48, #67-68
-Training Range (#74) independen setelah Map MVP
-Game Modes: #75 Gun Game (post-MVP, FFA-style)
-Polishing: #11-17, #25-30, #56-61 (bertahap)
-```
+> **Catatan status:** ✅ = terverifikasi di kode + wiring · 🟨 = parsial/bug · 🔲 = belum · 🔴 = rusak.  
+> **Kerja aktif:** [Impl_Map_ContainerYard_v3.md](Impl_Map_ContainerYard_v3.md) · [Impl_Zombie_Survival.md](Impl_Zombie_Survival.md) · [Gameplay_Mechanics_Bible.md](Gameplay_Mechanics_Bible.md)

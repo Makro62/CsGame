@@ -47,6 +47,19 @@ export class PlayerState extends Schema {
   reconnectExpiresAt: number
   isBot: boolean
   botDifficulty: number
+  hasJuggernog: boolean
+  hasSpeedCola: boolean
+  hasDoubleTap: boolean
+  hasQuickRevive: boolean
+  selfReviveUsed: boolean
+  hasPackAPunch: boolean
+  isUsingMysteryBox: boolean
+  isDowned: boolean
+  downedTimer: number
+  downedBy: string
+  isReviving: boolean
+  reviveProgress: number
+  reviveTargetId: string
 
   constructor() {
     super()
@@ -92,6 +105,19 @@ export class PlayerState extends Schema {
     this.reconnectExpiresAt = 0
     this.isBot = false
     this.botDifficulty = 0
+    this.hasJuggernog = false
+    this.hasSpeedCola = false
+    this.hasDoubleTap = false
+    this.hasQuickRevive = false
+    this.selfReviveUsed = false
+    this.hasPackAPunch = false
+    this.isUsingMysteryBox = false
+    this.isDowned = false
+    this.downedTimer = 0
+    this.downedBy = ''
+    this.isReviving = false
+    this.reviveProgress = 0
+    this.reviveTargetId = ''
   }
 }
 
@@ -138,6 +164,19 @@ defineTypes(PlayerState, {
   reconnectExpiresAt: 'number',
   isBot: 'boolean',
   botDifficulty: 'number',
+  hasJuggernog: 'boolean',
+  hasSpeedCola: 'boolean',
+  hasDoubleTap: 'boolean',
+  hasQuickRevive: 'boolean',
+  selfReviveUsed: 'boolean',
+  hasPackAPunch: 'boolean',
+  isUsingMysteryBox: 'boolean',
+  isDowned: 'boolean',
+  downedTimer: 'number',
+  downedBy: 'string',
+  isReviving: 'boolean',
+  reviveProgress: 'number',
+  reviveTargetId: 'string',
 })
 
 // ─── Game State ─────────────────────────────────────────────────
@@ -159,6 +198,124 @@ defineTypes(SmokeState, {
   z: 'number',
   timeLeft: 'number',
 })
+
+// ─── Zombie State ───────────────────────────────────────────────
+export type ZombieType = 'walker' | 'runner' | 'tank' | 'spitter' | 'boss'
+
+export class ZombieState extends Schema {
+  id: string
+  type: ZombieType
+  x: number
+  y: number
+  z: number
+  hp: number
+  maxHp: number
+  speed: number
+  rotationY: number
+  targetId: string
+  isDead: boolean
+  isAttacking: boolean
+  attackCooldown: number
+
+  constructor() {
+    super()
+    this.id = ''
+    this.type = 'walker'
+    this.x = 0
+    this.y = 0
+    this.z = 0
+    this.hp = 100
+    this.maxHp = 100
+    this.speed = 2.5
+    this.rotationY = 0
+    this.targetId = ''
+    this.isDead = false
+    this.isAttacking = false
+    this.attackCooldown = 0
+  }
+}
+
+defineTypes(ZombieState, {
+  id: 'string',
+  type: 'string',
+  x: 'number',
+  y: 'number',
+  z: 'number',
+  hp: 'number',
+  maxHp: 'number',
+  speed: 'number',
+  rotationY: 'number',
+  targetId: 'string',
+  isDead: 'boolean',
+  isAttacking: 'boolean',
+  attackCooldown: 'number',
+})
+
+// ─── Barricade State ───────────────────────────────────────────
+export class BarricadeState extends Schema {
+  id: string
+  x: number
+  y: number
+  z: number
+  rotationY: number
+  boards: number
+  maxBoards: number
+  hp: number
+
+  constructor() {
+    super()
+    this.id = ''
+    this.x = 0
+    this.y = 0
+    this.z = 0
+    this.rotationY = 0
+    this.boards = 6
+    this.maxBoards = 6
+    this.hp = 100
+  }
+}
+
+defineTypes(BarricadeState, {
+  id: 'string',
+  x: 'number',
+  y: 'number',
+  z: 'number',
+  rotationY: 'number',
+  boards: 'number',
+  maxBoards: 'number',
+  hp: 'number',
+})
+
+// ─── PowerUp State ──────────────────────────────────────────────
+export class PowerUpState extends Schema {
+  id: string
+  type: PowerUpType
+  x: number
+  y: number
+  z: number
+  timeLeft: number
+
+  constructor() {
+    super()
+    this.id = ''
+    this.type = 'max_ammo'
+    this.x = 0
+    this.y = 0
+    this.z = 0
+    this.timeLeft = 0
+  }
+}
+
+defineTypes(PowerUpState, {
+  id: 'string',
+  type: 'string',
+  x: 'number',
+  y: 'number',
+  z: 'number',
+  timeLeft: 'number',
+})
+
+export type WaveState = 'waiting' | 'spawning' | 'active' | 'wave_clear' | 'inter_wave'
 
 export type RoundPhase = 'buy' | 'active' | 'roundEnd' | 'matchEnd' | 'waiting'
 
@@ -192,6 +349,24 @@ export class GameState extends Schema {
   kothCaptureProgress: number
   kothScoreT: number
   kothScoreCT: number
+  // Zombie survival fields
+  zombies: MapSchema<ZombieState>
+  currentWave: number
+  zombiesRemaining: number
+  waveState: WaveState
+  interWaveTimer: number
+  points: MapSchema<number>
+  powerUps: MapSchema<PowerUpState>
+  activePowerUp: string
+  powerUpTimer: number
+  mysteryBoxWeapon: string
+  mysteryBoxActive: boolean
+  unlockedAreas: MapSchema<number>
+  barricades: MapSchema<BarricadeState>
+  extractionActive: boolean
+  extractionTimer: number
+  extractionAvailable: boolean
+  evacSuccess: boolean
 
   constructor() {
     super()
@@ -226,6 +401,24 @@ export class GameState extends Schema {
     this.kothCaptureProgress = 0
     this.kothScoreT = 0
     this.kothScoreCT = 0
+    // Zombie survival
+    this.zombies = new MapSchema<ZombieState>()
+    this.currentWave = 0
+    this.zombiesRemaining = 0
+    this.waveState = 'waiting'
+    this.interWaveTimer = 0
+    this.points = new MapSchema<number>()
+    this.powerUps = new MapSchema<PowerUpState>()
+    this.activePowerUp = ""
+    this.powerUpTimer = 0
+    this.mysteryBoxWeapon = ""
+    this.mysteryBoxActive = false
+    this.unlockedAreas = new MapSchema<number>()
+    this.barricades = new MapSchema<BarricadeState>()
+    this.extractionActive = false
+    this.extractionTimer = 0
+    this.extractionAvailable = false
+    this.evacSuccess = false
   }
 }
 
@@ -259,6 +452,24 @@ defineTypes(GameState, {
   kothCaptureProgress: 'number',
   kothScoreT: 'number',
   kothScoreCT: 'number',
+  // Zombie survival
+  zombies: { map: ZombieState },
+  currentWave: 'number',
+  zombiesRemaining: 'number',
+  waveState: 'string',
+  interWaveTimer: 'number',
+  points: { map: 'number' },
+  powerUps: { map: PowerUpState },
+  activePowerUp: 'string',
+  powerUpTimer: 'number',
+  mysteryBoxWeapon: 'string',
+  mysteryBoxActive: 'boolean',
+  unlockedAreas: { map: 'number' },
+  barricades: { map: BarricadeState },
+  extractionActive: 'boolean',
+  extractionTimer: 'number',
+  extractionAvailable: 'boolean',
+  evacSuccess: 'boolean',
 })
 
 // ─── Interfaces ─────────────────────────────────────────────────
@@ -557,11 +768,14 @@ function box(id: string, material: ObstacleMaterial, cx: number, cy: number, cz:
   }
 }
 
-// ─── v2.2 3-Lane Layout ──────────────────────────────────────────
+// ─── v3.0 3-Lane Container Yard Layout ──────────────────────────
 export const MAP_OBSTACLES = [
   // ═══ MID LANE ═══
   // Mid Box Center — wallbangable cover in open field
   box('mid_box', 'wood', 0, 0.6, 0, 1.2, 1.2, 1.2),
+
+  // Mid Yellow Landmark Container — AWP peeking cover with counter angle
+  box('mid_yellow_container', 'metal', -2.5, 1.2, 3.5, 4.0, 2.4, 2.0),
 
   // T-Mid Barrels — solid iron cover for T peeking mid
   { id: 'mid_barrel_1', material: 'metal', minX: -15.35, maxX: -14.65, minY: 0, maxY: 1.5, minZ: -2.35, maxZ: -1.65 },
@@ -571,26 +785,35 @@ export const MAP_OBSTACLES = [
   box('mid_sniper_nest_L', 'metal', 15, 0.6, -2.5, 2.4, 1.2, 1.2),
   box('mid_sniper_nest_R', 'metal', 15, 0.6, 2.5, 2.4, 1.2, 1.2),
 
-  // ═══ SITE A (NORTH) ═══
-  // Site A Core — main container, bombsite planted beside it
+  // ═══ SITE A (NORTH, z ≈ -15) ═══
+  // Site A Core — main container, bombsite beside it
   box('site_a_core', 'metal', 15, 1.2, -15, 6.0, 2.4, 2.4),
 
-  // A-Main Choke — forces T into narrow entry, grenade bait
+  // A-Main Choke — forces T into narrow entry
   box('a_main_choke', 'metal', -5, 1.2, -15, 2.4, 2.4, 6.0),
 
-  // A Ninja Corner — stacked wood boxes for ninja defuse / hold angle
+  // Site A Corridor Cover — breaks long sightlines in A approach
+  box('site_a_corridor_box1', 'metal', 4, 1.2, -13.5, 3.0, 2.4, 1.5),
+  box('site_a_corridor_stack', 'wood', -0.5, 0.6, -16.5, 1.5, 1.2, 1.5),
+
+  // L-Choke A ↔ Mid
+  box('a_mid_choke_1', 'metal', 0, 1.2, -8, 2.4, 2.4, 2.4),
+  box('a_mid_choke_2', 'wood', 2.4, 0.6, -8, 2.4, 1.2, 1.2),
+
+  // A Ninja Corner — stacked wood boxes
   { id: 'a_ninja_box_1', material: 'wood', minX: 9.4, maxX: 10.6, minY: 0, maxY: 1.2, minZ: -18.6, maxZ: -17.4 },
   { id: 'a_ninja_box_2', material: 'wood', minX: 9.4, maxX: 10.6, minY: 1.2, maxY: 2.4, minZ: -18.6, maxZ: -17.4 },
 
-  // A-Connector — small wood cover for mid→A rotation
-  box('a_connector_box', 'wood', 5, 0.6, -8, 1.2, 1.2, 1.2),
+  // A-Connector wood cover
+  box('a_connector_box', 'wood', 5, 0.6, -5.5, 1.2, 1.2, 1.2),
 
-  // ═══ SITE B (SOUTH) ═══
+  // ═══ SITE B (SOUTH, z ≈ +15) ═══
   // B-Stack Bottom — main container pillar
   box('site_b_bottom', 'metal', 12, 1.2, 15, 6.0, 2.4, 2.4),
 
-  // B-Ramp — sloped surface (approximated as tilted box for physics)
-  { id: 'site_b_ramp', material: 'metal', minX: 5.6, maxX: 10.4, minY: 0, maxY: 2.4, minZ: 13.8, maxZ: 16.2 },
+  // B-Ramp — stepped solid physics matching visual ramp
+  box('site_b_ramp_1', 'metal', 6.5, 0.4, 15, 1.8, 0.8, 2.4),
+  box('site_b_ramp_2', 'metal', 8.3, 1.2, 15, 1.8, 1.6, 2.4),
 
   // B-Stack Top — elevated container for high ground
   box('site_b_top', 'metal', 13.8, 3.6, 15, 2.4, 2.4, 2.4),
@@ -598,11 +821,19 @@ export const MAP_OBSTACLES = [
   // B-Pillar Cover — iron cylinder for plant cover
   { id: 'site_b_plant_cover', material: 'metal', minX: 15.65, maxX: 16.35, minY: 0, maxY: 1.5, minZ: 11.65, maxZ: 12.35 },
 
-  // B-Tunnels — walls forming the tunnel corridor
+  // B-Tunnels
   box('b_tunnel_wall_1', 'metal', -5, 1.2, 12.5, 10.0, 2.4, 0.5),
   box('b_tunnel_wall_2', 'metal', -5, 1.2, 17.5, 10.0, 2.4, 0.5),
-  // B-Tunnel roof (blocks overhead grenades)
   box('b_tunnel_roof', 'metal', -5, 2.4, 15, 10.0, 0.3, 5.0),
+
+  // ═══ SPAWN LANDMARKS ═══
+  // T-Spawn Red Base
+  box('t_spawn_container_1', 'metal', -25, 1.2, -5, 3.0, 2.4, 2.0),
+  box('t_spawn_container_2', 'metal', -25, 1.2, 5, 3.0, 2.4, 2.0),
+
+  // CT-Spawn Blue Base
+  box('ct_spawn_container_1', 'metal', 25, 1.2, -5, 3.0, 2.4, 2.0),
+  box('ct_spawn_container_2', 'metal', 25, 1.2, 5, 3.0, 2.4, 2.0),
 
   // ═══ WALLS (Perimeter Map) ═══
   { id: 'wall_north', material: 'concrete', minX: -30, maxX: 30, minY: 0, maxY: 7.2, minZ: -20.5, maxZ: -20 },
@@ -610,12 +841,13 @@ export const MAP_OBSTACLES = [
   { id: 'wall_west', material: 'concrete', minX: -30.5, maxX: -30, minY: 0, maxY: 7.2, minZ: -20, maxZ: 20 },
   { id: 'wall_east', material: 'concrete', minX: 30, maxX: 30.5, minY: 0, maxY: 7.2, minZ: -20, maxZ: 20 },
 
-  // ═══ DECORATIVE PROPS ═══
-  { id: 'dec_crate_1', material: 'wood', minX: -4.4, maxX: -3.6, minY: 0, maxY: 0.6, minZ: 5.6, maxZ: 6.4 },
-  { id: 'dec_crate_2', material: 'wood', minX: 2.5, maxX: 3.5, minY: 0, maxY: 0.6, minZ: -6.3, maxZ: -5.7 },
-  { id: 'dec_bollard_1', material: 'metal', minX: 11.75, maxX: 12.25, minY: 0, maxY: 0.9, minZ: -2.25, maxZ: -1.75 },
-  { id: 'dec_bollard_2', material: 'metal', minX: 13.75, maxX: 14.25, minY: 0, maxY: 0.9, minZ: 1.75, maxZ: 2.25 },
-  { id: 'dec_panel', material: 'metal', minX: -7.25, maxX: -4.75, minY: 0, maxY: 0.5, minZ: -10.8, maxZ: -9.2 },
+  // ═══ GRID-ALIGNED DECORATIVE PROPS ═══
+  box('dec_crate_1', 'wood', -4, 0.3, 6, 1.2, 0.6, 1.2),
+  box('dec_crate_2', 'wood', 3, 0.3, -6, 1.2, 0.6, 1.2),
+  box('dec_crate_a_approach', 'wood', 8, 0.3, -12, 1.2, 0.6, 1.2),
+  box('dec_crate_b_ramp', 'wood', 4, 0.3, 13.5, 1.2, 0.6, 1.2),
+  box('dec_bollard_1', 'metal', 12, 0.45, -2, 0.5, 0.9, 0.5),
+  box('dec_bollard_2', 'metal', 14, 0.45, 2, 0.5, 0.9, 0.5),
 ] as const satisfies readonly MapObstacle[]
 
 export const MAP_BOUNDARY = {
@@ -626,8 +858,6 @@ export const MAP_BOUNDARY = {
 } as const
 
 // ─── Callout Labels (strategic spot names) ───────────────────────
-// Shown when the player toggles callouts (V key). Mirrors the
-// 3-lane Container Yard layout built from MAP_OBSTACLES above.
 export interface MapCallout {
   id: string
   label: string
@@ -641,17 +871,17 @@ export const MAP_CALLOUTS: readonly MapCallout[] = [
   { id: 't_mid', label: 'T MID', x: -15, z: 0 },
   { id: 'ct_sniper', label: 'CT SNIPER', x: 15, z: 0 },
   // Site A
-  { id: 'site_a', label: 'SITE A', x: 15, z: -12 },
+  { id: 'site_a', label: 'SITE A', x: 15, z: -15 },
   { id: 'a_main', label: 'A MAIN', x: -5, z: -15 },
-  { id: 'a_connector', label: 'A CONNECTOR', x: 5, z: -8 },
+  { id: 'a_connector', label: 'A CONNECTOR', x: 2, z: -8 },
   { id: 'a_ninja', label: 'A NINJA', x: 10, z: -18 },
   // Site B
-  { id: 'site_b', label: 'SITE B', x: 12, z: 12 },
+  { id: 'site_b', label: 'SITE B', x: 12, z: 15 },
   { id: 'b_tunnel', label: 'B TUNNEL', x: -5, z: 15 },
   { id: 'b_ramp', label: 'B RAMP', x: 8, z: 15 },
   // Spawns
-  { id: 't_spawn', label: 'T SPAWN', x: -25, z: 0 },
-  { id: 'ct_spawn', label: 'CT SPAWN', x: 25, z: 0 },
+  { id: 't_spawn', label: 'T BASE', x: -25, z: 0 },
+  { id: 'ct_spawn', label: 'CT BASE', x: 25, z: 0 },
 ]
 
 // ─── Grenades ───────────────────────────────────────────────────
@@ -673,3 +903,221 @@ export const GRENADE = {
   maxThrowSpeed: 25, // anti-cheat clamp
   startPosOffset: 0.5, // spawn distance from camera
 } as const
+
+// ─── Zombie Survival Constants ──────────────────────────────────
+export type PowerUpType = "max_ammo" | "nuke" | "insta_kill" | "double_points" | "carpenter" | "fire_sale";
+
+export const POWER_UPS: Record<PowerUpType, { duration: number; description: string }> = {
+  max_ammo: { duration: 0, description: "Full ammo for all players" },
+  nuke: { duration: 0, description: "Kill all zombies on screen" },
+  insta_kill: { duration: 30, description: "One-hit kills for 30s" },
+  double_points: { duration: 30, description: "2x points for 30s" },
+  carpenter: { duration: 0, description: "Repair all barricades" },
+  fire_sale: { duration: 30, description: "Mystery box costs 10 points" },
+};
+
+export const POWER_UP_DROP_CHANCE = 0.15; // 15% chance per kill
+
+// ─── Mystery Box ────────────────────────────────────────────────
+export const MYSTERY_BOX = {
+  price: 950,
+  fireSalePrice: 10,
+  spinDuration: 4, // seconds
+  weapons: [
+    "ak47", "m4a1", "mp5", "awp",
+    "deagle", "glock", "tec9", "autopistol",
+  ] as const,
+  // Weighted probabilities (higher = more common)
+  weights: {
+    ak47: 20,
+    m4a1: 20,
+    mp5: 25,
+    awp: 5,
+    deagle: 15,
+    glock: 20,
+    tec9: 10,
+    autopistol: 10,
+  },
+} as const;
+
+// ─── Pack-a-Punch ──────────────────────────────────────────────
+export const PACK_A_PUNCH = {
+  price: 5000,
+  upgradeMultiplier: 1.5, // 1.5x damage
+  extraAmmoMultiplier: 1.5,
+  allowedWeapons: ["ak47", "m4a1", "mp5", "awp", "deagle"] as const,
+} as const;
+
+// ─── Map Progression (Unlockable Areas) ────────────────────────
+export interface MapArea {
+  id: string;
+  name: string;
+  price: number;
+  x: number;
+  z: number;
+  radius: number;
+  requires?: string;
+}
+
+export const ZOMBIE_MAP_AREAS: MapArea[] = [
+  { id: "spawn", name: "Safe House", price: 0, x: 0, z: -40, radius: 15 },
+  { id: "east_wing", name: "East Wing", price: 750, x: 20, z: -20, radius: 12, requires: "spawn" },
+  { id: "west_wing", name: "West Wing", price: 750, x: -20, z: -20, radius: 12, requires: "spawn" },
+  { id: "armory", name: "Armory", price: 1000, x: 0, z: 0, radius: 10, requires: "east_wing" },
+  { id: "helipad", name: "Helipad", price: 1250, x: 0, z: 30, radius: 15, requires: "west_wing" },
+  { id: "tower", name: "Watch Tower", price: 1500, x: 25, z: 25, radius: 8, requires: "armory" },
+  { id: "bunker", name: "Underground Bunker", price: 2000, x: -25, z: 25, radius: 10, requires: "helipad" },
+];
+
+export const ZOMBIE_TYPES: Record<ZombieType, { hp: number; speed: number; damage: number; color: number }> = {
+  walker:  { hp: 100, speed: 2.5, damage: 15, color: 0x4a6741 },
+  runner:  { hp: 60,  speed: 5.0, damage: 10, color: 0x8b4513 },
+  tank:    { hp: 400, speed: 1.5, damage: 30, color: 0x2c2c2c },
+  spitter: { hp: 80,  speed: 2.0, damage: 5,  color: 0x9acd32 },
+  boss:    { hp: 5000, speed: 3.0, damage: 50, color: 0x8b0000 },
+}
+
+export const WAVE_CONFIG = {
+  baseZombieCount: 6,
+  zombiesPerWave: 4,
+  interWaveTime: 20,      // seconds between waves (wave 1)
+  interWaveMinTime: 12,   // minimum inter-wave time
+  spawnDuration: 10,      // seconds to spawn all zombies in a wave
+  hpMultiplierPerWave: 0.15,
+  speedBonusPerWave: 0.03,
+  // Spawn points (4 corners of arena)
+  spawnPoints: [
+    { x: -55, z: -55 },
+    { x: 55, z: -55 },
+    { x: -55, z: 55 },
+    { x: 55, z: 55 },
+  ],
+  // Active spawn points per wave range
+  activeSpawns: [
+    { maxWave: 2, count: 1 },
+    { maxWave: 5, count: 2 },
+    { maxWave: 8, count: 3 },
+    { maxWave: Infinity, count: 4 },
+  ],
+  // Special zombie type unlock waves
+  specialUnlock: {
+    runner: 3,
+    tank: 5,
+    spitter: 7,
+    boss: 10,
+  },
+  // Special spawn chances (cumulative per wave)
+  specialChances: {
+    runner: 0.40,
+    tank: 0.25,
+    spitter: 0.15,
+    boss: 0.05,
+  },
+}
+
+export const ZOMBIE_POINTS = {
+  walker: 50,
+  runner: 75,
+  tank: 150,
+  spitter: 100,
+  boss: 500,
+  headshotBonus: 25,
+  knifeBonus: 100,
+  assistDamage: 10,
+  reviveAlly: 250,
+  barricadeRepair: 10,
+  waveClearBase: 500,
+  waveClearPerWave: 100,
+}
+
+export const ZOMBIE_MAP_BOUNDARY = {
+  minX: -60,
+  maxX: 60,
+  minZ: -60,
+  maxZ: 60,
+} as const;
+
+export const ZOMBIE_SPAWN = {
+  player: { x: 0, y: 0, z: -40 },
+  safeHouse: { x: 0, y: 0, z: -40, radius: 15 },
+  helipad: { x: 0, y: 0, z: 50, radius: 12 },
+  spawnPoints: [
+    { x: 20, z: 40 },
+    { x: -20, z: 40 },
+    { x: 0, z: 45 },
+    { x: 25, z: 35 },
+    { x: -25, z: 35 },
+  ],
+}
+
+export const BARRICADE_CONFIG = {
+  maxBoards: 6,
+  repairTimePerBoard: 0.5,
+  pointsPerRepair: 10,
+  hitsPerBoard: 2,
+  locations: [
+    { id: 'barricade_1', x: -15, y: 0, z: -20, rot: 0.3 },
+    { id: 'barricade_2', x: 15, y: 0, z: -20, rot: -0.2 },
+    { id: 'barricade_3', x: -8, y: 0, z: 0, rot: 0.5 },
+    { id: 'barricade_4', x: 10, y: 0, z: 10, rot: -0.4 },
+    { id: 'barricade_5', x: -20, y: 0, z: 20, rot: 0.1 },
+    { id: 'barricade_6', x: 25, y: 0, z: -5, rot: -0.3 },
+  ],
+} as const;
+
+export const EXTRACTION_CONFIG = {
+  unlockWave: 10,
+  manualCost: 5000,
+  manualMinWave: 5,
+  duration: 30, // seconds
+  helipadRadius: 12,
+  helipadPos: { x: 0, y: 0, z: 50 },
+  spawnMultiplier: 3.0,
+  bonusPoints: 5000,
+} as const;
+
+export const PAP_WEAPON_VARIANTS: Record<string, { name: string; damageBonus: number; effect: string; color: string }> = {
+  ak47: { name: "AK-117 Inferno", damageBonus: 1.5, effect: "fire_dot", color: "#ff4500" },
+  m4a1: { name: "M4A4 Hellfire", damageBonus: 1.5, effect: "explosive", color: "#ff8c00" },
+  awp: { name: "AWP Thunderbolt", damageBonus: 1.5, effect: "chain_lightning", color: "#00bfff" },
+  mp5: { name: "MP5-K Venom", damageBonus: 1.5, effect: "poison_dot", color: "#32cd32" },
+  deagle: { name: "Deagle Apocalypse", damageBonus: 1.5, effect: "pierce", color: "#9932cc" },
+};
+
+export interface NavNode {
+  id: string;
+  x: number;
+  z: number;
+  neighbors: string[];
+}
+
+export const NAVMESH_NODES: NavNode[] = [
+  // Safe House
+  { id: "sh_inside", x: 0, z: -40, neighbors: ["sh_east", "sh_west"] },
+  { id: "sh_east", x: 15, z: -35, neighbors: ["sh_inside", "courtyard_s", "barricade_1"] },
+  { id: "sh_west", x: -15, z: -35, neighbors: ["sh_inside", "courtyard_s", "barricade_2"] },
+
+  // Courtyard & Wings
+  { id: "courtyard_s", x: 0, z: -20, neighbors: ["sh_east", "sh_west", "courtyard_c", "barricade_3"] },
+  { id: "courtyard_c", x: 0, z: 0, neighbors: ["courtyard_s", "courtyard_n", "east_wing", "west_wing", "mystery_box"] },
+  { id: "courtyard_n", x: 0, z: 20, neighbors: ["courtyard_c", "helipad_s", "barricade_4", "barricade_5"] },
+  { id: "mystery_box", x: 0, z: 5, neighbors: ["courtyard_c"] },
+
+  { id: "east_wing", x: 20, z: -10, neighbors: ["courtyard_c", "tower"] },
+  { id: "west_wing", x: -20, z: -10, neighbors: ["courtyard_c", "bunker"] },
+  { id: "tower", x: 25, z: 20, neighbors: ["east_wing", "courtyard_n"] },
+  { id: "bunker", x: -25, z: 20, neighbors: ["west_wing", "courtyard_n"] },
+
+  // Helipad
+  { id: "helipad_s", x: 0, z: 35, neighbors: ["courtyard_n", "helipad_c"] },
+  { id: "helipad_c", x: 0, z: 50, neighbors: ["helipad_s"] },
+
+  // Barricades
+  { id: "barricade_1", x: -15, z: -20, neighbors: ["sh_west", "courtyard_s"] },
+  { id: "barricade_2", x: 15, z: -20, neighbors: ["sh_east", "courtyard_s"] },
+  { id: "barricade_3", x: -8, z: 0, neighbors: ["courtyard_s", "courtyard_c"] },
+  { id: "barricade_4", x: 10, z: 10, neighbors: ["courtyard_n", "tower"] },
+  { id: "barricade_5", x: -20, z: 20, neighbors: ["courtyard_n", "bunker"] },
+  { id: "barricade_6", x: 25, z: -5, neighbors: ["east_wing", "sh_east"] },
+];
+

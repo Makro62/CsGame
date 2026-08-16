@@ -2,7 +2,7 @@
 
 Standar UI/HUD **CSS murni** tanpa file gambar eksternal. Semua ikon/efek/overlay dibuat dari properti CSS3.
 
-> **Referensi:** [Design_UI_Flow_Geometry.md](Design_UI_Flow_Geometry.md) (alur layar) • [Impl_Guide_New_UI_System.md](Impl_Guide_New_UI_System.md) (component library aktif) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md) (daftar HUD lengkap)
+> **Referensi:** [Design_UI_Flow_Geometry.md](Design_UI_Flow_Geometry.md) (alur layar) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md) (daftar HUD lengkap) • kode: `client/src/ui/components/`
 
 ---
 
@@ -13,14 +13,14 @@ Standar UI/HUD **CSS murni** tanpa file gambar eksternal. Semua ikon/efek/overla
 | Zero HTTP request untuk ikon | Tidak ada `.png/.svg/.webp` untuk HUD |
 | CSS Geometry | `border-radius`, `clip-path`, `box-shadow`, `::before/::after` |
 | Animasi CSS | `@keyframes` murni |
-| Component library | `GlassPanel`, `AnimatedNumber`, design tokens (lihat Impl_Guide_New_UI_System) |
+| Component library | `GlassPanel`, `AnimatedNumber`, design tokens di `client/src/ui/` |
 | Font | Google Fonts 1 CDN request (Outfit + Roboto Mono) |
 
 ---
 
 ## 2. CSS Design Tokens & Typography
 
-### 2.1 Design Tokens (konsisten dengan Impl_Guide_New_UI_System.md)
+### 2.1 Design Tokens (lihat komponen di `client/src/ui/`)
 
 ```css
 :root {

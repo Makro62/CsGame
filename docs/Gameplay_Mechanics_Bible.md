@@ -1,6 +1,6 @@
 # Gameplay Mechanics Bible (v2.0)
 
-> **Referensi:** [Design_Player.md](Design_Player.md) • [Design_Gameplay.md](Design_Gameplay.md) • [Design_Weapons.md](Design_Weapons.md) • [Design_Map_Layout.md](Design_Map_Layout.md) • [Impl_Guide_Movement.md](Impl_Guide_Movement.md)
+> **Referensi:** [Design_Player.md](Design_Player.md) • [Design_Gameplay.md](Design_Gameplay.md) • [Design_Weapons.md](Design_Weapons.md) • [Impl_Map_ContainerYard_v3.md](Impl_Map_ContainerYard_v3.md) (map aktif) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md)
 
 Dokumen ini adalah **satu-satunya sumber kebenaran** (single source of truth) untuk semua mekanika gameplay. Setiap angka di sini mengikat — client dan server HARUS membaca konstanta yang sama (`@cs-game/shared`), bukan hardcode duplikat.
 
@@ -107,7 +107,7 @@ Angka-angkanya diambil dari [Design_Player.md](Design_Player.md#4-movement-physi
 
 ## Chapter 8: Map Strategy (Dust2-like "SANDBOX")
 
-Referensi [Design_Map_Layout.md](Design_Map_Layout.md) — 60×40m:
+Referensi [Impl_Map_ContainerYard_v3.md](Impl_Map_ContainerYard_v3.md) — 60×40m (koordinat dari `shared/index.ts`):
 
 - **T-side routes:** long A (30s), mid (25s), short A (20s), B tunnels (28s), catwalk (26s).
 - **CT-side pinches:** mid doors, A box site, B site smoke.

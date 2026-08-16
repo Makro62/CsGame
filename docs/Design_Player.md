@@ -2,7 +2,7 @@
 
 Dokumen ini mencakup spesifikasi model 3D karakter, pembeda visual tim, presisi *hitbox*, FPV Arm model, fisika kematian, UI *nametag*, suara vokal — serta **(baru) Movement Physics Bible** lengkap dengan seluruh movement tech ala Krunker.io.
 
-> **Referensi silang:** [Design_Combat_Kill.md](Design_Combat_Kill.md) (damage/hitbox) • [Impl_Guide_Movement.md](Impl_Guide_Movement.md) (implementasi) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md) (alasan angka)
+> **Referensi silang:** [Design_Combat_Kill.md](Design_Combat_Kill.md) (damage/hitbox) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md) (alasan angka) • kode: `PlayerController.tsx`
 
 ---
 

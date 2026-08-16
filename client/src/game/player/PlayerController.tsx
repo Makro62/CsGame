@@ -14,6 +14,7 @@ import { usePlayerInput } from '../../hooks/usePlayerInput'
 import { useNetwork } from '../../hooks/useNetwork'
 import { useGameStore } from '../../stores/useGameStore'
 import { useNetworkStore } from '../../stores/useNetworkStore'
+import { useZombieNetworkStore } from '../../stores/useZombieNetworkStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useWeaponStore, type WeaponKey } from '../../stores/useWeaponStore'
 import { useKillCamStore } from '../../stores/useKillCamStore'
@@ -114,9 +115,13 @@ export function PlayerController() {
   const { world } = useRapier()
   const { getInput, getCrouchReleasedAt } = usePlayerInput()
   const nickname = useGameStore(s => s.nickname)
+  const mode = useGameStore(s => s.mode)
+  const isZombieMode = mode === 'zombie'
   const { sendPlayerInput, reconcile, lastSnapshot } = useNetwork(nickname)
   const { slideControl } = useSettingsStore()
   const localIsDead = useNetworkStore(s => s.localIsDead)
+  const zombieIsDead = useZombieNetworkStore(s => s.localIsDead)
+  const effectiveIsDead = isZombieMode ? zombieIsDead : localIsDead
   const remotePlayers = useNetworkStore(s => s.remotePlayers)
   const localWeapon = useNetworkStore(s => s.localWeapon)
   const localHasBomb = useNetworkStore(s => s.localHasBomb)
@@ -127,6 +132,9 @@ export function PlayerController() {
   // Never spawn at (0,0,0): the Mid Box container sits at the map center and
   // the character controller would be stuck inside its collider.
   const [initialSpawn] = useState<[number, number, number]>(() => {
+    if (isZombieMode) {
+      return [0, TOTAL_HEIGHT / 2 + 0.05, -30]
+    }
     const net = useNetworkStore.getState()
     if (net.localX !== 0 || net.localZ !== 0) {
       return [net.localX, TOTAL_HEIGHT / 2 + 0.01, net.localZ]
@@ -263,7 +271,7 @@ export function PlayerController() {
     const dt = Math.min((now - lastFrameTime.current) / 1000, 0.05)
     lastFrameTime.current = now
 
-    if (localIsDead) {
+    if (effectiveIsDead) {
       // Kill cam replay
       const killCam = useKillCamStore.getState()
       if (killCam.isReplaying) {
@@ -335,10 +343,14 @@ export function PlayerController() {
     }
 
     // Server reconciliation
-    if (lastSnapshot) {
+    const activeSnapshot = isZombieMode
+      ? useZombieNetworkStore.getState().lastSnapshot
+      : lastSnapshot
+
+    if (activeSnapshot) {
       const reconciled = reconcile(
         { x: _currentPos.x, y: _currentPos.y, z: _currentPos.z },
-        { x: lastSnapshot.x, y: lastSnapshot.y, z: lastSnapshot.z }
+        { x: activeSnapshot.x, y: activeSnapshot.y, z: activeSnapshot.z }
       )
       _currentPos.set(reconciled.x, reconciled.y, reconciled.z)
     }
@@ -668,16 +680,28 @@ export function PlayerController() {
     }
 
     // Send input to server
-    sendPlayerInput({
-      forward: input.forward,
-      backward: input.backward,
-      left: input.left,
-      right: input.right,
-      jump: input.jump,
-      sprint: input.sprint,
-      crouch: input.crouch,
-      rotationY: _euler.y,
-    })
+    if (isZombieMode) {
+      useZombieNetworkStore.getState().sendInput({
+        forward: input.forward,
+        backward: input.backward,
+        left: input.left,
+        right: input.right,
+        sprint: input.sprint,
+        rotationY: _euler.y,
+        seq: Date.now(),
+      })
+    } else {
+      sendPlayerInput({
+        forward: input.forward,
+        backward: input.backward,
+        left: input.left,
+        right: input.right,
+        jump: input.jump,
+        sprint: input.sprint,
+        crouch: input.crouch,
+        rotationY: _euler.y,
+      })
+    }
 
     // Update last input for weapon sway
     useGameStore.getState().setLastInput({

@@ -511,7 +511,7 @@ Final Damage = Base Damage × Hitbox Multiplier × Wallbang Modifier
 - **Duration:** 1.5s invulnerability
 - **Conditions:** Lost if shooting or leaving radius
 
-**Reference:** [Design_Map_Layout.md](docs/Design_Map_Layout.md) • [Gameplay_Mechanics_Bible.md](docs/Gameplay_Mechanics_Bible.md#chapter-8-map-strategy-dust2-like-sandbox)
+**Reference:** [Impl_Map_ContainerYard_v3.md](docs/Impl_Map_ContainerYard_v3.md) • [Gameplay_Mechanics_Bible.md](docs/Gameplay_Mechanics_Bible.md#chapter-8-map-strategy-dust2-like-sandbox)
 
 ---
 
@@ -894,14 +894,13 @@ Input (WASD)  ──── WebSocket ────►     Receive input
 | `docs/Design_Player.md` | Character + movement physics | 6 |
 | `docs/Design_Weapons.md` | Weapons + grenades | 7 |
 | `docs/Design_Combat_Kill.md` | Damage, death, spectator system | 8 |
-| `docs/Design_Map_Layout.md` | Map layout, callouts, rotation times | 9 |
+| `docs/Impl_Map_ContainerYard_v3.md` | Map CS perbaikan bentuk + visual + koordinat | 9 |
 | `docs/Design_Networking_Advanced.md` | Networking + anti-cheat | 10 |
 | `docs/Design_Audio.md` | 3D/2D audio system | 11 |
 | `docs/Design_CSS_UI_System.md` | Zero-asset CSS HUD specification | 12 |
 | `docs/Design_UI_Flow_Geometry.md` | User flow + 3D geometry specs | 13 |
-| `docs/Gameplay_Balance_Rationale.md` | Math behind all numbers + TTK analysis | 14 |
-| `docs/Impl_Guide_*.md` (5 files) | Step-by-step implementation guides | Build time |
-| `docs/Phase_*.md` (9 files) | Sequential build phase guides | Build time |
+| `docs/Impl_Zombie_Survival.md` | Zombie Survival proses perbaikan | Active |
+| `docs/Zombie_Survival_Code_Review.md` | Defect inventory P0–P3 | Active |
 
 ---
 

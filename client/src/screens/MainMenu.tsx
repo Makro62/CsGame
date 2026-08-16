@@ -5,35 +5,101 @@ import { useNetworkStore } from "../stores/useNetworkStore";
 import { ServerBrowser } from "../components/ServerBrowser";
 import { MAPS } from "../game/map/MapRegistry";
 
-const SERVER_MODES: { id: string; name: string; desc: string }[] = [
-  { id: "bomb_defusal", name: "BOMB DEFUSAL", desc: "5v5 • plant/defuse • buy economy" },
-  { id: "ffa", name: "FFA DEATHMATCH", desc: "Free-for-all • first to 20 kills" },
-  { id: "tdm", name: "TEAM DEATHMATCH", desc: "T vs CT • first to 75 kills" },
-  { id: "koth", name: "KING OF THE HILL", desc: "Capture zone • first to 3 captures" },
-  { id: "gun_game", name: "GUN GAME", desc: "FFA • level up per kill, first to knife wins" },
+type ModeId = "training" | "zombie" | "match";
+
+interface ModeCard {
+  id: ModeId;
+  glyph: string;
+  title: string;
+  tagline: string;
+  players: string;
+  accent: string;
+  accentSoft: string;
+  features: string[];
+  action: string;
+}
+
+const MODES: ModeCard[] = [
+  {
+    id: "training",
+    glyph: "◎",
+    title: "TRAINING RANGE",
+    tagline: "Latihan aim, recoil & movement tanpa lawan",
+    players: "SOLO • OFFLINE",
+    accent: "#22c55e",
+    accentSoft: "rgba(34,197,94,",
+    features: ["Target dummy & aim trainer", "Recoil wall", "Movement course"],
+    action: "MULAI LATIHAN",
+  },
+  {
+    id: "zombie",
+    glyph: "☣",
+    title: "ZOMBIE SURVIVAL",
+    tagline: "Co-op wave survival di Outpost Z-7",
+    players: "1-4 PEMAIN • CO-OP",
+    accent: "#dc2626",
+    accentSoft: "rgba(220,38,38,",
+    features: ["Wave & boss tiap 5 wave", "Point shop & Pack-a-Punch", "Helipad extraction"],
+    action: "MASUK OUTBREAK",
+  },
+  {
+    id: "match",
+    glyph: "⚔",
+    title: "COMPETITIVE 5V5",
+    tagline: "Bomb defusal klasik dengan buy economy",
+    players: "5V5 • ONLINE",
+    accent: "#3b82f6",
+    accentSoft: "rgba(59,130,246,",
+    features: ["Plant / defuse 15 ronde", "Buy menu & ekonomi", "Overtime 7-7"],
+    action: "QUICK JOIN 5V5",
+  },
 ];
 
+const KEYFRAMES = `
+@keyframes menuRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes menuGlow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+`;
+
 export function MainMenu() {
-  const { setMode, nickname, setNickname, serverMode, setServerMode, currentMap, setCurrentMap } = useGameStore();
+  const { setMode, nickname, setNickname, setServerMode, currentMap, setCurrentMap } = useGameStore();
   const [, setLocation] = useLocation();
   const [showBrowser, setShowBrowser] = useState(false);
+  const [selected, setSelected] = useState<ModeId>("match");
   const connect = useNetworkStore((s) => s.connect);
   const joinRoomById = useNetworkStore((s) => s.joinRoomById);
 
-  const handleQuickJoin = () => {
-    connect(nickname, serverMode);
+  const activeMode = MODES.find((m) => m.id === selected) ?? MODES[2];
+
+  const startMatch = () => {
+    setServerMode("bomb_defusal");
+    connect(nickname, "bomb_defusal");
     setMode("multiplayer");
     setLocation("/play");
+  };
+
+  const launchSelected = () => {
+    if (selected === "training") {
+      setMode("training");
+      setLocation("/training");
+      return;
+    }
+    if (selected === "zombie") {
+      setMode("zombie");
+      setLocation("/zombie");
+      return;
+    }
+    startMatch();
   };
 
   const handleJoinRoom = (roomId: string) => {
+    setServerMode("bomb_defusal");
     joinRoomById(roomId, nickname);
-    setMode("multiplayer");
-    setLocation("/play");
-  };
-
-  const handleCreateRoom = () => {
-    connect(nickname, serverMode);
     setMode("multiplayer");
     setLocation("/play");
   };
@@ -42,286 +108,408 @@ export function MainMenu() {
     <div
       style={{
         width: "100%",
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
-        display: "flex",
-        flexDirection: "column",
+        height: "100%",
+        overflowY: "auto",
+        background:
+          "radial-gradient(900px 520px at 18% 8%, rgba(59,130,246,0.16), transparent 60%)," +
+          "radial-gradient(760px 460px at 84% 82%, rgba(139,92,246,0.14), transparent 62%)," +
+          "linear-gradient(160deg, #0b1020 0%, #111a33 48%, #0c1428 100%)",
         fontFamily: "monospace",
         color: "white",
       }}
     >
+      <style>{KEYFRAMES}</style>
+
+      {/* Subtle grid overlay */}
       <div
         style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          padding: "40px 20px",
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px)," +
+            "linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)",
+          backgroundSize: "56px 56px",
+          maskImage: "radial-gradient(circle at 50% 40%, black 30%, transparent 78%)",
+          WebkitMaskImage: "radial-gradient(circle at 50% 40%, black 30%, transparent 78%)",
         }}
-      >
-        {/* Title */}
-        <h1
-          style={{
-            fontSize: "64px",
-            fontWeight: "bold",
-            margin: "0 0 8px 0",
-            textShadow: "0 0 20px rgba(59, 130, 246, 0.5)",
-          }}
-      >
-        CS WEB FPS
-      </h1>
-      <p
-        style={{
-          fontSize: "16px",
-          color: "#9ca3af",
-          margin: "0 0 32px 0",
-        }}
-      >
-        CS:GO / Krunker Style Browser FPS
-      </p>
+      />
 
-      {/* Nickname Input */}
-      <div style={{ marginBottom: "32px", textAlign: "center" }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: "12px",
-            color: "#6b7280",
-            marginBottom: "6px",
-            textTransform: "uppercase",
-          }}
-        >
-          Nickname
-        </label>
-        <input
-          type="text"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          maxLength={16}
-          style={{
-            padding: "10px 16px",
-            fontSize: "16px",
-            fontFamily: "monospace",
-            background: "rgba(255,255,255,0.1)",
-            border: "1px solid rgba(255,255,255,0.2)",
-            borderRadius: "8px",
-            color: "white",
-            textAlign: "center",
-            width: "240px",
-            outline: "none",
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = "rgba(59,130,246,0.6)";
-            e.currentTarget.style.boxShadow = "0 0 12px rgba(59,130,246,0.3)";
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
-            e.currentTarget.style.boxShadow = "none";
-          }}
-        />
-      </div>
-
-      {/* Mode Selection */}
-      <div style={{ marginBottom: "24px", textAlign: "center" }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: "12px",
-            color: "#6b7280",
-            marginBottom: "8px",
-            textTransform: "uppercase",
-          }}
-        >
-          Game Mode
-        </label>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-          {SERVER_MODES.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setServerMode(m.id)}
-              title={m.desc}
-              style={{
-                padding: "10px 14px",
-                fontSize: "13px",
-                fontWeight: "bold",
-                fontFamily: "monospace",
-                background:
-                  serverMode === m.id
-                    ? "rgba(59,130,246,0.35)"
-                    : "rgba(255,255,255,0.08)",
-                border:
-                  serverMode === m.id
-                    ? "1px solid rgba(59,130,246,0.8)"
-                    : "1px solid rgba(255,255,255,0.2)",
-                borderRadius: "8px",
-                color: serverMode === m.id ? "#93c5fd" : "#cbd5e1",
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-            >
-              {m.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Map Selection */}
-      <div style={{ marginBottom: "24px", textAlign: "center" }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: "12px",
-            color: "#6b7280",
-            marginBottom: "8px",
-            textTransform: "uppercase",
-          }}
-        >
-          Map
-        </label>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-          {MAPS.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setCurrentMap(m.id)}
-              title={m.description}
-              style={{
-                padding: "10px 14px",
-                fontSize: "13px",
-                fontWeight: "bold",
-                fontFamily: "monospace",
-                background:
-                  currentMap === m.id
-                    ? "rgba(139,92,246,0.35)"
-                    : "rgba(255,255,255,0.08)",
-                border:
-                  currentMap === m.id
-                    ? "1px solid rgba(139,92,246,0.8)"
-                    : "1px solid rgba(255,255,255,0.2)",
-                borderRadius: "8px",
-                color: currentMap === m.id ? "#c4b5fd" : "#cbd5e1",
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-            >
-              {m.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Menu Buttons */}
       <div
         style={{
+          position: "relative",
+          maxWidth: "1080px",
+          margin: "0 auto",
+          padding: "28px 24px 32px",
           display: "flex",
           flexDirection: "column",
-          gap: "16px",
-          width: "300px",
+          gap: "26px",
+          minHeight: "100%",
+          boxSizing: "border-box",
         }}
       >
-        <button
-          onClick={() => {
-            setMode("training");
-            setLocation("/training");
-          }}
+        {/* Top bar */}
+        <header
           style={{
-            padding: "16px 32px",
-            fontSize: "18px",
-            fontWeight: "bold",
-            backgroundColor: "#22c55e",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            transition: "transform 0.2s, box-shadow 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.05)";
-            e.currentTarget.style.boxShadow = "0 0 20px rgba(34, 197, 94, 0.5)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-            e.currentTarget.style.boxShadow = "none";
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "20px",
+            flexWrap: "wrap",
+            animation: "menuRise 0.4s ease both",
           }}
         >
-          TRAINING RANGE
-        </button>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <h1
+                style={{
+                  fontSize: "34px",
+                  fontWeight: "bold",
+                  letterSpacing: "6px",
+                  margin: 0,
+                  textShadow: "0 0 24px rgba(59,130,246,0.45)",
+                }}
+              >
+                CS WEB FPS
+              </h1>
+              <span
+                style={{
+                  fontSize: "10px",
+                  letterSpacing: "1.5px",
+                  padding: "4px 8px",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(59,130,246,0.45)",
+                  color: "#93c5fd",
+                  background: "rgba(59,130,246,0.12)",
+                }}
+              >
+                v3.0
+              </span>
+            </div>
+            <p style={{ margin: "6px 0 0", fontSize: "12px", letterSpacing: "2px", color: "#7c8aa5" }}>
+              BROWSER TACTICAL SHOOTER
+            </p>
+          </div>
 
-        <button
-          onClick={handleQuickJoin}
-          style={{
-            padding: "16px 32px",
-            fontSize: "18px",
-            fontWeight: "bold",
-            backgroundColor: "#3b82f6",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            transition: "transform 0.2s, box-shadow 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.05)";
-            e.currentTarget.style.boxShadow = "0 0 20px rgba(59, 130, 246, 0.5)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-            e.currentTarget.style.boxShadow = "none";
-          }}
-        >
-          QUICK JOIN
-        </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "10px", letterSpacing: "1.5px", color: "#6b7280" }}>NICKNAME</span>
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                maxLength={16}
+                style={{
+                  padding: "9px 14px",
+                  fontSize: "14px",
+                  fontFamily: "monospace",
+                  letterSpacing: "1px",
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.16)",
+                  borderRadius: "10px",
+                  color: "white",
+                  width: "180px",
+                  outline: "none",
+                  transition: "border-color 0.15s, box-shadow 0.15s",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(59,130,246,0.65)";
+                  e.currentTarget.style.boxShadow = "0 0 14px rgba(59,130,246,0.25)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.16)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+          </div>
+        </header>
 
-        <button
-          onClick={() => setShowBrowser(true)}
+        {/* Mode cards */}
+        <section
           style={{
-            padding: "16px 32px",
-            fontSize: "18px",
-            fontWeight: "bold",
-            backgroundColor: "#8b5cf6",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            transition: "transform 0.2s, box-shadow 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.05)";
-            e.currentTarget.style.boxShadow = "0 0 20px rgba(139, 92, 246, 0.5)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-            e.currentTarget.style.boxShadow = "none";
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: "16px",
           }}
         >
-          SERVER BROWSER
-        </button>
+          {MODES.map((mode, i) => {
+            const isActive = selected === mode.id;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => setSelected(mode.id)}
+                onDoubleClick={launchSelected}
+                style={{
+                  position: "relative",
+                  textAlign: "left",
+                  padding: "20px 20px 18px",
+                  borderRadius: "16px",
+                  cursor: "pointer",
+                  fontFamily: "monospace",
+                  color: "white",
+                  background: isActive
+                    ? `linear-gradient(155deg, ${mode.accentSoft}0.20) 0%, rgba(15,22,42,0.92) 62%)`
+                    : "rgba(255,255,255,0.045)",
+                  border: isActive
+                    ? `1px solid ${mode.accentSoft}0.75)`
+                    : "1px solid rgba(255,255,255,0.10)",
+                  boxShadow: isActive ? `0 14px 34px ${mode.accentSoft}0.22)` : "none",
+                  transform: isActive ? "translateY(-3px)" : "none",
+                  transition: "transform 0.18s, box-shadow 0.18s, border-color 0.18s, background 0.18s",
+                  animation: `menuRise 0.45s ease ${0.05 * i}s both`,
+                }}
+                onMouseEnter={(e) => {
+                  if (isActive) return;
+                  e.currentTarget.style.transform = "translateY(-3px)";
+                  e.currentTarget.style.borderColor = `${mode.accentSoft}0.45)`;
+                }}
+                onMouseLeave={(e) => {
+                  if (isActive) return;
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span
+                    style={{
+                      fontSize: "22px",
+                      width: "40px",
+                      height: "40px",
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: "12px",
+                      color: mode.accent,
+                      background: `${mode.accentSoft}0.14)`,
+                      border: `1px solid ${mode.accentSoft}0.35)`,
+                    }}
+                  >
+                    {mode.glyph}
+                  </span>
+                  {isActive && (
+                    <span
+                      style={{
+                        fontSize: "9px",
+                        letterSpacing: "1.5px",
+                        color: mode.accent,
+                        animation: "menuGlow 2s ease-in-out infinite",
+                      }}
+                    >
+                      ● SELECTED
+                    </span>
+                  )}
+                </div>
+
+                <h2
+                  style={{
+                    fontSize: "16px",
+                    letterSpacing: "1.5px",
+                    margin: "14px 0 6px",
+                    color: isActive ? "white" : "#dbe4f0",
+                  }}
+                >
+                  {mode.title}
+                </h2>
+                <p style={{ fontSize: "11.5px", lineHeight: 1.5, color: "#93a1b8", margin: "0 0 12px" }}>
+                  {mode.tagline}
+                </p>
+
+                <ul style={{ listStyle: "none", padding: 0, margin: "0 0 14px" }}>
+                  {mode.features.map((f) => (
+                    <li
+                      key={f}
+                      style={{
+                        fontSize: "11px",
+                        color: "#8494ad",
+                        padding: "2px 0",
+                        display: "flex",
+                        gap: "8px",
+                      }}
+                    >
+                      <span style={{ color: mode.accent }}>›</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <span
+                  style={{
+                    fontSize: "9.5px",
+                    letterSpacing: "1.5px",
+                    padding: "4px 9px",
+                    borderRadius: "999px",
+                    color: mode.accent,
+                    background: `${mode.accentSoft}0.12)`,
+                    border: `1px solid ${mode.accentSoft}0.3)`,
+                  }}
+                >
+                  {mode.players}
+                </span>
+              </button>
+            );
+          })}
+        </section>
+
+        {/* Launch panel */}
+        <section
+          style={{
+            borderRadius: "16px",
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(10,16,32,0.66)",
+            backdropFilter: "blur(8px)",
+            padding: "20px",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "20px",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            animation: "menuRise 0.5s ease 0.15s both",
+          }}
+        >
+          <div style={{ minWidth: "240px" }}>
+            <p style={{ margin: 0, fontSize: "10px", letterSpacing: "2px", color: "#6b7280" }}>
+              SIAP DIMAINKAN
+            </p>
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: "18px",
+                letterSpacing: "1.5px",
+                color: activeMode.accent,
+              }}
+            >
+              {activeMode.title}
+            </p>
+
+            {selected === "match" && (
+              <div style={{ marginTop: "16px" }}>
+                <p style={{ margin: "0 0 8px", fontSize: "10px", letterSpacing: "1.5px", color: "#6b7280" }}>
+                  PILIH MAP
+                </p>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {MAPS.map((m) => {
+                    const active = currentMap === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => setCurrentMap(m.id)}
+                        title={m.description}
+                        style={{
+                          padding: "8px 14px",
+                          fontSize: "11.5px",
+                          fontFamily: "monospace",
+                          letterSpacing: "1px",
+                          borderRadius: "9px",
+                          cursor: "pointer",
+                          color: active ? "#c4b5fd" : "#9aa7bd",
+                          background: active ? "rgba(139,92,246,0.22)" : "rgba(255,255,255,0.05)",
+                          border: active
+                            ? "1px solid rgba(139,92,246,0.7)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {m.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            {selected === "match" && (
+              <button
+                onClick={() => setShowBrowser(true)}
+                style={{
+                  padding: "15px 22px",
+                  fontSize: "13px",
+                  fontFamily: "monospace",
+                  fontWeight: "bold",
+                  letterSpacing: "1.5px",
+                  borderRadius: "12px",
+                  cursor: "pointer",
+                  color: "#c4b5fd",
+                  background: "rgba(139,92,246,0.14)",
+                  border: "1px solid rgba(139,92,246,0.45)",
+                  transition: "all 0.18s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(139,92,246,0.26)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(139,92,246,0.14)";
+                }}
+              >
+                SERVER BROWSER
+              </button>
+            )}
+
+            <button
+              onClick={launchSelected}
+              style={{
+                padding: "15px 34px",
+                fontSize: "15px",
+                fontFamily: "monospace",
+                fontWeight: "bold",
+                letterSpacing: "2px",
+                borderRadius: "12px",
+                cursor: "pointer",
+                color: "white",
+                border: "none",
+                background: `linear-gradient(135deg, ${activeMode.accent} 0%, ${activeMode.accentSoft}0.7) 100%)`,
+                boxShadow: `0 12px 30px ${activeMode.accentSoft}0.35)`,
+                transition: "transform 0.18s, box-shadow 0.18s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = `0 16px 38px ${activeMode.accentSoft}0.5)`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "none";
+                e.currentTarget.style.boxShadow = `0 12px 30px ${activeMode.accentSoft}0.35)`;
+              }}
+            >
+              {activeMode.action}
+            </button>
+          </div>
+        </section>
+
+        {/* Controls footer */}
+        <footer
+          style={{
+            marginTop: "auto",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "8px 18px",
+            fontSize: "10.5px",
+            letterSpacing: "0.5px",
+            color: "#5f6b82",
+            borderTop: "1px solid rgba(255,255,255,0.07)",
+            paddingTop: "14px",
+          }}
+        >
+          <span>WASD Gerak</span>
+          <span>Mouse Arah</span>
+          <span>LMB Tembak</span>
+          <span>R Reload</span>
+          <span>Shift Sprint</span>
+          <span>Ctrl Jongkok</span>
+          <span>Space Lompat</span>
+          <span>B Buy Menu</span>
+          <span>G Granat</span>
+          <span>X Ganti Granat</span>
+        </footer>
       </div>
-      </div>
 
-      {/* Server Browser Modal */}
       {showBrowser && (
         <ServerBrowser
           onClose={() => setShowBrowser(false)}
           onJoinRoom={handleJoinRoom}
-          onCreateRoom={handleCreateRoom}
+          onCreateRoom={startMatch}
         />
       )}
-
-      {/* Footer */}
-      <div
-        style={{
-          padding: "20px",
-          color: "#6b7280",
-          fontSize: "12px",
-          textAlign: "center",
-          marginTop: "auto",
-        }}
-      >
-        <p style={{ margin: "4px 0" }}>WASD - Move | Mouse - Look | LMB - Shoot | R - Reload</p>
-        <p style={{ margin: "4px 0" }}>Shift - Sprint | Ctrl - Crouch | Space - Jump | B - Buy Menu</p>
-        <p style={{ margin: "4px 0" }}>G - Throw Grenade (hold = preview) | X - Cycle Grenade</p>
-      </div>
     </div>
   );
 }

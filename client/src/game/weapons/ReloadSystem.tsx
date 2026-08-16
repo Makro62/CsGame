@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { WEAPONS } from "@cs-game/shared";
 import { useWeaponStore } from "../../stores/useWeaponStore";
 import { useNetworkStore } from "../../stores/useNetworkStore";
+import { useZombieNetworkStore } from "../../stores/useZombieNetworkStore";
+import { useGameStore } from "../../stores/useGameStore";
 import { Sound } from "../../components/AudioManager";
 
 const RELOAD_CANCEL_WINDOW = 0.5; // Up to 50% of reload time can be cancelled by user
@@ -28,7 +30,12 @@ export function ReloadSystem() {
         const stats = WEAPONS[activeWeapon];
         if (stats && stats.reload > 0 && currentAmmo < maxAmmo) {
           startReload();
-          sendReload();
+          const mode = useGameStore.getState().mode;
+          if (mode === "zombie") {
+            useZombieNetworkStore.getState().sendReload();
+          } else {
+            sendReload();
+          }
         }
       }
     };

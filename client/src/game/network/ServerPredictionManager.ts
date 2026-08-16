@@ -37,9 +37,6 @@ const INTERPOLATION_DELAY = 0.1 // 100ms behind
 
 export class ServerPredictionManager {
   private inputBuffer: PlayerInput[] = []
-  // Used for future dead reckoning
-  private lastAckedSnapshot: Snapshot | null = null  // Used for future input replay tracking
-  private lastSentInput: PlayerInput | null = null
   private nextSeq: number = 0
   private pendingInputs: PlayerInput[] = []
 
@@ -67,7 +64,6 @@ export class ServerPredictionManager {
     }
 
     this.pendingInputs.push(playerInput)
-    this.lastSentInput = playerInput
 
     return playerInput
   }
@@ -78,8 +74,6 @@ export class ServerPredictionManager {
 
   // ─── Server Acknowledgment ─────────────────────────────────
   acknowledgeSnapshot(snapshot: Snapshot) {
-    this.lastAckedSnapshot = snapshot
-
     // Remove acknowledged inputs (server processed up to this seq)
     this.pendingInputs = this.pendingInputs.filter(
       input => input.seq > snapshot.seq

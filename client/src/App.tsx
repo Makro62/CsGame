@@ -33,6 +33,7 @@ import { ReconnectOverlay } from './components/ReconnectOverlay'
 import SettingsMenu from './screens/SettingsMenu'
 import { MainMenu } from './screens/MainMenu'
 import { TrainingRange } from './game/training/TrainingRange'
+import { ZombieSurvivalMode } from './screens/ZombieSurvivalMode'
 import { useWeaponSwitch } from './hooks/useWeaponSwitch'
 import { useGameStore } from './stores/useGameStore'
 import { useNetworkStore } from './stores/useNetworkStore'
@@ -119,6 +120,8 @@ function SyncModeToURL() {
       useGameStore.getState().setMode('training')
     } else if (location === '/play' && mode !== 'multiplayer') {
       useGameStore.getState().setMode('multiplayer')
+    } else if (location === '/zombie' && mode !== 'zombie') {
+      useGameStore.getState().setMode('zombie')
     }
   }, [location])
 
@@ -132,6 +135,8 @@ function SyncModeToURL() {
         setLocation('/training')
       } else if (state.mode === 'multiplayer' && location !== '/play') {
         setLocation('/play')
+      } else if (state.mode === 'zombie' && location !== '/zombie') {
+        setLocation('/zombie')
       }
     })
     return unsub
@@ -146,6 +151,7 @@ function GameRoutes() {
   // Render the right component based on URL
   if (location === '/training') return <TrainingRange />
   if (location === '/play') return <MultiplayerMode />
+  if (location === '/zombie') return <ZombieSurvivalMode />
   return <MainMenu />
 }
 
@@ -157,6 +163,7 @@ export default function App() {
         <Route path="/" component={GameRoutes} />
         <Route path="/training" component={GameRoutes} />
         <Route path="/play" component={GameRoutes} />
+        <Route path="/zombie" component={GameRoutes} />
         <Redirect to="/" />
       </Switch>
     </>

@@ -85,10 +85,9 @@ Semua keputusan arsitektur, panduan desain, dan spesifikasi fitur disimpan di `d
 ### Core Design
 - [Game Design Document (GDD)](Game_Design_Document.md) — Dokumen roadmap + gameplay loop utama.
 - [Analysis Reference Doc](docs/Analysis_Reference_Doc.md) — **Referensi final v2.0** semua spesifikasi yang dikunci.
-- [Document Implementation Checklist](docs/Document_Implementation_Checklist.md) — **Checklist lacak status implementasi per dokumen (32 file)**.
-- [Master Implementation Checklist](docs/Master_Implementation_Checklist.md) — Papan tugas ±62 fitur + dependensi + testing criteria.
+- [Master Implementation Checklist](docs/Master_Implementation_Checklist.md) — Papan tugas fitur + status (zombie dikoreksi).
 - [Gameplay Mechanics Bible](docs/Gameplay_Mechanics_Bible.md) — **Dokumen gameplay paling detail** (loop, timing, decision tree, edge cases).
-- [Gameplay Balance Rationale](docs/Gameplay_Balance_Rationale.md) — Alasan di balik setiap angka (TTK, ekonomi, movement, map).
+- [docs/README.md](docs/README.md) — Index dokumentasi terkini.
 
 
 ### Spesifikasi Fitur (Design)
@@ -96,32 +95,18 @@ Semua keputusan arsitektur, panduan desain, dan spesifikasi fitur disimpan di `d
 - [Design_Weapons.md](docs/Design_Weapons.md) — Statistik senjata, recoil "7", wallbang, balance rationale.
 - [Design_Combat_Kill.md](docs/Design_Combat_Kill.md) — Hitbox/damage, death/respawn, **spectator system**, edge cases.
 - [Design_Gameplay.md](docs/Design_Gameplay.md) — Ekonomi, C4, format ronde, **training range**, roadmap mode, OT.
-- [Design_Map_Layout.md](docs/Design_Map_Layout.md) — Denah Container Yard, callout list, rotation time, sightlines.
 - [Design_Audio.md](docs/Design_Audio.md) — Sistem audio 3D/2D, occlusion, priority matrix.
 - [Design_Networking_Advanced.md](docs/Design_Networking_Advanced.md) — Server otoritatif, lag comp, reconnection, network monitor.
 - [Design_UI_Flow_Geometry.md](docs/Design_UI_Flow_Geometry.md) — Alur layar, geometri 3D, transition timing.
 - [Design_CSS_UI_System.md](docs/Design_CSS_UI_System.md) — Desain UI/HUD murni CSS (crosshair, minimap, FPS/ping).
 
-### Panduan Implementasi (Code Execution Guides)
-- [Impl_Guide_Movement.md](docs/Impl_Guide_Movement.md) — Step-by-step movement tech (slide-hop → air strafe → moon-jump).
-- [Impl_Guide_HUD_UI.md](docs/Impl_Guide_HUD_UI.md) — Step-by-step seluruh HUD/UI.
-- [Impl_Guide_Weapons.md](docs/Impl_Guide_Weapons.md) — Step-by-step senjata, granat, recoil.
-- [Impl_Guide_Map.md](docs/Impl_Guide_Map.md) — Step-by-step map 3D + minimap data.
-- [Impl_Guide_Server.md](docs/Impl_Guide_Server.md) — Step-by-step server Colyseus (bomb, ekonomi, anti-cheat, spectator).
+### Proses Implementasi Aktif
+- [Impl_Map_ContainerYard_v3.md](docs/Impl_Map_ContainerYard_v3.md) — Perbaikan bentuk + visual map CS Container Yard.
+- [Impl_Zombie_Survival.md](docs/Impl_Zombie_Survival.md) — Perbaikan Zombie Survival ke playable (6 gelombang).
+- [Zombie_Survival_Code_Review.md](docs/Zombie_Survival_Code_Review.md) — Inventory defect P0–P3.
 
 ### Phase Guides (Urutan Build)
-- [Phase_0_Monorepo_Setup.md](docs/Phase_0_Monorepo_Setup.md) — Monorepo setup & Shared Types
-- [Phase_1_Setup_Environment.md](docs/Phase_1_Setup_Environment.md) — React + R3F Canvas & Scene
-- [Phase_2_Player_Controller.md](docs/Phase_2_Player_Controller.md) — Rapier Kinematic Character Controller & Movement Tech
-- [Phase_2.5_Colyseus_Sync.md](docs/Phase_2.5_Colyseus_Sync.md) — Room Colyseus & Latency Sync Prototype
-- [Phase_3_Weapon_Mechanics.md](docs/Phase_3_Weapon_Mechanics.md) — Raycast shooting, recoil, & reload
-- [Phase_4_Multiplayer_Setup.md](docs/Phase_4_Multiplayer_Setup.md) — Combat system & Multiplayer Integration
-- [Phase_4.5_Training_Range.md](docs/Phase_4.5_Training_Range.md) — Single Player offline training range
-- [Phase_5_Bomb_Defusal.md](docs/Phase_5_Bomb_Defusal.md) — Mode Bomb Defusal 5v5 & Economy System
-- [Phase_5.5_Map_Integration.md](docs/Phase_5.5_Map_Integration.md) — Container Yard 3D Map & Collision Integration
-- [Phase_6_Audio_3D.md](docs/Phase_6_Audio_3D.md) — 3D HRTF Positional Audio & UI Sound System
-- [Phase_7_Polish_HUD.md](docs/Phase_7_Polish_HUD.md) — Pure CSS HUD, Minimap, & Network Quality Monitor
-- [Phase_8_Roadmap_Modes.md](docs/Phase_8_Roadmap_Modes.md) — Post-MVP Modes (FFA Deathmatch, Gun Game, TDM)
+- Dokumentasi Phase_0–Phase_8 historis sudah diarsipkan / dihapus. Status fitur: [Master_Implementation_Checklist.md](docs/Master_Implementation_Checklist.md). Index docs: [docs/README.md](docs/README.md).
 
 
 ---
@@ -166,4 +151,4 @@ cs-game/
 2. **Audio Context** — browser memblokir autoplay; wajib "Click to Play" untuk unlock AudioContext.
 3. **No-Mobile MVP** — kontrol touch belum didukung di versi pertama (desktop browser saja).
 4. **Reserve Ammo ∞** — tidak ada sistem pickup amunisi di map (keputusan desain).
-5. **Class Uniform** — semua pemain 100 HP & kecepatan sama (skill-based murni), trade-off vs Krunker class system didokumentasikan di [Gameplay_Balance_Rationale.md](docs/Gameplay_Balance_Rationale.md).
+5. **Class Uniform** — semua pemain 100 HP & kecepatan sama (skill-based murni); angka & trade-off di [Gameplay_Mechanics_Bible.md](docs/Gameplay_Mechanics_Bible.md) / [Analysis_Reference_Doc.md](docs/Analysis_Reference_Doc.md).

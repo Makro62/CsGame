@@ -2,7 +2,7 @@
 
 Dokumen ini mencakup alur pertandingan lengkap, sistem ekonomi Buy Menu, utilitas granat taktis, kondisi kemenangan, mekanisme ronde standar CS:GO, **Mode Single (Training Range)**, **aturan match quality** (ready/skip, forfeit, vote kick, reconnect, overtime), serta **roadmap mode tambahan**.
 
-> **Referensi silang:** [Design_Weapons.md](Design_Weapons.md) (harga senjata) • [Design_Map_Layout.md](Design_Map_Layout.md) (koordinat site) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md) (detail lengkap)
+> **Referensi silang:** [Design_Weapons.md](Design_Weapons.md) (harga senjata) • [Impl_Map_ContainerYard_v3.md](Impl_Map_ContainerYard_v3.md) (koordinat site / map) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md) (detail lengkap)
 
 ---
 

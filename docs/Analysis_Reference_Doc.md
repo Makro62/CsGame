@@ -372,4 +372,4 @@ Final Damage = Base Damage × Hitbox Multiplier × Wallbang Modifier
 
 ## 18. Prioritas Implementasi
 
-Implementasi mengikuti alur fase yang didokumentasikan di [Gameplay_Mechanics_Bible.md](Gameplay_Mechanics_Bible.md), [Impl_Guide_Server.md](Impl_Guide_Server.md), dan [Impl_Guide_Movement.md](Impl_Guide_Movement.md). Dokumentasi fase historis (Phase_0 — Phase_8) sudah diarsipkan; status terkini 75 fitur ada di [Master_Implementation_Checklist.md](Master_Implementation_Checklist.md).
+Implementasi fitur CS klasik sudah di kode; kerja aktif mengikuti [Impl_Map_ContainerYard_v3.md](Impl_Map_ContainerYard_v3.md) dan [Impl_Zombie_Survival.md](Impl_Zombie_Survival.md). Angka gameplay: [Gameplay_Mechanics_Bible.md](Gameplay_Mechanics_Bible.md). Status fitur: [Master_Implementation_Checklist.md](Master_Implementation_Checklist.md).

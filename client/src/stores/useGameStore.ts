@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { gameEvents } from '../lib/gameEvents'
 
-export type GameMode = 'menu' | 'training' | 'multiplayer'
+export type GameMode = 'menu' | 'training' | 'multiplayer' | 'zombie'
 
 interface Target {
   id: string

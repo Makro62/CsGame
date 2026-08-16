@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { WEAPONS } from "@cs-game/shared";
 import { useWeaponStore } from "../../stores/useWeaponStore";
 import { useNetworkStore } from "../../stores/useNetworkStore";
+import { useZombieNetworkStore } from "../../stores/useZombieNetworkStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useGameStore } from "../../stores/useGameStore";
 import { RecoilController, getSpreadRadius } from "./RecoilController";
@@ -15,7 +16,6 @@ const shootOrigin = new THREE.Vector3();
 const shootDirection = new THREE.Vector3();
 const _muzzleOffset = new THREE.Vector3();
 const _casingOffset = new THREE.Vector3();
-const _shellVelocity = new THREE.Vector3();
 const _tempVec3 = new THREE.Vector3();
 
 // Impact pool for reuse
@@ -149,35 +149,38 @@ export function ShootingSystem() {
     casing.visible = true;
     scene.add(casing);
 
-    // Animate casing
-    _shellVelocity.set(
-      (Math.random() - 0.5) * 0.5,
-      2 + Math.random(),
-      (Math.random() - 0.5) * 0.5
+    const casingDir = new THREE.Vector3(
+      0.5 + Math.random() * 0.3,
+      0.8 + Math.random() * 0.4,
+      -0.2 + Math.random() * 0.2
     );
-    const startTime = performance.now();
+    casingDir.applyQuaternion(camera.quaternion);
+
+    let velocity = casingDir.clone().multiplyScalar(0.08);
+    const gravity = new THREE.Vector3(0, -0.005, 0);
+    let frames = 0;
+    const maxFrames = 60;
 
     const animate = () => {
-      const elapsed = (performance.now() - startTime) / 1000;
-      if (elapsed > 1) {
+      frames++;
+      velocity.add(gravity);
+      casing.position.add(velocity);
+      casing.rotation.x += 0.2;
+      casing.rotation.y += 0.15;
+
+      if (casing.position.y < 0.05) {
+        casing.position.y = 0.05;
+        velocity.y = -velocity.y * 0.3;
+        velocity.x *= 0.5;
+        velocity.z *= 0.5;
+      }
+
+      if (frames < maxFrames) {
+        requestAnimationFrame(animate);
+      } else {
         scene.remove(casing);
         recycleShellCasing(casing);
-        return;
       }
-
-      _shellVelocity.y -= 9.81 * 0.016;
-      casing.position.addScaledVector(_shellVelocity, 0.016);
-      casing.rotation.x += 0.2;
-      casing.rotation.z += 0.1;
-
-      if (casing.position.y < 0) {
-        casing.position.y = 0;
-        _shellVelocity.y *= -0.3;
-        _shellVelocity.x *= 0.8;
-        _shellVelocity.z *= 0.8;
-      }
-
-      requestAnimationFrame(animate);
     };
     requestAnimationFrame(animate);
   }, [camera, scene]);
@@ -185,7 +188,7 @@ export function ShootingSystem() {
   const shoot = useCallback(() => {
     if (!activeWeapon || !canFire()) return;
     const gameMode = useGameStore.getState().mode;
-    if (gameMode !== "training" && round.phase !== "active") return;
+    if (gameMode !== "training" && gameMode !== "zombie" && round.phase !== "active") return;
 
     const controller = recoilController.current;
     if (!controller) return;
@@ -275,7 +278,11 @@ export function ShootingSystem() {
     camera.getWorldPosition(shootOrigin);
     camera.getWorldDirection(shootDirection);
 
-    if (gameMode !== "training") {
+    if (gameMode === "zombie") {
+      useZombieNetworkStore.getState().sendShoot({
+        direction: { x: shootDirection.x, y: shootDirection.y, z: shootDirection.z },
+      });
+    } else if (gameMode !== "training") {
       seqRef.current++;
       sendShoot({
         origin: { x: shootOrigin.x, y: shootOrigin.y, z: shootOrigin.z },

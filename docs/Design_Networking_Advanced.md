@@ -2,7 +2,7 @@
 
 Dokumen ini mendefinisikan strategi mengatasi latensi, batasan WebSocket, validasi anti-cheat, rekonsiliasi fisika, **reconnection flow**, **network quality monitor**, dan **bandwidth budget**.
 
-> **Referensi:** [Design_Combat_Kill.md](Design_Combat_Kill.md) (validasi tembakan) • [Impl_Guide_Server.md](Impl_Guide_Server.md)
+> **Referensi:** [Design_Combat_Kill.md](Design_Combat_Kill.md) (validasi tembakan) • kode: `GameRoom.ts`, `AntiCheatSystem.ts`
 
 ---
 
