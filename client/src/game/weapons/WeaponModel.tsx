@@ -299,41 +299,41 @@ function AK47Model() {
         </mesh>
       ))}
       {/* PSO-1 scope mount — front & rear bracket bases */}
-      <mesh position={[0, 0.055, 0.03]}>
-        <boxGeometry args={[0.026, 0.012, 0.05]} />
+      <mesh position={[0, 0.052, 0.03]}>
+        <boxGeometry args={[0.024, 0.01, 0.04]} />
         <meshStandardMaterial color="#3a3a3a" metalness={0.6} roughness={0.35} />
       </mesh>
-      <mesh position={[0, 0.055, -0.1]}>
-        <boxGeometry args={[0.026, 0.012, 0.05]} />
+      <mesh position={[0, 0.052, -0.08]}>
+        <boxGeometry args={[0.024, 0.01, 0.04]} />
         <meshStandardMaterial color="#3a3a3a" metalness={0.6} roughness={0.35} />
       </mesh>
       {/* Mount rings — clamp around the tube */}
-      <mesh position={[0, 0.062, 0.03]}>
-        <boxGeometry args={[0.028, 0.016, 0.018]} />
+      <mesh position={[0, 0.057, 0.03]}>
+        <boxGeometry args={[0.024, 0.013, 0.014]} />
         <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.35} />
       </mesh>
-      <mesh position={[0, 0.062, -0.1]}>
-        <boxGeometry args={[0.028, 0.016, 0.018]} />
+      <mesh position={[0, 0.057, -0.08]}>
+        <boxGeometry args={[0.024, 0.013, 0.014]} />
         <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.35} />
       </mesh>
-      {/* PSO-1 scope tube — main body */}
-      <mesh position={[0, 0.066, -0.035]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.014, 0.014, 0.17, 14]} />
+      {/* PSO-1 scope tube — compact body */}
+      <mesh position={[0, 0.062, -0.025]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.0105, 0.0105, 0.13, 14]} />
         <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.35} />
       </mesh>
       {/* Objective bell — front flare */}
-      <mesh position={[0, 0.066, -0.125]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.019, 0.014, 0.035, 14]} />
+      <mesh position={[0, 0.062, -0.095]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.0135, 0.0105, 0.028, 14]} />
         <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.35} />
       </mesh>
       {/* Objective bell lip */}
-      <mesh position={[0, 0.066, -0.145]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.0195, 0.019, 0.008, 14]} />
+      <mesh position={[0, 0.062, -0.111]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.014, 0.0135, 0.006, 14]} />
         <meshStandardMaterial color="#242424" metalness={0.55} roughness={0.4} />
       </mesh>
       {/* Front lens — red coated glass */}
-      <mesh position={[0, 0.066, -0.15]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.0175, 0.0175, 0.004, 16]} />
+      <mesh position={[0, 0.062, -0.115]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.0125, 0.0125, 0.003, 16]} />
         <meshStandardMaterial
           color="#7a1424"
           metalness={0.85}
@@ -343,13 +343,13 @@ function AK47Model() {
         />
       </mesh>
       {/* Eyepiece — rear flare */}
-      <mesh position={[0, 0.066, 0.065]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.014, 0.0175, 0.035, 14]} />
+      <mesh position={[0, 0.062, 0.045]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.0105, 0.013, 0.028, 14]} />
         <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.35} />
       </mesh>
       {/* Rear lens — red coated glass */}
-      <mesh position={[0, 0.066, 0.085]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.016, 0.016, 0.004, 16]} />
+      <mesh position={[0, 0.062, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.012, 0.012, 0.003, 16]} />
         <meshStandardMaterial
           color="#7a1424"
           metalness={0.85}
@@ -359,28 +359,28 @@ function AK47Model() {
         />
       </mesh>
       {/* Elevation turret */}
-      <mesh position={[0, 0.081, -0.04]}>
-        <cylinderGeometry args={[0.011, 0.011, 0.02, 10]} />
+      <mesh position={[0, 0.0725, -0.03]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.015, 10]} />
         <meshStandardMaterial color="#2e2e2e" metalness={0.55} roughness={0.4} />
       </mesh>
       {/* Elevation turret cap */}
-      <mesh position={[0, 0.092, -0.04]}>
-        <cylinderGeometry args={[0.0125, 0.0125, 0.006, 10]} />
+      <mesh position={[0, 0.0805, -0.03]}>
+        <cylinderGeometry args={[0.009, 0.009, 0.005, 10]} />
         <meshStandardMaterial color="#242424" metalness={0.55} roughness={0.4} />
       </mesh>
       {/* Windage turret — right side */}
-      <mesh position={[0.0205, 0.066, -0.04]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.008, 0.008, 0.016, 10]} />
+      <mesh position={[0.0155, 0.062, -0.03]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.006, 0.006, 0.012, 10]} />
         <meshStandardMaterial color="#2e2e2e" metalness={0.55} roughness={0.4} />
       </mesh>
       {/* Parallax adjuster — left side */}
-      <mesh position={[-0.0205, 0.066, -0.075]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.007, 0.007, 0.013, 10]} />
+      <mesh position={[-0.0155, 0.062, -0.055]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.0055, 0.0055, 0.01, 10]} />
         <meshStandardMaterial color="#2e2e2e" metalness={0.55} roughness={0.4} />
       </mesh>
       {/* Eyecup — rubber rear ring */}
-      <mesh position={[0, 0.066, 0.098]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.018, 0.017, 0.014, 14]} />
+      <mesh position={[0, 0.062, 0.072]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.013, 0.0125, 0.01, 14]} />
         <meshStandardMaterial color="#111111" roughness={0.85} />
       </mesh>
       {/* Muzzle brake — angled frustum */}
@@ -534,6 +534,35 @@ function AK47Model() {
       <mesh position={[0, -0.034, -0.13]}>
         <boxGeometry args={[0.035, 0.006, 0.14]} />
         <meshStandardMaterial color="#4a4a4a" metalness={0.5} roughness={0.4} />
+      </mesh>
+      {/* Spare mag — strapped on the front rail */}
+      <mesh position={[0, -0.055, -0.175]} rotation={[0.45, 0, 0]}>
+        <boxGeometry args={[0.03, 0.06, 0.05]} />
+        <meshStandardMaterial color="#3d3d3d" metalness={0.5} roughness={0.4} />
+      </mesh>
+      {/* Spare mag taper */}
+      <mesh position={[0, -0.082, -0.172]} rotation={[0.45, 0, 0]}>
+        <boxGeometry args={[0.022, 0.028, 0.042]} />
+        <meshStandardMaterial color="#383838" metalness={0.5} roughness={0.38} />
+      </mesh>
+      {/* Spare mag floor plate */}
+      <mesh position={[0, -0.09, -0.171]} rotation={[0.45, 0, 0]}>
+        <boxGeometry args={[0.034, 0.015, 0.054]} />
+        <meshStandardMaterial color="#555555" metalness={0.55} roughness={0.4} />
+      </mesh>
+      {/* Mag retention strap — clamps it to the rail */}
+      <mesh position={[0, -0.037, -0.175]} rotation={[0.45, 0, 0]}>
+        <boxGeometry args={[0.036, 0.009, 0.054]} />
+        <meshStandardMaterial color="#262626" roughness={0.6} />
+      </mesh>
+      {/* Strap side clamps */}
+      <mesh position={[0.024, -0.05, -0.175]} rotation={[0.45, 0, 0]}>
+        <boxGeometry args={[0.006, 0.062, 0.007]} />
+        <meshStandardMaterial color="#333333" />
+      </mesh>
+      <mesh position={[-0.024, -0.05, -0.175]} rotation={[0.45, 0, 0]}>
+        <boxGeometry args={[0.006, 0.062, 0.007]} />
+        <meshStandardMaterial color="#333333" />
       </mesh>
     </group>
   )

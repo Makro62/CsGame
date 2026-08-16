@@ -509,13 +509,13 @@ export function PlayerController() {
     const isPerfectJump = timeSinceLand <= PERFECT_JUMP_WINDOW && timeSinceLand > 0
 
     // Use jump stamina from store
-    const useJumpStamina = useGameStore.getState().useJumpStamina
+    const spendJumpStamina = useGameStore.getState().useJumpStamina
 
     if (canJump && hasJumpBuffer) {
       const timeSinceCrouchRelease = now - getCrouchReleasedAt()
       if (timeSinceCrouchRelease <= 150) {
         velocityY.current = JUMP_VELOCITY * MOON_JUMP_MULT
-        useJumpStamina()
+        spendJumpStamina()
       } else if (slideState.current.active) {
         velocityXZ.multiplyScalar(SLIDE_BOOST)
         const currentSpeed = velocityXZ.length()
@@ -524,11 +524,11 @@ export function PlayerController() {
         }
         velocityY.current = JUMP_VELOCITY
         slideState.current.active = false
-        useJumpStamina()
+        spendJumpStamina()
       } else {
         // Perfect Jump Boost
         velocityY.current = isPerfectJump ? JUMP_VELOCITY * PERFECT_JUMP_BOOST : JUMP_VELOCITY
-        useJumpStamina()
+        spendJumpStamina()
       }
       input.jumpBuffer.length = 0
       coyoteTimeRef.current = 0
@@ -536,7 +536,7 @@ export function PlayerController() {
       doubleJumpUsed.current = false
     } else if (!grounded.current && hasJumpBuffer && !doubleJumpUsed.current) {
       // Double Jump
-      const hasStamina = useJumpStamina()
+      const hasStamina = spendJumpStamina()
       if (hasStamina && PHYSICS.doubleJumpEnabled) {
         velocityY.current = JUMP_VELOCITY * DOUBLE_JUMP_BOOST
         doubleJumpUsed.current = true
@@ -568,7 +568,7 @@ export function PlayerController() {
             }
           }
           if (hitWall) {
-            const hasStamina = useJumpStamina()
+            const hasStamina = spendJumpStamina()
             if (hasStamina) {
               velocityY.current = WALL_JUMP_BOOST
               // Push away from wall

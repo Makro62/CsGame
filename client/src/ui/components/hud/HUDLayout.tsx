@@ -89,13 +89,7 @@ export function HUDLayout() {
     }
   }, [ping])
 
-  if (mode !== 'multiplayer' || !connected) return null
-
-  const isDefusal = round.gameMode === 'bomb_defusal'
-  const isFfa = round.gameMode === 'ffa' || round.gameMode === 'gun_game'
-  const isTdm = round.gameMode === 'tdm'
-
-  const grenadeTotal = localGrenadeHE + localGrenadeSmoke + localGrenadeFlash
+  const isMultiplayer = mode === 'multiplayer' && connected
 
   // Kill feed data
   const killFeedEvents = useNetworkStore(s => s.killFeed).map(k => ({
@@ -106,6 +100,17 @@ export function HUDLayout() {
     headshot: k.headshot,
     teamKill: false,
   }))
+
+  if (!isMultiplayer && mode !== 'training') return null
+
+  const displayHp = isMultiplayer ? localHp : 100
+  const displayArmor = isMultiplayer ? localArmor : 0
+
+  const isDefusal = round.gameMode === 'bomb_defusal'
+  const isFfa = round.gameMode === 'ffa' || round.gameMode === 'gun_game'
+  const isTdm = round.gameMode === 'tdm'
+
+  const grenadeTotal = localGrenadeHE + localGrenadeSmoke + localGrenadeFlash
 
   // Weapon slots
   const weaponSlots = [
@@ -136,50 +141,54 @@ export function HUDLayout() {
   return (
     <>
       {/* Top bar - Score & Round info */}
-      <div className="fixed top-0 left-0 right-0 flex justify-center items-center gap-4 px-6 py-3 z-[100] pointer-events-none">
-        {/* Score panels */}
-        <ScorePanel
-          isDefusal={isDefusal}
-          isFfa={isFfa}
-          isTdm={isTdm}
-          teamRedScore={round.teamRedScore}
-          teamBlueScore={round.teamBlueScore}
-          ffaTop={ffaTop}
-          side="left"
-        />
+      {isMultiplayer && (
+        <div className="fixed top-0 left-0 right-0 flex justify-center items-center gap-4 px-6 py-3 z-[100] pointer-events-none">
+          {/* Score panels */}
+          <ScorePanel
+            isDefusal={isDefusal}
+            isFfa={isFfa}
+            isTdm={isTdm}
+            teamRedScore={round.teamRedScore}
+            teamBlueScore={round.teamBlueScore}
+            ffaTop={ffaTop}
+            side="left"
+          />
 
-        {/* Round timer */}
-        <RoundTimer
-          phase={round.phase}
-          timeLeft={timeLeft}
-          roundNumber={round.roundNumber}
-          teamRedScore={round.teamRedScore}
-          teamBlueScore={round.teamBlueScore}
-          isOvertime={round.isOvertime}
-          isSuddenDeath={round.isSuddenDeath}
-          bombPlanted={round.bombPlanted}
-          bombTimeLeft={round.bombTimeLeft}
-        />
+          {/* Round timer */}
+          <RoundTimer
+            phase={round.phase}
+            timeLeft={timeLeft}
+            roundNumber={round.roundNumber}
+            teamRedScore={round.teamRedScore}
+            teamBlueScore={round.teamBlueScore}
+            isOvertime={round.isOvertime}
+            isSuddenDeath={round.isSuddenDeath}
+            bombPlanted={round.bombPlanted}
+            bombTimeLeft={round.bombTimeLeft}
+          />
 
-        {/* Score panels right */}
-        <ScorePanel
-          isDefusal={isDefusal}
-          isFfa={isFfa}
-          isTdm={isTdm}
-          teamRedScore={round.teamRedScore}
-          teamBlueScore={round.teamBlueScore}
-          ffaTop={ffaTop}
-          side="right"
-        />
-      </div>
+          {/* Score panels right */}
+          <ScorePanel
+            isDefusal={isDefusal}
+            isFfa={isFfa}
+            isTdm={isTdm}
+            teamRedScore={round.teamRedScore}
+            teamBlueScore={round.teamBlueScore}
+            ffaTop={ffaTop}
+            side="right"
+          />
+        </div>
+      )}
 
       {/* Bomb status */}
-      <BombIndicator
-        hasBomb={localHasBomb}
-        bombPlanted={round.bombPlanted}
-        bombSite={round.bombSite}
-        bombTimeLeft={round.bombTimeLeft}
-      />
+      {isMultiplayer && (
+        <BombIndicator
+          hasBomb={localHasBomb}
+          bombPlanted={round.bombPlanted}
+          bombSite={round.bombSite}
+          bombTimeLeft={round.bombTimeLeft}
+        />
+      )}
 
       {/* Lag banner */}
       {showLagBanner && (
@@ -191,7 +200,7 @@ export function HUDLayout() {
       )}
 
       {/* Reconnecting overlay */}
-      {reconnecting && (
+      {isMultiplayer && reconnecting && (
         <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[300] pointer-events-none">
           <GlassPanel className="px-9 py-5 text-center" variant="accent" intensity="high">
             <div className="text-xl font-bold text-accent-gold font-mono animate-pulse">
@@ -202,7 +211,7 @@ export function HUDLayout() {
       )}
 
       {/* Ready UI (buy phase) */}
-      {isDefusal && round.phase === 'buy' && (
+      {isMultiplayer && isDefusal && round.phase === 'buy' && (
         <div className="fixed top-[120px] left-1/2 -translate-x-1/2 z-[100] pointer-events-auto">
           {!localReady ? (
             <button
@@ -224,9 +233,9 @@ export function HUDLayout() {
         {/* Left side - Health, Armor, Money */}
         <div className="flex flex-col gap-1.5">
           <HealthBar
-            hp={localHp}
-            armor={localArmor}
-            hasHelmet={localHelmet}
+            hp={displayHp}
+            armor={displayArmor}
+            hasHelmet={isMultiplayer && localHelmet}
           />
           {isDefusal && (
             <MoneyDisplay
@@ -262,9 +271,11 @@ export function HUDLayout() {
       </div>
 
       {/* Kill feed - top right */}
-      <div className="fixed top-16 right-4 z-[100] pointer-events-none">
-        <KillFeed events={killFeedEvents} />
-      </div>
+      {isMultiplayer && (
+        <div className="fixed top-16 right-4 z-[100] pointer-events-none">
+          <KillFeed events={killFeedEvents} />
+        </div>
+      )}
 
       {/* Network monitor - bottom right */}
       <div className="fixed bottom-4 right-4 z-[100] pointer-events-none opacity-60 hover:opacity-100 transition-opacity">
@@ -272,14 +283,14 @@ export function HUDLayout() {
       </div>
 
       {/* Overtime / Sudden Death indicator */}
-      {round.isSuddenDeath && (
+      {isMultiplayer && round.isSuddenDeath && (
         <div className="fixed top-[50px] left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
           <Badge variant="danger" size="lg" pulse>
             SUDDEN DEATH
           </Badge>
         </div>
       )}
-      {round.isOvertime && !round.isSuddenDeath && (
+      {isMultiplayer && round.isOvertime && !round.isSuddenDeath && (
         <div className="fixed top-[50px] left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
           <Badge variant="warning" size="md">
             OVERTIME
@@ -288,10 +299,14 @@ export function HUDLayout() {
       )}
 
       {/* Extra HUD components */}
-      <RadioCommand />
-      <SpectatorHUD />
-      <KillCamOverlay />
-      <ChatBox />
+      {isMultiplayer && (
+        <>
+          <RadioCommand />
+          <SpectatorHUD />
+          <KillCamOverlay />
+          <ChatBox />
+        </>
+      )}
     </>
   )
 }

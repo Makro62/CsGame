@@ -37,9 +37,8 @@ const INTERPOLATION_DELAY = 0.1 // 100ms behind
 
 export class ServerPredictionManager {
   private inputBuffer: PlayerInput[] = []
-  // @ts-ignore - Used for future dead reckoning
-  private lastAckedSnapshot: Snapshot | null = null
-  // @ts-ignore - Used for future input replay tracking
+  // Used for future dead reckoning
+  private lastAckedSnapshot: Snapshot | null = null  // Used for future input replay tracking
   private lastSentInput: PlayerInput | null = null
   private nextSeq: number = 0
   private pendingInputs: PlayerInput[] = []

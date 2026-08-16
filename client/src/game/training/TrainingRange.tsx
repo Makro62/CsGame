@@ -5,12 +5,12 @@ import { Sky } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
 import { getMapById } from "../map/MapRegistry";
 import { CalloutLabels } from "../map/CalloutLabels";
+import { HUDLayout } from "../../ui/components/hud/HUDLayout";
 import { PlayerController } from "../player/PlayerController";
 import { WeaponModel } from "../weapons/WeaponModel";
 import { ShootingSystem } from "../weapons/ShootingSystem";
 import { ReloadSystem } from "../weapons/ReloadSystem";
 import { Crosshair } from "../../components/Crosshair";
-import { HUD } from "../../components/HUD";
 import { HitMarker } from "../../components/HitMarker";
 import { ClickToPlayOverlay } from "../../components/ClickToPlayOverlay";
 import SettingsMenu from "../../screens/SettingsMenu";
@@ -174,7 +174,7 @@ export function TrainingRange() {
       </Canvas>
       <Crosshair />
       <HitMarker />
-      <HUD />
+      <HUDLayout />
       {trainingMode === "aim" && <AimTrainerUI />}
       {trainingMode === "recoil" && <RecoilPracticeUI />}
       <WeaponSelection />

@@ -18,10 +18,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "concurrently": "^10.0.4",
+    "eslint": "^10.8.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^30.0.1",
+    "typescript-eslint": "^8.67.0",
     "vitest": "^4.1.10"
   }
 }
