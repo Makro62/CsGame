@@ -37,6 +37,7 @@ import {
 } from "@cs-game/shared";
 import { ZombieController } from "../ai/ZombieController";
 import { WaveSystem } from "../systems/WaveSystem";
+import { AntiCheatSystem } from "./AntiCheatSystem";
 
 const TICK_MS = 1000 / SERVER.tickRate;
 
@@ -48,6 +49,7 @@ const HEAD_HEIGHT = 1.45;
 function sanitizeNickname(raw: unknown): string {
   if (typeof raw !== "string") return "";
   return raw
+    // eslint-disable-next-line no-control-regex -- strip control chars from nicknames
     .replace(/[\u0000-\u001f\u007f\u200b-\u200f\ufeff]/g, "")
     .replace(/[<>"'`]/g, "")
     .trim()
@@ -64,11 +66,15 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   // Rate limiting / cooldowns per player
   private lastShotTimes = new Map<string, number>();
   private lastRepairTimes = new Map<string, number>();
+  private lastInputTime = new Map<string, number>();
   private activeMysteryBoxTimers = new Map<string, NodeJS.Timeout>();
   private reloadTimers = new Map<string, NodeJS.Timeout>();
   private soloRevivesCount = new Map<string, number>();
   /** Weapons a player actually paid for; switching is limited to these. */
   private ownedWeapons = new Map<string, Set<string>>();
+  /** Magazine + reserve stashed per owned weapon so swaps keep leftover ammo. */
+  private weaponAmmo = new Map<string, Map<string, { ammo: number; reserve: number }>>();
+  private antiCheat = new AntiCheatSystem();
   private difficulty: ZombieDifficulty = "normal";
   private zombieDifficulty = ZOMBIE_DIFFICULTIES.normal;
 
@@ -156,6 +162,13 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.state.players.set(client.sessionId, player);
     this.state.points.set(client.sessionId, 500);
     this.ownedWeapons.set(client.sessionId, new Set(["deagle", "knife"]));
+    this.weaponAmmo.set(
+      client.sessionId,
+      new Map([
+        ["deagle", { ammo: player.ammo, reserve: player.reserveAmmo }],
+        ["knife", { ammo: 0, reserve: 0 }],
+      ])
+    );
     this.soloRevivesCount.set(client.sessionId, this.zombieDifficulty.soloRevives);
 
     // The Safe House is where everyone starts, so it must count as unlocked or
@@ -183,8 +196,11 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.state.points.delete(client.sessionId);
     this.lastShotTimes.delete(client.sessionId);
     this.lastRepairTimes.delete(client.sessionId);
+    this.lastInputTime.delete(client.sessionId);
     this.ownedWeapons.delete(client.sessionId);
+    this.weaponAmmo.delete(client.sessionId);
     this.soloRevivesCount.delete(client.sessionId);
+    this.antiCheat.clearAll(client.sessionId);
 
     const timer = this.activeMysteryBoxTimers.get(client.sessionId);
     if (timer) {
@@ -524,15 +540,28 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player || player.isDead) return;
 
+    // Reject duplicate / out-of-order packets the same way GameRoom does.
+    if (data.seq <= player.lastProcessedSeq) return;
+
+    const now = performance.now();
+    if (!this.antiCheat.validateInputRate(client.sessionId, now)) return;
+
+    const lastTime = this.lastInputTime.get(client.sessionId) || now;
+    // Real dt clamped to prevent speed-hack exploitation (max 2x tick).
+    const rawDt = (now - lastTime) / 1000;
+    const dt = Math.min(rawDt, (TICK_MS * 2) / 1000);
+    this.lastInputTime.set(client.sessionId, now);
+
     // Crawl speed if downed, else normal
     let speed: number = PHYSICS.walkSpeed;
     if (player.isDowned) {
-      speed = 1.2; // Crawl speed
+      speed = 1.2;
     } else if (data.sprint) {
       speed = PHYSICS.sprintSpeed;
     }
 
-    let dx = 0, dz = 0;
+    let dx = 0;
+    let dz = 0;
     if (data.forward) dz -= 1;
     if (data.backward) dz += 1;
     if (data.left) dx -= 1;
@@ -540,17 +569,37 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
     const len = Math.sqrt(dx * dx + dz * dz);
     if (len > 0) {
-      dx = (dx / len) * speed * (1 / SERVER.tickRate);
-      dz = (dz / len) * speed * (1 / SERVER.tickRate);
+      dx = (dx / len) * speed * dt;
+      dz = (dz / len) * speed * dt;
     }
 
     const cos = Math.cos(data.rotationY);
     const sin = Math.sin(data.rotationY);
-    const rdx = dx * cos - dz * sin;
-    const rdz = dx * sin + dz * cos;
+    let rdx = dx * cos - dz * sin;
+    let rdz = dx * sin + dz * cos;
 
-    player.x = Math.max(ZOMBIE_MAP_BOUNDARY.minX, Math.min(ZOMBIE_MAP_BOUNDARY.maxX, player.x + rdx));
-    player.z = Math.max(ZOMBIE_MAP_BOUNDARY.minZ, Math.min(ZOMBIE_MAP_BOUNDARY.maxZ, player.z + rdz));
+    let nextX = player.x + rdx;
+    let nextZ = player.z + rdz;
+
+    if (!this.antiCheat.validateSpeed(client.sessionId, player, nextX, nextZ, dt)) {
+      const allowedDist = PHYSICS.sprintSpeed * 1.35 * dt;
+      const actualDist = Math.sqrt(rdx * rdx + rdz * rdz);
+      if (actualDist > 0.001) {
+        const scale = allowedDist / actualDist;
+        rdx *= scale;
+        rdz *= scale;
+      }
+      nextX = player.x + rdx;
+      nextZ = player.z + rdz;
+    }
+
+    if (this.antiCheat.shouldKick(client.sessionId)) {
+      client.leave(4000);
+      return;
+    }
+
+    player.x = Math.max(ZOMBIE_MAP_BOUNDARY.minX, Math.min(ZOMBIE_MAP_BOUNDARY.maxX, nextX));
+    player.z = Math.max(ZOMBIE_MAP_BOUNDARY.minZ, Math.min(ZOMBIE_MAP_BOUNDARY.maxZ, nextZ));
     player.rotationY = data.rotationY;
     player.lastProcessedSeq = data.seq;
 
@@ -573,20 +622,25 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     const weaponStats = WEAPONS[player.currentWeapon as keyof typeof WEAPONS];
     if (!weaponStats) return;
 
-    // Enforce fire rate on server
+    // Enforce fire rate on server (shared anti-cheat + Double Tap perk)
     const now = Date.now();
     const lastShot = this.lastShotTimes.get(client.sessionId) ?? 0;
+    if (!player.hasDoubleTap && !this.antiCheat.validateFireRate(client.sessionId, player.currentWeapon, lastShot, now)) {
+      return;
+    }
     const baseCooldownMs = 1000 / (weaponStats.fireRate || 10);
     const effectiveCooldownMs = player.hasDoubleTap ? baseCooldownMs * 0.75 : baseCooldownMs;
 
     if (now - lastShot < effectiveCooldownMs - 20) {
-      return; // Rate limit exceeded
+      return;
     }
     this.lastShotTimes.set(client.sessionId, now);
 
     // Check ammo
     if (player.ammo <= 0) return;
+    if (!this.antiCheat.validateAmmo(client.sessionId, player, player.currentWeapon)) return;
     player.ammo--;
+    this.stashCurrentAmmo(client.sessionId, player);
 
     // Simple hitscan against zombies
     const origin = { x: player.x, y: player.y + (player.isDowned ? 0.6 : 1.5), z: player.z };
@@ -788,11 +842,34 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       p.ammo += available;
       p.reserveAmmo -= available;
       p.isReloading = false;
+      this.stashCurrentAmmo(client.sessionId, p);
       client.send("reloadComplete", { ammo: p.ammo, reserveAmmo: p.reserveAmmo });
     }, reloadDuration * 1000);
 
     this.reloadTimers.set(client.sessionId, timer);
     client.send("reloadStarted", { duration: reloadDuration });
+  }
+
+  private stashCurrentAmmo(sessionId: string, player: PlayerState) {
+    let stash = this.weaponAmmo.get(sessionId);
+    if (!stash) {
+      stash = new Map();
+      this.weaponAmmo.set(sessionId, stash);
+    }
+    stash.set(player.currentWeapon, { ammo: player.ammo, reserve: player.reserveAmmo });
+  }
+
+  private restoreWeaponAmmo(sessionId: string, player: PlayerState, weapon: string) {
+    const stash = this.weaponAmmo.get(sessionId);
+    const saved = stash?.get(weapon);
+    const stats = WEAPONS[weapon as keyof typeof WEAPONS];
+    if (saved) {
+      player.ammo = saved.ammo;
+      player.reserveAmmo = saved.reserve;
+      return;
+    }
+    player.ammo = stats?.mag ?? 0;
+    player.reserveAmmo = stats?.reserveAmmo ?? 0;
   }
 
   private handleSwitchWeapon(client: Client, data: { weapon: string }) {
@@ -808,7 +885,10 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     }
     if (player.currentWeapon === data.weapon) return;
 
+    this.stashCurrentAmmo(client.sessionId, player);
     player.currentWeapon = data.weapon;
+    this.restoreWeaponAmmo(client.sessionId, player, data.weapon);
+
     client.send("weaponSwitched", {
       weapon: player.currentWeapon,
       ammo: player.ammo,
@@ -849,9 +929,15 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     owned.add(weapon);
     this.ownedWeapons.set(client.sessionId, owned);
 
+    // Buying a gun you already own refills its stash; otherwise stash the old gun first.
+    if (player.currentWeapon !== weapon) {
+      this.stashCurrentAmmo(client.sessionId, player);
+    }
+
     player.currentWeapon = weapon;
     player.ammo = stats.mag;
     player.reserveAmmo = stats.reserveAmmo;
+    this.stashCurrentAmmo(client.sessionId, player);
 
     client.send("weaponBought", {
       weapon,
@@ -865,6 +951,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     if (!player) return;
 
     const msg = typeof data.message === "string"
+      // eslint-disable-next-line no-control-regex -- strip control chars from chat
       ? data.message.replace(/[\u0000-\u001f\u007f\u200b-\u200f\ufeff]/g, "").trim().slice(0, 120)
       : "";
 
@@ -921,6 +1008,13 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
       this.state.points.set(sessionId, 500);
       this.ownedWeapons.set(sessionId, new Set(["deagle", "knife"]));
+      this.weaponAmmo.set(
+        sessionId,
+        new Map([
+          ["deagle", { ammo: player.ammo, reserve: player.reserveAmmo }],
+          ["knife", { ammo: 0, reserve: 0 }],
+        ])
+      );
       this.soloRevivesCount.set(sessionId, this.zombieDifficulty.soloRevives);
     });
   }
@@ -956,6 +1050,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     // A refill tops off the magazine as well, that is what the label promises.
     player.ammo = weaponStats.mag;
     player.reserveAmmo = Math.min(reserveCap, player.reserveAmmo + weaponStats.mag * 2);
+    this.stashCurrentAmmo(client.sessionId, player);
 
     client.send("ammoBought", { ammo: player.ammo, reserveAmmo: player.reserveAmmo });
   }
@@ -1070,12 +1165,14 @@ export class ZombieSurvivalRoom extends Room<GameState> {
           owned.add(randomWeapon);
           this.ownedWeapons.set(client.sessionId, owned);
 
+          this.stashCurrentAmmo(client.sessionId, player);
           player.currentWeapon = randomWeapon;
           const stats = WEAPONS[randomWeapon as keyof typeof WEAPONS];
           if (stats) {
             player.ammo = stats.mag;
             player.reserveAmmo = stats.reserveAmmo;
           }
+          this.stashCurrentAmmo(client.sessionId, player);
         }
 
         player.isUsingMysteryBox = false;

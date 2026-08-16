@@ -3,6 +3,7 @@ import { PACK_A_PUNCH } from "@cs-game/shared";
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";
 import { useZombieStore } from "../../../stores/useZombieStore";
 import { useMenuPointerLock } from "../../../hooks/useMenuPointerLock";
+import { HUD_FONT, HUD_MONO, HUD_Z, hudPanel } from "../../hudTheme";
 
 // ============================================================================
 // Pack-a-Punch UI
@@ -65,14 +66,16 @@ export function PackAPunch({ onClose }: PackAPunchProps) {
   return (
     <div
       style={{
-        position: "absolute",
+        position: "fixed",
         inset: 0,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "rgba(0,0,0,0.85)",
-        zIndex: 1000,
-        fontFamily: "'Segoe UI', Arial, sans-serif",
+        padding: 24,
+        backgroundColor: "rgba(4, 7, 12, 0.82)",
+        backdropFilter: "blur(6px)",
+        zIndex: HUD_Z.modal,
+        fontFamily: HUD_FONT,
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget && !upgrading) onClose();
@@ -80,19 +83,18 @@ export function PackAPunch({ onClose }: PackAPunchProps) {
     >
       <div
         style={{
-          width: "400px",
-          backgroundColor: "#1a1a2e",
-          border: "2px solid #f97316",
-          borderRadius: "12px",
-          padding: "24px",
+          ...hudPanel("amber"),
+          width: "min(400px, 100%)",
+          borderRadius: 16,
+          padding: 24,
           textAlign: "center",
         }}
       >
-        <h2 style={{ margin: "0 0 8px 0", color: "#f97316", fontSize: "24px", fontWeight: "bold" }}>
+        <h2 style={{ margin: "0 0 4px 0", color: "#fb923c", fontSize: 20, fontWeight: 900, letterSpacing: 1.4 }}>
           PACK-A-PUNCH
         </h2>
-        <p style={{ color: "#999", fontSize: "12px", margin: "0 0 8px 0" }}>
-          Upgrade your weapon for {PACK_A_PUNCH.upgradeMultiplier}x damage
+        <p style={{ color: "#94a3b8", fontSize: 11, margin: "0 0 8px 0" }}>
+          Upgrade senjata aktif jadi {PACK_A_PUNCH.upgradeMultiplier}x damage
         </p>
         {error && (
           <div style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "8px", fontWeight: "bold" }}>
@@ -127,8 +129,8 @@ export function PackAPunch({ onClose }: PackAPunchProps) {
               <div style={{ color: "#22c55e", fontSize: "14px", marginBottom: "4px" }}>
                 Weapon Upgraded!
               </div>
-              <div style={{ fontSize: "20px", fontWeight: "bold", color: "#ffd700" }}>
-                1.5x DAMAGE
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#ffd700", fontFamily: HUD_MONO }}>
+                {PACK_A_PUNCH.upgradeMultiplier}x DAMAGE
               </div>
             </div>
           ) : (
@@ -144,18 +146,18 @@ export function PackAPunch({ onClose }: PackAPunchProps) {
             onClick={handleUse}
             disabled={points < price}
             style={{
-              padding: "12px 32px",
-              fontSize: "16px",
-              fontWeight: "bold",
-              backgroundColor: points >= price ? "#f97316" : "#333",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
+              padding: "11px 30px",
+              fontSize: 14,
+              fontWeight: 900,
+              letterSpacing: 1,
+              background: points >= price ? "linear-gradient(135deg, #f97316, #ea580c)" : "rgba(255,255,255,0.05)",
+              color: points >= price ? "#fff" : "#6b7280",
+              border: points >= price ? "1px solid rgba(251,146,60,0.7)" : "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 10,
               cursor: points >= price ? "pointer" : "not-allowed",
-              opacity: points >= price ? 1 : 0.5,
             }}
           >
-            UPGRADE ({price} PTS)
+            UPGRADE ({price.toLocaleString()} PTS)
           </button>
         )}
 
@@ -163,13 +165,14 @@ export function PackAPunch({ onClose }: PackAPunchProps) {
           <button
             onClick={onClose}
             style={{
-              padding: "12px 32px",
-              fontSize: "16px",
-              fontWeight: "bold",
-              backgroundColor: "#22c55e",
+              padding: "11px 30px",
+              fontSize: 14,
+              fontWeight: 900,
+              letterSpacing: 1,
+              background: "linear-gradient(135deg, #16a34a, #15803d)",
               color: "#fff",
-              border: "none",
-              borderRadius: "8px",
+              border: "1px solid #4ade80",
+              borderRadius: 10,
               cursor: "pointer",
             }}
           >
@@ -177,8 +180,11 @@ export function PackAPunch({ onClose }: PackAPunchProps) {
           </button>
         )}
 
-        <div style={{ marginTop: "12px", color: "#666", fontSize: "12px" }}>
-          Points: <span style={{ color: "#ffd700", fontWeight: "bold" }}>{points}</span>
+        <div style={{ marginTop: 14, color: "#64748b", fontSize: 11, letterSpacing: 0.6 }}>
+          POINTS{" "}
+          <span style={{ color: "#ffd700", fontWeight: 800, fontFamily: HUD_MONO }}>
+            {points.toLocaleString()}
+          </span>
         </div>
       </div>
     </div>

@@ -22,6 +22,11 @@ import { TracerManager } from "../effects/TracerManager";
 import { useWeaponSwitch } from "../../hooks/useWeaponSwitch";
 import { GrenadeSystem } from "../weapons/GrenadeSystem";
 import { FlashEffect } from "../../components/FlashEffect";
+import { HUD_FONT, HUD_MONO, hudPanel } from "../../ui/hudTheme";
+import { TRAINING_PANEL_Z } from "./trainingHud";
+
+/** The nav bar owns the top edge, so it stays above the drill panels. */
+const TRAINING_NAV_Z = TRAINING_PANEL_Z + 50;
 
 function useLiveFPS() {
   const [fps, setFps] = useState(60);
@@ -59,6 +64,12 @@ const WEAPON_OPTIONS: Array<{ key: WeaponKey; name: string; slot: "primary" | "s
   { key: "combatknife", name: "COMBAT KNIFE", slot: "knife" },
 ];
 
+const ARSENAL_GROUPS: Array<{ slot: "primary" | "secondary" | "knife"; title: string }> = [
+  { slot: "primary", title: "PRIMARY [1]" },
+  { slot: "secondary", title: "SECONDARY [2]" },
+  { slot: "knife", title: "MELEE [3]" },
+];
+
 function QuickArsenalSelector() {
   const { activeWeapon, equipWeapon } = useWeaponStore();
   const [isOpen, setIsOpen] = useState(false);
@@ -67,89 +78,87 @@ function QuickArsenalSelector() {
     <div
       style={{
         position: "fixed",
-        bottom: "16px",
+        bottom: 16,
         left: "50%",
         transform: "translateX(-50%)",
-        zIndex: 150,
+        zIndex: TRAINING_PANEL_Z,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: "8px",
+        gap: 8,
         userSelect: "none",
-        fontFamily: "'Inter', monospace, sans-serif",
+        fontFamily: HUD_FONT,
       }}
     >
-      {/* Expanded Quick Weapon Rack Drawer */}
+      {/* Rack grouped by slot so it reads like the buy menu instead of one long row */}
       {isOpen && (
         <div
           style={{
-            background: "linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.92))",
-            backdropFilter: "blur(18px)",
-            border: "1px solid rgba(59, 130, 246, 0.4)",
-            borderRadius: "14px",
+            ...hudPanel("blue"),
+            borderRadius: 14,
             padding: "12px 16px",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.65), 0 0 20px rgba(59, 130, 246, 0.15)",
             display: "flex",
-            gap: "8px",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            maxWidth: "680px",
+            gap: 18,
             animation: "fadeIn 0.2s ease-out",
           }}
         >
-          {WEAPON_OPTIONS.map((w) => {
-            const isEquipped = activeWeapon === w.key;
-            return (
-              <button
-                key={w.key}
-                onClick={() => {
-                  equipWeapon(w.key);
-                }}
-                style={{
-                  padding: "8px 14px",
-                  background: isEquipped
-                    ? "linear-gradient(135deg, rgba(59, 130, 246, 0.5), rgba(37, 99, 235, 0.7))"
-                    : "rgba(255, 255, 255, 0.06)",
-                  border: isEquipped ? "1px solid #60a5fa" : "1px solid rgba(255, 255, 255, 0.1)",
-                  borderRadius: "8px",
-                  color: isEquipped ? "#ffffff" : "#cbd5e1",
-                  fontSize: "12px",
-                  fontWeight: isEquipped ? 900 : 600,
-                  cursor: "pointer",
-                  boxShadow: isEquipped ? "0 0 12px rgba(59, 130, 246, 0.5)" : "none",
-                  transition: "all 0.15s",
-                }}
-              >
-                {w.name}
-              </button>
-            );
-          })}
+          {ARSENAL_GROUPS.map((group) => (
+            <div key={group.slot} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.2, color: "#64748b" }}>
+                {group.title}
+              </span>
+              <div style={{ display: "flex", gap: 6 }}>
+                {WEAPON_OPTIONS.filter((w) => w.slot === group.slot).map((w) => {
+                  const isEquipped = activeWeapon === w.key;
+                  return (
+                    <button
+                      key={w.key}
+                      onClick={() => equipWeapon(w.key)}
+                      style={{
+                        padding: "7px 12px",
+                        background: isEquipped
+                          ? "linear-gradient(135deg, rgba(59, 130, 246, 0.55), rgba(37, 99, 235, 0.75))"
+                          : "rgba(255, 255, 255, 0.06)",
+                        border: isEquipped ? "1px solid #60a5fa" : "1px solid rgba(255, 255, 255, 0.1)",
+                        borderRadius: 8,
+                        color: isEquipped ? "#ffffff" : "#cbd5e1",
+                        fontSize: 11,
+                        fontWeight: isEquipped ? 900 : 600,
+                        letterSpacing: 0.4,
+                        whiteSpace: "nowrap",
+                        cursor: "pointer",
+                        boxShadow: isEquipped ? "0 0 12px rgba(59, 130, 246, 0.45)" : "none",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {w.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Floating Toggle Button */}
       <button
         onClick={() => setIsOpen((p) => !p)}
         style={{
-          background: "linear-gradient(145deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.8))",
-          backdropFilter: "blur(14px)",
-          border: isOpen ? "1px solid #60a5fa" : "1px solid rgba(255, 255, 255, 0.15)",
-          borderRadius: "10px",
-          padding: "8px 18px",
+          ...hudPanel(isOpen ? "blue" : "neutral"),
+          padding: "7px 16px",
           color: isOpen ? "#93c5fd" : "#cbd5e1",
-          fontSize: "11px",
+          fontSize: 10,
           fontWeight: 800,
-          letterSpacing: "1px",
+          letterSpacing: 1,
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
-          gap: "8px",
-          boxShadow: "0 8px 20px rgba(0,0,0,0.5)",
+          gap: 8,
           transition: "all 0.2s",
         }}
       >
-        <span>🔫 WEAPON ARSENAL RACK</span>
-        <span style={{ fontSize: "9px" }}>{isOpen ? "▲ HIDE" : "▼ CHOOSE WEAPONS"}</span>
+        <span>🔫 ARSENAL RACK</span>
+        <span style={{ fontSize: 9, color: "#64748b" }}>{isOpen ? "▲ HIDE" : "▼ OPEN"}</span>
       </button>
     </div>
   );
@@ -171,23 +180,20 @@ function TrainingTopNav({
   return (
     <header
       style={{
+        ...hudPanel("blue"),
         position: "fixed",
-        top: "16px",
+        top: 16,
         left: "50%",
         transform: "translateX(-50%)",
-        zIndex: 200,
-        width: "calc(100% - 48px)",
-        maxWidth: "1160px",
+        zIndex: TRAINING_NAV_Z,
+        width: "calc(100% - 32px)",
+        maxWidth: 1160,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        background: "linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(30, 41, 59, 0.8))",
-        backdropFilter: "blur(18px)",
-        border: "1px solid rgba(59, 130, 246, 0.28)",
-        borderRadius: "14px",
-        padding: "8px 18px",
-        boxShadow: "0 14px 35px rgba(0,0,0,0.55), 0 0 20px rgba(59,130,246,0.1)",
-        fontFamily: "'Inter', monospace, sans-serif",
+        gap: 16,
+        borderRadius: 14,
+        padding: "8px 16px",
         userSelect: "none",
       }}
     >
@@ -234,7 +240,7 @@ function TrainingTopNav({
             transition: "all 0.2s",
           }}
         >
-          🎯 AIM TRAINER
+          🎯 AIM DRILL
         </button>
 
         <button
@@ -256,7 +262,7 @@ function TrainingTopNav({
             transition: "all 0.2s",
           }}
         >
-          ⚡ RECOIL SPRAY WALL (25M)
+          ⚡ RECOIL WALL
         </button>
       </div>
 
@@ -276,7 +282,7 @@ function TrainingTopNav({
         >
           <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
             <span style={{ fontSize: "12px" }}>⚡</span>
-            <span style={{ fontSize: "14px", fontWeight: 900, fontFamily: "monospace", color: fpsColor }}>
+            <span style={{ fontSize: "14px", fontWeight: 900, fontFamily: HUD_MONO, color: fpsColor }}>
               {fps}
             </span>
             <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: "bold" }}>FPS</span>
@@ -284,7 +290,7 @@ function TrainingTopNav({
 
           <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "10px" }}>|</span>
 
-          <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "monospace" }}>
+          <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: HUD_MONO }}>
             {frameTime}ms
           </span>
 
@@ -313,8 +319,10 @@ function TrainingTopNav({
             border: "1px solid rgba(255, 255, 255, 0.12)",
             borderRadius: "8px",
             color: "#cbd5e1",
-            fontSize: "12px",
+            fontSize: "11px",
             fontWeight: 700,
+            letterSpacing: 0.6,
+            whiteSpace: "nowrap",
             cursor: "pointer",
             transition: "all 0.2s",
           }}
@@ -333,13 +341,15 @@ function TrainingTopNav({
             border: "1px solid rgba(239, 68, 68, 0.4)",
             borderRadius: "8px",
             color: "#f87171",
-            fontSize: "12px",
+            fontSize: "11px",
             fontWeight: 800,
+            letterSpacing: 0.6,
+            whiteSpace: "nowrap",
             cursor: "pointer",
             transition: "all 0.2s",
           }}
         >
-          ← KEMBALI KE MENU
+          ← MENU
         </button>
       </div>
     </header>

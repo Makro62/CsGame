@@ -6,7 +6,7 @@
 // Players outside range or behind walls don't receive position updates,
 // reducing bandwidth and preventing wallhack-style info leaks.
 
-import { PlayerState, MAP_OBSTACLES, MAP_BOUNDARY, MapObstacle } from "@cs-game/shared";
+import { PlayerState, MAP_OBSTACLES } from "@cs-game/shared";
 import { rayVsBox } from "../utils/geometry";
 
 const VISIBILITY_RANGE = 60         // meters

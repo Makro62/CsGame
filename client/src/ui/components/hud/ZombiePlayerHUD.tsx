@@ -1,4 +1,5 @@
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";
+import { HUD_EDGE, HUD_FONT, HUD_MONO, HUD_Z, hudPanel, hudPill, type HudAccent } from "../../hudTheme";
 
 export function ZombiePlayerHUD() {
   const localHp = useZombieNetworkStore((s) => s.localHp);
@@ -16,212 +17,134 @@ export function ZombiePlayerHUD() {
 
   const maxHp = hasJuggernog ? 200 : 100;
   const hpPercent = Math.max(0, Math.min(100, (localHp / maxHp) * 100));
+  const hpColor = hpPercent > 50 ? "#22c55e" : hpPercent > 25 ? "#eab308" : "#ef4444";
+
+  const perks: Array<{ key: string; label: string; accent: HudAccent; title: string }> = [];
+  if (hasJuggernog) perks.push({ key: "jugg", label: "❤️ JUGG", accent: "red", title: "Juggernog (+100 HP)" });
+  if (hasSpeedCola) perks.push({ key: "speed", label: "⚡ SPEED", accent: "green", title: "Speed Cola (reload lebih cepat)" });
+  if (hasDoubleTap) perks.push({ key: "tap", label: "🔥 2X TAP", accent: "amber", title: "Double Tap (fire rate naik)" });
+  if (hasQuickRevive) perks.push({ key: "revive", label: "🛡️ QUICK REVIVE", accent: "blue", title: "Quick Revive" });
+  if (hasPackAPunch) perks.push({ key: "pap", label: "⭐ PAP", accent: "violet", title: "Pack-a-Punch aktif" });
+  if (soloRevives > 0)
+    perks.push({
+      key: "solo",
+      label: `✚ ${soloRevives}x SELF-REVIVE`,
+      accent: "green",
+      title: "Self-revive tersisa di run ini",
+    });
 
   return (
     <div
       style={{
-        position: "absolute",
-        bottom: "24px",
-        left: "24px",
-        right: "24px",
+        position: "fixed",
+        bottom: HUD_EDGE,
+        left: HUD_EDGE,
+        right: HUD_EDGE,
         display: "flex",
         justifyContent: "space-between",
         alignItems: "flex-end",
+        gap: 16,
         pointerEvents: "none",
         userSelect: "none",
-        fontFamily: "'Segoe UI', Roboto, monospace",
-        zIndex: 30,
+        fontFamily: HUD_FONT,
+        zIndex: HUD_Z.hud,
       }}
     >
-      {/* Bottom Left: Health, Armor, Perks */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: "240px" }}>
-        {/* Perk Icons Bar */}
-        <div style={{ display: "flex", gap: "6px" }}>
-          {hasJuggernog && (
-            <div
-              title="Juggernog (+100 HP)"
-              style={{
-                backgroundColor: "#dc2626",
-                border: "1px solid #f87171",
-                borderRadius: "4px",
-                padding: "2px 6px",
-                color: "#fff",
-                fontSize: "11px",
-                fontWeight: "bold",
-              }}
-            >
-              ❤️ JUGG
-            </div>
-          )}
-          {hasSpeedCola && (
-            <div
-              title="Speed Cola (Fast Reload)"
-              style={{
-                backgroundColor: "#16a34a",
-                border: "1px solid #4ade80",
-                borderRadius: "4px",
-                padding: "2px 6px",
-                color: "#fff",
-                fontSize: "11px",
-                fontWeight: "bold",
-              }}
-            >
-              ⚡ SPEED
-            </div>
-          )}
-          {hasDoubleTap && (
-            <div
-              title="Double Tap (Fire Rate Boost)"
-              style={{
-                backgroundColor: "#d97706",
-                border: "1px solid #fbbf24",
-                borderRadius: "4px",
-                padding: "2px 6px",
-                color: "#fff",
-                fontSize: "11px",
-                fontWeight: "bold",
-              }}
-            >
-              🔥 2X TAP
-            </div>
-          )}
-          {hasQuickRevive && (
-            <div
-              title="Quick Revive (Self/Fast Revive)"
-              style={{
-                backgroundColor: "#2563eb",
-                border: "1px solid #60a5fa",
-                borderRadius: "4px",
-                padding: "2px 6px",
-                color: "#fff",
-                fontSize: "11px",
-                fontWeight: "bold",
-              }}
-            >
-              🛡️ REVIVE
-            </div>
-          )}
-          {hasPackAPunch && (
-            <div
-              title="Pack-a-Punch Upgraded"
-              style={{
-                backgroundColor: "#7c3aed",
-                border: "1px solid #c084fc",
-                borderRadius: "4px",
-                padding: "2px 6px",
-                color: "#fff",
-                fontSize: "11px",
-                fontWeight: "bold",
-              }}
-            >
-              ⭐ PAP
-            </div>
-          )}
-          {soloRevives > 0 && (
-            <div
-              title="Self-revives left in this run"
-              style={{
-                backgroundColor: "#0f766e",
-                border: "1px solid #2dd4bf",
-                borderRadius: "4px",
-                padding: "2px 6px",
-                color: "#fff",
-                fontSize: "11px",
-                fontWeight: "bold",
-              }}
-            >
-              ✚ {soloRevives}x SELF-REVIVE
-            </div>
-          )}
-        </div>
+      {/* Left: perks, health, armor */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, width: 260 }}>
+        {perks.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {perks.map((perk) => (
+              <span key={perk.key} title={perk.title} style={hudPill(perk.accent)}>
+                {perk.label}
+              </span>
+            ))}
+          </div>
+        )}
 
-        {/* Health Bar */}
-        <div
-          style={{
-            backgroundColor: "rgba(0, 0, 0, 0.75)",
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: "8px",
-            padding: "8px 12px",
-            backdropFilter: "blur(4px)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-            <span style={{ color: "#ef4444", fontSize: "13px", fontWeight: "bold" }}>HEALTH</span>
-            <span style={{ color: "#fff", fontSize: "14px", fontWeight: "bold" }}>
-              {localHp} / {maxHp}
+        <div style={{ ...hudPanel("neutral"), padding: "8px 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={{ color: "#f87171", fontSize: 10, fontWeight: 800, letterSpacing: 1.2 }}>
+              HEALTH
+            </span>
+            <span style={{ fontFamily: HUD_MONO, color: "#fff", fontSize: 14, fontWeight: 800 }}>
+              {Math.max(0, localHp)}
+              <span style={{ color: "#64748b", fontSize: 11 }}> / {maxHp}</span>
             </span>
           </div>
-          <div
-            style={{
-              width: "100%",
-              height: "8px",
-              backgroundColor: "rgba(255, 255, 255, 0.1)",
-              borderRadius: "4px",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                width: `${hpPercent}%`,
-                height: "100%",
-                backgroundColor: localHp > 50 ? "#22c55e" : localHp > 25 ? "#eab308" : "#ef4444",
-                transition: "width 0.2s ease",
-              }}
-            />
-          </div>
+          <Bar percent={hpPercent} color={hpColor} height={8} />
 
-          {/* Armor Bar if player has armor */}
           {localArmor > 0 && (
-            <div style={{ marginTop: "6px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
-                <span style={{ color: "#38bdf8", fontSize: "11px", fontWeight: "bold" }}>ARMOR</span>
-                <span style={{ color: "#38bdf8", fontSize: "11px", fontWeight: "bold" }}>{localArmor}</span>
+            <div style={{ marginTop: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ color: "#38bdf8", fontSize: 10, fontWeight: 800, letterSpacing: 1.2 }}>
+                  ARMOR
+                </span>
+                <span style={{ fontFamily: HUD_MONO, color: "#38bdf8", fontSize: 12, fontWeight: 800 }}>
+                  {localArmor}
+                </span>
               </div>
-              <div
-                style={{
-                  width: "100%",
-                  height: "4px",
-                  backgroundColor: "rgba(255, 255, 255, 0.1)",
-                  borderRadius: "2px",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${Math.min(100, localArmor)}%`,
-                    height: "100%",
-                    backgroundColor: "#38bdf8",
-                    transition: "width 0.2s ease",
-                  }}
-                />
-              </div>
+              <Bar percent={Math.min(100, localArmor)} color="#38bdf8" height={4} />
             </div>
           )}
         </div>
       </div>
 
-      {/* Bottom Right: Weapon & Ammo */}
-      <div
-        style={{
-          backgroundColor: "rgba(0, 0, 0, 0.75)",
-          border: "1px solid rgba(255, 255, 255, 0.2)",
-          borderRadius: "8px",
-          padding: "8px 16px",
-          textAlign: "right",
-          backdropFilter: "blur(4px)",
-        }}
-      >
-        <div style={{ color: "#f97316", fontSize: "12px", fontWeight: "bold", textTransform: "uppercase" }}>
-          {hasPackAPunch ? `${localWeapon} (PAP)` : localWeapon}
+      {/* Right: weapon, ammo, kills */}
+      <div style={{ ...hudPanel("red"), padding: "8px 14px", textAlign: "right", minWidth: 170 }}>
+        <div
+          style={{
+            color: hasPackAPunch ? "#c084fc" : "#fb923c",
+            fontSize: 11,
+            fontWeight: 800,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+          }}
+        >
+          {hasPackAPunch ? `${localWeapon} ⭐` : localWeapon}
         </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: "6px", justifyContent: "flex-end" }}>
-          <span style={{ color: "#fff", fontSize: "28px", fontWeight: "900" }}>{localAmmo}</span>
-          <span style={{ color: "#9ca3af", fontSize: "16px", fontWeight: "bold" }}>/ {localReserveAmmo}</span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 6,
+            justifyContent: "flex-end",
+            fontFamily: HUD_MONO,
+          }}
+        >
+          <span style={{ color: "#fff", fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>
+            {localAmmo}
+          </span>
+          <span style={{ color: "#94a3b8", fontSize: 14, fontWeight: 700 }}>/ {localReserveAmmo}</span>
         </div>
-        <div style={{ color: "#9ca3af", fontSize: "11px", marginTop: "2px" }}>
-          💀 Kills: <strong style={{ color: "#fff" }}>{kills}</strong>
+        <div style={{ color: "#94a3b8", fontSize: 10, letterSpacing: 0.6, marginTop: 2 }}>
+          💀 KILLS <strong style={{ color: "#fff", fontFamily: HUD_MONO }}>{kills}</strong>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Bar({ percent, color, height }: { percent: number; color: string; height: number }) {
+  return (
+    <div
+      style={{
+        marginTop: 4,
+        width: "100%",
+        height,
+        borderRadius: height / 2,
+        background: "rgba(255, 255, 255, 0.1)",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          width: `${percent}%`,
+          height: "100%",
+          background: color,
+          transition: "width 0.2s ease",
+        }}
+      />
     </div>
   );
 }

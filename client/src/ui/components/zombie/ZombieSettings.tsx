@@ -2,6 +2,7 @@ import { useState } from "react";
 import { zombieSounds } from "../../../lib/zombieSounds";
 import { useSettingsStore } from "../../../stores/useSettingsStore";
 import { useMenuPointerLock } from "../../../hooks/useMenuPointerLock";
+import { HUD_FONT, HUD_Z, hudPanel } from "../../hudTheme";
 
 // ============================================================================
 // Zombie Mode In-Game Pause & Settings Menu
@@ -40,9 +41,10 @@ export function ZombieSettings({ onClose, onRestart, onMenu }: ZombieSettingsPro
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "rgba(0, 0, 0, 0.85)",
-        zIndex: 1000,
-        fontFamily: "'Segoe UI', Roboto, sans-serif",
+        padding: 24,
+        backgroundColor: "rgba(4, 7, 12, 0.82)",
+        zIndex: HUD_Z.modal,
+        fontFamily: HUD_FONT,
         backdropFilter: "blur(6px)",
       }}
       onClick={(e) => {
@@ -51,13 +53,10 @@ export function ZombieSettings({ onClose, onRestart, onMenu }: ZombieSettingsPro
     >
       <div
         style={{
-          width: "480px",
-          maxWidth: "90vw",
-          backgroundColor: "#0d131f",
-          border: "2px solid rgba(220, 38, 38, 0.7)",
-          borderRadius: "14px",
-          padding: "28px",
-          boxShadow: "0 15px 50px rgba(0, 0, 0, 0.9), 0 0 25px rgba(220, 38, 38, 0.3)",
+          ...hudPanel("red"),
+          width: "min(460px, 100%)",
+          borderRadius: 16,
+          padding: 24,
         }}
       >
         {/* Header */}
@@ -66,17 +65,21 @@ export function ZombieSettings({ onClose, onRestart, onMenu }: ZombieSettingsPro
             <div style={{ color: "#ef4444", fontSize: "11px", fontWeight: "900", letterSpacing: "1.5px" }}>
               ☣ SURVIVAL PAUSED
             </div>
-            <h2 style={{ margin: "2px 0 0 0", color: "#fff", fontSize: "22px", fontWeight: "bold" }}>
-              GAME SETTINGS & MENU
+            <h2 style={{ margin: "2px 0 0 0", color: "#f8fafc", fontSize: 19, fontWeight: 900, letterSpacing: 0.6 }}>
+              SETTINGS & MENU
             </h2>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: "none",
-              border: "none",
-              color: "#999",
-              fontSize: "26px",
+              width: 30,
+              height: 30,
+              background: "rgba(255, 255, 255, 0.06)",
+              border: "1px solid rgba(255, 255, 255, 0.12)",
+              borderRadius: 8,
+              color: "#cbd5e1",
+              fontSize: 16,
+              lineHeight: 1,
               cursor: "pointer",
             }}
           >
@@ -155,8 +158,11 @@ export function ZombieSettings({ onClose, onRestart, onMenu }: ZombieSettingsPro
           <div><strong style={{ color: "#fff" }}>[WASD]</strong> Move</div>
           <div><strong style={{ color: "#fff" }}>[1/2/3/Scroll]</strong> Weapons</div>
           <div><strong style={{ color: "#fff" }}>[F]</strong> Interact / Repair</div>
+          <div><strong style={{ color: "#fff" }}>[Hold F]</strong> Revive Ally</div>
           <div><strong style={{ color: "#fff" }}>[B]</strong> Armory Shop</div>
+          <div><strong style={{ color: "#fff" }}>[R]</strong> Reload</div>
           <div><strong style={{ color: "#fff" }}>[M]</strong> Toggle Radar</div>
+          <div><strong style={{ color: "#fff" }}>[TAB]</strong> Scoreboard</div>
           <div><strong style={{ color: "#fff" }}>[Space]</strong> Next Wave</div>
         </div>
 

@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { useZombieStore } from "../stores/useZombieStore";
 import { useZombieNetworkStore } from "../stores/useZombieNetworkStore";
 import { BARRICADE_CONFIG, EXTRACTION_CONFIG } from "@cs-game/shared";
+import { HUD_EDGE, HUD_Z, hudPanel } from "../ui/hudTheme";
 
 // Outpost Z-7 Arena dimensions (approx 120m x 120m)
 const ARENA_SIZE = 120;
-const MINIMAP_SIZE = 190;
+const MINIMAP_SIZE = 168;
 const SCALE = MINIMAP_SIZE / ARENA_SIZE;
 
 export function ZombieMinimap() {
@@ -50,20 +51,15 @@ export function ZombieMinimap() {
   return (
     <div
       style={{
+        ...hudPanel("red"),
+        // Sits under the menu button; the health bar owns the bottom-left corner.
         position: "fixed",
-        // Sits above the health bar, which owns the bottom-left corner.
-        top: 96,
-        left: 24,
+        top: HUD_EDGE + 44,
+        left: HUD_EDGE,
         width: MINIMAP_SIZE,
-        height: MINIMAP_SIZE + 32,
-        background: "rgba(10, 15, 20, 0.88)",
-        border: "2px solid rgba(220, 38, 38, 0.5)",
-        borderRadius: "10px",
-        zIndex: 40,
+        zIndex: HUD_Z.hud,
         pointerEvents: "none",
         overflow: "hidden",
-        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(220, 38, 38, 0.2)",
-        fontFamily: "'Segoe UI', monospace",
       }}
     >
       {/* Header Bar */}
@@ -72,16 +68,16 @@ export function ZombieMinimap() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: "3px 8px",
-          background: "rgba(220, 38, 38, 0.2)",
-          borderBottom: "1px solid rgba(220, 38, 38, 0.3)",
+          padding: "4px 8px",
+          background: "rgba(220, 38, 38, 0.16)",
+          borderBottom: "1px solid rgba(220, 38, 38, 0.28)",
         }}
       >
-        <span style={{ color: "#ef4444", fontSize: "10px", fontWeight: "bold", letterSpacing: "1px" }}>
-          OUTPOST Z-7 [M]
+        <span style={{ color: "#f87171", fontSize: 9, fontWeight: 800, letterSpacing: 1 }}>
+          OUTPOST Z-7
         </span>
-        <span style={{ color: "#ffd700", fontSize: "10px", fontWeight: "bold" }}>
-          RADAR
+        <span style={{ color: "#94a3b8", fontSize: 9, fontWeight: 800, letterSpacing: 1 }}>
+          RADAR [M]
         </span>
       </div>
 
@@ -89,7 +85,7 @@ export function ZombieMinimap() {
       <div
         style={{
           position: "relative",
-          width: MINIMAP_SIZE,
+          width: "100%",
           height: MINIMAP_SIZE,
           overflow: "hidden",
           backgroundColor: "#080c10",

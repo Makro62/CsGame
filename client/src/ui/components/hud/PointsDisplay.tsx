@@ -1,41 +1,36 @@
+import { HUD_MONO, hudPanel } from "../../hudTheme";
+
 interface PointsDisplayProps {
   points: number;
 }
 
+/** Rendered inside the top-right HUD column, so it must not position itself. */
 export function PointsDisplay({ points }: PointsDisplayProps) {
   return (
     <div
       style={{
-        position: "absolute",
-        top: "20px",
-        right: "20px",
+        ...hudPanel("gold"),
+        padding: "6px 14px",
         display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        fontFamily: "'Segoe UI', Arial, sans-serif",
-        userSelect: "none",
+        alignItems: "baseline",
+        justifyContent: "flex-end",
+        gap: 8,
       }}
     >
-      <div
-        style={{
-          fontSize: "14px",
-          color: "#aaa",
-          textShadow: "0 1px 3px rgba(0,0,0,0.7)",
-        }}
-      >
+      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.4, color: "#94a3b8" }}>
         POINTS
-      </div>
-      <div
+      </span>
+      <span
         style={{
-          fontSize: "24px",
-          fontWeight: "bold",
+          fontFamily: HUD_MONO,
+          fontSize: 22,
+          fontWeight: 900,
           color: "#ffd700",
-          textShadow: "0 0 8px rgba(255,215,0,0.5), 0 2px 4px rgba(0,0,0,0.5)",
-          letterSpacing: "1px",
+          textShadow: "0 0 10px rgba(255, 215, 0, 0.45)",
         }}
       >
-        {points}
-      </div>
+        {points.toLocaleString()}
+      </span>
     </div>
   );
 }

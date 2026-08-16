@@ -173,7 +173,7 @@ export function ShootingSystem() {
     );
     casingDir.applyQuaternion(camera.quaternion);
 
-    let velocity = casingDir.clone().multiplyScalar(0.08);
+    const velocity = casingDir.clone().multiplyScalar(0.08);
     const gravity = new THREE.Vector3(0, -0.005, 0);
     let frames = 0;
     const maxFrames = 60;

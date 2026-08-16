@@ -58,6 +58,7 @@ const TICK_MS = 1000 / SERVER.tickRate;
 function sanitizeNickname(raw: unknown): string {
   if (typeof raw !== "string") return "";
   return raw
+    // eslint-disable-next-line no-control-regex -- strip control chars from nicknames
     .replace(/[\u0000-\u001f\u007f\u200b-\u200f\ufeff]/g, "")
     .replace(/[<>"'`]/g, "")
     .trim()
@@ -647,6 +648,7 @@ export class GameRoom extends Room<GameState> {
 
       if (typeof data?.message !== "string") return;
       const message = data.message
+        // eslint-disable-next-line no-control-regex -- strip control chars from chat
         .replace(/[\u0000-\u001f\u007f\u200b-\u200f\ufeff]/g, "") // zero-width + control chars
         .replace(/[<>"']/g, "") // HTML injection prevention
         .trim()

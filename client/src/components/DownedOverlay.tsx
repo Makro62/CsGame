@@ -1,4 +1,5 @@
 import { useZombieStore } from "../stores/useZombieStore";
+import { HUD_FONT, HUD_MONO, HUD_Z, hudPanel } from "../ui/hudTheme";
 
 export function DownedOverlay() {
   const isDowned = useZombieStore((s) => s.isDowned);
@@ -11,15 +12,11 @@ export function DownedOverlay() {
   return (
     <div
       style={{
-        position: "absolute",
+        position: "fixed",
         inset: 0,
         pointerEvents: "none",
-        zIndex: 50,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "40px 20px",
+        zIndex: HUD_Z.overlay,
+        fontFamily: HUD_FONT,
         boxShadow: isDowned ? "inset 0 0 100px 40px rgba(220, 38, 38, 0.75)" : "none",
         backgroundColor: isDowned ? "rgba(185, 28, 28, 0.15)" : "transparent",
         animation: isDowned ? "downedPulse 1.5s infinite alternate" : "none",
@@ -32,55 +29,53 @@ export function DownedOverlay() {
         }
       `}</style>
 
-      {/* Top Banner when Downed */}
+      {/* Sits above the contextual prompt row so the two never collide. */}
       {isDowned && (
         <div
           style={{
-            backgroundColor: "rgba(0, 0, 0, 0.85)",
-            border: "2px solid #ef4444",
-            borderRadius: "8px",
-            padding: "12px 28px",
+            ...hudPanel("red"),
+            position: "absolute",
+            bottom: 210,
+            left: "50%",
+            transform: "translateX(-50%)",
+            padding: "10px 26px",
             textAlign: "center",
-            boxShadow: "0 0 20px rgba(239, 68, 68, 0.5)",
           }}
         >
-          <div style={{ color: "#ef4444", fontSize: "20px", fontWeight: "900", letterSpacing: "2px" }}>
-            ⚠️ YOU ARE DOWNED!
+          <div style={{ color: "#f87171", fontSize: 18, fontWeight: 900, letterSpacing: 2 }}>
+            ⚠️ YOU ARE DOWNED
           </div>
-          <div style={{ color: "#fca5a5", fontSize: "14px", marginTop: "4px" }}>
-            Crawling mode active • Bleedout in: <strong style={{ color: "#fff" }}>{Math.ceil(downedTimer)}s</strong>
+          <div style={{ color: "#fca5a5", fontSize: 12, marginTop: 2 }}>
+            Crawling • Bleedout in{" "}
+            <strong style={{ color: "#fff", fontFamily: HUD_MONO }}>{Math.ceil(downedTimer)}s</strong>
           </div>
         </div>
       )}
 
-      {/* Center Revive Progress Bar */}
+      {/* Revive progress sits just under the crosshair, not on top of it. */}
       {reviveProgress > 0 && (
         <div
           style={{
+            ...hudPanel("green"),
             position: "absolute",
-            top: "50%",
+            top: "calc(50% + 60px)",
             left: "50%",
-            transform: "translate(-50%, -50%)",
-            backgroundColor: "rgba(0, 0, 0, 0.9)",
-            border: "1px solid #10b981",
-            borderRadius: "10px",
-            padding: "16px 24px",
+            transform: "translateX(-50%)",
+            padding: "12px 22px",
             textAlign: "center",
-            minWidth: "280px",
-            boxShadow: "0 0 25px rgba(16, 185, 129, 0.4)",
+            minWidth: 260,
           }}
         >
-          <div style={{ color: "#10b981", fontSize: "16px", fontWeight: "bold", marginBottom: "8px" }}>
-            {isDowned ? "BEING REVIVED..." : `REVIVING ${reviveTargetName || "ALLY"}...`}
+          <div style={{ color: "#34d399", fontSize: 13, fontWeight: 800, letterSpacing: 1, marginBottom: 8 }}>
+            {isDowned ? "BEING REVIVED..." : `REVIVING ${(reviveTargetName || "ALLY").toUpperCase()}...`}
           </div>
           <div
             style={{
               width: "100%",
-              height: "12px",
-              backgroundColor: "#1f2937",
-              borderRadius: "6px",
+              height: 10,
+              backgroundColor: "rgba(255, 255, 255, 0.1)",
+              borderRadius: 5,
               overflow: "hidden",
-              border: "1px solid #374151",
             }}
           >
             <div
@@ -92,13 +87,11 @@ export function DownedOverlay() {
               }}
             />
           </div>
-          <div style={{ color: "#9ca3af", fontSize: "12px", marginTop: "6px" }}>
+          <div style={{ fontFamily: HUD_MONO, color: "#94a3b8", fontSize: 11, marginTop: 6 }}>
             {Math.round(reviveProgress)}%
           </div>
         </div>
       )}
-
-      <div />
     </div>
   );
 }

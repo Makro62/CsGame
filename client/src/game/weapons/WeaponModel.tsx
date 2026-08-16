@@ -229,18 +229,23 @@ function AK47Model() {
         <cylinderGeometry args={[0.014, 0.014, 0.03, 10]} />
         <meshStandardMaterial color="#404040" metalness={0.55} roughness={0.4} />
       </mesh>
-      {/* Front sight post */}
-      <mesh position={[0, 0.06, -0.405]}>
-        <boxGeometry args={[0.005, 0.018, 0.005]} />
+      {/* Front sight post (Tip at Y=0.055) */}
+      <mesh position={[0, 0.048, -0.405]}>
+        <boxGeometry args={[0.003, 0.014, 0.003]} />
         <meshStandardMaterial color="#555555" />
+      </mesh>
+      {/* Tritium glowing dot on front post */}
+      <mesh position={[0, 0.054, -0.403]}>
+        <sphereGeometry args={[0.001, 4, 4]} />
+        <meshBasicMaterial color="#00ff00" toneMapped={false} />
       </mesh>
       {/* Front sight ears */}
       <mesh position={[0.008, 0.048, -0.405]}>
-        <boxGeometry args={[0.004, 0.02, 0.012]} />
+        <boxGeometry args={[0.003, 0.018, 0.01]} />
         <meshStandardMaterial color="#484848" />
       </mesh>
       <mesh position={[-0.008, 0.048, -0.405]}>
-        <boxGeometry args={[0.004, 0.02, 0.012]} />
+        <boxGeometry args={[0.003, 0.018, 0.01]} />
         <meshStandardMaterial color="#484848" />
       </mesh>
       {/* Rear sight block — leaf sight on the rear of the gas tube */}
@@ -248,18 +253,18 @@ function AK47Model() {
         <boxGeometry args={[0.03, 0.014, 0.028]} />
         <meshStandardMaterial color="#3c3c3c" metalness={0.55} roughness={0.4} />
       </mesh>
-      {/* Rear sight notch */}
-      <mesh position={[0, 0.053, -0.055]}>
-        <boxGeometry args={[0.01, 0.006, 0.02]} />
+      {/* Rear sight notch (bottom of notch around Y=0.053) */}
+      <mesh position={[0, 0.049, -0.055]}>
+        <boxGeometry args={[0.012, 0.004, 0.01]} />
         <meshStandardMaterial color="#1c1c1c" />
       </mesh>
       {/* Rear sight ears */}
-      <mesh position={[0.012, 0.052, -0.055]}>
-        <boxGeometry args={[0.005, 0.014, 0.02]} />
+      <mesh position={[0.008, 0.053, -0.055]}>
+        <boxGeometry args={[0.004, 0.008, 0.01]} />
         <meshStandardMaterial color="#484848" metalness={0.5} roughness={0.45} />
       </mesh>
-      <mesh position={[-0.012, 0.052, -0.055]}>
-        <boxGeometry args={[0.005, 0.014, 0.02]} />
+      <mesh position={[-0.008, 0.053, -0.055]}>
+        <boxGeometry args={[0.004, 0.008, 0.01]} />
         <meshStandardMaterial color="#484848" metalness={0.5} roughness={0.45} />
       </mesh>
       {/* Muzzle brake — angled frustum */}
@@ -470,7 +475,7 @@ function M4A1Model() {
         <boxGeometry args={[0.005, 0.02, 0.005]} />
         <meshStandardMaterial color="#555555" />
       </mesh>
-      {/* Gas block */}
+      {/* Gas block (low profile) */}
       <mesh position={[0, 0.012, -0.32]}>
         <boxGeometry args={[0.022, 0.025, 0.03]} />
         <meshStandardMaterial color="#2a2a2a" metalness={0.6} roughness={0.35} />
@@ -584,11 +589,31 @@ function M4A1Model() {
         <boxGeometry args={[0.005, 0.025, 0.04]} />
         <meshStandardMaterial color="#3a3a3a" />
       </mesh>
-      {/* Rear sight — flip-up */}
-      <mesh position={[0, 0.052, 0.1]}>
-        <boxGeometry args={[0.03, 0.012, 0.025]} />
-        <meshStandardMaterial color="#444444" metalness={0.5} roughness={0.4} />
-      </mesh>
+      
+      {/* RED DOT SIGHT (Holographic style) */}
+      <group position={[0, 0.046, 0.05]}>
+        {/* Sight base */}
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={[0.028, 0.01, 0.06]} />
+          <meshStandardMaterial color="#222222" metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Sight frame */}
+        <mesh position={[0, 0.012, 0.01]}>
+          <boxGeometry args={[0.032, 0.024, 0.005]} />
+          <meshStandardMaterial color="#1c1c1c" metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Sight glass (Lens) */}
+        <mesh position={[0, 0.012, 0.008]}>
+          <boxGeometry args={[0.024, 0.018, 0.002]} />
+          <meshStandardMaterial color="#113344" transparent opacity={0.6} metalness={0.9} roughness={0.1} />
+        </mesh>
+        {/* Glowing Red Dot (at exact sight height Y=0.05 relative to weapon origin, 0.05 - 0.046 = 0.004 in sight space) */}
+        <mesh position={[0, 0.004, 0.007]}>
+          <sphereGeometry args={[0.0012, 8, 8]} />
+          <meshBasicMaterial color="#ff0000" toneMapped={false} />
+        </mesh>
+      </group>
+
       {/* Bolt catch */}
       <mesh position={[-0.026, -0.01, 0.04]}>
         <boxGeometry args={[0.008, 0.02, 0.02]} />
@@ -669,7 +694,21 @@ function AWPModel() {
       {/* Scope rear lens */}
       <mesh position={[0, 0.06, 0.11]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.014, 0.014, 0.005, 16]} />
-        <meshStandardMaterial color="#2244aa" metalness={0.8} roughness={0.1} transparent opacity={0.8} />
+        <meshStandardMaterial color="#2244aa" metalness={0.8} roughness={0.1} transparent opacity={0.5} />
+      </mesh>
+      {/* Scope Reticle / Glowing Center Dot */}
+      <mesh position={[0, 0.06, 0.106]}>
+        <sphereGeometry args={[0.0008, 8, 8]} />
+        <meshBasicMaterial color="#ff0000" toneMapped={false} />
+      </mesh>
+      {/* Scope Reticle Lines */}
+      <mesh position={[0, 0.06, 0.107]}>
+        <boxGeometry args={[0.016, 0.0004, 0.0004]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
+      <mesh position={[0, 0.06, 0.107]}>
+        <boxGeometry args={[0.0004, 0.016, 0.0004]} />
+        <meshBasicMaterial color="#000000" />
       </mesh>
       {/* Scope mount rings */}
       <mesh position={[0, 0.048, -0.04]}>

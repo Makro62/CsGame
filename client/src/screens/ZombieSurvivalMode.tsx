@@ -40,6 +40,15 @@ import {
   PACK_A_PUNCH_POS,
   ZOMBIE_POINTS,
 } from "@cs-game/shared";
+import {
+  HUD_EDGE,
+  HUD_MONO,
+  HUD_Z,
+  hudBannerStack,
+  hudPanel,
+  hudPill,
+  hudPromptStack,
+} from "../ui/hudTheme";
 
 /** Reviving an ally takes a held key, so a stray tap cannot start it. */
 const REVIVE_RANGE = 3;
@@ -340,20 +349,13 @@ function PromptBadge({ text }: { text: string }) {
   return (
     <div
       style={{
-        position: "absolute",
-        bottom: "160px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        backgroundColor: "rgba(0, 0, 0, 0.85)",
-        border: "1px solid #ffd700",
-        borderRadius: "8px",
+        ...hudPanel("gold"),
         padding: "8px 20px",
         color: "#ffd700",
-        fontSize: "14px",
-        fontWeight: "bold",
-        pointerEvents: "none",
-        zIndex: 35,
-        boxShadow: "0 0 15px rgba(255, 215, 0, 0.4)",
+        fontSize: 13,
+        fontWeight: 800,
+        letterSpacing: 0.4,
+        textAlign: "center",
       }}
     >
       {text}
@@ -383,19 +385,13 @@ function BossWaveWarning() {
   return (
     <div
       style={{
-        position: "absolute",
-        top: "120px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        padding: "16px 32px",
-        backgroundColor: "rgba(220,38,38,0.9)",
-        borderRadius: "8px",
-        border: "2px solid #ff0000",
-        animation: "pulse 0.5s infinite",
-        zIndex: 45,
+        ...hudPanel("red"),
+        background: "linear-gradient(150deg, rgba(153, 27, 27, 0.92), rgba(69, 10, 10, 0.9))",
+        padding: "10px 28px",
+        animation: "pulse 0.6s infinite",
       }}
     >
-      <div style={{ color: "#fff", fontSize: "24px", fontWeight: "bold", textAlign: "center" }}>
+      <div style={{ color: "#fff", fontSize: 20, fontWeight: 900, letterSpacing: 2, textAlign: "center" }}>
         ⚠️ BOSS WAVE
       </div>
     </div>
@@ -553,35 +549,34 @@ export function ZombieSurvivalMode() {
         />
       )}
 
-      {/* Top Left Menu / Back Button */}
+      {/* Top Left Menu / Back Button, aligned with the radar below it */}
       <button
         onClick={toggleSettings}
         style={{
+          ...hudPanel("red"),
           position: "fixed",
-          top: "16px",
-          left: "16px",
-          padding: "8px 16px",
-          backgroundColor: "rgba(10, 15, 25, 0.8)",
-          border: "1px solid rgba(220, 38, 38, 0.6)",
-          borderRadius: "8px",
-          color: "#fff",
-          fontSize: "13px",
-          fontWeight: "bold",
+          top: HUD_EDGE,
+          left: HUD_EDGE,
+          width: 168,
+          padding: "7px 12px",
+          color: "#f8fafc",
+          fontSize: 11,
+          fontWeight: 800,
+          letterSpacing: 1,
           cursor: "pointer",
-          zIndex: 60,
-          boxShadow: "0 4px 15px rgba(0,0,0,0.6)",
+          zIndex: HUD_Z.chrome,
           transition: "all 0.2s",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "rgba(220, 38, 38, 0.3)";
           e.currentTarget.style.borderColor = "#ef4444";
+          e.currentTarget.style.color = "#fecaca";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "rgba(10, 15, 25, 0.8)";
-          e.currentTarget.style.borderColor = "rgba(220, 38, 38, 0.6)";
+          e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.55)";
+          e.currentTarget.style.color = "#f8fafc";
         }}
       >
-        ⚙️ MENU / BACK [ESC]
+        ⚙️ MENU [ESC]
       </button>
 
       <HotkeyManager
@@ -614,14 +609,50 @@ export function ZombieSurvivalMode() {
       <DownedOverlay />
       <AudioManager />
       <ZombieMinimap />
-      <WaveHUD currentWave={currentWave} waveState={waveState} zombiesRemaining={zombiesRemaining} interWaveTimer={interWaveTimer} />
-      <PointsDisplay points={points} />
+
+      {/* One centered column so wave / boss / power-up / evac never overlap */}
+      <div style={hudBannerStack(HUD_EDGE)}>
+        <WaveHUD
+          currentWave={currentWave}
+          waveState={waveState}
+          zombiesRemaining={zombiesRemaining}
+          interWaveTimer={interWaveTimer}
+        />
+        <BossWaveWarning />
+        <ActivePowerUpIndicator activePowerUp={activePowerUp} powerUpTimer={powerUpTimer} />
+        <ExtractionHUD />
+      </div>
+
+      {/* Top-right column: score plus the hotkeys players need mid-run */}
+      <div
+        style={{
+          position: "fixed",
+          top: HUD_EDGE,
+          right: HUD_EDGE,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: 8,
+          zIndex: HUD_Z.hud,
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
+      >
+        <PointsDisplay points={points} />
+        <div style={{ display: "flex", gap: 4 }}>
+          <span style={hudPill("gold")}>[B] SHOP</span>
+          <span style={hudPill("neutral")}>[F] USE</span>
+          <span style={hudPill("neutral")}>[TAB] SCORE</span>
+        </div>
+      </div>
+
       <ZombiePlayerHUD />
-      <ExtractionHUD />
-      <AreaUnlockUI />
-      <InteractionPrompt />
-      <BossWaveWarning />
-      <ActivePowerUpIndicator activePowerUp={activePowerUp} powerUpTimer={powerUpTimer} />
+
+      {/* One prompt column above the bottom HUD */}
+      <div style={hudPromptStack(150)}>
+        <AreaUnlockUI />
+        <InteractionPrompt />
+      </div>
       {!lobbyOpen && <ClickToPlayOverlay onLock={() => {}} />}
       {shopOpen && <WeaponShop onClose={toggleShop} />}
       {mysteryBoxOpen && <MysteryBox onClose={() => setMysteryBoxOpen(false)} />}
@@ -653,24 +684,19 @@ function ActivePowerUpIndicator({ activePowerUp, powerUpTimer }: { activePowerUp
   return (
     <div
       style={{
-        position: "absolute",
-        top: "100px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        padding: "8px 16px",
-        backgroundColor: "rgba(0,0,0,0.7)",
-        borderRadius: "8px",
-        border: "1px solid #ffd700",
+        ...hudPanel("gold"),
+        padding: "6px 16px",
         display: "flex",
         alignItems: "center",
-        gap: "8px",
-        zIndex: 30,
+        gap: 8,
       }}
     >
-      <span style={{ color: "#ffd700", fontWeight: "bold", fontSize: "14px" }}>
+      <span style={{ color: "#ffd700", fontWeight: 900, fontSize: 12, letterSpacing: 1 }}>
         {activePowerUp.replace(/_/g, " ").toUpperCase()}
       </span>
-      <span style={{ color: "#fff", fontSize: "12px" }}>{Math.ceil(powerUpTimer)}s</span>
+      <span style={{ fontFamily: HUD_MONO, color: "#fff", fontSize: 12, fontWeight: 800 }}>
+        {Math.ceil(powerUpTimer)}s
+      </span>
     </div>
   );
 }

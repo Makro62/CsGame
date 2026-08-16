@@ -35,19 +35,17 @@ npm run dev
 ### Mode Permainan
 | Mode | Format | Status |
 | :--- | :--- | :--- |
-| Single (Training Range) | 1 pemain, aim trainer + movement course | MVP |
-| Mabar Bomb Defusal | 5v5, 15 ronde, first-to-8 | MVP |
-| FFA Deathmatch | 8-12 pemain, first-to-50 kills | Roadmap |
-| Gun Game | 7 weapon ladder, first to finish | Roadmap |
-| TDM | 5v5, first-to-100 kills | Roadmap |
+| Training Range | 1 pemain, aim trainer + recoil practice | ✅ |
+| Bomb Defusal 5v5 | 5v5, 15 ronde, first-to-8 + overtime | ✅ |
+| Zombie Survival | Solo / co-op 1–4, wave ∞, shop, PaP, extraction | ✅ |
+| FFA / TDM / Gun Game | Server-side partial / roadmap | 🟨 |
 
 ### Sistem Lainnya
 - Sistem ekonomi buy menu CS:GO style ($800 start, kill/round rewards)
 - **10 Senjata** — Rifle, SMG, Pistol, Sniper, Melee (Glock, Tec-9, Auto Pistol, Combat Knife)
 - Bomb Defusal lengkap (plant 3s, timer 40s, defuse 5s/10s) + bomb pickup setelah terjatuh
-- Spectator System lengkap (death cam, free cam, player follow, objective cam)
-- Training Range (dummy target, aim trainer, movement course, recoil practice)
-- Anti-cheat server-side + lag compensation 500ms + interest management
+- Training Range (dummy target, aim trainer, recoil practice)
+- Anti-cheat server-side + lag compensation **200ms** + interest management
 - HUD pure CSS zero-asset (crosshair, minimap, kill feed, FPS/ping monitor)
 - Model senjata **Krunker.io blocky/voxel style** — semua dari box geometry
 
@@ -100,10 +98,10 @@ Semua keputusan arsitektur, panduan desain, dan spesifikasi fitur disimpan di `d
 - [Design_UI_Flow_Geometry.md](docs/Design_UI_Flow_Geometry.md) — Alur layar, geometri 3D, transition timing.
 - [Design_CSS_UI_System.md](docs/Design_CSS_UI_System.md) — Desain UI/HUD murni CSS (crosshair, minimap, FPS/ping).
 
-### Proses Implementasi Aktif
-- [Impl_Map_ContainerYard_v3.md](docs/Impl_Map_ContainerYard_v3.md) — Perbaikan bentuk + visual map CS Container Yard.
-- [Impl_Zombie_Survival.md](docs/Impl_Zombie_Survival.md) — Perbaikan Zombie Survival ke playable (6 gelombang).
-- [Zombie_Survival_Code_Review.md](docs/Zombie_Survival_Code_Review.md) — Inventory defect P0–P3.
+### Proses & Status
+- [Master Implementation Checklist](docs/Master_Implementation_Checklist.md) — fitur terverifikasi.
+- [IMPROVEMENTS_AND_FIXES_AUDIT.md](docs/IMPROVEMENTS_AND_FIXES_AUDIT.md) — backlog P1–P3 (performa, polish, AI).
+- Index: [docs/README.md](docs/README.md).
 
 ### Phase Guides (Urutan Build)
 - Dokumentasi Phase_0–Phase_8 historis sudah diarsipkan / dihapus. Status fitur: [Master_Implementation_Checklist.md](docs/Master_Implementation_Checklist.md). Index docs: [docs/README.md](docs/README.md).

@@ -175,6 +175,23 @@ Catatan scope: movement course belum dibuat; klaim di Main Menu sudah disesuaika
 | 103 | **Downed, self-revive berjatah, dan revive co-op `[F]`** | 🟢 | ZombieSurvivalRoom | Self-revive di akhir bleedout sesuai difficulty, tahan [F] revive rekan | ✅ Selesai |
 | 104 | **Rantai unlock area + validasi jarak interaksi** | 🟢 | ZOMBIE_MAP_AREAS | Safe House terbuka sejak awal, pintu hanya bisa dibeli di lokasinya | ✅ Selesai |
 | 105 | **Difficulty lobby benar-benar diterapkan** | 🟡 | ZOMBIE_DIFFICULTIES | HP/speed/damage zombie, bonus poin, dan jatah self-revive berubah | ✅ Selesai |
+| 106 | **Zombie real-dt movement + AntiCheatSystem** | 🟢 | AntiCheatSystem | Input flood/speed/fire-rate divalidasi; dt dari waktu nyata | ✅ Selesai |
+| 107 | **Ammo per-senjata di Zombie Survival** | 🟢 | #99 | Switch senjata mengembalikan magazine/reserve yang disimpan | ✅ Selesai |
+| 108 | **`npm run lint` menjalankan ESLint** | 🟢 | eslint.config.js | Root lint = `eslint .` | ✅ Selesai |
+
+---
+
+## 10. 🎛️ Kerapian HUD Zombie & Training
+
+| # | Fitur | Prioritas | Dependensi | Testing Criteria | Status |
+| :--- | :--- | :---: | :--- | :--- | :---: |
+| 109 | **Token HUD bersama (`ui/hudTheme.ts`)** | 🟢 | — | Satu font stack, panel glass, dan skala z-index untuk semua overlay | ✅ Selesai |
+| 110 | **Banner zombie jadi satu kolom** | 🟢 | #109 | Wave, boss, power-up, dan evac menumpuk vertikal tanpa saling tutup | ✅ Selesai |
+| 111 | **Kolom kanan poin + hint hotkey** | 🟢 | #109 | Poin diformat ribuan, hint [B]/[F]/[TAB] sejajar di kanan atas | ✅ Selesai |
+| 112 | **Prompt interaksi & downed tidak bertabrakan** | 🟢 | #109 | Prompt area/interaksi satu kolom, banner downed di atasnya | ✅ Selesai |
+| 113 | **Radar sejajar tombol menu (kiri atas)** | 🟢 | #109 | Lebar radar = lebar tombol menu, tidak menabrak HUD bawah | ✅ Selesai |
+| 114 | **Modal zombie seragam + pointer lock** | 🟢 | useMenuPointerLock | Shop/PaP/box/settings/leaderboard/game over/lobby bisa diklik & sepadan gayanya | ✅ Selesai |
+| 115 | **Panel drill training satu kolom** | 🟢 | trainingHud.ts | Aim & recoil panel di bawah nav, rak senjata dikelompokkan per slot | ✅ Selesai |
 
 ---
 
@@ -184,7 +201,8 @@ Catatan scope: movement course belum dibuat; klaim di Main Menu sudah disesuaika
 - **Mode Zombie Survival v3.1:** 14 / 14 Fitur (100% ✅)
 - **Training Range:** 6 / 6 Fitur (100% ✅)
 - **Buy System, Loadout & Weapon Model:** 7 / 7 Fitur (100% ✅)
-- **Perbaikan Inti Zombie Survival:** 9 / 9 Fitur (100% ✅)
-- **Total Keseluruhan:** **105 / 105 Fitur Selesai & Terverifikasi (100% ✅)**
-- **Unit Tests:** **26 / 26 Tests Passed**
+- **Perbaikan Inti Zombie Survival:** 12 / 12 Fitur (100% ✅)
+- **Kerapian HUD Zombie & Training:** 7 / 7 Fitur (100% ✅)
+- **Total Keseluruhan:** **115 / 115 Fitur Selesai & Terverifikasi (100% ✅)**
+- **Unit Tests:** **32 / 32 Tests Passed** (termasuk AntiCheatSystem)
 - **TypeScript / Build:** **0 Error (Lulus 100%)**

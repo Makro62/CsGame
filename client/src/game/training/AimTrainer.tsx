@@ -1,6 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from "react"
 import { useGameStore } from "../../stores/useGameStore"
+import { HUD_FONT, HUD_MONO, hudPanel } from "../../ui/hudTheme"
 import { Bot, type BotDifficulty, type BotBehavior } from "./Bot"
+import { TRAINING_PANEL_ANCHOR, TRAINING_PANEL_WIDTH } from "./trainingHud"
 
 // Bot zone of TrainingArena, kept clear of the firing line
 const SPAWN_RANGE = { x: [-16, 16], z: [-40, -14] }
@@ -146,24 +148,18 @@ export function AimTrainerUI() {
   return (
     <div
       style={{
-        position: "fixed",
-        top: "80px",
-        left: "24px",
+        ...TRAINING_PANEL_ANCHOR,
         color: "white",
-        fontFamily: "'Inter', monospace, sans-serif",
-        zIndex: 100,
+        fontFamily: HUD_FONT,
         userSelect: "none",
       }}
     >
       <div
         style={{
-          background: "linear-gradient(145deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.75))",
-          backdropFilter: "blur(16px)",
-          padding: "20px",
-          borderRadius: "16px",
-          border: "1px solid rgba(59, 130, 246, 0.3)",
-          boxShadow: "0 16px 36px rgba(0,0,0,0.5), 0 0 20px rgba(59,130,246,0.1)",
-          width: "250px",
+          ...hudPanel("blue"),
+          padding: "16px",
+          borderRadius: 14,
+          width: TRAINING_PANEL_WIDTH,
         }}
       >
         {/* Header */}
@@ -201,7 +197,7 @@ export function AimTrainerUI() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "32px", fontWeight: 900, fontFamily: "monospace", color: isTimerRunning ? "#22d3ee" : "#f1f5f9", textShadow: isTimerRunning ? "0 0 16px rgba(34, 211, 238, 0.5)" : "none" }}>
+          <div style={{ fontSize: "32px", fontWeight: 900, fontFamily: HUD_MONO, color: isTimerRunning ? "#22d3ee" : "#f1f5f9", textShadow: isTimerRunning ? "0 0 16px rgba(34, 211, 238, 0.5)" : "none" }}>
             {timer}<span style={{ fontSize: "16px", color: "#64748b", marginLeft: "2px" }}>s</span>
           </div>
           <div style={{ fontSize: "10px", color: "#94a3b8", letterSpacing: "1px" }}>SESSION TIMER (60s)</div>

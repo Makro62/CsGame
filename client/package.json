@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "echo 'lint runs from monorepo root via eslint'",
     "preview": "vite preview"
   },
   "dependencies": {

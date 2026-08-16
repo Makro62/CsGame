@@ -3,7 +3,9 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { gameEvents } from "../../lib/gameEvents";
 import { useWeaponStore } from "../../stores/useWeaponStore";
+import { HUD_FONT, HUD_MONO, hudPanel } from "../../ui/hudTheme";
 import { TRAINING_ARENA } from "./TrainingArena";
+import { TRAINING_PANEL_ANCHOR, TRAINING_PANEL_WIDTH } from "./trainingHud";
 
 const MAX_DECALS = 50;
 const DECAL_LIFETIME = 10000;
@@ -94,29 +96,75 @@ export function RecoilPracticeUI() {
   const activeWeapon = useWeaponStore((s) => s.activeWeapon);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: "100px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        color: "white",
-        fontFamily: "monospace",
-        fontSize: "12px",
-        background: "rgba(0,0,0,0.7)",
-        padding: "8px 16px",
-        borderRadius: "4px",
-        zIndex: 100,
-        textAlign: "center",
-      }}
-    >
-      <div>
-        RECOIL PRACTICE — {activeWeapon?.toUpperCase() ?? "NO WEAPON"} · WALL{" "}
-        {WALL_DISTANCE}M
+    <div style={{ ...TRAINING_PANEL_ANCHOR, fontFamily: HUD_FONT, userSelect: "none" }}>
+      <div
+        style={{
+          ...hudPanel("amber"),
+          width: TRAINING_PANEL_WIDTH,
+          padding: 16,
+          borderRadius: 14,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 15 }}>⚡</span>
+          <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1.5, color: "#fbbf24" }}>
+            RECOIL DRILL
+          </span>
+        </div>
+
+        <div
+          style={{
+            background: "rgba(0, 0, 0, 0.4)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: 12,
+            padding: 10,
+            marginBottom: 12,
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontFamily: HUD_MONO, fontSize: 30, fontWeight: 900, color: "#f8fafc" }}>
+            {bulletsFired}
+          </div>
+          <div style={{ fontSize: 10, color: "#94a3b8", letterSpacing: 1 }}>SHOTS IN BURST</div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11 }}>
+          <Row label="Weapon" value={activeWeapon?.toUpperCase() ?? "NONE"} valueColor="#fbbf24" />
+          <Row label="Wall distance" value={`${WALL_DISTANCE} m`} />
+          <Row label="Ammo" value="INFINITE" valueColor="#4ade80" />
+          <Row label="Bullet holes" value="10 s" />
+        </div>
+
+        <div
+          style={{
+            marginTop: 12,
+            paddingTop: 10,
+            borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+            fontSize: 10,
+            color: "#94a3b8",
+            lineHeight: 1.5,
+          }}
+        >
+          Tahan tembakan lalu tarik mouse mengikuti pola. Lepas 1–2 detik untuk reset spray.
+        </div>
       </div>
-      <div style={{ fontSize: "10px", color: "#9ca3af" }}>
-        Burst: {bulletsFired} shots • Infinite ammo • Bullet holes last 10s
-      </div>
+    </div>
+  );
+}
+
+function Row({
+  label,
+  value,
+  valueColor = "#e2e8f0",
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+}) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between" }}>
+      <span style={{ color: "#94a3b8" }}>{label}</span>
+      <span style={{ fontWeight: 800, color: valueColor, fontFamily: HUD_MONO }}>{value}</span>
     </div>
   );
 }

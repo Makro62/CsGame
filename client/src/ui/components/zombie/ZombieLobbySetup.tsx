@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { ZombieDifficulty } from "@cs-game/shared";
+import { useMenuPointerLock } from "../../../hooks/useMenuPointerLock";
+import { HUD_FONT, HUD_Z, hudPanel } from "../../hudTheme";
 
 /** The lobby offers exactly the difficulties the server knows about. */
 export type DifficultyLevel = ZombieDifficulty;
@@ -54,31 +56,33 @@ const DIFFICULTIES: {
 export function ZombieLobbySetup({ onStart, onBack }: ZombieLobbySetupProps) {
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyLevel>("normal");
 
+  // Restarting a run brings this screen back while the canvas may still hold the
+  // pointer lock, which would make every button here unclickable.
+  useMenuPointerLock(false);
+
   return (
     <div
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(5, 8, 15, 0.95)",
+        backgroundColor: "rgba(4, 7, 12, 0.94)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 200,
-        fontFamily: "'Segoe UI', Roboto, sans-serif",
+        padding: 24,
+        zIndex: HUD_Z.modal,
+        fontFamily: HUD_FONT,
         backdropFilter: "blur(8px)",
       }}
     >
       <div
         style={{
-          width: "820px",
-          maxWidth: "92vw",
-          maxHeight: "90vh",
-          backgroundColor: "#0d131f",
-          border: "2px solid rgba(220, 38, 38, 0.6)",
-          borderRadius: "16px",
-          padding: "32px",
+          ...hudPanel("red"),
+          width: "min(820px, 100%)",
+          maxHeight: "88vh",
+          borderRadius: 18,
+          padding: 28,
           overflowY: "auto",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(220, 38, 38, 0.25)",
         }}
       >
         {/* Header with Back Button */}
@@ -87,7 +91,7 @@ export function ZombieLobbySetup({ onStart, onBack }: ZombieLobbySetupProps) {
             <div style={{ color: "#ef4444", fontSize: "12px", fontWeight: "900", letterSpacing: "2px" }}>
               ☣ OPERATION OUTBREAK
             </div>
-            <h1 style={{ margin: "4px 0 0 0", color: "#fff", fontSize: "28px", fontWeight: "900" }}>
+            <h1 style={{ margin: "4px 0 0 0", color: "#f8fafc", fontSize: 24, fontWeight: 900, letterSpacing: 1 }}>
               OUTPOST Z-7 SURVIVAL SETUP
             </h1>
           </div>
@@ -190,8 +194,10 @@ export function ZombieLobbySetup({ onStart, onBack }: ZombieLobbySetupProps) {
             <div><strong style={{ color: "#fff" }}>[Klik Kiri]</strong> Tembak Senjata</div>
             <div><strong style={{ color: "#fff" }}>[R]</strong> Reload Amunisi</div>
             <div><strong style={{ color: "#fff" }}>[F]</strong> Interaksi / Repair / PaP</div>
+            <div><strong style={{ color: "#fff" }}>[Tahan F]</strong> Revive Rekan Tim</div>
             <div><strong style={{ color: "#fff" }}>[B]</strong> Buka Armory Shop</div>
             <div><strong style={{ color: "#fff" }}>[M]</strong> Buka / Tutup Mini-Map</div>
+            <div><strong style={{ color: "#fff" }}>[TAB]</strong> Papan Skor</div>
             <div><strong style={{ color: "#fff" }}>[Space]</strong> Mulai Wave Selanjutnya</div>
             <div><strong style={{ color: "#fff" }}>[ESC]</strong> Pause / Settings Menu</div>
           </div>
@@ -203,20 +209,20 @@ export function ZombieLobbySetup({ onStart, onBack }: ZombieLobbySetupProps) {
             onClick={() => onStart(selectedDifficulty)}
             style={{
               flex: 1,
-              padding: "16px",
-              backgroundColor: "#dc2626",
-              border: "none",
-              borderRadius: "10px",
+              padding: "15px",
+              background: "linear-gradient(135deg, #dc2626, #b91c1c)",
+              border: "1px solid rgba(248, 113, 113, 0.7)",
+              borderRadius: 12,
               color: "#fff",
-              fontSize: "18px",
-              fontWeight: "900",
+              fontSize: 16,
+              fontWeight: 900,
               cursor: "pointer",
-              letterSpacing: "1px",
-              boxShadow: "0 0 25px rgba(220, 38, 38, 0.5)",
-              transition: "transform 0.1s, background-color 0.2s",
+              letterSpacing: 1.2,
+              boxShadow: "0 0 25px rgba(220, 38, 38, 0.4)",
+              transition: "filter 0.2s",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#ef4444")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#dc2626")}
+            onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.15)")}
+            onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
           >
             🔥 DEPLOY TO OUTPOST Z-7
           </button>

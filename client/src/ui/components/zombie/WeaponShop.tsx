@@ -3,6 +3,7 @@ import { WEAPONS, ZOMBIE_SHOP } from "@cs-game/shared";
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";
 import { useZombieStore } from "../../../stores/useZombieStore";
 import { useMenuPointerLock } from "../../../hooks/useMenuPointerLock";
+import { HUD_FONT, HUD_MONO, HUD_Z, hudPanel } from "../../hudTheme";
 
 // ============================================================================
 // Zombie Mode Weapon Shop
@@ -181,14 +182,16 @@ export function WeaponShop({ onClose }: WeaponShopProps) {
   return (
     <div
       style={{
-        position: "absolute",
+        position: "fixed",
         inset: 0,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "rgba(0,0,0,0.85)",
-        zIndex: 1000,
-        fontFamily: "'Segoe UI', Arial, sans-serif",
+        padding: 24,
+        backgroundColor: "rgba(4, 7, 12, 0.82)",
+        backdropFilter: "blur(6px)",
+        zIndex: HUD_Z.modal,
+        fontFamily: HUD_FONT,
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -196,31 +199,57 @@ export function WeaponShop({ onClose }: WeaponShopProps) {
     >
       <div
         style={{
-          width: "700px",
-          maxHeight: "80vh",
-          backgroundColor: "#1a1a2e",
-          border: "2px solid #ff6600",
-          borderRadius: "12px",
-          padding: "24px",
-          overflow: "auto",
+          ...hudPanel("amber"),
+          width: "min(720px, 100%)",
+          maxHeight: "min(78vh, 720px)",
+          borderRadius: 16,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h2 style={{ margin: 0, color: "#ff6600", fontSize: "24px", fontWeight: "bold" }}>
-            SURVIVOR ARMORY & UPGRADES
-          </h2>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <span style={{ color: "#ffd700", fontSize: "18px", fontWeight: "bold" }}>
-              {points} PTS
+        {/* Header stays put while the list scrolls */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 16,
+            padding: "14px 20px",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0, color: "#fb923c", fontSize: 18, fontWeight: 900, letterSpacing: 1.4 }}>
+              SURVIVOR ARMORY
+            </h2>
+            <div style={{ color: "#64748b", fontSize: 10, letterSpacing: 1 }}>
+              WEAPONS · AMMO · PERKS
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span
+              style={{
+                fontFamily: HUD_MONO,
+                color: "#ffd700",
+                fontSize: 18,
+                fontWeight: 900,
+              }}
+            >
+              {points.toLocaleString()}
+              <span style={{ color: "#94a3b8", fontSize: 11, marginLeft: 4 }}>PTS</span>
             </span>
             <button
               onClick={onClose}
               style={{
-                background: "none",
-                border: "none",
-                color: "#999",
-                fontSize: "24px",
+                width: 30,
+                height: 30,
+                background: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                borderRadius: 8,
+                color: "#cbd5e1",
+                fontSize: 16,
+                lineHeight: 1,
                 cursor: "pointer",
               }}
             >
@@ -230,20 +259,29 @@ export function WeaponShop({ onClose }: WeaponShopProps) {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            padding: "12px 20px 0",
+          }}
+        >
           {(["weapons", "perks"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setSelectedTab(tab)}
               style={{
-                padding: "8px 20px",
-                fontSize: "14px",
-                fontWeight: "bold",
-                fontFamily: "monospace",
-                background: selectedTab === tab ? "rgba(255,102,0,0.3)" : "rgba(255,255,255,0.05)",
-                border: selectedTab === tab ? "1px solid #ff6600" : "1px solid rgba(255,255,255,0.1)",
-                borderRadius: "6px",
-                color: selectedTab === tab ? "#ff6600" : "#999",
+                padding: "7px 18px",
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: 1,
+                background: selectedTab === tab ? "rgba(251, 146, 60, 0.22)" : "rgba(255,255,255,0.05)",
+                border:
+                  selectedTab === tab
+                    ? "1px solid rgba(251, 146, 60, 0.7)"
+                    : "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 8,
+                color: selectedTab === tab ? "#fb923c" : "#94a3b8",
                 cursor: "pointer",
                 textTransform: "uppercase",
               }}
@@ -257,13 +295,14 @@ export function WeaponShop({ onClose }: WeaponShopProps) {
         {notification && (
           <div
             style={{
-              padding: "8px 16px",
-              backgroundColor: notification.ok ? "rgba(255,102,0,0.2)" : "rgba(239,68,68,0.2)",
-              border: `1px solid ${notification.ok ? "#ff6600" : "#ef4444"}`,
-              borderRadius: "6px",
-              color: notification.ok ? "#ff6600" : "#fca5a5",
-              fontSize: "14px",
-              marginBottom: "16px",
+              margin: "12px 20px 0",
+              padding: "8px 14px",
+              backgroundColor: notification.ok ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+              border: `1px solid ${notification.ok ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"}`,
+              borderRadius: 8,
+              color: notification.ok ? "#86efac" : "#fca5a5",
+              fontSize: 12,
+              fontWeight: 700,
               textAlign: "center",
             }}
           >
@@ -272,35 +311,62 @@ export function WeaponShop({ onClose }: WeaponShopProps) {
         )}
 
         {/* Weapon/Perk List */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+            gap: 10,
+            padding: 20,
+            overflowY: "auto",
+          }}
+        >
           {filteredWeapons.map((item) => {
             const canAfford = points >= item.price;
             return (
               <div
                 key={item.id}
                 style={{
-                  padding: "16px",
+                  padding: 14,
                   backgroundColor: "rgba(255,255,255,0.03)",
-                  border: canAfford ? "1px solid rgba(255,102,0,0.4)" : "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "8px",
+                  border: canAfford
+                    ? "1px solid rgba(251, 146, 60, 0.35)"
+                    : "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 10,
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between",
+                  gap: 10,
                 }}
               >
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                    <span style={{ color: "#fff", fontWeight: "bold", fontSize: "16px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      gap: 8,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <span style={{ color: "#f8fafc", fontWeight: 800, fontSize: 14 }}>
                       {item.name}
                     </span>
-                    <span style={{ color: "#ffd700", fontWeight: "bold", fontSize: "14px" }}>
-                      {item.price} PTS
+                    <span
+                      style={{
+                        fontFamily: HUD_MONO,
+                        color: canAfford ? "#ffd700" : "#6b7280",
+                        fontWeight: 800,
+                        fontSize: 13,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.price.toLocaleString()}
                     </span>
                   </div>
-                  <div style={{ color: "#999", fontSize: "12px", marginBottom: "8px" }}>
+                  <div style={{ color: "#94a3b8", fontSize: 11, marginBottom: 6, lineHeight: 1.4 }}>
                     {item.description}
                   </div>
-                  <div style={{ color: "#666", fontSize: "11px", fontFamily: "monospace" }}>
+                  <div style={{ color: "#64748b", fontSize: 10, fontFamily: HUD_MONO }}>
                     {item.stats}
                   </div>
                 </div>
@@ -308,23 +374,38 @@ export function WeaponShop({ onClose }: WeaponShopProps) {
                   onClick={() => handleBuy(item)}
                   disabled={!canAfford}
                   style={{
-                    marginTop: "12px",
                     padding: "8px",
-                    fontSize: "13px",
-                    fontWeight: "bold",
-                    backgroundColor: canAfford ? "#ff6600" : "#333",
-                    color: canAfford ? "#fff" : "#666",
-                    border: "none",
-                    borderRadius: "6px",
+                    fontSize: 11,
+                    fontWeight: 900,
+                    letterSpacing: 1,
+                    background: canAfford
+                      ? "linear-gradient(135deg, #f97316, #ea580c)"
+                      : "rgba(255,255,255,0.05)",
+                    color: canAfford ? "#fff" : "#6b7280",
+                    border: canAfford ? "1px solid rgba(251,146,60,0.7)" : "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 8,
                     cursor: canAfford ? "pointer" : "not-allowed",
                     transition: "background 0.2s",
                   }}
                 >
-                  BUY
+                  {canAfford ? "BUY" : "NOT ENOUGH POINTS"}
                 </button>
               </div>
             );
           })}
+        </div>
+
+        <div
+          style={{
+            padding: "8px 20px 12px",
+            borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+            color: "#64748b",
+            fontSize: 10,
+            letterSpacing: 0.8,
+            textAlign: "center",
+          }}
+        >
+          [B] atau [ESC] untuk menutup · harga sama dengan validasi server
         </div>
       </div>
     </div>

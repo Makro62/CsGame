@@ -30,7 +30,9 @@ class ZombieSoundManager {
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + duration);
-    } catch {}
+    } catch {
+      /* WebAudio can fail silently on some browsers; ignore */
+    }
   }
 
   private playNoise(duration: number, volumeMult = 1) {
@@ -51,7 +53,9 @@ class ZombieSoundManager {
       source.connect(gain);
       gain.connect(ctx.destination);
       source.start();
-    } catch {}
+    } catch {
+      /* WebAudio can fail silently on some browsers; ignore */
+    }
   }
 
   // Game sounds

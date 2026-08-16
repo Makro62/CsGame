@@ -1,6 +1,7 @@
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";
 import { useZombieStore } from "../../../stores/useZombieStore";
 import { ZOMBIE_INTERACT_RANGE, ZOMBIE_MAP_AREAS, MapArea } from "@cs-game/shared";
+import { HUD_MONO, hudPanel } from "../../hudTheme";
 
 // ============================================================================
 // Area Unlock UI (door prompt for the area the player is standing next to)
@@ -45,26 +46,23 @@ export function AreaUnlockUI() {
   return (
     <div
       style={{
-        position: "absolute",
-        bottom: "200px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        padding: "10px 20px",
-        backgroundColor: "rgba(0, 0, 0, 0.85)",
-        border: `1px solid ${canAfford ? "#22c55e" : "rgba(255,255,255,0.25)"}`,
-        borderRadius: "8px",
-        color: "#fff",
-        fontFamily: "monospace",
+        ...hudPanel(canAfford ? "green" : "neutral"),
+        padding: "8px 18px",
         textAlign: "center",
-        pointerEvents: "none",
-        zIndex: 35,
       }}
     >
-      <div style={{ fontSize: "13px", fontWeight: "bold" }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: "#f8fafc" }}>
         {canAfford ? `Press [F] to unlock ${area.name}` : `🔒 ${area.name} locked`}
       </div>
-      <div style={{ fontSize: "11px", color: canAfford ? "#22c55e" : "#f87171" }}>
-        {area.price} PTS
+      <div
+        style={{
+          fontFamily: HUD_MONO,
+          fontSize: 11,
+          fontWeight: 800,
+          color: canAfford ? "#34d399" : "#f87171",
+        }}
+      >
+        {area.price.toLocaleString()} PTS
       </div>
     </div>
   );
