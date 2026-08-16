@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { PACK_A_PUNCH } from "@cs-game/shared";
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";
 import { useZombieStore } from "../../../stores/useZombieStore";
+import { useMenuPointerLock } from "../../../hooks/useMenuPointerLock";
 
 // ============================================================================
 // Pack-a-Punch UI
@@ -15,8 +17,11 @@ export function PackAPunch({ onClose }: PackAPunchProps) {
   const sendPackAPunch = useZombieNetworkStore((s) => s.sendPackAPunch);
   const [upgrading, setUpgrading] = useState(false);
   const [complete, setComplete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const price = 5000;
+  const price = PACK_A_PUNCH.price;
+
+  useMenuPointerLock();
 
   useEffect(() => {
     const handleComplete = () => {
@@ -24,13 +29,36 @@ export function PackAPunch({ onClose }: PackAPunchProps) {
       setComplete(true);
     };
 
+    // Without this the overlay would sit on "UPGRADING..." forever whenever the
+    // server refuses (already upgraded, too far, weapon not allowed).
+    const handleFailed = (e: Event) => {
+      const detail = (e as CustomEvent<{ item: string }>).detail;
+      if (detail.item !== "pack_a_punch") return;
+      setUpgrading(false);
+      setError(useZombieNetworkStore.getState().lastBuyFailure?.message ?? "Upgrade refused");
+    };
+
     window.addEventListener("packAPunchComplete", handleComplete);
-    return () => window.removeEventListener("packAPunchComplete", handleComplete);
+    window.addEventListener("zombieBuyFailed", handleFailed);
+    return () => {
+      window.removeEventListener("packAPunchComplete", handleComplete);
+      window.removeEventListener("zombieBuyFailed", handleFailed);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!upgrading) return;
+    const timeout = setTimeout(() => {
+      setUpgrading(false);
+      setError("No response from the machine, try again");
+    }, 8000);
+    return () => clearTimeout(timeout);
+  }, [upgrading]);
 
   const handleUse = () => {
     if (points < price || upgrading) return;
     setUpgrading(true);
+    setError(null);
     sendPackAPunch();
   };
 
@@ -63,9 +91,14 @@ export function PackAPunch({ onClose }: PackAPunchProps) {
         <h2 style={{ margin: "0 0 8px 0", color: "#f97316", fontSize: "24px", fontWeight: "bold" }}>
           PACK-A-PUNCH
         </h2>
-        <p style={{ color: "#999", fontSize: "12px", margin: "0 0 16px 0" }}>
-          Upgrade your weapon for 1.5x damage
+        <p style={{ color: "#999", fontSize: "12px", margin: "0 0 8px 0" }}>
+          Upgrade your weapon for {PACK_A_PUNCH.upgradeMultiplier}x damage
         </p>
+        {error && (
+          <div style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "8px", fontWeight: "bold" }}>
+            {error}
+          </div>
+        )}
 
         {/* Upgrade animation */}
         <div

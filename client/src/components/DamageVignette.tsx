@@ -26,6 +26,15 @@ export function DamageVignette() {
     room.onMessage("damage", handler);
   }, [room, sessionId]);
 
+  // Zombie mode runs in its own room, which reports damage as a window event.
+  useEffect(() => {
+    const handleZombieDamage = () => {
+      if (mountedRef.current) setFlash(true);
+    };
+    window.addEventListener("zombieDamageTaken", handleZombieDamage);
+    return () => window.removeEventListener("zombieDamageTaken", handleZombieDamage);
+  }, []);
+
   useEffect(() => {
     if (!flash) return;
     const timer = setTimeout(() => setFlash(false), 300);

@@ -53,7 +53,7 @@ interface WeaponState {
   infiniteAmmo: boolean;
 
   equipWeapon: (weapon: WeaponKey, options?: EquipOptions) => void;
-  switchToSlot: (slot: 1 | 2 | 3) => void;
+  switchToSlot: (slot: 1 | 2 | 3 | 4) => void;
   syncLoadout: (loadout: Loadout) => void;
   cycleGrenadeType: () => void;
   setGrenadeType: (type: "he" | "smoke" | "flash") => void;
@@ -113,19 +113,33 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   infiniteAmmo: false,
 
   cycleGrenadeType: () => {
-    const { grenadeType } = get();
+    const { grenadeType, activeWeapon } = get();
+    const isCurrentlyHoldingGrenade =
+      activeWeapon === "he" || activeWeapon === "smoke" || activeWeapon === "flash";
+
+    if (!isCurrentlyHoldingGrenade) {
+      get().equipWeapon(grenadeType as WeaponKey);
+      return;
+    }
+
     const idx = GRENADE_CYCLE.indexOf(grenadeType);
-    set({ grenadeType: GRENADE_CYCLE[(idx + 1) % GRENADE_CYCLE.length] });
+    const nextType = GRENADE_CYCLE[(idx + 1) % GRENADE_CYCLE.length];
+    set({ grenadeType: nextType });
+    get().equipWeapon(nextType as WeaponKey);
   },
 
   setGrenadeType: (type: GrenadeType) => {
     set({ grenadeType: type });
+    if (get().activeWeapon === "he" || get().activeWeapon === "smoke" || get().activeWeapon === "flash") {
+      get().equipWeapon(type as WeaponKey);
+    }
   },
 
   equipWeapon: (weapon: WeaponKey, options?: EquipOptions) => {
     const stats = WEAPONS[weapon];
     const melee = isMeleeWeapon(weapon);
-    const ammoCount = melee ? 0 : (options?.ammo ?? stats.mag);
+    const isGrenade = weapon === "he" || weapon === "smoke" || weapon === "flash";
+    const ammoCount = melee ? 0 : isGrenade ? 1 : (options?.ammo ?? stats.mag);
 
     // Already holding it: reconcile the magazine without replaying the draw.
     if (get().activeWeapon === weapon) {
@@ -166,7 +180,11 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     }, 150);
   },
 
-  switchToSlot: (slot: 1 | 2 | 3) => {
+  switchToSlot: (slot: 1 | 2 | 3 | 4) => {
+    if (slot === 4) {
+      get().cycleGrenadeType();
+      return;
+    }
     const state = get();
     const { primaryWeapon, secondaryWeapon, knifeSlot, activeWeapon, currentAmmo } = state;
 

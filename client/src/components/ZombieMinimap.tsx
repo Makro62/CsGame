@@ -51,7 +51,8 @@ export function ZombieMinimap() {
     <div
       style={{
         position: "fixed",
-        bottom: 24,
+        // Sits above the health bar, which owns the bottom-left corner.
+        top: 96,
         left: 24,
         width: MINIMAP_SIZE,
         height: MINIMAP_SIZE + 32,

@@ -12,6 +12,7 @@ export function ZombiePlayerHUD() {
   const hasQuickRevive = useZombieNetworkStore((s) => s.hasQuickRevive);
   const hasPackAPunch = useZombieNetworkStore((s) => s.hasPackAPunch);
   const kills = useZombieNetworkStore((s) => s.kills);
+  const soloRevives = useZombieNetworkStore((s) => s.soloRevives);
 
   const maxHp = hasJuggernog ? 200 : 100;
   const hpPercent = Math.max(0, Math.min(100, (localHp / maxHp) * 100));
@@ -114,6 +115,22 @@ export function ZombiePlayerHUD() {
               }}
             >
               ⭐ PAP
+            </div>
+          )}
+          {soloRevives > 0 && (
+            <div
+              title="Self-revives left in this run"
+              style={{
+                backgroundColor: "#0f766e",
+                border: "1px solid #2dd4bf",
+                borderRadius: "4px",
+                padding: "2px 6px",
+                color: "#fff",
+                fontSize: "11px",
+                fontWeight: "bold",
+              }}
+            >
+              ✚ {soloRevives}x SELF-REVIVE
             </div>
           )}
         </div>

@@ -1,11 +1,46 @@
 import { create } from "zustand";
 import { Client, Room } from "colyseus.js";
-import { GameState, ZombieState, BarricadeState } from "@cs-game/shared";
+import {
+  GameState,
+  ZombieState,
+  BarricadeState,
+  WEAPONS,
+  ZombieBuyFailReason,
+  ZombieDifficulty,
+} from "@cs-game/shared";
 import { useZombieStore } from "./useZombieStore";
+import { useWeaponStore, type WeaponKey } from "./useWeaponStore";
+import { useNetworkStore } from "./useNetworkStore";
 import { zombieSounds } from "../lib/zombieSounds";
 import { SERVER_URL } from "../config/network";
 
 const SESSION_KEY = "zombie_room_session";
+
+const BUY_FAIL_MESSAGES: Record<ZombieBuyFailReason, string> = {
+  no_money: "Not enough points",
+  already_owned: "Already owned",
+  unknown_item: "Not available here",
+  unavailable: "Can't buy right now",
+  too_far: "Move closer",
+  locked: "Unlock the previous area first",
+  full: "Already at maximum",
+};
+
+/** Lets the shop confirm a purchase only after the server accepted it. */
+function emitPurchase(item: string) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("zombiePurchase", { detail: { item } }));
+}
+
+/** Mirrors the server loadout onto the viewmodel, ammo counters included. */
+function syncLocalWeapon(weapon: string, ammo: number, reserveAmmo: number, silent = true) {
+  if (!(weapon in WEAPONS)) return;
+  useWeaponStore.getState().equipWeapon(weapon as WeaponKey, {
+    ammo,
+    reserveAmmo,
+    silent,
+  });
+}
 
 interface ZombieNetworkState {
   client: Client | null;
@@ -29,21 +64,31 @@ interface ZombieNetworkState {
   hasQuickRevive: boolean;
   hasPackAPunch: boolean;
 
+  soloRevives: number;
+  difficulty: ZombieDifficulty;
+
   // Stats
   kills: number;
   headshots: number;
+
+  /** Downed teammates the local player can walk up to and revive. */
+  downedAllies: { sessionId: string; nickname: string; x: number; z: number }[];
+  /** Last rejected purchase, so the shop can explain itself. */
+  lastBuyFailure: { item: string; message: string; at: number } | null;
 
   // Snapshot for server reconciliation
   lastSnapshot: { x: number; y: number; z: number; rotationY: number; lastProcessedSeq: number } | null;
   latency: number;
 
   // Actions
-  connect: (nickname: string) => Promise<void>;
+  connect: (nickname: string, difficulty?: ZombieDifficulty) => Promise<void>;
   disconnect: () => void;
   sendInput: (data: any) => void;
   sendShoot: (data: any) => void;
+  sendMelee: (data: any) => void;
   sendReload: () => void;
   sendSwitchWeapon: (weapon: string) => void;
+  sendBuyWeapon: (weapon: string) => void;
   sendStartGame: () => void;
   sendBuyAmmo: () => void;
   sendBuyArmor: () => void;
@@ -59,13 +104,7 @@ interface ZombieNetworkState {
   sendPickupPowerUp: (id: string) => void;
 }
 
-export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
-  client: null,
-  room: null,
-  sessionId: null,
-  connected: false,
-  reconnecting: false,
-
+const FRESH_MATCH_STATE = {
   localHp: 100,
   localIsDead: false,
   localIsDowned: false,
@@ -79,15 +118,34 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
   hasDoubleTap: false,
   hasQuickRevive: false,
   hasPackAPunch: false,
-
+  soloRevives: 0,
   kills: 0,
   headshots: 0,
-
+  downedAllies: [],
+  lastBuyFailure: null,
   lastSnapshot: null,
+} as const;
+
+export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
+  client: null,
+  room: null,
+  sessionId: null,
+  connected: false,
+  reconnecting: false,
+
+  ...FRESH_MATCH_STATE,
+  downedAllies: [],
+  lastBuyFailure: null,
+  difficulty: "normal",
+
   latency: 0,
 
-  connect: async (nickname: string) => {
+  connect: async (nickname: string, difficulty: ZombieDifficulty = "normal") => {
     const client = new Client(SERVER_URL);
+
+    // Never inherit HP, points or perks from a previous run.
+    set({ ...FRESH_MATCH_STATE, downedAllies: [], lastBuyFailure: null, difficulty });
+    useZombieStore.getState().resetMatch();
 
     try {
       let room: Room<GameState> | null = null;
@@ -106,7 +164,7 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
       }
 
       if (!room) {
-        room = await client.joinOrCreate<GameState>("zombie_room", { nickname });
+        room = await client.joinOrCreate<GameState>("zombie_room", { nickname, difficulty });
         sessionStorage.setItem(
           SESSION_KEY,
           JSON.stringify({ reconnectionToken: room.reconnectionToken, savedAt: Date.now() })
@@ -131,6 +189,7 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
   disconnect: () => {
     const { room } = get();
     if (room) {
+      room.removeAllListeners();
       room.leave();
     }
     sessionStorage.removeItem(SESSION_KEY);
@@ -139,7 +198,11 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
       room: null,
       sessionId: null,
       connected: false,
+      ...FRESH_MATCH_STATE,
+      downedAllies: [],
+      lastBuyFailure: null,
     });
+    useZombieStore.getState().resetMatch();
   },
 
   sendInput: (data: any) => {
@@ -152,6 +215,11 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
     if (room) room.send("shoot", data);
   },
 
+  sendMelee: (data: any) => {
+    const { room } = get();
+    if (room) room.send("melee", data);
+  },
+
   sendReload: () => {
     const { room } = get();
     if (room) room.send("reload");
@@ -160,6 +228,11 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
   sendSwitchWeapon: (weapon: string) => {
     const { room } = get();
     if (room) room.send("switch_weapon", { weapon });
+  },
+
+  sendBuyWeapon: (weapon: string) => {
+    const { room } = get();
+    if (room) room.send("buy_weapon", { weapon });
   },
 
   sendStartGame: () => {
@@ -255,7 +328,18 @@ function setupZombieRoom(room: Room<GameState>) {
       });
 
       useZombieStore.getState().setDownedState(localPlayer.isDowned, localPlayer.downedTimer);
+
+      // The viewmodel and the fire gate follow the server's weapon, otherwise a
+      // mystery box swap or a downed pistol lock leaves the old gun in hand.
+      syncLocalWeapon(localPlayer.currentWeapon, localPlayer.ammo, localPlayer.reserveAmmo);
     }
+
+    const downedAllies: ZombieNetworkState["downedAllies"] = [];
+    state.players.forEach((player, id) => {
+      if (id === sessionId || player.isDead || !player.isDowned) return;
+      downedAllies.push({ sessionId: id, nickname: player.nickname, x: player.x, z: player.z });
+    });
+    useZombieNetworkStore.setState({ downedAllies });
 
     // Trigger waveClear SFX when entering wave_clear state
     if (state.waveState === "wave_clear" && prevWaveState !== "wave_clear") {
@@ -295,7 +379,7 @@ function setupZombieRoom(room: Room<GameState>) {
       barricades.push(b);
     });
 
-    const unlockedAreas: string[] = ["spawn"];
+    const unlockedAreas: string[] = [];
     state.unlockedAreas.forEach((_val, areaId) => {
       if (!unlockedAreas.includes(areaId)) unlockedAreas.push(areaId);
     });
@@ -321,11 +405,19 @@ function setupZombieRoom(room: Room<GameState>) {
     });
   });
 
+  room.onMessage("matchSetup", (data: { difficulty: ZombieDifficulty; soloRevives: number }) => {
+    useZombieNetworkStore.setState({
+      difficulty: data.difficulty,
+      soloRevives: data.soloRevives,
+    });
+  });
+
   // Position snapshot for server reconciliation (handles both formats)
   room.onMessage("snapshot", (data: any) => {
     if (data.players && data.players[room.sessionId]) {
       const p = data.players[room.sessionId];
       useZombieNetworkStore.setState({
+        soloRevives: p.soloRevives ?? useZombieNetworkStore.getState().soloRevives,
         lastSnapshot: {
           x: p.x,
           y: p.y,
@@ -359,34 +451,90 @@ function setupZombieRoom(room: Room<GameState>) {
     }
   });
 
-  // Hit marker
+  // Hit marker. Reusing the shared HUD marker also gives us its audio cue.
   room.onMessage("hit", (data: { zombieId: string; damage: number; headshot: boolean }) => {
     zombieSounds.zombieHit();
+    useNetworkStore.getState().showHitMarker(data.headshot);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("zombieHit", { detail: data }));
+    }
+  });
+
+  room.onMessage("damage", (data: { victimId: string; damage: number }) => {
+    if (data.victimId !== room.sessionId) return;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("zombieDamageTaken", { detail: data }));
     }
   });
 
   // Reload complete
   room.onMessage("reloadComplete", (data: { ammo: number; reserveAmmo: number }) => {
     useZombieNetworkStore.setState({ localAmmo: data.ammo, localReserveAmmo: data.reserveAmmo });
+    const weapon = useZombieNetworkStore.getState().localWeapon;
+    syncLocalWeapon(weapon, data.ammo, data.reserveAmmo);
+    useWeaponStore.getState().cancelReload();
   });
 
   // Ammo bought
   room.onMessage("ammoBought", (data: { ammo: number; reserveAmmo: number }) => {
     useZombieNetworkStore.setState({ localAmmo: data.ammo, localReserveAmmo: data.reserveAmmo });
+    syncLocalWeapon(useZombieNetworkStore.getState().localWeapon, data.ammo, data.reserveAmmo);
     zombieSounds.purchase();
+    emitPurchase("ammo");
+  });
+
+  room.onMessage(
+    "weaponBought",
+    (data: { weapon: string; ammo: number; reserveAmmo: number }) => {
+      useZombieNetworkStore.setState({
+        localWeapon: data.weapon,
+        localAmmo: data.ammo,
+        localReserveAmmo: data.reserveAmmo,
+      });
+      syncLocalWeapon(data.weapon, data.ammo, data.reserveAmmo, false);
+      zombieSounds.purchase();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("zombieWeaponBought", { detail: data }));
+      }
+    }
+  );
+
+  room.onMessage(
+    "weaponSwitched",
+    (data: { weapon: string; ammo: number; reserveAmmo: number }) => {
+      useZombieNetworkStore.setState({
+        localWeapon: data.weapon,
+        localAmmo: data.ammo,
+        localReserveAmmo: data.reserveAmmo,
+      });
+      syncLocalWeapon(data.weapon, data.ammo, data.reserveAmmo, false);
+    }
+  );
+
+  room.onMessage("zombieBuyFailed", (data: { item: string; reason: ZombieBuyFailReason }) => {
+    useZombieNetworkStore.setState({
+      lastBuyFailure: {
+        item: data.item,
+        message: BUY_FAIL_MESSAGES[data.reason] ?? "Purchase failed",
+        at: Date.now(),
+      },
+    });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("zombieBuyFailed", { detail: data }));
+    }
   });
 
   // Armor bought
   room.onMessage("armorBought", (data: { armor: number }) => {
     useZombieNetworkStore.setState({ localArmor: data.armor });
     zombieSounds.purchase();
+    emitPurchase("armor");
   });
 
   // Perk bought
-  room.onMessage("perkBought", () => {
+  room.onMessage("perkBought", (data: { perk: string }) => {
     zombieSounds.powerUp();
+    emitPurchase(data?.perk ?? "perk");
   });
 
   // Game started
@@ -405,14 +553,28 @@ function setupZombieRoom(room: Room<GameState>) {
   });
 
   // Player revived
-  room.onMessage("playerRevived", () => {
-    zombieSounds.powerUp();
-    useZombieStore.getState().setReviveProgress(0, "");
-  });
+  room.onMessage(
+    "playerRevived",
+    (data: { targetId: string; reviverId: string; revivesLeft?: number }) => {
+      zombieSounds.powerUp();
+      useZombieStore.getState().setReviveProgress(0, "");
+      if (data.targetId === room.sessionId) {
+        useZombieNetworkStore.setState({
+          localIsDowned: false,
+          localDownedTimer: 0,
+          ...(typeof data.revivesLeft === "number" ? { soloRevives: data.revivesLeft } : {}),
+        });
+      }
+    }
+  );
 
-  // Revive progress
+  // Revive progress; only my own revives belong on my screen.
   room.onMessage("reviveProgress", (data: { reviverId: string; targetId: string; progress: number }) => {
-    useZombieStore.getState().setReviveProgress(data.progress, data.targetId);
+    if (data.reviverId !== room.sessionId && data.targetId !== room.sessionId) return;
+    const ally = useZombieNetworkStore
+      .getState()
+      .downedAllies.find((a) => a.sessionId === data.targetId);
+    useZombieStore.getState().setReviveProgress(data.progress, ally?.nickname ?? "");
   });
 
   // Player died

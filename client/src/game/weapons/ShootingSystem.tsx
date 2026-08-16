@@ -14,7 +14,7 @@ import {
 } from "./RecoilController";
 import { Sound } from "../../components/AudioManager";
 import { gameEvents } from "../../lib/gameEvents";
-import { getMuzzleOffset } from "./weaponRig";
+import { getMuzzleOffset, isAkimboWeapon, type AkimboSide } from "./weaponRig";
 
 // Same idle window RecoilController uses to reset its pattern index
 const SPRAY_RESET_MS = 260;
@@ -126,6 +126,8 @@ export function ShootingSystem() {
   const seqRef = useRef(0);
   const mouseHeld = useRef(false);
   const muzzleFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Akimbo weapons alternate hands, so every shot flips this.
+  const akimboSide = useRef<AkimboSide>(1);
 
   useEffect(() => {
     if (activeWeapon && activeWeapon !== lastWeapon.current) {
@@ -134,12 +136,14 @@ export function ShootingSystem() {
     }
   }, [activeWeapon]);
 
-  const createMuzzleFlash = useCallback(() => {
+  const createMuzzleFlash = useCallback((side: AkimboSide = 1) => {
     const flash = getMuzzleFlashMesh();
     camera.getWorldPosition(shootOrigin);
     camera.getWorldDirection(shootDirection);
 
-    _muzzleOffset.copy(getMuzzleOffset(activeWeapon)).applyQuaternion(camera.quaternion);
+    _muzzleOffset
+      .copy(getMuzzleOffset(activeWeapon, side))
+      .applyQuaternion(camera.quaternion);
     flash.position.copy(shootOrigin).add(_muzzleOffset);
     flash.rotation.set(0, 0, Math.random() * Math.PI * 2);
     flash.visible = true;
@@ -152,18 +156,18 @@ export function ShootingSystem() {
     }, 50);
   }, [camera, scene, activeWeapon]);
 
-  const createShellCasing = useCallback(() => {
+  const createShellCasing = useCallback((side: AkimboSide = 1) => {
     const casing = getShellCasingMesh();
     camera.getWorldPosition(shootOrigin);
 
-    _casingOffset.set(0.15, 0, -0.3);
+    _casingOffset.set(0.15 * side, 0, -0.3);
     _casingOffset.applyQuaternion(camera.quaternion);
     casing.position.copy(shootOrigin).add(_casingOffset);
     casing.visible = true;
     scene.add(casing);
 
     const casingDir = new THREE.Vector3(
-      0.5 + Math.random() * 0.3,
+      (0.5 + Math.random() * 0.3) * side,
       0.8 + Math.random() * 0.4,
       -0.2 + Math.random() * 0.2
     );
@@ -252,7 +256,13 @@ export function ShootingSystem() {
 
       if (gameMode === "training") useGameStore.getState().incrementShots();
 
-      if (gameMode !== "training" && gameMode !== "zombie") {
+      if (gameMode === "zombie") {
+        camera.getWorldDirection(shootDirection);
+        useZombieNetworkStore.getState().sendMelee({
+          direction: { x: shootDirection.x, y: shootDirection.y, z: shootDirection.z },
+          timestamp: performance.now(),
+        });
+      } else if (gameMode !== "training") {
         camera.getWorldDirection(shootDirection);
         useNetworkStore.getState().sendMelee({
           x: shootDirection.x,
@@ -277,10 +287,48 @@ export function ShootingSystem() {
       return;
     }
 
+    if (activeWeapon === "he" || activeWeapon === "smoke" || activeWeapon === "flash") {
+      camera.getWorldDirection(shootDirection);
+      const origin = camera.position.clone().add(shootDirection.clone().multiplyScalar(0.4));
+      const velocity = shootDirection.clone().multiplyScalar(22).add(new THREE.Vector3(0, 3, 0));
+
+      const nadeData = {
+        id: `nade-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: activeWeapon,
+        throwerId: "local",
+        x: origin.x,
+        y: origin.y,
+        z: origin.z,
+        vx: velocity.x,
+        vy: velocity.y,
+        vz: velocity.z,
+      };
+
+      gameEvents.emit("nadeThrown", nadeData);
+
+      if (gameMode !== "training" && gameMode !== "zombie") {
+        useNetworkStore.getState().sendThrowGrenade({
+          type: activeWeapon,
+          origin: { x: origin.x, y: origin.y, z: origin.z },
+          velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
+        });
+      }
+
+      // Auto switch back to primary weapon after throw
+      const primary = useWeaponStore.getState().primaryWeapon || "ak47";
+      setTimeout(() => {
+        useWeaponStore.getState().equipWeapon(primary);
+      }, 350);
+      return;
+    }
+
     const controller = recoilController.current;
     if (!controller) return;
 
     controller.fire();
+
+    const side: AkimboSide = isAkimboWeapon(activeWeapon) ? akimboSide.current : 1;
+    akimboSide.current = side === 1 ? -1 : 1;
 
     const movementState = getMovementState(useGameStore.getState().lastInput);
 
@@ -333,7 +381,9 @@ export function ShootingSystem() {
 
       // Tracer via Zustand instead of window.dispatchEvent
       const startPos = camera.getWorldPosition(_tempVec3);
-      _muzzleOffset.copy(getMuzzleOffset(activeWeapon)).applyQuaternion(camera.quaternion);
+      _muzzleOffset
+        .copy(getMuzzleOffset(activeWeapon, side))
+        .applyQuaternion(camera.quaternion);
       // Point blank: keep the tracer origin behind the impact point.
       if (hit.distance < _muzzleOffset.length() * 1.5) {
         _muzzleOffset.multiplyScalar((hit.distance * 0.5) / _muzzleOffset.length());
@@ -353,11 +403,13 @@ export function ShootingSystem() {
     }
 
     // Create visual effects
-    createMuzzleFlash();
-    createShellCasing();
+    createMuzzleFlash(side);
+    createShellCasing(side);
 
     // Trigger shoot event via Zustand instead of window.dispatchEvent
     useGameStore.getState().triggerShoot();
+    // Lets the viewmodel kick the hand that actually fired.
+    gameEvents.emit("weaponFired", { weapon: activeWeapon, akimboSide: side });
 
     // Play gunshot sound
     Sound.gunshot(activeWeapon);
@@ -420,7 +472,11 @@ export function ShootingSystem() {
           if (stats && stats.reload > 0) {
             Sound.dryFire();
             weaponState.startReload();
-            useNetworkStore.getState().sendReload();
+            if (useGameStore.getState().mode === "zombie") {
+              useZombieNetworkStore.getState().sendReload();
+            } else {
+              useNetworkStore.getState().sendReload();
+            }
           }
           return;
         }

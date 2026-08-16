@@ -52,31 +52,36 @@ interface ZombieStore {
   setExtractionState: (active: boolean, timer: number, available: boolean, evacSuccess?: boolean) => void;
   setUnlockedAreas: (areas: string[]) => void;
   addPoints: (amount: number) => void;
+  /** Clears everything a previous run left behind. */
+  resetMatch: () => void;
 }
 
-export const useZombieStore = create<ZombieStore>((set) => ({
+const INITIAL_MATCH_STATE = {
   currentWave: 0,
-  waveState: "waiting",
+  waveState: "waiting" as WaveState,
   zombiesRemaining: 0,
   interWaveTimer: 0,
   points: 0,
-  zombies: [],
-  powerUps: [],
-  barricades: [],
-  activePowerUp: null,
+  zombies: [] as ZombieState[],
+  powerUps: [] as PowerUpState[],
+  barricades: [] as BarricadeState[],
+  activePowerUp: null as PowerUpType | null,
   powerUpTimer: 0,
-
   isDowned: false,
   downedTimer: 0,
   reviveProgress: 0,
   reviveTargetName: "",
-
   extractionActive: false,
   extractionTimer: 0,
   extractionAvailable: false,
   evacSuccess: false,
-
   unlockedAreas: ["spawn"],
+};
+
+export const useZombieStore = create<ZombieStore>((set) => ({
+  ...INITIAL_MATCH_STATE,
+
+  resetMatch: () => set({ ...INITIAL_MATCH_STATE }),
 
   setCurrentWave: (wave) => set({ currentWave: wave }),
   setWaveState: (state) => set({ waveState: state }),

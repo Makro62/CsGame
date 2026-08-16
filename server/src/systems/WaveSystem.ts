@@ -104,8 +104,9 @@ export class WaveSystem {
 
     const remaining = this.zombiesToSpawn - this.zombiesSpawned
     const batchSize = Math.min(remaining, Math.max(3, Math.ceil(this.zombiesToSpawn / 3)))
-    const spawnCount = Math.max(4, activeSpawnCount)
-    const spawnPoints = ZOMBIE_SPAWN.spawnPoints.slice(0, Math.min(spawnCount, ZOMBIE_SPAWN.spawnPoints.length))
+    // Early waves deliberately use fewer spawn points, per WAVE_CONFIG tiers.
+    const spawnCount = Math.max(1, Math.min(activeSpawnCount, ZOMBIE_SPAWN.spawnPoints.length))
+    const spawnPoints = ZOMBIE_SPAWN.spawnPoints.slice(0, spawnCount)
 
     for (let i = 0; i < batchSize; i++) {
       const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)]
@@ -121,10 +122,35 @@ export class WaveSystem {
       this.zombiesSpawned++
     }
 
+    this.syncRemaining()
+
     if (this.zombiesSpawned >= this.zombiesToSpawn) {
       this.waveState = 'active'
       this.state.waveState = 'active'
     }
+  }
+
+  /**
+   * Zombies the players still have to deal with: the ones alive right now plus
+   * the ones this wave has not released yet. Without the pending part the HUD
+   * jumps from the wave total down to a handful the moment spawning starts.
+   */
+  private syncRemaining(): void {
+    const pending = Math.max(0, this.zombiesToSpawn - this.zombiesSpawned)
+    this.zombiesRemaining = this.zombieCtrl.getAliveCount() + pending
+    this.state.zombiesRemaining = this.zombiesRemaining
+  }
+
+  /**
+   * Marks the wave's spawn budget as used up. A nuke can empty the arena before
+   * every zombie has spawned, and the wave would otherwise never clear.
+   */
+  finishSpawning(): void {
+    if (this.waveState !== 'spawning' && this.waveState !== 'active') return
+    this.zombiesSpawned = this.zombiesToSpawn
+    this.waveState = 'active'
+    this.state.waveState = 'active'
+    this.syncRemaining()
   }
 
   spawnExtractionSurge(): void {
@@ -163,7 +189,7 @@ export class WaveSystem {
     // Handle active wave
     if (this.waveState === 'active') {
       const aliveCount = this.zombieCtrl.getAliveCount()
-      this.state.zombiesRemaining = aliveCount
+      this.syncRemaining()
 
       // Check if wave is clear
       if (aliveCount === 0 && this.zombiesSpawned >= this.zombiesToSpawn) {

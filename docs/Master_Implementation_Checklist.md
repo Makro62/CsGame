@@ -148,11 +148,43 @@ Catatan scope: movement course belum dibuat; klaim di Main Menu sudah disesuaika
 
 ---
 
+## 8. 🔫 Buy System, Loadout & Weapon Model
+
+| # | Fitur | Prioritas | Dependensi | Testing Criteria | Status |
+| :--- | :--- | :---: | :--- | :--- | :---: |
+| 90 | **Buy feedback beralasan (`buyFailed`)** | 🟢 | Economy | Gagal beli menampilkan alasan (uang, tim, sudah punya, granat penuh) | ✅ Selesai |
+| 91 | **Buy menu melepas pointer lock + hotkey & tanda OWNED** | 🟢 | #90 | Menu bisa diklik, hotkey 1-9 beli, item milik ditandai, ESC menutup | ✅ Selesai |
+| 92 | **Loadout server-authoritative (tanpa fallback palsu)** | 🟢 | GameRoom | Slot kosong tidak bisa dipilih, ammo tersimpan per slot saat swap | ✅ Selesai |
+| 93 | **Default pistol per tim (Glock T / Auto Pistol CT)** | 🟢 | #92 | Deagle jadi item beli 700, spawn memakai pistol tim | ✅ Selesai |
+| 94 | **Knife jadi melee sungguhan (server-side hit)** | 🟢 | WeaponManager | Jarak ~1.5 m, cone depan, backstab, tanpa flash/selongsong/ammo | ✅ Selesai |
+| 95 | **Weapon rig terkalibrasi (`weaponRig.ts`)** | 🟡 | WeaponModel | Iron sight sejajar crosshair saat ADS, muzzle flash dari ujung laras | ✅ Selesai |
+| 96 | **Model gaya CS (AK tanpa scope/spare mag, Dual Deagle)** | 🟡 | #95 | Dua pistol tampil seimbang, magasin 14 peluru (2×7), proporsi viewmodel rapi | ✅ Selesai |
+
+---
+
+## 9. 🧟 Perbaikan Inti Zombie Survival
+
+| # | Fitur | Prioritas | Dependensi | Testing Criteria | Status |
+| :--- | :--- | :---: | :--- | :--- | :---: |
+| 97 | **Shop zombie server-authoritative (`buy_weapon`)** | 🟢 | ZombieSurvivalRoom | Poin terpotong sesuai `ZOMBIE_SHOP`, senjata tak dimiliki tidak bisa dipegang | ✅ Selesai |
+| 98 | **Umpan balik pembelian (`zombieBuyFailed`)** | 🟢 | #97 | Gagal beli menampilkan alasan (poin, sudah punya, terlalu jauh, penuh) | ✅ Selesai |
+| 99 | **Sinkron senjata & ammo dengan server** | 🟢 | useWeaponStore | Reload/mystery box/downed lock mengubah viewmodel + gate tembak | ✅ Selesai |
+| 100 | **Hit marker, flash damage, dan knife di mode zombie** | 🟢 | #99 | Marker & audio muncul saat kena, knife memberi damage + bonus poin | ✅ Selesai |
+| 101 | **Pointer lock lepas di semua overlay zombie** | 🟢 | UI zombie | Shop, mystery box, PaP, settings bisa diklik & tidak macet | ✅ Selesai |
+| 102 | **Wave tidak macet (nuke, extraction, counter)** | 🟢 | WaveSystem | Nuke saat spawn tetap lanjut wave, counter = hidup + belum spawn | ✅ Selesai |
+| 103 | **Downed, self-revive berjatah, dan revive co-op `[F]`** | 🟢 | ZombieSurvivalRoom | Self-revive di akhir bleedout sesuai difficulty, tahan [F] revive rekan | ✅ Selesai |
+| 104 | **Rantai unlock area + validasi jarak interaksi** | 🟢 | ZOMBIE_MAP_AREAS | Safe House terbuka sejak awal, pintu hanya bisa dibeli di lokasinya | ✅ Selesai |
+| 105 | **Difficulty lobby benar-benar diterapkan** | 🟡 | ZOMBIE_DIFFICULTIES | HP/speed/damage zombie, bonus poin, dan jatah self-revive berubah | ✅ Selesai |
+
+---
+
 ## 📊 Ringkasan Status Akhir
 
 - **Mode Competitive 5v5 & Gun Game:** 69 / 69 Fitur (100% ✅)
 - **Mode Zombie Survival v3.1:** 14 / 14 Fitur (100% ✅)
 - **Training Range:** 6 / 6 Fitur (100% ✅)
-- **Total Keseluruhan:** **89 / 89 Fitur Selesai & Terverifikasi (100% ✅)**
+- **Buy System, Loadout & Weapon Model:** 7 / 7 Fitur (100% ✅)
+- **Perbaikan Inti Zombie Survival:** 9 / 9 Fitur (100% ✅)
+- **Total Keseluruhan:** **105 / 105 Fitur Selesai & Terverifikasi (100% ✅)**
 - **Unit Tests:** **26 / 26 Tests Passed**
 - **TypeScript / Build:** **0 Error (Lulus 100%)**

@@ -15,6 +15,14 @@ import {
   PACK_A_PUNCH,
   ZOMBIE_MAP_AREAS,
   ZOMBIE_MAP_BOUNDARY,
+  ZOMBIE_SHOP,
+  ZOMBIE_INTERACT_RANGE,
+  ZOMBIE_DIFFICULTIES,
+  MYSTERY_BOX_POS,
+  PACK_A_PUNCH_POS,
+  MELEE,
+  isMeleeWeapon,
+  isZombieDifficulty,
   PowerUpType,
   PowerUpState,
   SERVER,
@@ -22,11 +30,20 @@ import {
   PHYSICS,
   ClientInput,
   ShootInput,
+  MeleeInput,
+  ZombieBuyFailReason,
+  ZombieDifficulty,
+  ZombiePerkId,
 } from "@cs-game/shared";
 import { ZombieController } from "../ai/ZombieController";
 import { WaveSystem } from "../systems/WaveSystem";
 
 const TICK_MS = 1000 / SERVER.tickRate;
+
+/** Hitscan cannot reach further than this, mirroring the arena size. */
+const MAX_SHOT_RANGE = 120;
+/** Zombies are ~1.8m tall; anything above this counts as a head hit. */
+const HEAD_HEIGHT = 1.45;
 
 function sanitizeNickname(raw: unknown): string {
   if (typeof raw !== "string") return "";
@@ -48,14 +65,29 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   private lastShotTimes = new Map<string, number>();
   private lastRepairTimes = new Map<string, number>();
   private activeMysteryBoxTimers = new Map<string, NodeJS.Timeout>();
+  private reloadTimers = new Map<string, NodeJS.Timeout>();
   private soloRevivesCount = new Map<string, number>();
+  /** Weapons a player actually paid for; switching is limited to these. */
+  private ownedWeapons = new Map<string, Set<string>>();
+  private difficulty: ZombieDifficulty = "normal";
+  private zombieDifficulty = ZOMBIE_DIFFICULTIES.normal;
 
-  onCreate() {
+  onCreate(options?: { difficulty?: unknown }) {
     this.setState(new GameState());
     this.maxClients = 4;
 
+    const requested = options?.difficulty;
+    if (isZombieDifficulty(requested)) {
+      this.difficulty = requested;
+    }
+    this.zombieDifficulty = ZOMBIE_DIFFICULTIES[this.difficulty];
+
     // Initialize systems
     this.zombieCtrl = new ZombieController();
+    this.zombieCtrl.setDifficulty(
+      this.zombieDifficulty.zombieHp,
+      this.zombieDifficulty.zombieSpeed
+    );
     this.waveSystem = new WaveSystem(this.state, this.zombieCtrl);
 
     // Initialize barricades
@@ -64,10 +96,12 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     // Message handlers
     this.onMessage("input", this.handleInput.bind(this));
     this.onMessage("shoot", this.handleShoot.bind(this));
+    this.onMessage("melee", this.handleMelee.bind(this));
     this.onMessage("reload", this.handleReload.bind(this));
     this.onMessage("switch_weapon", this.handleSwitchWeapon.bind(this));
     this.onMessage("chat", this.handleChat.bind(this));
     this.onMessage("start_game", this.handleStartGame.bind(this));
+    this.onMessage("buy_weapon", this.handleBuyWeapon.bind(this));
     this.onMessage("buy_ammo", this.handleBuyAmmo.bind(this));
     this.onMessage("buy_armor", this.handleBuyArmor.bind(this));
     this.onMessage("buy_perk", this.handleBuyPerk.bind(this));
@@ -121,22 +155,27 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     player.reserveAmmo = 70;
     this.state.players.set(client.sessionId, player);
     this.state.points.set(client.sessionId, 500);
+    this.ownedWeapons.set(client.sessionId, new Set(["deagle", "knife"]));
+    this.soloRevivesCount.set(client.sessionId, this.zombieDifficulty.soloRevives);
+
+    // The Safe House is where everyone starts, so it must count as unlocked or
+    // every area that requires it can never be bought.
+    if (!this.state.unlockedAreas.get("spawn")) {
+      this.state.unlockedAreas.set("spawn", 1);
+    }
+
+    client.send("matchSetup", {
+      difficulty: this.difficulty,
+      soloRevives: this.zombieDifficulty.soloRevives,
+    });
 
     // Sync existing zombies to new player
     this.zombieCtrl.getAllZombies().forEach((zombie) => {
       this.state.zombies.set(zombie.id, zombie);
     });
 
-    // Auto-start wave 1 immediately if game is in waiting phase
-    if (this.state.phase === "waiting" && this.state.currentWave === 0) {
-      setTimeout(() => {
-        if (this.state.players.size > 0 && this.state.currentWave === 0) {
-          this.state.phase = "active";
-          this.waveSystem.startFirstWave();
-          this.broadcast("gameStarted", { wave: 1 });
-        }
-      }, 400);
-    }
+    // Waves only start once a player asks for it, otherwise zombies would
+    // already be closing in while the lobby screen is still open.
   }
 
   onLeave(client: Client) {
@@ -144,12 +183,29 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.state.points.delete(client.sessionId);
     this.lastShotTimes.delete(client.sessionId);
     this.lastRepairTimes.delete(client.sessionId);
+    this.ownedWeapons.delete(client.sessionId);
+    this.soloRevivesCount.delete(client.sessionId);
 
     const timer = this.activeMysteryBoxTimers.get(client.sessionId);
     if (timer) {
       clearTimeout(timer);
       this.activeMysteryBoxTimers.delete(client.sessionId);
     }
+
+    const reload = this.reloadTimers.get(client.sessionId);
+    if (reload) {
+      clearTimeout(reload);
+      this.reloadTimers.delete(client.sessionId);
+    }
+
+    // Someone leaving mid-revive must not leave their reviver stuck.
+    this.state.players.forEach((p) => {
+      if (p.reviveTargetId === client.sessionId) {
+        p.isReviving = false;
+        p.reviveTargetId = "";
+        p.reviveProgress = 0;
+      }
+    });
 
     // Reset game if all players leave
     if (this.state.players.size === 0) {
@@ -161,7 +217,22 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     clearInterval(this.tickInterval);
     this.activeMysteryBoxTimers.forEach((timer) => clearTimeout(timer));
     this.activeMysteryBoxTimers.clear();
+    this.reloadTimers.forEach((timer) => clearTimeout(timer));
+    this.reloadTimers.clear();
     this.zombieCtrl.clearAll();
+  }
+
+  private buyFailed(client: Client, item: string, reason: ZombieBuyFailReason) {
+    client.send("zombieBuyFailed", { item, reason });
+  }
+
+  private pointsOf(sessionId: string): number {
+    return this.state.points.get(sessionId) ?? 0;
+  }
+
+  /** Distance on the ground plane, used by every proximity check. */
+  private distanceTo(player: PlayerState, x: number, z: number): number {
+    return Math.sqrt((player.x - x) ** 2 + (player.z - z) ** 2);
   }
 
   private resetGame() {
@@ -178,6 +249,10 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.state.extractionAvailable = false;
     this.state.evacSuccess = false;
     this.state.unlockedAreas.clear();
+    this.state.unlockedAreas.set("spawn", 1);
+    this.extractionSurgeTimer = 0;
+    this.reloadTimers.forEach((timer) => clearTimeout(timer));
+    this.reloadTimers.clear();
     this.waveSystem.reset();
     this.initBarricades();
   }
@@ -208,36 +283,25 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       }
     });
 
-    // Check zombie attacks on players
+    // Check zombie attacks on players. A swing only lands on the zombie's own
+    // target; otherwise standing together in co-op multiplies the damage taken.
     const zombiesForAttack = Array.from(this.zombieCtrl.getAllZombies().values());
     for (const zombie of zombiesForAttack) {
       if (zombie.isDead || !zombie.isAttacking) continue;
 
-      players.forEach((player, sessionId) => {
-        if (player.isDead) return;
+      const victimId = zombie.targetId;
+      const victim = victimId ? this.state.players.get(victimId) : undefined;
+      if (!victim || victim.isDead) continue;
 
-        const dx = player.x - zombie.x;
-        const dz = player.z - zombie.z;
-        const dist = Math.sqrt(dx * dx + dz * dz);
+      // Bosses stomp an area, everything else has to be within arm's reach.
+      const reach = zombie.type === "boss" ? 2.8 : 1.6;
+      if (this.distanceTo(victim, zombie.x, zombie.z) >= reach) continue;
 
-        if (dist < 1.6) {
-          let damage = ZOMBIE_TYPES[zombie.type].damage;
-          const targetPlayer = this.state.players.get(sessionId);
-          if (targetPlayer && !targetPlayer.isDead) {
-            // Armor absorption
-            if (targetPlayer.armor > 0) {
-              const absorbed = Math.min(targetPlayer.armor, Math.ceil(damage * 0.5));
-              targetPlayer.armor -= absorbed;
-              damage -= absorbed;
-            }
-
-            targetPlayer.hp = Math.max(0, targetPlayer.hp - damage);
-            if (targetPlayer.hp <= 0) {
-              this.handlePlayerDowned(sessionId, targetPlayer);
-            }
-          }
-        }
-      });
+      this.damagePlayer(
+        victimId,
+        victim,
+        ZOMBIE_TYPES[zombie.type].damage * this.zombieDifficulty.zombieDamage
+      );
     }
 
     // Update active revives (authoritative progression)
@@ -251,13 +315,24 @@ export class ZombieSurvivalRoom extends Room<GameState> {
           return;
         }
 
+        // A reviver who went down or died cannot keep working.
+        if (reviver.isDead || reviver.isDowned) {
+          reviver.isReviving = false;
+          const abortedTarget = reviver.reviveTargetId;
+          reviver.reviveTargetId = "";
+          reviver.reviveProgress = 0;
+          this.broadcast("reviveProgress", { reviverId, targetId: abortedTarget, progress: 0 });
+          return;
+        }
+
         // Validate distance
         const dist = Math.sqrt((reviver.x - target.x) ** 2 + (reviver.z - target.z) ** 2);
         if (dist > 3.5) {
           reviver.isReviving = false;
+          const abortedTarget = reviver.reviveTargetId;
           reviver.reviveTargetId = "";
           reviver.reviveProgress = 0;
-          this.broadcast("reviveProgress", { reviverId, targetId: target.nickname, progress: 0 });
+          this.broadcast("reviveProgress", { reviverId, targetId: abortedTarget, progress: 0 });
           return;
         }
 
@@ -292,52 +367,35 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       }
     });
 
-    // Update downed player bleedout timers
+    // Update downed player bleedout timers. Self-revive only kicks in at the
+    // very end of the bleedout, and each use costs one of the match's lives.
     this.state.players.forEach((p, sessionId) => {
-      if (p.isDowned && !p.isDead) {
-        p.downedTimer -= dt;
+      if (!p.isDowned || p.isDead) return;
 
-        // Solo self-revive (3 lives per solo match + Quick Revive bonus)
-        const isSolo = this.state.players.size === 1;
-        const revivesRemaining = this.soloRevivesCount.get(sessionId) ?? 3;
+      p.downedTimer -= dt;
+      if (p.downedTimer > 0) return;
 
-        if (isSolo && p.downedTimer <= 26 && (revivesRemaining > 0 || p.hasQuickRevive)) {
-          if (!p.hasQuickRevive) {
-            this.soloRevivesCount.set(sessionId, revivesRemaining - 1);
-          }
-          p.isDowned = false;
-          p.hp = p.hasJuggernog ? 150 : 100;
-          p.downedTimer = 0;
-          this.broadcast("playerRevived", { targetId: sessionId, reviverId: sessionId, autoRevive: true });
-        } else if (p.downedTimer <= 0) {
-          p.isDowned = false;
-          p.isDead = true;
-          this.broadcast("playerDied", { sessionId });
-        }
+      const isSolo = this.state.players.size === 1;
+      const revivesRemaining = this.soloRevivesCount.get(sessionId) ?? 0;
+
+      if (isSolo && revivesRemaining > 0) {
+        this.soloRevivesCount.set(sessionId, revivesRemaining - 1);
+        this.selfRevive(sessionId, p);
+      } else if (isSolo && p.hasQuickRevive) {
+        // Quick Revive is consumed as one extra life.
+        p.hasQuickRevive = false;
+        this.selfRevive(sessionId, p);
+      } else {
+        p.isDowned = false;
+        p.isDead = true;
+        this.broadcast("playerDied", { sessionId });
       }
     });
 
-    // Check game over
-    if (this.state.phase === "active" && this.state.players.size > 0) {
-      let aliveSurvivors = 0;
-      this.state.players.forEach((p) => {
-        if (!p.isDead && !p.isDowned) aliveSurvivors++;
-      });
+    this.checkGameOver();
 
-      if (aliveSurvivors === 0) {
-        let anyDowned = false;
-        this.state.players.forEach((p) => {
-          if (p.isDowned) anyDowned = true;
-        });
-        if (!anyDowned) {
-          this.state.phase = "waiting";
-          const stats = this.waveSystem.getStats();
-          this.broadcast("gameOver", { wave: this.state.currentWave, kills: stats.kills, headshots: stats.headshots });
-        }
-      }
-    }
-
-    // Update extraction sequence
+    // Update extraction sequence. The wave system keeps ticking through it so
+    // counters stay live and the round can still advance afterwards.
     if (this.state.extractionActive) {
       this.state.extractionTimer -= dt;
       this.extractionSurgeTimer += dt;
@@ -350,8 +408,9 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       if (this.state.extractionTimer <= 0) {
         this.checkExtractionSuccess();
       }
-    } else if (this.state.phase === "active") {
-      // Normal wave system only ticks when not in active extraction
+    }
+
+    if (this.state.phase === "active") {
       this.waveSystem.update(dt, players);
     }
 
@@ -379,6 +438,75 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
     // Broadcast snapshot
     this.broadcastSnapshot();
+  }
+
+  private selfRevive(sessionId: string, player: PlayerState) {
+    player.isDowned = false;
+    player.hp = player.hasJuggernog ? 150 : 100;
+    player.downedTimer = 0;
+    this.broadcast("playerRevived", {
+      targetId: sessionId,
+      reviverId: sessionId,
+      autoRevive: true,
+      revivesLeft: this.soloRevivesCount.get(sessionId) ?? 0,
+    });
+  }
+
+  /**
+   * Ends the match once nobody can fight back. In co-op a fully downed squad is
+   * wiped right away since no one is left to revive; solo players keep their
+   * bleedout so a self-revive still has a chance to fire.
+   */
+  private checkGameOver() {
+    if (this.state.phase !== "active" || this.state.players.size === 0) return;
+
+    let standing = 0;
+    let downed = 0;
+
+    this.state.players.forEach((p) => {
+      if (p.isDead) return;
+      if (p.isDowned) downed++;
+      else standing++;
+    });
+
+    if (standing > 0) return;
+    if (downed > 0 && this.state.players.size === 1) return;
+
+    this.state.players.forEach((p, sessionId) => {
+      if (!p.isDead) {
+        p.isDowned = false;
+        p.isDead = true;
+        this.broadcast("playerDied", { sessionId });
+      }
+    });
+
+    const stats = this.waveSystem.getStats();
+    this.state.phase = "waiting";
+    this.broadcast("gameOver", {
+      wave: this.state.currentWave,
+      kills: stats.kills,
+      headshots: stats.headshots,
+    });
+  }
+
+  /** Applies armor absorption, then health, and downs the player at zero. */
+  private damagePlayer(sessionId: string, player: PlayerState, rawDamage: number) {
+    let damage = Math.max(1, Math.round(rawDamage));
+
+    if (player.armor > 0) {
+      const absorbed = Math.min(player.armor, Math.ceil(damage * 0.5));
+      player.armor -= absorbed;
+      damage -= absorbed;
+    }
+
+    player.hp = Math.max(0, player.hp - damage);
+    // The client needs an event to flash the damage vignette; state sync alone
+    // gives no hint about the direction or the moment of the hit.
+    this.broadcast("damage", { victimId: sessionId, damage });
+
+    if (player.hp <= 0) {
+      this.handlePlayerDowned(sessionId, player);
+    }
   }
 
   private handlePlayerDowned(sessionId: string, player: PlayerState) {
@@ -439,6 +567,9 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player || player.isDead || player.isReloading) return;
 
+    // Knives go through the melee handler, they have no bullets.
+    if (isMeleeWeapon(player.currentWeapon)) return;
+
     const weaponStats = WEAPONS[player.currentWeapon as keyof typeof WEAPONS];
     if (!weaponStats) return;
 
@@ -459,7 +590,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
     // Simple hitscan against zombies
     const origin = { x: player.x, y: player.y + (player.isDowned ? 0.6 : 1.5), z: player.z };
-    const direction = data.direction;
+    const direction = this.normalizeDirection(data.direction);
+    if (!direction) return;
 
     let closestZombie: { id: string; dist: number; hitY: number } | null = null;
 
@@ -472,7 +604,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       const dz = zombie.z - origin.z;
 
       const dot = dx * direction.x + dy * direction.y + dz * direction.z;
-      if (dot < 0) continue;
+      if (dot < 0 || dot > MAX_SHOT_RANGE) continue;
 
       const closestX = origin.x + direction.x * dot;
       const closestY = origin.y + direction.y * dot;
@@ -494,7 +626,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
       // Headshot detection
       const zombie = this.zombieCtrl.getZombie(closestZombie.id);
-      const isHeadshot = closestZombie.hitY - (zombie?.y ?? 0) >= 1.2;
+      const isHeadshot = closestZombie.hitY - (zombie?.y ?? 0) >= HEAD_HEIGHT;
       if (isHeadshot) {
         damage = weaponStats.headshot || damage * 2;
       }
@@ -509,37 +641,18 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         damage = 99999;
       }
 
+      const zombieX = zombie?.x ?? 0;
+      const zombieZ = zombie?.z ?? 0;
+      const zombieType = zombie?.type ?? "walker";
       const killed = this.waveSystem.damageZombie(closestZombie.id, damage);
 
       if (killed) {
-        this.waveSystem.onZombieKilled(isHeadshot);
-
-        const zombieType = zombie?.type ?? "walker";
-        let points = ZOMBIE_POINTS[zombieType as keyof typeof ZOMBIE_POINTS] ?? 50;
-        if (isHeadshot) points += ZOMBIE_POINTS.headshotBonus;
-
-        if (this.state.activePowerUp === "double_points") {
-          points *= 2;
-        }
-
-        const currentPoints = this.state.points.get(client.sessionId) ?? 0;
-        this.state.points.set(client.sessionId, currentPoints + points);
-
-        this.state.zombies.delete(closestZombie.id);
-
-        this.broadcast("zombieKilled", {
-          zombieId: closestZombie.id,
-          killerId: client.sessionId,
-          points,
-          headshot: isHeadshot,
-        });
-
-        if (zombie && Math.random() < POWER_UP_DROP_CHANCE) {
-          this.spawnPowerUp(zombie.x, zombie.z);
-        }
+        this.rewardKill(client, closestZombie.id, zombieType, isHeadshot, 0, zombieX, zombieZ);
+      } else {
+        this.awardPoints(client.sessionId, ZOMBIE_POINTS.assistDamage);
       }
 
-      this.broadcast("hit", {
+      client.send("hit", {
         zombieId: closestZombie.id,
         damage,
         headshot: isHeadshot,
@@ -547,12 +660,114 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     }
   }
 
+  /** Knife swing: short range, no ammo, worth bonus points. */
+  private handleMelee(client: Client, data: MeleeInput) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player || player.isDead) return;
+
+    const now = Date.now();
+    const lastShot = this.lastShotTimes.get(client.sessionId) ?? 0;
+    const meleeStats = WEAPONS[player.currentWeapon as keyof typeof WEAPONS];
+    const cooldownMs = 1000 / (meleeStats?.fireRate || 2);
+    if (now - lastShot < cooldownMs - 20) return;
+    this.lastShotTimes.set(client.sessionId, now);
+
+    const direction = this.normalizeDirection(data?.direction);
+    if (!direction) return;
+
+    let target: { id: string; type: string; x: number; z: number } | null = null;
+    let nearest = Infinity;
+
+    this.zombieCtrl.getAllZombies().forEach((zombie) => {
+      if (zombie.isDead) return;
+
+      const dx = zombie.x - player.x;
+      const dz = zombie.z - player.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > MELEE.range + 0.6 || dist >= nearest) return;
+
+      // Must be roughly in front of the player.
+      const facing = (dx * direction.x + dz * direction.z) / (dist || 1);
+      if (facing < MELEE.frontDot) return;
+
+      nearest = dist;
+      target = { id: zombie.id, type: zombie.type, x: zombie.x, z: zombie.z };
+    });
+
+    if (!target) return;
+    const hit: { id: string; type: string; x: number; z: number } = target;
+
+    const damage = Math.floor((meleeStats?.dmg ?? 50) * (player.hasPackAPunch ? 1.5 : 1));
+    const killed =
+      this.state.activePowerUp === "insta_kill"
+        ? this.waveSystem.damageZombie(hit.id, 99999)
+        : this.waveSystem.damageZombie(hit.id, damage);
+
+    if (killed) {
+      this.rewardKill(client, hit.id, hit.type, false, ZOMBIE_POINTS.knifeBonus, hit.x, hit.z);
+    }
+
+    client.send("hit", { zombieId: hit.id, damage, headshot: false, melee: true });
+  }
+
+  private normalizeDirection(
+    direction: { x: number; y: number; z: number } | undefined
+  ): { x: number; y: number; z: number } | null {
+    if (!direction) return null;
+    const { x, y, z } = direction;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
+
+    const length = Math.sqrt(x * x + y * y + z * z);
+    if (length < 0.001) return null;
+    return { x: x / length, y: y / length, z: z / length };
+  }
+
+  private awardPoints(sessionId: string, amount: number) {
+    let points = amount * this.zombieDifficulty.points;
+    if (this.state.activePowerUp === "double_points") points *= 2;
+    this.state.points.set(sessionId, this.pointsOf(sessionId) + Math.round(points));
+  }
+
+  private rewardKill(
+    client: Client,
+    zombieId: string,
+    zombieType: string,
+    isHeadshot: boolean,
+    bonus: number,
+    x: number,
+    z: number
+  ) {
+    this.waveSystem.onZombieKilled(isHeadshot);
+
+    let points = ZOMBIE_POINTS[zombieType as keyof typeof ZOMBIE_POINTS] ?? 50;
+    if (isHeadshot) points += ZOMBIE_POINTS.headshotBonus;
+    points += bonus;
+
+    const before = this.pointsOf(client.sessionId);
+    this.awardPoints(client.sessionId, points);
+    const awarded = this.pointsOf(client.sessionId) - before;
+
+    this.state.zombies.delete(zombieId);
+
+    this.broadcast("zombieKilled", {
+      zombieId,
+      killerId: client.sessionId,
+      points: awarded,
+      headshot: isHeadshot,
+    });
+
+    if (Math.random() < POWER_UP_DROP_CHANCE) {
+      this.spawnPowerUp(x, z);
+    }
+  }
+
   private handleReload(client: Client) {
     const player = this.state.players.get(client.sessionId);
     if (!player || player.isDead || player.isReloading) return;
+    if (player.reserveAmmo <= 0) return;
 
     const weaponStats = WEAPONS[player.currentWeapon as keyof typeof WEAPONS];
-    if (!weaponStats) return;
+    if (!weaponStats || weaponStats.reload <= 0) return;
 
     player.isReloading = true;
     let reloadDuration = weaponStats.reload;
@@ -560,30 +775,89 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       reloadDuration *= 0.5; // 2x faster with Speed Cola
     }
 
-    setTimeout(() => {
+    const previous = this.reloadTimers.get(client.sessionId);
+    if (previous) clearTimeout(previous);
+
+    const timer = setTimeout(() => {
+      this.reloadTimers.delete(client.sessionId);
       const p = this.state.players.get(client.sessionId);
-      if (p) {
-        const needed = weaponStats.mag - p.ammo;
-        const available = Math.min(needed, p.reserveAmmo);
-        p.ammo += available;
-        p.reserveAmmo -= available;
-        p.isReloading = false;
-        client.send("reloadComplete", { ammo: p.ammo, reserveAmmo: p.reserveAmmo });
-      }
+      if (!p) return;
+
+      const needed = weaponStats.mag - p.ammo;
+      const available = Math.min(needed, p.reserveAmmo);
+      p.ammo += available;
+      p.reserveAmmo -= available;
+      p.isReloading = false;
+      client.send("reloadComplete", { ammo: p.ammo, reserveAmmo: p.reserveAmmo });
     }, reloadDuration * 1000);
+
+    this.reloadTimers.set(client.sessionId, timer);
+    client.send("reloadStarted", { duration: reloadDuration });
   }
 
   private handleSwitchWeapon(client: Client, data: { weapon: string }) {
     const player = this.state.players.get(client.sessionId);
     if (!player || player.isDead || player.isDowned) return;
-
     if (!(data.weapon in WEAPONS)) return;
-    player.currentWeapon = data.weapon;
-    const stats = WEAPONS[data.weapon as keyof typeof WEAPONS];
-    if (stats) {
-      if (player.ammo <= 0) player.ammo = stats.mag;
-      if (player.reserveAmmo <= 0) player.reserveAmmo = stats.reserveAmmo;
+
+    // Only weapons that were actually bought or won from the box can be drawn.
+    const owned = this.ownedWeapons.get(client.sessionId);
+    if (!owned || !owned.has(data.weapon)) {
+      client.send("switchFailed", { weapon: data.weapon });
+      return;
     }
+    if (player.currentWeapon === data.weapon) return;
+
+    player.currentWeapon = data.weapon;
+    client.send("weaponSwitched", {
+      weapon: player.currentWeapon,
+      ammo: player.ammo,
+      reserveAmmo: player.reserveAmmo,
+    });
+  }
+
+  private handleBuyWeapon(client: Client, data: { weapon?: string }) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
+
+    const weapon = typeof data.weapon === "string" ? data.weapon : "";
+    const price = ZOMBIE_SHOP.weaponPrices[weapon];
+    const stats = WEAPONS[weapon as keyof typeof WEAPONS];
+
+    if (price === undefined || !stats) {
+      this.buyFailed(client, weapon, "unknown_item");
+      return;
+    }
+    if (player.isDead || player.isDowned) {
+      this.buyFailed(client, weapon, "unavailable");
+      return;
+    }
+
+    const owned = this.ownedWeapons.get(client.sessionId) ?? new Set<string>();
+    if (owned.has(weapon) && player.currentWeapon === weapon) {
+      this.buyFailed(client, weapon, "already_owned");
+      return;
+    }
+
+    const points = this.pointsOf(client.sessionId);
+    if (points < price) {
+      this.buyFailed(client, weapon, "no_money");
+      return;
+    }
+
+    this.state.points.set(client.sessionId, points - price);
+    owned.add(weapon);
+    this.ownedWeapons.set(client.sessionId, owned);
+
+    player.currentWeapon = weapon;
+    player.ammo = stats.mag;
+    player.reserveAmmo = stats.reserveAmmo;
+
+    client.send("weaponBought", {
+      weapon,
+      ammo: player.ammo,
+      reserveAmmo: player.reserveAmmo,
+    });
   }
 
   private handleChat(client: Client, data: { message?: unknown }) {
@@ -603,26 +877,86 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     });
   }
 
-  private handleStartGame(client: Client) {
-    if (this.state.currentWave === 0 || this.state.phase === "waiting" || this.state.waveState === "waiting" || this.state.waveState === "wave_clear") {
-      this.state.phase = "active";
-      this.waveSystem.startFirstWave();
-      this.broadcast("gameStarted", { wave: this.state.currentWave });
+  private handleStartGame(_client: Client) {
+    const idle =
+      this.state.phase === "waiting" ||
+      this.state.waveState === "waiting" ||
+      this.state.waveState === "wave_clear";
+    if (!idle) return;
+
+    // A finished run (wipe or evac) starts over from wave 1 with everyone back
+    // on their feet, instead of continuing the old wave counter.
+    const runFinished = this.state.currentWave > 0 && this.state.phase === "waiting";
+    if (runFinished) {
+      this.resetGame();
+      this.respawnAll();
     }
+
+    this.state.phase = "active";
+    this.waveSystem.startFirstWave();
+    this.broadcast("gameStarted", { wave: this.state.currentWave });
+  }
+
+  private respawnAll() {
+    this.state.players.forEach((player, sessionId) => {
+      player.x = ZOMBIE_SPAWN.player.x;
+      player.y = ZOMBIE_SPAWN.player.y;
+      player.z = ZOMBIE_SPAWN.player.z;
+      player.hp = 100;
+      player.armor = 0;
+      player.isDead = false;
+      player.isDowned = false;
+      player.downedTimer = 0;
+      player.isReviving = false;
+      player.reviveTargetId = "";
+      player.reviveProgress = 0;
+      player.currentWeapon = "deagle";
+      player.ammo = WEAPONS.deagle.mag;
+      player.reserveAmmo = WEAPONS.deagle.reserveAmmo;
+      player.hasPackAPunch = false;
+      player.hasJuggernog = false;
+      player.hasSpeedCola = false;
+      player.hasDoubleTap = false;
+      player.hasQuickRevive = false;
+
+      this.state.points.set(sessionId, 500);
+      this.ownedWeapons.set(sessionId, new Set(["deagle", "knife"]));
+      this.soloRevivesCount.set(sessionId, this.zombieDifficulty.soloRevives);
+    });
   }
 
   private handleBuyAmmo(client: Client) {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
-    const points = this.state.points.get(client.sessionId) ?? 0;
-    if (points < 500) return;
+    if (player.isDead || player.isDowned) {
+      this.buyFailed(client, "ammo", "unavailable");
+      return;
+    }
 
     const weaponStats = WEAPONS[player.currentWeapon as keyof typeof WEAPONS];
-    if (!weaponStats) return;
+    if (!weaponStats || weaponStats.mag <= 1) {
+      this.buyFailed(client, "ammo", "unknown_item");
+      return;
+    }
 
-    player.reserveAmmo += weaponStats.mag * 2;
-    this.state.points.set(client.sessionId, points - 500);
+    const reserveCap = weaponStats.mag * ZOMBIE_SHOP.reserveCap;
+    if (player.ammo >= weaponStats.mag && player.reserveAmmo >= reserveCap) {
+      this.buyFailed(client, "ammo", "full");
+      return;
+    }
+
+    const points = this.pointsOf(client.sessionId);
+    if (points < ZOMBIE_SHOP.ammoPrice) {
+      this.buyFailed(client, "ammo", "no_money");
+      return;
+    }
+
+    this.state.points.set(client.sessionId, points - ZOMBIE_SHOP.ammoPrice);
+    // A refill tops off the magazine as well, that is what the label promises.
+    player.ammo = weaponStats.mag;
+    player.reserveAmmo = Math.min(reserveCap, player.reserveAmmo + weaponStats.mag * 2);
+
     client.send("ammoBought", { ammo: player.ammo, reserveAmmo: player.reserveAmmo });
   }
 
@@ -630,11 +964,23 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
-    const points = this.state.points.get(client.sessionId) ?? 0;
-    if (points < 750) return;
+    if (player.isDead || player.isDowned) {
+      this.buyFailed(client, "armor", "unavailable");
+      return;
+    }
+    if (player.armor >= 100) {
+      this.buyFailed(client, "armor", "full");
+      return;
+    }
+
+    const points = this.pointsOf(client.sessionId);
+    if (points < ZOMBIE_SHOP.armorPrice) {
+      this.buyFailed(client, "armor", "no_money");
+      return;
+    }
 
     player.armor = 100;
-    this.state.points.set(client.sessionId, points - 750);
+    this.state.points.set(client.sessionId, points - ZOMBIE_SHOP.armorPrice);
     client.send("armorBought", { armor: player.armor });
   }
 
@@ -642,26 +988,31 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
-    const perkPrices: Record<string, { price: number; field: string }> = {
-      juggernog: { price: 2500, field: "hasJuggernog" },
-      speedcola: { price: 3000, field: "hasSpeedCola" },
-      doubletap: { price: 2000, field: "hasDoubleTap" },
-      quickrevive: { price: 1500, field: "hasQuickRevive" },
-    };
+    const perk = ZOMBIE_SHOP.perks[data.perk as ZombiePerkId];
+    if (!perk) {
+      this.buyFailed(client, data.perk, "unknown_item");
+      return;
+    }
+    if (player.isDead || player.isDowned) {
+      this.buyFailed(client, data.perk, "unavailable");
+      return;
+    }
+    if ((player as any)[perk.field]) {
+      this.buyFailed(client, data.perk, "already_owned");
+      return;
+    }
 
-    const perk = perkPrices[data.perk];
-    if (!perk) return;
-
-    if ((player as any)[perk.field]) return;
-
-    const points = this.state.points.get(client.sessionId) ?? 0;
-    if (points < perk.price) return;
+    const points = this.pointsOf(client.sessionId);
+    if (points < perk.price) {
+      this.buyFailed(client, data.perk, "no_money");
+      return;
+    }
 
     (player as any)[perk.field] = true;
     this.state.points.set(client.sessionId, points - perk.price);
 
-    if (data.perk === "juggernog") {
-      player.hp = 200;
+    if (perk.hp) {
+      player.hp = perk.hp;
     }
 
     client.send("perkBought", { perk: data.perk, hp: player.hp });
@@ -669,13 +1020,25 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
   private handleMysteryBox(client: Client) {
     const player = this.state.players.get(client.sessionId);
-    if (!player || player.isDead || player.isUsingMysteryBox) return;
+    if (!player || player.isUsingMysteryBox) return;
+
+    if (player.isDead || player.isDowned) {
+      this.buyFailed(client, "mystery_box", "unavailable");
+      return;
+    }
+    if (this.distanceTo(player, MYSTERY_BOX_POS.x, MYSTERY_BOX_POS.z) > ZOMBIE_INTERACT_RANGE) {
+      this.buyFailed(client, "mystery_box", "too_far");
+      return;
+    }
 
     const isFireSale = this.state.activePowerUp === "fire_sale";
     const price = isFireSale ? MYSTERY_BOX.fireSalePrice : MYSTERY_BOX.price;
 
-    const points = this.state.points.get(client.sessionId) ?? 0;
-    if (points < price) return;
+    const points = this.pointsOf(client.sessionId);
+    if (points < price) {
+      this.buyFailed(client, "mystery_box", "no_money");
+      return;
+    }
 
     this.state.points.set(client.sessionId, points - price);
 
@@ -701,8 +1064,12 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         client.send("mysteryBoxResult", { weapon: randomWeapon });
 
         if (player.currentWeapon === randomWeapon) {
-          this.state.points.set(client.sessionId, (this.state.points.get(client.sessionId) ?? 0) + price);
+          this.state.points.set(client.sessionId, this.pointsOf(client.sessionId) + price);
         } else {
+          const owned = this.ownedWeapons.get(client.sessionId) ?? new Set<string>();
+          owned.add(randomWeapon);
+          this.ownedWeapons.set(client.sessionId, owned);
+
           player.currentWeapon = randomWeapon;
           const stats = WEAPONS[randomWeapon as keyof typeof WEAPONS];
           if (stats) {
@@ -727,36 +1094,82 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
   private handlePackAPunch(client: Client) {
     const player = this.state.players.get(client.sessionId);
-    if (!player || player.isDead || player.hasPackAPunch) return;
+    if (!player) return;
 
-    if (!PACK_A_PUNCH.allowedWeapons.includes(player.currentWeapon as any)) return;
+    if (player.isDead || player.isDowned) {
+      this.buyFailed(client, "pack_a_punch", "unavailable");
+      return;
+    }
+    if (player.hasPackAPunch) {
+      this.buyFailed(client, "pack_a_punch", "already_owned");
+      return;
+    }
+    if (this.distanceTo(player, PACK_A_PUNCH_POS.x, PACK_A_PUNCH_POS.z) > ZOMBIE_INTERACT_RANGE) {
+      this.buyFailed(client, "pack_a_punch", "too_far");
+      return;
+    }
+    if (!PACK_A_PUNCH.allowedWeapons.includes(player.currentWeapon as any)) {
+      this.buyFailed(client, "pack_a_punch", "unknown_item");
+      return;
+    }
 
-    const points = this.state.points.get(client.sessionId) ?? 0;
-    if (points < PACK_A_PUNCH.price) return;
+    const points = this.pointsOf(client.sessionId);
+    if (points < PACK_A_PUNCH.price) {
+      this.buyFailed(client, "pack_a_punch", "no_money");
+      return;
+    }
 
     this.state.points.set(client.sessionId, points - PACK_A_PUNCH.price);
 
     player.hasPackAPunch = true;
+    // The upgrade also comes with a deeper ammo pool.
+    const upgradedStats = WEAPONS[player.currentWeapon as keyof typeof WEAPONS];
+    if (upgradedStats) {
+      player.ammo = upgradedStats.mag;
+      player.reserveAmmo = Math.floor(upgradedStats.reserveAmmo * PACK_A_PUNCH.extraAmmoMultiplier);
+    }
     const variant = PAP_WEAPON_VARIANTS[player.currentWeapon];
 
     client.send("packAPunchComplete", {
       weapon: player.currentWeapon,
       papName: variant?.name ?? `${player.currentWeapon} Upgraded`,
+      ammo: player.ammo,
+      reserveAmmo: player.reserveAmmo,
     });
   }
 
   private handleUnlockArea(client: Client, data: { areaId: string }) {
     const player = this.state.players.get(client.sessionId);
-    if (!player || player.isDead) return;
+    if (!player) return;
 
     const area = ZOMBIE_MAP_AREAS.find((a) => a.id === data.areaId);
-    if (!area) return;
+    if (!area) {
+      this.buyFailed(client, data.areaId, "unknown_item");
+      return;
+    }
+    if (player.isDead || player.isDowned) {
+      this.buyFailed(client, area.id, "unavailable");
+      return;
+    }
+    if (this.state.unlockedAreas.get(area.id)) {
+      this.buyFailed(client, area.id, "already_owned");
+      return;
+    }
+    if (area.requires && !this.state.unlockedAreas.get(area.requires)) {
+      this.buyFailed(client, area.id, "locked");
+      return;
+    }
+    // The door has to be within reach of its own area.
+    if (this.distanceTo(player, area.x, area.z) > area.radius + ZOMBIE_INTERACT_RANGE) {
+      this.buyFailed(client, area.id, "too_far");
+      return;
+    }
 
-    if (this.state.unlockedAreas.get(area.id)) return;
-    if (area.requires && !this.state.unlockedAreas.get(area.requires)) return;
-
-    const points = this.state.points.get(client.sessionId) ?? 0;
-    if (points < area.price) return;
+    const points = this.pointsOf(client.sessionId);
+    if (points < area.price) {
+      this.buyFailed(client, area.id, "no_money");
+      return;
+    }
 
     this.state.points.set(client.sessionId, points - area.price);
     this.state.unlockedAreas.set(area.id, 1);
@@ -768,9 +1181,10 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     const player = this.state.players.get(client.sessionId);
     if (!player || player.isDead || player.isDowned) return;
 
+    // One board per repair interval, so a board cannot be spammed back instantly.
     const now = Date.now();
     const lastRepair = this.lastRepairTimes.get(client.sessionId) ?? 0;
-    if (now - lastRepair < 300) return; // 300ms cooldown to prevent spam
+    if (now - lastRepair < BARRICADE_CONFIG.repairTimePerBoard * 1000) return;
     this.lastRepairTimes.set(client.sessionId, now);
 
     const barricade = this.state.barricades.get(data.barricadeId);
@@ -836,6 +1250,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
     if (aliveCount > 0 && allInZone) {
       this.state.evacSuccess = true;
+      // The run is over on a successful evac; stop spawning new waves.
+      this.state.phase = "waiting";
       this.state.players.forEach((p, sessionId) => {
         if (!p.isDead) {
           const current = this.state.points.get(sessionId) ?? 0;
@@ -883,9 +1299,10 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   }
 
   private handleTickRevive(client: Client, _data: { progress?: number }) {
-    // Revive progression is managed authoritatively by server in gameTick
+    // Revive progression is managed authoritatively by the server in gameTick;
+    // this only keeps the flag alive while the player holds the key down.
     const reviver = this.state.players.get(client.sessionId);
-    if (reviver && !reviver.isReviving) {
+    if (reviver && reviver.reviveTargetId && !reviver.isDowned && !reviver.isDead) {
       reviver.isReviving = true;
     }
   }
@@ -935,15 +1352,18 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         break;
 
       case "nuke":
-        // Kill and remove all zombies properly
+        // Kill and remove all zombies properly. Kills are registered with the
+        // wave system, otherwise a nuke mid-spawn leaves the wave stuck.
         this.zombieCtrl.getAllZombies().forEach((zombie) => {
           if (!zombie.isDead) {
             zombie.hp = 0;
             zombie.isDead = true;
             this.zombieCtrl.removeZombie(zombie.id);
             this.state.zombies.delete(zombie.id);
+            this.waveSystem.onZombieKilled(false);
           }
         });
+        this.waveSystem.finishSpawning();
         this.state.players.forEach((p, id) => {
           if (!p.isDead) {
             this.state.points.set(id, (this.state.points.get(id) ?? 0) + 400);
@@ -983,6 +1403,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         y: p.y,
         z: p.z,
         rotationY: p.rotationY,
+        nickname: p.nickname,
         hp: p.hp,
         armor: p.armor,
         isDead: p.isDead,
@@ -993,6 +1414,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         reserveAmmo: p.reserveAmmo,
         isReloading: p.isReloading,
         hasPackAPunch: p.hasPackAPunch,
+        soloRevives: this.soloRevivesCount.get(id) ?? 0,
+        lastProcessedSeq: p.lastProcessedSeq,
       };
     });
 

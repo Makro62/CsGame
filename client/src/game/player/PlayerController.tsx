@@ -291,13 +291,15 @@ export function PlayerController() {
     }
   }, [applyLook])
 
-  // Re-equip when server changes our weapon (buy confirmation / round reset)
+  // Re-equip when server changes our weapon (buy confirmation / round reset).
+  // Zombie mode has its own room and drives the weapon from its own store.
   useEffect(() => {
+    if (mode !== 'multiplayer') return
     const active = useWeaponStore.getState().activeWeapon
     if (localWeapon && active !== localWeapon) {
       useWeaponStore.getState().equipWeapon(localWeapon as WeaponKey)
     }
-  }, [localWeapon])
+  }, [localWeapon, mode])
 
   useFrame(() => {
     if (!controllerRef.current) {

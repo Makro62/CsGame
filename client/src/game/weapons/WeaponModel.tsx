@@ -6,7 +6,13 @@ import { WEAPONS } from '@cs-game/shared'
 import { useWeaponStore } from '../../stores/useWeaponStore'
 import { useGameStore } from '../../stores/useGameStore'
 import { WeaponAnimator } from './WeaponAnimator'
-import { WEAPON_POSITIONS, WEAPON_ROTATIONS, ADS_POSITIONS } from './weaponRig'
+import { gameEvents, type GameEvents } from '../../lib/gameEvents'
+import {
+  WEAPON_POSITIONS,
+  WEAPON_ROTATIONS,
+  ADS_POSITIONS,
+  DEAGLE_HANDS,
+} from './weaponRig'
 
 const weaponAnimator = new WeaponAnimator()
 
@@ -165,6 +171,9 @@ export function WeaponModel() {
         {activeWeapon === 'autopistol' && <AutoPistolModel />}
         {activeWeapon === 'knife' && <KnifeModel />}
         {activeWeapon === 'combatknife' && <CombatKnifeModel />}
+        {activeWeapon === 'he' && <GrenadeModel type="he" />}
+        {activeWeapon === 'smoke' && <GrenadeModel type="smoke" />}
+        {activeWeapon === 'flash' && <GrenadeModel type="flash" />}
       </group>
     </group>
   )
@@ -797,9 +806,65 @@ function AWPModel() {
   )
 }
 
-// ─── Desert Eagle ────────────────────────────────────────────────
-// Desert Eagle .50 AE — massive, iconic, gold finish (Symmetrical 3D Mesh)
+// ─── Dual Desert Eagle ───────────────────────────────────────────
+// One .50 AE per hand, firing alternately. Each shot kicks only the pistol that
+// fired, so the off hand never sits frozen while the other one recoils.
 function DeagleModel() {
+  const handRefs = useRef<Array<THREE.Group | null>>([])
+  const kicks = useRef<number[]>(DEAGLE_HANDS.map(() => 0))
+
+  useEffect(() => {
+    const handleFired = ({ weapon, akimboSide }: GameEvents['weaponFired']) => {
+      if (weapon !== 'deagle') return
+      const index = DEAGLE_HANDS.findIndex(hand => hand.side === akimboSide)
+      if (index !== -1) kicks.current[index] = 1
+    }
+    gameEvents.on('weaponFired', handleFired)
+    return () => gameEvents.off('weaponFired', handleFired)
+  }, [])
+
+  useFrame((_, dt) => {
+    DEAGLE_HANDS.forEach((hand, index) => {
+      const group = handRefs.current[index]
+      if (!group) return
+
+      const kick = THREE.MathUtils.damp(kicks.current[index], 0, 11, dt)
+      kicks.current[index] = kick < 0.001 ? 0 : kick
+
+      // Slide back, muzzle up, and a small outward twist of the wrist.
+      group.position.set(
+        hand.position[0],
+        hand.position[1] + kick * 0.012,
+        hand.position[2] + kick * 0.04
+      )
+      group.rotation.set(
+        hand.rotation[0] + kick * 0.5,
+        hand.rotation[1],
+        hand.rotation[2] - kick * 0.12 * hand.side
+      )
+    })
+  })
+
+  return (
+    <group>
+      {DEAGLE_HANDS.map((hand, index) => (
+        <group
+          key={`deagle-hand-${hand.side}`}
+          ref={element => {
+            handRefs.current[index] = element
+          }}
+          position={hand.position}
+          rotation={hand.rotation}
+          scale={hand.scale}
+        >
+          <DeaglePistol />
+        </group>
+      ))}
+    </group>
+  )
+}
+
+function DeaglePistol() {
   return (
     <group>
       {/* Slide — massive, tapered toward muzzle */}
@@ -1742,3 +1807,63 @@ function CombatKnifeModel() {
     </group>
   )
 }
+
+// ─── GRENADE (HE / SMOKE / FLASH) ──────────────────────────────────
+function GrenadeModel({ type }: { type: 'he' | 'smoke' | 'flash' }) {
+  const mainColor = type === 'he' ? '#2d5a27' : type === 'smoke' ? '#4b5563' : '#1e293b'
+  const stripeColor = type === 'he' ? '#ef4444' : type === 'smoke' ? '#f8fafc' : '#38bdf8'
+
+  return (
+    <group position={[0, -0.05, 0.05]} rotation={[0.2, 0.1, -0.1]}>
+      {/* Grenade Main Body */}
+      <mesh position={[0, 0, 0]}>
+        <cylinderGeometry args={[0.038, 0.038, 0.09, 16]} />
+        <meshStandardMaterial color={mainColor} roughness={0.6} metalness={0.2} />
+      </mesh>
+
+      {/* Top and Bottom Caps */}
+      <mesh position={[0, 0.045, 0]}>
+        <sphereGeometry args={[0.038, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial color={mainColor} roughness={0.6} metalness={0.2} />
+      </mesh>
+      <mesh position={[0, -0.045, 0]} rotation={[Math.PI, 0, 0]}>
+        <sphereGeometry args={[0.038, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial color={mainColor} roughness={0.6} metalness={0.2} />
+      </mesh>
+
+      {/* Body Ribs / Texture Grooves for HE Pineapple effect */}
+      {type === 'he' &&
+        [-0.025, 0, 0.025].map((y, idx) => (
+          <mesh key={`rib-${idx}`} position={[0, y, 0]}>
+            <torusGeometry args={[0.039, 0.003, 8, 16]} />
+            <meshStandardMaterial color="#1f3d1b" roughness={0.7} />
+          </mesh>
+        ))}
+
+      {/* Identification Stripe */}
+      <mesh position={[0, 0.02, 0]}>
+        <cylinderGeometry args={[0.0385, 0.0385, 0.012, 16]} />
+        <meshStandardMaterial color={stripeColor} roughness={0.4} />
+      </mesh>
+
+      {/* Fuse Neck / Screw Collar */}
+      <mesh position={[0, 0.07, 0]}>
+        <cylinderGeometry args={[0.018, 0.022, 0.03, 12]} />
+        <meshStandardMaterial color="#64748b" metalness={0.8} roughness={0.25} />
+      </mesh>
+
+      {/* Lever (Safety Spoon) */}
+      <mesh position={[0.016, 0.045, 0]} rotation={[0, 0, -0.08]}>
+        <boxGeometry args={[0.006, 0.09, 0.016]} />
+        <meshStandardMaterial color="#334155" metalness={0.85} roughness={0.3} />
+      </mesh>
+
+      {/* Safety Pin Ring */}
+      <mesh position={[-0.022, 0.075, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <torusGeometry args={[0.012, 0.002, 8, 16]} />
+        <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+      </mesh>
+    </group>
+  )
+}
+

@@ -36,6 +36,8 @@ export function useWeaponSwitch() {
         useWeaponStore.getState().switchToSlot(2)
       } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
         useWeaponStore.getState().switchToSlot(3)
+      } else if (e.code === 'Digit4' || e.code === 'Numpad4') {
+        useWeaponStore.getState().switchToSlot(4)
       }
     }
 

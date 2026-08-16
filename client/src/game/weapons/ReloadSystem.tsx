@@ -23,6 +23,15 @@ export function ReloadSystem() {
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reloadStartTime = useRef<number>(0);
 
+  /** Reload must reach the room we are actually playing in. */
+  const requestReload = () => {
+    if (useGameStore.getState().mode === "zombie") {
+      useZombieNetworkStore.getState().sendReload();
+    } else {
+      sendReload();
+    }
+  };
+
   // Handle R key for manual reload
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -30,12 +39,7 @@ export function ReloadSystem() {
         const stats = WEAPONS[activeWeapon];
         if (stats && stats.reload > 0 && currentAmmo < maxAmmo) {
           startReload();
-          const mode = useGameStore.getState().mode;
-          if (mode === "zombie") {
-            useZombieNetworkStore.getState().sendReload();
-          } else {
-            sendReload();
-          }
+          requestReload();
         }
       }
     };
@@ -58,9 +62,16 @@ export function ReloadSystem() {
       // Trigger audio sequence
       Sound.reloadSequence(activeWeapon, stats.reload);
 
+      // Speed Cola halves the server's reload, so the local timer follows suit.
+      const speedMultiplier =
+        useGameStore.getState().mode === "zombie" &&
+        useZombieNetworkStore.getState().hasSpeedCola
+          ? 0.5
+          : 1;
+
       reloadTimer.current = setTimeout(() => {
         finishReload();
-      }, stats.reload * 1000);
+      }, stats.reload * 1000 * speedMultiplier);
 
       return () => {
         if (reloadTimer.current) {
@@ -102,7 +113,7 @@ export function ReloadSystem() {
       const stats = WEAPONS[activeWeapon];
       if (stats && stats.reload > 0 && maxAmmo > 0) {
         startReload();
-        sendReload();
+        requestReload();
       }
     }
   }, [activeWeapon, currentAmmo, maxAmmo, isReloading, startReload, sendReload]);

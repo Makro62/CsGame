@@ -1,7 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { GlassPanel } from '../shared/GlassPanel'
-import { AnimatedNumber } from '../shared/AnimatedNumber'
-import { cn } from '../../../utils/cn'
 
 interface HealthBarProps {
   hp: number
@@ -10,101 +7,104 @@ interface HealthBarProps {
   hasHelmet: boolean
 }
 
-/**
- * HealthBar - Displays player HP and armor status
- * Includes animations for damage and critical states
- */
 export function HealthBar({
   hp,
   maxHp = 100,
   armor,
   hasHelmet,
 }: HealthBarProps) {
-  const [displayHp, setDisplayHp] = useState(hp)
   const [flashRed, setFlashRed] = useState(false)
   const prevHpRef = useRef(hp)
 
-  // Damage flash effect
   useEffect(() => {
     if (hp < prevHpRef.current) {
       setFlashRed(true)
-      const timer = setTimeout(() => setFlashRed(false), 200)
+      const timer = setTimeout(() => setFlashRed(false), 250)
       return () => clearTimeout(timer)
     }
     prevHpRef.current = hp
   }, [hp])
 
-  // Smooth number transition
-  useEffect(() => {
-    const timer = setTimeout(() => setDisplayHp(hp), 50)
-    return () => clearTimeout(timer)
-  }, [hp])
-
-  const hpPercent = (hp / maxHp) * 100
-  const hpColor =
-    hp > 60
-      ? 'text-health-full'
-      : hp > 25
-        ? 'text-health-mid'
-        : 'text-health-low'
-  const hpGlow = hp <= 25 ? 'animate-pulse-glow' : ''
-  const variantType = hp <= 25 ? 'danger' : 'default'
+  const hpPercent = Math.max(0, Math.min(100, (hp / maxHp) * 100))
+  const isCritical = hp <= 25
 
   return (
-    <GlassPanel
-      variant={variantType}
-      className={cn(
-        'relative overflow-hidden p-3 min-w-[140px]',
-        flashRed && 'animate-damage-flash'
-      )}
+    <div
+      style={{
+        background: flashRed
+          ? 'rgba(239, 68, 68, 0.4)'
+          : 'linear-gradient(145deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.8))',
+        backdropFilter: 'blur(16px)',
+        border: isCritical
+          ? '1px solid #ef4444'
+          : '1px solid rgba(59, 130, 246, 0.3)',
+        borderRadius: '14px',
+        padding: '12px 18px',
+        boxShadow: isCritical
+          ? '0 0 20px rgba(239, 68, 68, 0.4)'
+          : '0 10px 25px rgba(0, 0, 0, 0.5)',
+        minWidth: '160px',
+        fontFamily: "'Inter', monospace, sans-serif",
+        color: 'white',
+        userSelect: 'none',
+        transition: 'all 0.2s ease',
+      }}
     >
-      {/* Background damage flash overlay */}
-      {flashRed && (
-        <div className="absolute inset-0 bg-health-low/20 animate-fade-out pointer-events-none" />
-      )}
-
-      <div className="flex items-end gap-2">
-        {/* HP Number */}
-        <div
-          className={cn(
-            'text-3xl font-black font-display leading-none',
-            hpColor
-          )}
-        >
-          <AnimatedNumber value={displayHp} duration={200} />
-        </div>
-
-        <div className="flex flex-col gap-0.5 mb-0.5">
-          <span className="text-xs font-bold text-text-muted tracking-wider">
-            HP
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+          <span style={{ fontSize: '18px' }}>❤️</span>
+          <span
+            style={{
+              fontSize: '28px',
+              fontWeight: 900,
+              fontFamily: 'monospace',
+              color: hp > 50 ? '#4ade80' : hp > 25 ? '#facc15' : '#f87171',
+              lineHeight: 1,
+            }}
+          >
+            {hp}
           </span>
-          {armor > 0 && (
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-armor font-semibold">
-                {hasHelmet ? 'HELM' : 'KEVLAR'}
-              </span>
-              <span className="text-[10px] text-armor">{armor}</span>
-            </div>
-          )}
+          <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>HP</span>
         </div>
+
+        {armor > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(59, 130, 246, 0.2)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.4)' }}>
+            <span style={{ fontSize: '12px' }}>🛡️</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#93c5fd', fontFamily: 'monospace' }}>
+              {armor}
+            </span>
+            <span style={{ fontSize: '9px', color: '#60a5fa', fontWeight: 'bold' }}>
+              {hasHelmet ? 'HELM' : 'KEV'}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* HP Bar */}
-      <div className="mt-2 h-1.5 bg-bg-secondary rounded-full overflow-hidden">
+      {/* Dynamic Health Bar */}
+      <div
+        style={{
+          width: '100%',
+          height: '6px',
+          background: 'rgba(0, 0, 0, 0.4)',
+          borderRadius: '999px',
+          overflow: 'hidden',
+        }}
+      >
         <div
-          className={cn(
-            'h-full rounded-full transition-all duration-300 ease-spring',
-            hpColor.replace('text-', 'bg-'),
-            hpGlow
-          )}
-          style={{ width: `${hpPercent}%` }}
+          style={{
+            width: `${hpPercent}%`,
+            height: '100%',
+            background:
+              hp > 50
+                ? 'linear-gradient(90deg, #22c55e, #16a34a)'
+                : hp > 25
+                ? 'linear-gradient(90deg, #eab308, #ca8a04)'
+                : 'linear-gradient(90deg, #ef4444, #dc2626)',
+            borderRadius: '999px',
+            transition: 'width 0.3s ease',
+          }}
         />
       </div>
-
-      {/* Critical HP heartbeat effect */}
-      {hp <= 25 && (
-        <div className="absolute inset-0 rounded-lg border-2 border-health-low/50 animate-pulse-border pointer-events-none" />
-      )}
-    </GlassPanel>
+    </div>
   )
 }

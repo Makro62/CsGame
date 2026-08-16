@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { MYSTERY_BOX } from "@cs-game/shared";
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";
 import { useZombieStore } from "../../../stores/useZombieStore";
+import { useMenuPointerLock } from "../../../hooks/useMenuPointerLock";
 
 // ============================================================================
 // Mystery Box UI
@@ -17,10 +19,13 @@ export function MysteryBox({ onClose }: MysteryBoxProps) {
   const [spinning, setSpinning] = useState(false);
   const [currentWeapon, setCurrentWeapon] = useState<string>("");
   const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const spinIndexRef = useRef(0);
 
   const isFireSale = activePowerUp === "fire_sale";
-  const price = isFireSale ? 10 : 950;
+  const price = isFireSale ? MYSTERY_BOX.fireSalePrice : MYSTERY_BOX.price;
+
+  useMenuPointerLock();
 
   useEffect(() => {
     const handleSpin = (e: CustomEvent) => {
@@ -33,18 +38,40 @@ export function MysteryBox({ onClose }: MysteryBoxProps) {
       setSpinning(false);
     };
 
+    // A rejected spin has to unlock the UI again, otherwise the box stays
+    // "spinning" forever and the player is trapped in the menu.
+    const handleFailed = (e: Event) => {
+      const detail = (e as CustomEvent<{ item: string }>).detail;
+      if (detail.item !== "mystery_box") return;
+      setSpinning(false);
+      setError(useZombieNetworkStore.getState().lastBuyFailure?.message ?? "Cannot use the box");
+    };
+
     window.addEventListener("mysteryBoxSpin", handleSpin as EventListener);
     window.addEventListener("mysteryBoxResult", handleResult as EventListener);
+    window.addEventListener("zombieBuyFailed", handleFailed);
     return () => {
       window.removeEventListener("mysteryBoxSpin", handleSpin as EventListener);
       window.removeEventListener("mysteryBoxResult", handleResult as EventListener);
+      window.removeEventListener("zombieBuyFailed", handleFailed);
     };
   }, []);
+
+  // Never let a lost server reply keep the overlay locked.
+  useEffect(() => {
+    if (!spinning) return;
+    const timeout = setTimeout(() => {
+      setSpinning(false);
+      setError("No response from the box, try again");
+    }, (MYSTERY_BOX.spinDuration + 6) * 1000);
+    return () => clearTimeout(timeout);
+  }, [spinning]);
 
   const handleUse = () => {
     if (points < price || spinning) return;
     setSpinning(true);
     setResult(null);
+    setError(null);
     sendMysteryBox();
   };
 
@@ -90,7 +117,12 @@ export function MysteryBox({ onClose }: MysteryBoxProps) {
         </h2>
         {isFireSale && (
           <div style={{ color: "#ff6600", fontSize: "12px", marginBottom: "8px", fontWeight: "bold" }}>
-            FIRE SALE ACTIVE! Only 10 points!
+            FIRE SALE ACTIVE! Only {MYSTERY_BOX.fireSalePrice} points!
+          </div>
+        )}
+        {error && (
+          <div style={{ color: "#fca5a5", fontSize: "13px", marginBottom: "8px", fontWeight: "bold" }}>
+            {error}
           </div>
         )}
 

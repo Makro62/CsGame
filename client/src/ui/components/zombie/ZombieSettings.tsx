@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { zombieSounds } from "../../../lib/zombieSounds";
 import { useSettingsStore } from "../../../stores/useSettingsStore";
+import { useMenuPointerLock } from "../../../hooks/useMenuPointerLock";
 
 // ============================================================================
 // Zombie Mode In-Game Pause & Settings Menu
@@ -17,6 +18,8 @@ export function ZombieSettings({ onClose, onRestart, onMenu }: ZombieSettingsPro
   const [soundEnabled, setSoundEnabled] = useState(true);
   const sensitivity = useSettingsStore((s) => s.sensitivity);
   const setSensitivity = useSettingsStore((s) => s.setSensitivity);
+
+  useMenuPointerLock();
 
   const handleVolumeChange = (v: number) => {
     setVolume(v);

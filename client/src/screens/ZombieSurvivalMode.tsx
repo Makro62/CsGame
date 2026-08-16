@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
 import { PlayerController } from "../game/player/PlayerController";
@@ -22,7 +22,7 @@ import { ZombiePlayerHUD } from "../ui/components/hud/ZombiePlayerHUD";
 import { WeaponShop } from "../ui/components/zombie/WeaponShop";
 import { MysteryBox } from "../ui/components/zombie/MysteryBox";
 import { PackAPunch } from "../ui/components/zombie/PackAPunch";
-import { AreaUnlockUI } from "../ui/components/zombie/AreaUnlockUI";
+import { AreaUnlockUI, nearestLockedArea } from "../ui/components/zombie/AreaUnlockUI";
 import { ZombieLeaderboard } from "../ui/components/zombie/ZombieLeaderboard";
 import { ZombieSettings } from "../ui/components/zombie/ZombieSettings";
 import { ZombieLobbySetup, DifficultyLevel } from "../ui/components/zombie/ZombieLobbySetup";
@@ -31,7 +31,55 @@ import { useZombieStore } from "../stores/useZombieStore";
 import { useZombieNetworkStore } from "../stores/useZombieNetworkStore";
 import { useGameStore } from "../stores/useGameStore";
 import { useWeaponStore } from "../stores/useWeaponStore";
-import { BARRICADE_CONFIG } from "@cs-game/shared";
+import {
+  BARRICADE_CONFIG,
+  EXTRACTION_CONFIG,
+  MYSTERY_BOX,
+  MYSTERY_BOX_POS,
+  PACK_A_PUNCH,
+  PACK_A_PUNCH_POS,
+  ZOMBIE_POINTS,
+} from "@cs-game/shared";
+
+/** Reviving an ally takes a held key, so a stray tap cannot start it. */
+const REVIVE_RANGE = 3;
+
+function isTyping(): boolean {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || (el as HTMLElement).isContentEditable;
+}
+
+/** Nearest downed teammate within reach, or null. */
+function nearestDownedAlly() {
+  const { lastSnapshot, downedAllies } = useZombieNetworkStore.getState();
+  if (!lastSnapshot || downedAllies.length === 0) return null;
+
+  let closest: (typeof downedAllies)[number] | null = null;
+  let closestDist = Infinity;
+  for (const ally of downedAllies) {
+    const dist = Math.hypot(ally.x - lastSnapshot.x, ally.z - lastSnapshot.z);
+    if (dist <= REVIVE_RANGE && dist < closestDist) {
+      closest = ally;
+      closestDist = dist;
+    }
+  }
+  return closest;
+}
+
+/** True when the player may call in the evac, matching the server's rules. */
+function canCallExtraction(): { allowed: boolean; free: boolean } {
+  const { currentWave, extractionActive, extractionAvailable, points } = useZombieStore.getState();
+  if (extractionActive) return { allowed: false, free: false };
+
+  const free = extractionAvailable || currentWave >= EXTRACTION_CONFIG.unlockWave;
+  if (free) return { allowed: true, free: true };
+
+  const manual =
+    currentWave >= EXTRACTION_CONFIG.manualMinWave && points >= EXTRACTION_CONFIG.manualCost;
+  return { allowed: manual, free: false };
+}
 
 // ============================================================================
 // Hotkey & Action Handler
@@ -42,26 +90,60 @@ function HotkeyManager({
   onToggleSettings,
   onToggleLeaderboard,
   onInteractAction,
+  menuOpen,
 }: {
   onToggleShop: () => void;
   onToggleSettings: () => void;
   onToggleLeaderboard: () => void;
   onInteractAction: () => void;
+  menuOpen: boolean;
 }) {
   const sendSwitchWeapon = useZombieNetworkStore((s) => s.sendSwitchWeapon);
   const sendStartGame = useZombieNetworkStore((s) => s.sendStartGame);
   const switchToSlot = useWeaponStore((s) => s.switchToSlot);
   const connected = useZombieNetworkStore((s) => s.connected);
   const localIsDead = useZombieNetworkStore((s) => s.localIsDead);
+  const reviveTarget = useRef<string | null>(null);
+  const reviveTick = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopRevive = useCallback(() => {
+    if (reviveTick.current) {
+      clearInterval(reviveTick.current);
+      reviveTick.current = null;
+    }
+    if (reviveTarget.current) {
+      reviveTarget.current = null;
+      useZombieNetworkStore.getState().sendCancelRevive();
+      useZombieStore.getState().setReviveProgress(0, "");
+    }
+  }, []);
 
   useEffect(() => {
     if (!connected) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (localIsDead) return;
+      if (localIsDead || isTyping()) return;
+      if (menuOpen && e.code !== "Escape") return;
       switch (e.code) {
-        case "KeyF":
+        case "KeyF": {
+          // Holding [F] next to a downed ally revives them; the server drives
+          // the progress bar while we keep the request alive.
+          if (e.repeat || reviveTarget.current) break;
+          const ally = nearestDownedAlly();
+          if (ally && !useZombieNetworkStore.getState().localIsDowned) {
+            reviveTarget.current = ally.sessionId;
+            useZombieNetworkStore.getState().sendStartRevive(ally.sessionId);
+            reviveTick.current = setInterval(() => {
+              if (!nearestDownedAlly()) {
+                stopRevive();
+                return;
+              }
+              useZombieNetworkStore.getState().sendTickRevive(0);
+            }, 250);
+            break;
+          }
           onInteractAction();
           break;
+        }
         case "Digit1":
         case "Numpad1": {
           switchToSlot(1);
@@ -100,12 +182,16 @@ function HotkeyManager({
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "KeyF") stopRevive();
+    };
+
     const handleWheel = (e: WheelEvent) => {
-      if (localIsDead) return;
+      if (localIsDead || menuOpen || isTyping()) return;
       const state = useWeaponStore.getState();
       const current = state.activeWeapon;
-      const primary = state.primaryWeapon || "ak47";
-      const secondary = state.secondaryWeapon || "deagle";
+      const primary = state.primaryWeapon;
+      const secondary = state.secondaryWeapon;
 
       const isPrimary = current === primary;
       const isSecondary = current === secondary;
@@ -127,12 +213,27 @@ function HotkeyManager({
     };
 
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("wheel", handleWheel, { passive: true });
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("wheel", handleWheel);
+      stopRevive();
     };
-  }, [connected, localIsDead, sendSwitchWeapon, sendStartGame, switchToSlot, onToggleShop, onToggleSettings, onToggleLeaderboard, onInteractAction]);
+  }, [
+    connected,
+    localIsDead,
+    menuOpen,
+    sendSwitchWeapon,
+    sendStartGame,
+    switchToSlot,
+    onToggleShop,
+    onToggleSettings,
+    onToggleLeaderboard,
+    onInteractAction,
+    stopRevive,
+  ]);
 
   return null;
 }
@@ -143,28 +244,39 @@ function HotkeyManager({
 
 function InteractionPrompt() {
   const lastSnapshot = useZombieNetworkStore((s) => s.lastSnapshot);
+  const downedAllies = useZombieNetworkStore((s) => s.downedAllies);
+  const localIsDowned = useZombieNetworkStore((s) => s.localIsDowned);
   const barricades = useZombieStore((s) => s.barricades);
-  const extractionAvailable = useZombieStore((s) => s.extractionAvailable);
-  const extractionActive = useZombieStore((s) => s.extractionActive);
   const waveState = useZombieStore((s) => s.waveState);
   const currentWave = useZombieStore((s) => s.currentWave);
+  // Recomputed from the store on every position update, hence the read below.
+  useZombieStore((s) => s.points);
+  useZombieStore((s) => s.extractionActive);
 
   if (!lastSnapshot) return null;
   const { x, z } = lastSnapshot;
 
-  // Check near mystery box [0, 5]
-  const distToMysteryBox = Math.sqrt(x ** 2 + (z - 5) ** 2);
-  if (distToMysteryBox <= 4) {
-    return (
-      <PromptBadge text="Press [F] to Open Mystery Box (950 pts)" />
+  // Reviving a teammate outranks every other prompt.
+  if (!localIsDowned && downedAllies.length > 0) {
+    const ally = downedAllies.find(
+      (item) => Math.hypot(item.x - x, item.z - z) <= REVIVE_RANGE
     );
+    if (ally) {
+      return <PromptBadge text={`Hold [F] to Revive ${ally.nickname}`} />;
+    }
   }
 
-  // Check near Pack-a-Punch [0, 0]
-  const distToPaP = Math.sqrt(x ** 2 + z ** 2);
+  const distToMysteryBox = Math.hypot(x - MYSTERY_BOX_POS.x, z - MYSTERY_BOX_POS.z);
+  if (distToMysteryBox <= 4) {
+    return <PromptBadge text={`Press [F] to Open Mystery Box (${MYSTERY_BOX.price} pts)`} />;
+  }
+
+  const distToPaP = Math.hypot(x - PACK_A_PUNCH_POS.x, z - PACK_A_PUNCH_POS.z);
   if (distToPaP <= 4) {
     return (
-      <PromptBadge text="Press [F] to Upgrade Weapon (5,000 pts)" />
+      <PromptBadge
+        text={`Press [F] to Upgrade Weapon (${PACK_A_PUNCH.price.toLocaleString()} pts)`}
+      />
     );
   }
 
@@ -173,19 +285,44 @@ function InteractionPrompt() {
     const distSq = (loc.x - x) ** 2 + (loc.z - z) ** 2;
     if (distSq < 16) {
       const b = barricades.find((item) => item.id === loc.id);
-      if (!b || b.boards < 6) {
+      if (!b || b.boards < BARRICADE_CONFIG.maxBoards) {
         return (
-          <PromptBadge text="Press [F] to Repair Barricade (+10 pts)" />
+          <PromptBadge
+            text={`Press [F] to Repair Barricade (+${ZOMBIE_POINTS.barricadeRepair} pts)`}
+          />
         );
       }
     }
   }
 
-  // Check near helipad [0, 50]
-  const distToHelipad = Math.sqrt(x ** 2 + (z - 50) ** 2);
-  if (distToHelipad <= 14 && extractionAvailable && !extractionActive) {
+  const distToHelipad = Math.hypot(
+    x - EXTRACTION_CONFIG.helipadPos.x,
+    z - EXTRACTION_CONFIG.helipadPos.z
+  );
+  if (distToHelipad <= 14) {
+    const { allowed, free } = canCallExtraction();
+    if (allowed) {
+      return (
+        <PromptBadge
+          text={
+            free
+              ? "Press [F] to Call Helipad Evac (Free)"
+              : `Press [F] to Call Helipad Evac (${EXTRACTION_CONFIG.manualCost.toLocaleString()} pts)`
+          }
+        />
+      );
+    }
+    if (currentWave < EXTRACTION_CONFIG.manualMinWave) {
+      return (
+        <PromptBadge
+          text={`Evac unlocks at Wave ${EXTRACTION_CONFIG.manualMinWave}`}
+        />
+      );
+    }
     return (
-      <PromptBadge text="Press [F] to Call Helipad Evac (5,000 pts / Free at Wave 10)" />
+      <PromptBadge
+        text={`Evac needs ${EXTRACTION_CONFIG.manualCost.toLocaleString()} pts`}
+      />
     );
   }
 
@@ -301,20 +438,26 @@ export function ZombieSurvivalMode() {
 
   useEffect(() => {
     useGameStore.getState().setMode("zombie");
-    useWeaponStore.getState().equipWeapon("deagle");
-    connect(nickname || "Survivor");
 
     return () => {
       useZombieNetworkStore.getState().disconnect();
     };
   }, []);
 
-  const handleStartGameFromLobby = useCallback((_diff: DifficultyLevel) => {
-    setLobbyOpen(false);
-    useGameStore.getState().setMode("zombie");
-    useWeaponStore.getState().equipWeapon("deagle");
-    useZombieNetworkStore.getState().sendStartGame();
-  }, []);
+  // Joining happens after the lobby closes so the chosen difficulty reaches the
+  // room and no wave starts while the setup screen is still up.
+  const handleStartGameFromLobby = useCallback(
+    async (difficulty: DifficultyLevel) => {
+      setLobbyOpen(false);
+      useGameStore.getState().setMode("zombie");
+      useWeaponStore.getState().syncLoadout({ primary: "", secondary: "deagle", knife: "knife" });
+      useWeaponStore.getState().equipWeapon("deagle");
+
+      await connect(nickname || "Survivor", difficulty);
+      useZombieNetworkStore.getState().sendStartGame();
+    },
+    [connect, nickname]
+  );
 
   const handleBackToMenu = useCallback(() => {
     useZombieNetworkStore.getState().disconnect();
@@ -324,7 +467,12 @@ export function ZombieSurvivalMode() {
   const handleRestart = useCallback(() => {
     setGameOver(false);
     setSettingsOpen(false);
-    window.location.reload();
+    setShopOpen(false);
+    setMysteryBoxOpen(false);
+    setPackAPunchOpen(false);
+    // Leave cleanly first so the room does not keep a ghost player around.
+    useZombieNetworkStore.getState().disconnect();
+    setLobbyOpen(true);
   }, []);
 
   useEffect(() => {
@@ -349,15 +497,15 @@ export function ZombieSurvivalMode() {
     if (!snap) return;
     const { x, z } = snap;
 
-    // 1. Check near Mystery Box [0, 5]
-    const distToMysteryBox = Math.sqrt(x ** 2 + (z - 5) ** 2);
+    // 1. Check near Mystery Box
+    const distToMysteryBox = Math.hypot(x - MYSTERY_BOX_POS.x, z - MYSTERY_BOX_POS.z);
     if (distToMysteryBox <= 4) {
       setMysteryBoxOpen(true);
       return;
     }
 
-    // 2. Check near Pack-a-Punch [0, 0]
-    const distToPaP = Math.sqrt(x ** 2 + z ** 2);
+    // 2. Check near Pack-a-Punch
+    const distToPaP = Math.hypot(x - PACK_A_PUNCH_POS.x, z - PACK_A_PUNCH_POS.z);
     if (distToPaP <= 4) {
       setPackAPunchOpen(true);
       return;
@@ -369,20 +517,28 @@ export function ZombieSurvivalMode() {
       const distSq = (loc.x - x) ** 2 + (loc.z - z) ** 2;
       if (distSq < 16) {
         const b = barricades.find((item) => item.id === loc.id);
-        if (!b || b.boards < 6) {
+        if (!b || b.boards < BARRICADE_CONFIG.maxBoards) {
           useZombieNetworkStore.getState().sendRepairBarricade(loc.id);
           return;
         }
       }
     }
 
-    // 4. Check near helipad for extraction
-    const distToHelipad = Math.sqrt(x ** 2 + (z - 50) ** 2);
-    if (distToHelipad <= 14) {
-      const { extractionAvailable, extractionActive } = useZombieStore.getState();
-      if (extractionAvailable && !extractionActive) {
-        useZombieNetworkStore.getState().sendTriggerExtraction();
-      }
+    // 4. Buy the locked door we are standing at.
+    const lockedArea = nearestLockedArea(x, z, useZombieStore.getState().unlockedAreas);
+    if (lockedArea && useZombieStore.getState().points >= lockedArea.price) {
+      useZombieNetworkStore.getState().sendUnlockArea(lockedArea.id);
+      return;
+    }
+
+    // 5. Check near helipad for extraction. Paid evac is allowed from the
+    // manual unlock wave, exactly like the server accepts it.
+    const distToHelipad = Math.hypot(
+      x - EXTRACTION_CONFIG.helipadPos.x,
+      z - EXTRACTION_CONFIG.helipadPos.z
+    );
+    if (distToHelipad <= 14 && canCallExtraction().allowed) {
+      useZombieNetworkStore.getState().sendTriggerExtraction();
     }
   }, []);
 
@@ -433,6 +589,7 @@ export function ZombieSurvivalMode() {
         onToggleSettings={toggleSettings}
         onToggleLeaderboard={toggleLeaderboard}
         onInteractAction={handleInteract}
+        menuOpen={lobbyOpen || shopOpen || mysteryBoxOpen || packAPunchOpen || settingsOpen}
       />
 
       <Canvas shadows camera={{ fov: 75, position: [0, 1.6, -30] }}>

@@ -265,6 +265,50 @@ export const Sound = {
     const duration = type === 'sprint' ? 0.04 : type === 'crouch' ? 0.06 : 0.05
     playNoise(duration, baseVol * vol, freq)
   },
+
+  grenadePin() {
+    const vol = getEffectiveVolume()
+    playNoise(0.03, 0.3 * vol, 6500)
+    playTone(1800, 0.04, 0.15 * vol, 'sine')
+  },
+
+  grenadeThrow() {
+    const vol = getEffectiveVolume()
+    playNoise(0.1, 0.25 * vol, 1400)
+    playTone(300, 0.08, 0.1 * vol, 'triangle')
+  },
+
+  explosion() {
+    const vol = getEffectiveVolume()
+    const ctx = getCtx()
+    const t = ctx.currentTime
+
+    // Heavy low-pass explosion rumble
+    playNoise(0.7, 0.85 * vol, 650)
+
+    // Deep sub-bass impact drop (120Hz -> 30Hz)
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(120, t)
+    osc.frequency.exponentialRampToValueAtTime(30, t + 0.5)
+    gain.gain.setValueAtTime(0.7 * vol, t)
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6)
+    osc.connect(gain).connect(ctx.destination)
+    osc.start(t)
+    osc.stop(t + 0.6)
+  },
+
+  smokeHiss() {
+    const vol = getEffectiveVolume()
+    playNoise(1.5, 0.35 * vol, 4000)
+  },
+
+  flashbangBang() {
+    const vol = getEffectiveVolume()
+    playNoise(0.2, 0.8 * vol, 5000)
+    playTone(2400, 0.5, 0.2 * vol, 'sine')
+  },
 }
 
 export function AudioManager() {

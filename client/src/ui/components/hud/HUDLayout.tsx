@@ -8,7 +8,6 @@ import { WeaponSlots } from './WeaponSlots'
 import { RoundTimer } from './RoundTimer'
 import { KillFeed } from './KillFeed'
 import { MoneyDisplay } from './MoneyDisplay'
-import { GrenadeIndicator } from './GrenadeIndicator'
 import { BombIndicator } from './BombIndicator'
 import { NetworkMonitor } from './NetworkMonitor'
 import { SpectatorHUD } from './SpectatorHUD'
@@ -29,6 +28,7 @@ export function HUDLayout() {
     secondaryWeapon,
     knifeSlot,
     grenadeType,
+    infiniteAmmo,
   } = useWeaponStore()
 
   const {
@@ -245,24 +245,16 @@ export function HUDLayout() {
               canBuy={round.phase === 'buy'}
             />
           )}
-          {grenadeTotal > 0 && (
-            <GrenadeIndicator
-              heGrenades={localGrenadeHE}
-              smokeGrenades={localGrenadeSmoke}
-              flashGrenades={localGrenadeFlash}
-              selectedType={grenadeType}
-            />
-          )}
         </div>
 
-        {/* Right side - Ammo, Weapon Slots */}
-        <div className="flex flex-col gap-1.5 items-end">
+        {/* Right side - Weapon Slots & Ammo Counter */}
+        <div className="flex flex-col gap-2 items-end">
           <WeaponSlots slots={weaponSlots} />
           {activeWeapon && (
             <AmmoCounter
               current={currentAmmo}
               max={maxAmmo}
-              reserve={isMultiplayer ? localReserveAmmo : 0}
+              reserve={isMultiplayer ? localReserveAmmo : (infiniteAmmo ? Infinity : 90)}
               isReloading={isReloading}
               isSwitching={isSwitching}
               weaponName={activeWeapon}
@@ -273,19 +265,21 @@ export function HUDLayout() {
 
       {/* Kill feed - top right */}
       {isMultiplayer && (
-        <div className="fixed top-16 right-4 z-[100] pointer-events-none">
+        <div className="fixed top-20 right-4 z-[100] pointer-events-none">
           <KillFeed events={killFeedEvents} />
         </div>
       )}
 
-      {/* Network monitor - bottom right. Training is offline, so ping is FPS only */}
-      <div className="fixed bottom-4 right-4 z-[100] pointer-events-none opacity-60 hover:opacity-100 transition-opacity">
-        <NetworkMonitor
-          ping={isMultiplayer ? ping : undefined}
-          fps={fps}
-          showHistory={false}
-        />
-      </div>
+      {/* Network monitor in multiplayer (top right under killfeed) */}
+      {isMultiplayer && (
+        <div className="fixed top-4 right-4 z-[100] pointer-events-none opacity-80 hover:opacity-100 transition-opacity">
+          <NetworkMonitor
+            ping={ping}
+            fps={fps}
+            showHistory={false}
+          />
+        </div>
+      )}
 
       {/* Overtime / Sudden Death indicator */}
       {isMultiplayer && round.isSuddenDeath && (

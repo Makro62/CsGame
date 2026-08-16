@@ -14,24 +14,13 @@ export class ZombieController {
   private zombies: Map<string, ZombieState> = new Map()
   private pathfinder = new Pathfinder()
   private nextId = 0
+  private hpScale = 1
+  private speedScale = 1
 
-  spawnWave(
-    wave: number,
-    count: number,
-    activeSpawnCount: number,
-    players: Map<string, PlayerState>
-  ): ZombieState[] {
-    const spawned: ZombieState[] = []
-    const spawnPoints = ZOMBIE_SPAWN.spawnPoints.slice(0, activeSpawnCount)
-
-    for (let i = 0; i < count; i++) {
-      const type = this.determineType(wave)
-      const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)]
-      const zombie = this.createZombie(type, spawn.x, spawn.z, wave)
-      spawned.push(zombie)
-    }
-
-    return spawned
+  /** Difficulty multipliers chosen in the lobby, applied to every new zombie. */
+  setDifficulty(hpScale: number, speedScale: number): void {
+    this.hpScale = hpScale
+    this.speedScale = speedScale
   }
 
   spawnSingle(
@@ -59,9 +48,9 @@ export class ZombieController {
     zombie.x = x + (Math.random() - 0.5) * 10
     zombie.y = 0
     zombie.z = z + (Math.random() - 0.5) * 10
-    zombie.hp = Math.floor(stats.hp * hpMultiplier)
+    zombie.hp = Math.max(1, Math.floor(stats.hp * hpMultiplier * this.hpScale))
     zombie.maxHp = zombie.hp
-    zombie.speed = stats.speed * speedBonus
+    zombie.speed = stats.speed * speedBonus * this.speedScale
     zombie.rotationY = 0
     zombie.targetId = ''
     zombie.isDead = false
@@ -72,12 +61,12 @@ export class ZombieController {
     return zombie
   }
 
+  /** Regular horde composition. Bosses come from dedicated boss-wave slots. */
   determineType(wave: number): ZombieType {
     if (wave < 3) return 'walker'
 
     const roll = Math.random()
 
-    if (wave >= 10 && roll < 0.05) return 'boss'
     if (wave >= 7 && roll < 0.15) return 'spitter'
     if (wave >= 5 && roll < 0.25) return 'tank'
     if (wave >= 3 && roll < 0.40) return 'runner'
@@ -215,12 +204,18 @@ export class ZombieController {
     }
   }
 
+  /**
+   * Closest player who can still fight back. Downed players are only chased
+   * when nobody is standing, so a horde does not pile onto a crawling player.
+   */
   private findNearestAlivePlayer(
     zombie: ZombieState,
     players: Map<string, PlayerState>
   ): { id: string; x: number; z: number } | null {
-    let nearest: { id: string; x: number; z: number } | null = null
-    let minDist = Infinity
+    let standing: { id: string; x: number; z: number } | null = null
+    let standingDist = Infinity
+    let downed: { id: string; x: number; z: number } | null = null
+    let downedDist = Infinity
 
     players.forEach((player, id) => {
       if (player.isDead) return
@@ -229,13 +224,18 @@ export class ZombieController {
       const dz = player.z - zombie.z
       const dist = Math.sqrt(dx * dx + dz * dz)
 
-      if (dist < minDist) {
-        minDist = dist
-        nearest = { id, x: player.x, z: player.z }
+      if (player.isDowned) {
+        if (dist < downedDist) {
+          downedDist = dist
+          downed = { id, x: player.x, z: player.z }
+        }
+      } else if (dist < standingDist) {
+        standingDist = dist
+        standing = { id, x: player.x, z: player.z }
       }
     })
 
-    return nearest
+    return standing ?? downed
   }
 
   getZombie(id: string): ZombieState | undefined {

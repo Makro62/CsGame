@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { WEAPONS, ZOMBIE_SHOP } from "@cs-game/shared";
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";
 import { useZombieStore } from "../../../stores/useZombieStore";
-import { useWeaponStore, WeaponKey } from "../../../stores/useWeaponStore";
+import { useMenuPointerLock } from "../../../hooks/useMenuPointerLock";
 
 // ============================================================================
 // Zombie Mode Weapon Shop
@@ -16,33 +17,81 @@ interface ShopWeapon {
   stats: string;
 }
 
+// Prices always come from the shared config so the label matches what the
+// server charges; only the wording lives here.
+function weaponEntry(
+  id: keyof typeof WEAPONS,
+  name: string,
+  type: "primary" | "secondary",
+  description: string
+): ShopWeapon {
+  const stats = WEAPONS[id];
+  return {
+    id,
+    name,
+    price: ZOMBIE_SHOP.weaponPrices[id] ?? 0,
+    type,
+    description,
+    stats: `DMG ${stats.dmg} | MAG ${stats.mag}`,
+  };
+}
+
 const SHOP_WEAPONS: ShopWeapon[] = [
-  // Primary
-  { id: "ak47", name: "AK-47", price: 1200, type: "primary", description: "High damage assault rifle", stats: "DMG 35 | MAG 30" },
-  { id: "m4a1", name: "M4A1", price: 1400, type: "primary", description: "Balanced assault rifle", stats: "DMG 31 | MAG 25" },
-  { id: "mp5", name: "MP5", price: 800, type: "primary", description: "Fast SMG, low recoil", stats: "DMG 24 | MAG 30" },
-  { id: "awp", name: "AWP", price: 2500, type: "primary", description: "One-shot sniper", stats: "DMG 115 | MAG 5" },
-  // Secondary
-  { id: "deagle", name: "Deagle", price: 400, type: "secondary", description: "Powerful pistol", stats: "DMG 53 | MAG 14" },
-  { id: "glock", name: "Glock", price: 200, type: "secondary", description: "Standard pistol", stats: "DMG 22 | MAG 20" },
-  // Ammo & Armor
-  { id: "ammo", name: "Max Ammo", price: 500, type: "ammo", description: "Full refill current weapon", stats: "Refills magazine + reserve" },
-  { id: "armor", name: "Body Armor", price: 750, type: "armor", description: "100 armor points", stats: "Reduces damage taken" },
-  // Perks
-  { id: "juggernog", name: "Juggernog", price: 2500, type: "perk", description: "+100 HP (200 total)", stats: "Survive more hits" },
-  { id: "speedcola", name: "Speed Cola", price: 3000, type: "perk", description: "Reload 50% faster", stats: "Quick reload" },
-  { id: "doubletap", name: "Double Tap", price: 2000, type: "perk", description: "1.33x fire rate", stats: "Shoot faster" },
-  { id: "quickrevive", name: "Quick Revive", price: 1500, type: "perk", description: "Self-revive in solo / Fast revive in co-op", stats: "Auto-revive once" },
+  weaponEntry("ak47", "AK-47", "primary", "High damage assault rifle"),
+  weaponEntry("m4a1", "M4A1", "primary", "Balanced assault rifle"),
+  weaponEntry("mp5", "MP5", "primary", "Fast SMG, low recoil"),
+  weaponEntry("awp", "AWP", "primary", "One-shot sniper"),
+  weaponEntry("deagle", "Deagle", "secondary", "Powerful pistol"),
+  weaponEntry("glock", "Glock", "secondary", "Standard pistol"),
+  {
+    id: "ammo",
+    name: "Max Ammo",
+    price: ZOMBIE_SHOP.ammoPrice,
+    type: "ammo",
+    description: "Full refill current weapon",
+    stats: "Refills magazine + reserve",
+  },
+  {
+    id: "armor",
+    name: "Body Armor",
+    price: ZOMBIE_SHOP.armorPrice,
+    type: "armor",
+    description: "100 armor points",
+    stats: "Reduces damage taken",
+  },
+  {
+    id: "juggernog",
+    name: "Juggernog",
+    price: ZOMBIE_SHOP.perks.juggernog.price,
+    type: "perk",
+    description: "+100 HP (200 total)",
+    stats: "Survive more hits",
+  },
+  {
+    id: "speedcola",
+    name: "Speed Cola",
+    price: ZOMBIE_SHOP.perks.speedcola.price,
+    type: "perk",
+    description: "Reload 50% faster",
+    stats: "Quick reload",
+  },
+  {
+    id: "doubletap",
+    name: "Double Tap",
+    price: ZOMBIE_SHOP.perks.doubletap.price,
+    type: "perk",
+    description: "1.33x fire rate",
+    stats: "Shoot faster",
+  },
+  {
+    id: "quickrevive",
+    name: "Quick Revive",
+    price: ZOMBIE_SHOP.perks.quickrevive.price,
+    type: "perk",
+    description: "One extra life in solo / faster co-op revive",
+    stats: "Costs one life when used",
+  },
 ];
-
-export const ZOMBIE_PERKS = {
-  juggernog: { price: 2500, hpBonus: 100, description: "+100 HP" },
-  speedcola: { price: 3000, reloadMultiplier: 0.5, description: "Reload 50% faster" },
-  doubletap: { price: 2000, fireRateMultiplier: 1.33, description: "Shoot faster" },
-  quickrevive: { price: 1500, selfRevive: true, description: "Self-revive in solo" },
-} as const;
-
-export type PerkId = keyof typeof ZOMBIE_PERKS;
 
 interface WeaponShopProps {
   onClose: () => void;
@@ -50,43 +99,78 @@ interface WeaponShopProps {
 
 export function WeaponShop({ onClose }: WeaponShopProps) {
   const points = useZombieStore((s) => s.points);
+  const sendBuyWeapon = useZombieNetworkStore((s) => s.sendBuyWeapon);
   const sendBuyAmmo = useZombieNetworkStore((s) => s.sendBuyAmmo);
   const sendBuyArmor = useZombieNetworkStore((s) => s.sendBuyArmor);
   const sendBuyPerk = useZombieNetworkStore((s) => s.sendBuyPerk);
-  const sendSwitchWeapon = useZombieNetworkStore((s) => s.sendSwitchWeapon);
-  const equipWeapon = useWeaponStore((s) => s.equipWeapon);
 
   const [selectedTab, setSelectedTab] = useState<"weapons" | "perks">("weapons");
-  const [notification, setNotification] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ text: string; ok: boolean } | null>(null);
+
+  useMenuPointerLock();
+
+  // Success and failure both come back from the server; nothing is announced
+  // before the points have actually changed hands.
+  useEffect(() => {
+    const nameOf = (id: string) =>
+      SHOP_WEAPONS.find((item) => item.id === id)?.name ?? id.replace(/_/g, " ");
+
+    const onFailed = (event: Event) => {
+      const detail = (event as CustomEvent<{ item: string }>).detail;
+      const failure = useZombieNetworkStore.getState().lastBuyFailure;
+      setNotification({
+        text: `${nameOf(detail.item)}: ${failure?.message ?? "Purchase failed"}`,
+        ok: false,
+      });
+    };
+
+    const onWeapon = (event: Event) => {
+      const detail = (event as CustomEvent<{ weapon: string }>).detail;
+      setNotification({ text: `Bought & equipped ${nameOf(detail.weapon)}!`, ok: true });
+    };
+
+    const onPurchase = (event: Event) => {
+      const detail = (event as CustomEvent<{ item: string }>).detail;
+      setNotification({ text: `Bought ${nameOf(detail.item)}!`, ok: true });
+    };
+
+    window.addEventListener("zombieBuyFailed", onFailed);
+    window.addEventListener("zombieWeaponBought", onWeapon);
+    window.addEventListener("zombiePurchase", onPurchase);
+    return () => {
+      window.removeEventListener("zombieBuyFailed", onFailed);
+      window.removeEventListener("zombieWeaponBought", onWeapon);
+      window.removeEventListener("zombiePurchase", onPurchase);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!notification) return;
+    const timer = setTimeout(() => setNotification(null), 2200);
+    return () => clearTimeout(timer);
+  }, [notification]);
 
   const handleBuy = (item: ShopWeapon) => {
     if (points < item.price) {
-      setNotification("Not enough points!");
-      setTimeout(() => setNotification(null), 2000);
+      setNotification({ text: "Not enough points!", ok: false });
       return;
     }
 
     switch (item.type) {
       case "primary":
       case "secondary":
-        sendSwitchWeapon(item.id);
-        equipWeapon(item.id as WeaponKey);
-        setNotification(`Bought & equipped ${item.name}!`);
+        sendBuyWeapon(item.id);
         break;
       case "ammo":
         sendBuyAmmo();
-        setNotification("Ammo refilled!");
         break;
       case "armor":
         sendBuyArmor();
-        setNotification("Armor bought!");
         break;
       case "perk":
         sendBuyPerk(item.id);
-        setNotification(`Bought ${item.name}!`);
         break;
     }
-    setTimeout(() => setNotification(null), 2000);
   };
 
   const filteredWeapons = SHOP_WEAPONS.filter((w) => {
@@ -174,16 +258,16 @@ export function WeaponShop({ onClose }: WeaponShopProps) {
           <div
             style={{
               padding: "8px 16px",
-              backgroundColor: "rgba(255,102,0,0.2)",
-              border: "1px solid #ff6600",
+              backgroundColor: notification.ok ? "rgba(255,102,0,0.2)" : "rgba(239,68,68,0.2)",
+              border: `1px solid ${notification.ok ? "#ff6600" : "#ef4444"}`,
               borderRadius: "6px",
-              color: "#ff6600",
+              color: notification.ok ? "#ff6600" : "#fca5a5",
               fontSize: "14px",
               marginBottom: "16px",
               textAlign: "center",
             }}
           >
-            {notification}
+            {notification.text}
           </div>
         )}
 

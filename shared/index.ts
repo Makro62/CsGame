@@ -731,6 +731,37 @@ export const WEAPONS = {
     team: 'both',
     reserveAmmo: 0,
   },
+  // Grenades
+  he: {
+    dmg: 85,
+    headshot: 85,
+    fireRate: 1,
+    mag: 1,
+    reload: 0,
+    price: 300,
+    team: 'both',
+    reserveAmmo: 1,
+  },
+  smoke: {
+    dmg: 0,
+    headshot: 0,
+    fireRate: 1,
+    mag: 1,
+    reload: 0,
+    price: 300,
+    team: 'both',
+    reserveAmmo: 1,
+  },
+  flash: {
+    dmg: 0,
+    headshot: 0,
+    fireRate: 1,
+    mag: 1,
+    reload: 0,
+    price: 200,
+    team: 'both',
+    reserveAmmo: 2,
+  },
 } as const
 
 export type WeaponId = keyof typeof WEAPONS
@@ -738,6 +769,7 @@ export type WeaponId = keyof typeof WEAPONS
 export const PRIMARY_WEAPONS = ['ak47', 'm4a1', 'awp', 'mp5'] as const
 export const SECONDARY_WEAPONS = ['deagle', 'glock', 'tec9', 'autopistol'] as const
 export const MELEE_WEAPONS = ['knife', 'combatknife'] as const
+export const GRENADE_WEAPONS = ['he', 'smoke', 'flash'] as const
 
 export function isPrimaryWeapon(id: string): boolean {
   return (PRIMARY_WEAPONS as readonly string[]).includes(id)
@@ -749,6 +781,10 @@ export function isSecondaryWeapon(id: string): boolean {
 
 export function isMeleeWeapon(id: string): boolean {
   return (MELEE_WEAPONS as readonly string[]).includes(id)
+}
+
+export function isGrenadeWeapon(id: string): boolean {
+  return (GRENADE_WEAPONS as readonly string[]).includes(id)
 }
 
 /** Knife stats: melee only reaches arm's length and rewards flanking. */
@@ -1000,6 +1036,76 @@ export const PACK_A_PUNCH = {
   extraAmmoMultiplier: 1.5,
   allowedWeapons: ["ak47", "m4a1", "mp5", "awp", "deagle"] as const,
 } as const;
+
+// ─── Zombie Shop ───────────────────────────────────────────────
+// Single source of truth for the armory UI and the server economy, so a price
+// can never disagree between what the player sees and what they are charged.
+export type ZombiePerkId = "juggernog" | "speedcola" | "doubletap" | "quickrevive";
+
+export const ZOMBIE_SHOP = {
+  weaponPrices: {
+    mp5: 800,
+    ak47: 1200,
+    m4a1: 1400,
+    awp: 2500,
+    glock: 200,
+    tec9: 500,
+    autopistol: 500,
+    deagle: 400,
+  } as Record<string, number>,
+  ammoPrice: 500,
+  armorPrice: 750,
+  /** Reserve ammo is capped at magazine size × this, so it cannot be hoarded. */
+  reserveCap: 5,
+  perks: {
+    juggernog: { price: 2500, field: "hasJuggernog", hp: 200 },
+    speedcola: { price: 3000, field: "hasSpeedCola" },
+    doubletap: { price: 2000, field: "hasDoubleTap" },
+    quickrevive: { price: 1500, field: "hasQuickRevive" },
+  } as Record<ZombiePerkId, { price: number; field: string; hp?: number }>,
+};
+
+export type ZombieBuyFailReason =
+  | "no_money"
+  | "already_owned"
+  | "unknown_item"
+  | "unavailable"
+  | "too_far"
+  | "locked"
+  | "full";
+
+export interface ZombieBuyFailedMessage {
+  item: string;
+  reason: ZombieBuyFailReason;
+}
+
+/** Interaction radius the server enforces for box, Pack-a-Punch and areas. */
+export const ZOMBIE_INTERACT_RANGE = 6;
+export const MYSTERY_BOX_POS = { x: 0, z: 5 } as const;
+export const PACK_A_PUNCH_POS = { x: 0, z: 0 } as const;
+
+// ─── Zombie Difficulty ─────────────────────────────────────────
+export type ZombieDifficulty = "casual" | "normal" | "hardcore" | "nightmare";
+
+export const ZOMBIE_DIFFICULTIES: Record<
+  ZombieDifficulty,
+  {
+    zombieHp: number;
+    zombieSpeed: number;
+    zombieDamage: number;
+    points: number;
+    soloRevives: number;
+  }
+> = {
+  casual: { zombieHp: 0.8, zombieSpeed: 1.0, zombieDamage: 0.8, points: 1.25, soloRevives: 5 },
+  normal: { zombieHp: 1.0, zombieSpeed: 1.0, zombieDamage: 1.0, points: 1.0, soloRevives: 3 },
+  hardcore: { zombieHp: 1.15, zombieSpeed: 1.2, zombieDamage: 1.3, points: 1.0, soloRevives: 1 },
+  nightmare: { zombieHp: 1.35, zombieSpeed: 1.3, zombieDamage: 1.5, points: 1.1, soloRevives: 0 },
+};
+
+export function isZombieDifficulty(value: unknown): value is ZombieDifficulty {
+  return typeof value === "string" && value in ZOMBIE_DIFFICULTIES;
+}
 
 // ─── Map Progression (Unlockable Areas) ────────────────────────
 export interface MapArea {

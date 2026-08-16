@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
@@ -20,6 +20,33 @@ import { useWeaponStore, WeaponKey } from "../../stores/useWeaponStore";
 import { useGameStore } from "../../stores/useGameStore";
 import { TracerManager } from "../effects/TracerManager";
 import { useWeaponSwitch } from "../../hooks/useWeaponSwitch";
+import { GrenadeSystem } from "../weapons/GrenadeSystem";
+import { FlashEffect } from "../../components/FlashEffect";
+
+function useLiveFPS() {
+  const [fps, setFps] = useState(60);
+  const frameCount = useRef(0);
+  const lastTime = useRef(performance.now());
+
+  useEffect(() => {
+    let animId: number;
+    const loop = () => {
+      frameCount.current += 1;
+      const now = performance.now();
+      const delta = now - lastTime.current;
+      if (delta >= 500) {
+        setFps(Math.round((frameCount.current * 1000) / delta));
+        frameCount.current = 0;
+        lastTime.current = now;
+      }
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, []);
+
+  return fps;
+}
 
 const WEAPON_OPTIONS: Array<{ key: WeaponKey; name: string; slot: "primary" | "secondary" | "knife" }> = [
   { key: "ak47", name: "AK-47", slot: "primary" },
@@ -40,7 +67,7 @@ function QuickArsenalSelector() {
     <div
       style={{
         position: "fixed",
-        bottom: "24px",
+        bottom: "16px",
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 150,
@@ -52,21 +79,22 @@ function QuickArsenalSelector() {
         fontFamily: "'Inter', monospace, sans-serif",
       }}
     >
-      {/* Expanded Quick Weapon Selector */}
+      {/* Expanded Quick Weapon Rack Drawer */}
       {isOpen && (
         <div
           style={{
-            background: "linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9))",
-            backdropFilter: "blur(16px)",
+            background: "linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.92))",
+            backdropFilter: "blur(18px)",
             border: "1px solid rgba(59, 130, 246, 0.4)",
             borderRadius: "14px",
             padding: "12px 16px",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.65), 0 0 20px rgba(59, 130, 246, 0.15)",
             display: "flex",
             gap: "8px",
             flexWrap: "wrap",
             justifyContent: "center",
             maxWidth: "680px",
+            animation: "fadeIn 0.2s ease-out",
           }}
         >
           {WEAPON_OPTIONS.map((w) => {
@@ -80,16 +108,16 @@ function QuickArsenalSelector() {
                 style={{
                   padding: "8px 14px",
                   background: isEquipped
-                    ? "linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(37, 99, 235, 0.6))"
+                    ? "linear-gradient(135deg, rgba(59, 130, 246, 0.5), rgba(37, 99, 235, 0.7))"
                     : "rgba(255, 255, 255, 0.06)",
                   border: isEquipped ? "1px solid #60a5fa" : "1px solid rgba(255, 255, 255, 0.1)",
                   borderRadius: "8px",
-                  color: isEquipped ? "#ffffff" : "#94a3b8",
+                  color: isEquipped ? "#ffffff" : "#cbd5e1",
                   fontSize: "12px",
                   fontWeight: isEquipped ? 900 : 600,
                   cursor: "pointer",
                   boxShadow: isEquipped ? "0 0 12px rgba(59, 130, 246, 0.5)" : "none",
-                  transition: "all 0.2s",
+                  transition: "all 0.15s",
                 }}
               >
                 {w.name}
@@ -99,68 +127,30 @@ function QuickArsenalSelector() {
         </div>
       )}
 
-      {/* Main Bottom Slot Bar */}
-      <div
+      {/* Floating Toggle Button */}
+      <button
+        onClick={() => setIsOpen((p) => !p)}
         style={{
           background: "linear-gradient(145deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.8))",
           backdropFilter: "blur(14px)",
-          border: "1px solid rgba(255, 255, 255, 0.12)",
-          borderRadius: "12px",
-          padding: "6px 10px",
+          border: isOpen ? "1px solid #60a5fa" : "1px solid rgba(255, 255, 255, 0.15)",
+          borderRadius: "10px",
+          padding: "8px 18px",
+          color: isOpen ? "#93c5fd" : "#cbd5e1",
+          fontSize: "11px",
+          fontWeight: 800,
+          letterSpacing: "1px",
+          cursor: "pointer",
           display: "flex",
           alignItems: "center",
           gap: "8px",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+          boxShadow: "0 8px 20px rgba(0,0,0,0.5)",
+          transition: "all 0.2s",
         }}
       >
-        <button
-          onClick={() => setIsOpen((p) => !p)}
-          style={{
-            padding: "8px 14px",
-            background: isOpen ? "rgba(59, 130, 246, 0.3)" : "rgba(255, 255, 255, 0.08)",
-            border: isOpen ? "1px solid #60a5fa" : "1px solid rgba(255, 255, 255, 0.15)",
-            borderRadius: "8px",
-            color: isOpen ? "#93c5fd" : "#cbd5e1",
-            fontSize: "11px",
-            fontWeight: 800,
-            letterSpacing: "1px",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-          }}
-        >
-          <span>🔫 ARSENAL RACK</span>
-          <span style={{ fontSize: "9px" }}>{isOpen ? "▲" : "▼"}</span>
-        </button>
-
-        <div style={{ width: "1px", height: "20px", background: "rgba(255, 255, 255, 0.15)" }} />
-
-        <div style={{ display: "flex", gap: "6px" }}>
-          {[
-            { slot: "1", label: "PRIMARY [1]", key: "ak47" as WeaponKey },
-            { slot: "2", label: "PISTOL [2]", key: "deagle" as WeaponKey },
-            { slot: "3", label: "KNIFE [3]", key: "combatknife" as WeaponKey },
-          ].map((item) => (
-            <button
-              key={item.slot}
-              onClick={() => equipWeapon(item.key)}
-              style={{
-                padding: "8px 12px",
-                background: "rgba(0, 0, 0, 0.35)",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-                borderRadius: "8px",
-                color: "#cbd5e1",
-                fontSize: "11px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
+        <span>🔫 WEAPON ARSENAL RACK</span>
+        <span style={{ fontSize: "9px" }}>{isOpen ? "▲ HIDE" : "▼ CHOOSE WEAPONS"}</span>
+      </button>
     </div>
   );
 }
@@ -174,6 +164,9 @@ function TrainingTopNav({
 }) {
   const { setMode } = useGameStore();
   const [, setLocation] = useLocation();
+  const fps = useLiveFPS();
+  const frameTime = fps > 0 ? (1000 / fps).toFixed(1) : "16.6";
+  const fpsColor = fps >= 55 ? "#4ade80" : fps >= 30 ? "#facc15" : "#f87171";
 
   return (
     <header
@@ -184,16 +177,16 @@ function TrainingTopNav({
         transform: "translateX(-50%)",
         zIndex: 200,
         width: "calc(100% - 48px)",
-        maxWidth: "1000px",
+        maxWidth: "1160px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        background: "linear-gradient(145deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.75))",
-        backdropFilter: "blur(16px)",
-        border: "1px solid rgba(59, 130, 246, 0.25)",
+        background: "linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(30, 41, 59, 0.8))",
+        backdropFilter: "blur(18px)",
+        border: "1px solid rgba(59, 130, 246, 0.28)",
         borderRadius: "14px",
-        padding: "8px 16px",
-        boxShadow: "0 12px 30px rgba(0,0,0,0.5), 0 0 15px rgba(59,130,246,0.08)",
+        padding: "8px 18px",
+        boxShadow: "0 14px 35px rgba(0,0,0,0.55), 0 0 20px rgba(59,130,246,0.1)",
         fontFamily: "'Inter', monospace, sans-serif",
         userSelect: "none",
       }}
@@ -215,7 +208,7 @@ function TrainingTopNav({
       <div
         style={{
           display: "flex",
-          background: "rgba(0, 0, 0, 0.4)",
+          background: "rgba(0, 0, 0, 0.45)",
           padding: "4px",
           borderRadius: "10px",
           border: "1px solid rgba(255, 255, 255, 0.08)",
@@ -267,8 +260,51 @@ function TrainingTopNav({
         </button>
       </div>
 
-      {/* Right Actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      {/* Right Telemetry & Actions */}
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        {/* Integrated Top-Right FPS Telemetry Badge */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            background: "rgba(0, 0, 0, 0.35)",
+            padding: "4px 10px",
+            borderRadius: "8px",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <span style={{ fontSize: "12px" }}>⚡</span>
+            <span style={{ fontSize: "14px", fontWeight: 900, fontFamily: "monospace", color: fpsColor }}>
+              {fps}
+            </span>
+            <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: "bold" }}>FPS</span>
+          </div>
+
+          <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "10px" }}>|</span>
+
+          <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "monospace" }}>
+            {frameTime}ms
+          </span>
+
+          <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "10px" }}>|</span>
+
+          <span
+            style={{
+              fontSize: "8px",
+              fontWeight: 800,
+              color: "#38bdf8",
+              background: "rgba(56, 189, 248, 0.15)",
+              padding: "1px 5px",
+              borderRadius: "4px",
+              border: "1px solid rgba(56, 189, 248, 0.3)",
+            }}
+          >
+            OFFLINE 0ms
+          </span>
+        </div>
+
         <button
           onClick={() => window.dispatchEvent(new CustomEvent("openSettings"))}
           style={{
@@ -342,7 +378,9 @@ export function TrainingRange() {
         <ShootingSystem />
         <ReloadSystem />
         <TracerManager />
+        <GrenadeSystem />
       </Canvas>
+      <FlashEffect />
       <Crosshair />
       <SniperScope />
       <HitMarker />

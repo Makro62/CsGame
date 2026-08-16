@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { ZombieDifficulty } from "@cs-game/shared";
 
-export type DifficultyLevel = "casual" | "normal" | "hardcore" | "nightmare";
+/** The lobby offers exactly the difficulties the server knows about. */
+export type DifficultyLevel = ZombieDifficulty;
 
 interface ZombieLobbySetupProps {
   onStart: (difficulty: DifficultyLevel) => void;

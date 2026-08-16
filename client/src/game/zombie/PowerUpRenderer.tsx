@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { PowerUpState, PowerUpType } from "@cs-game/shared";
@@ -93,6 +93,16 @@ interface PowerUpRendererProps {
 
 export function PowerUpRenderer({ powerUps, onPickup, playerPosition }: PowerUpRendererProps) {
   const groupRef = useRef<THREE.Group>(null);
+  // Each power-up is claimed once; without this the request fires every frame
+  // until the server state catches up, flooding the room with messages.
+  const claimed = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const live = new Set(powerUps.map((p) => p.id));
+    claimed.current.forEach((id) => {
+      if (!live.has(id)) claimed.current.delete(id);
+    });
+  }, [powerUps]);
 
   useFrame(() => {
     if (!playerPosition || !groupRef.current) return;
@@ -104,7 +114,10 @@ export function PowerUpRenderer({ powerUps, onPickup, playerPosition }: PowerUpR
       const dz = pos.z - playerPosition.z;
       if (Math.sqrt(dx * dx + dz * dz) < 2) {
         const id = (child as any).userData?.id;
-        if (id) onPickup(id);
+        if (id && !claimed.current.has(id)) {
+          claimed.current.add(id);
+          onPickup(id);
+        }
       }
     });
   });
