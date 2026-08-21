@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -78,6 +78,8 @@ interface MinecraftCharacterProps {
   isJumping?: boolean;
   isDead?: boolean;
   limbSwingSpeed?: number;
+  holdWeapon?: boolean;
+  motionRef?: MutableRefObject<{ moving: boolean; sprinting: boolean }>;
 }
 
 // ============================================================================
@@ -88,9 +90,11 @@ export function MinecraftCharacter({
   team,
   isSprinting = false,
   isCrouching = false,
-  isJumping = false,
+  isJumping: _isJumping = false,
   isDead = false,
   limbSwingSpeed = 0,
+  holdWeapon = false,
+  motionRef,
 }: MinecraftCharacterProps) {
   const leftArmRef = useRef<THREE.Group>(null);
   const rightArmRef = useRef<THREE.Group>(null);
@@ -119,21 +123,22 @@ export function MinecraftCharacter({
       return;
     }
 
-    const speed = limbSwingSpeed > 0 ? limbSwingSpeed : isSprinting ? 10 : 6;
-    const amplitude = isCrouching ? 0.4 : isSprinting ? 0.8 : 0.5;
+    const sprinting = motionRef?.current.sprinting ?? isSprinting;
+    const moving = motionRef?.current.moving ?? limbSwingSpeed > 0;
+    const speed = limbSwingSpeed > 0 ? limbSwingSpeed : sprinting ? 10 : 6;
+    const amplitude = isCrouching ? 0.4 : sprinting ? 0.8 : 0.5;
 
-    if (limbSwingSpeed > 0 || (!isDead && (isSprinting || (!isJumping && limbSwingSpeed > 0)))) {
+    if (moving || sprinting) {
       const time = performance.now() / 1000;
       const swing = Math.sin(time * speed) * amplitude;
 
       if (leftArmRef.current) leftArmRef.current.rotation.x = swing;
-      if (rightArmRef.current) rightArmRef.current.rotation.x = -swing;
+      if (rightArmRef.current) rightArmRef.current.rotation.x = holdWeapon ? -1.15 : -swing;
       if (leftLegRef.current) leftLegRef.current.rotation.x = -swing;
       if (rightLegRef.current) rightLegRef.current.rotation.x = swing;
     } else {
-      // Idle
       if (leftArmRef.current) leftArmRef.current.rotation.x = 0;
-      if (rightArmRef.current) rightArmRef.current.rotation.x = 0;
+      if (rightArmRef.current) rightArmRef.current.rotation.x = holdWeapon ? -1.15 : 0;
       if (leftLegRef.current) leftLegRef.current.rotation.x = 0;
       if (rightLegRef.current) rightLegRef.current.rotation.x = 0;
     }

@@ -189,9 +189,10 @@ export function ZombieLobbySetup({ onStart, onBack }: ZombieLobbySetupProps) {
             🎮 KONTROL & PANDUAN SURVIVOR
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", color: "#aaa", fontSize: "12px" }}>
-            <div><strong style={{ color: "#fff" }}>[W, A, S, D]</strong> Gerak / Jalan</div>
-            <div><strong style={{ color: "#fff" }}>[1, 2, 3 / Scroll]</strong> Ganti Senjata</div>
-            <div><strong style={{ color: "#fff" }}>[Klik Kiri]</strong> Tembak Senjata</div>
+            <div><strong style={{ color: "#fff" }}>[W, A, S, D]</strong> Gerak</div>
+            <div><strong style={{ color: "#fff" }}>[Mouse]</strong> Arah tembak</div>
+            <div><strong style={{ color: "#fff" }}>[Klik Kiri]</strong> Tembak</div>
+            <div><strong style={{ color: "#fff" }}>[Shift]</strong> Lari</div>
             <div><strong style={{ color: "#fff" }}>[R]</strong> Reload Amunisi</div>
             <div><strong style={{ color: "#fff" }}>[F]</strong> Wall-buy / Ammo / Perk / PaP</div>
             <div><strong style={{ color: "#fff" }}>[Tahan F]</strong> Heal Med Station / Revive</div>
@@ -202,7 +203,7 @@ export function ZombieLobbySetup({ onStart, onBack }: ZombieLobbySetupProps) {
             <div><strong style={{ color: "#fff" }}>[ESC]</strong> Pause / Settings Menu</div>
           </div>
           <div style={{ marginTop: 10, color: "#94a3b8", fontSize: 11 }}>
-            Start: 1000 pts · 20s buy time · Deagle. Beli MP5 di dinding Safe House, isi darah di Med Station (tahan F, 400 pts).
+            Start: 1000 pts · kamera third-person · Deagle. Zombie makin tahan tiap wave. Beli senjata di dinding, isi darah di Med Station atau setelah wave clear.
           </div>
         </div>
 

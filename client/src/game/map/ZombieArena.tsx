@@ -340,6 +340,15 @@ function SafeHouse() {
           <meshStandardMaterial color="#c4a35a" />
         </mesh>
       ))}
+      {/* Interior crates so spawn has readable silhouettes */}
+      <mesh position={[-10, 0.5, -6]} castShadow>
+        <boxGeometry args={[1.4, 1.0, 1.4]} />
+        <meshStandardMaterial color="#6b4f2a" roughness={0.85} />
+      </mesh>
+      <mesh position={[10, 0.4, -6]} castShadow>
+        <boxGeometry args={[1.8, 0.8, 1.1]} />
+        <meshStandardMaterial color="#3f4f63" roughness={0.7} metalness={0.25} />
+      </mesh>
       {/* Back Wall */}
       <RigidBody type="fixed" position={[0, 2.5, -10]} colliders={false}>
         <mesh castShadow receiveShadow material={concreteMat}>

@@ -50,11 +50,11 @@ const MODES: ModeCard[] = [
     id: "zombie",
     glyph: "☣",
     title: "ZOMBIE SURVIVAL",
-    tagline: "Co-op wave survival di Outpost Z-7",
+    tagline: "Wave survival third-person di Outpost Z-7",
     players: "1-4 PEMAIN • CO-OP",
     accent: "#dc2626",
     accentSoft: "rgba(220,38,38,",
-    features: ["Wave & boss tiap 5 wave", "Point shop & Pack-a-Punch", "Helipad extraction"],
+    features: ["Zombie makin tebal tiap wave", "Shop senjata & Pack-a-Punch", "Heal setelah wave / Med Station"],
     action: "MASUK OUTBREAK",
   },
   {

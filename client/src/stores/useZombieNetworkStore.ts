@@ -53,6 +53,7 @@ interface ZombieNetworkState {
 
   // Local player
   localHp: number;
+  localMaxHp: number;
   localIsDead: boolean;
   localIsDowned: boolean;
   localDownedTimer: number;
@@ -109,6 +110,7 @@ interface ZombieNetworkState {
 
 const FRESH_MATCH_STATE = {
   localHp: 100,
+  localMaxHp: 100,
   localIsDead: false,
   localIsDowned: false,
   localDownedTimer: 0,

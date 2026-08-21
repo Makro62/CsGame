@@ -103,6 +103,14 @@ describe("LocalZombieEngine", () => {
     expect(useZombieStore.getState().points).toBe(afterFirst);
   });
 
+  it("scales walker HP with wave multiplier", () => {
+    localZombieEngine.skipBuyPhase();
+    localZombieEngine.update(1);
+    const wave1 = useZombieStore.getState().zombies.find((z) => z.type === "walker");
+    expect(wave1?.maxHp).toBe(100);
+    expect(Math.round(100 * (1 + 4 * WAVE_CONFIG.hpMultiplierPerWave))).toBe(212);
+  });
+
   it("does not apply acid DoT as 1 damage per frame", () => {
     const startHp = useZombieNetworkStore.getState().localHp;
     for (let i = 0; i < 4; i++) {

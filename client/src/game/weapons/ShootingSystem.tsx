@@ -15,11 +15,18 @@ import {
 import { Sound } from "../../components/AudioManager";
 import { gameEvents } from "../../lib/gameEvents";
 import { getMuzzleOffset, isAkimboWeapon, type AkimboSide } from "./weaponRig";
+import { zombieAim } from "../zombie/zombieAim";
+
+function isZombieArcade() {
+  return useGameStore.getState().mode === "zombie";
+}
 
 // Same idle window RecoilController uses to reset its pattern index
 const SPRAY_RESET_MS = 260;
 
 const CENTER_SCREEN = new THREE.Vector2(0, 0);
+const _up = new THREE.Vector3(0, 1, 0);
+const _arcadeDir = new THREE.Vector3();
 
 const raycaster = new THREE.Raycaster();
 const spreadDir = new THREE.Vector2();
@@ -138,13 +145,22 @@ export function ShootingSystem() {
 
   const createMuzzleFlash = useCallback((side: AkimboSide = 1) => {
     const flash = getMuzzleFlashMesh();
-    camera.getWorldPosition(shootOrigin);
-    camera.getWorldDirection(shootDirection);
+    if (isZombieArcade()) {
+      shootOrigin.set(zombieAim.origin.x, zombieAim.origin.y, zombieAim.origin.z);
+      shootDirection.set(zombieAim.direction.x, zombieAim.direction.y, zombieAim.direction.z);
+    } else {
+      camera.getWorldPosition(shootOrigin);
+      camera.getWorldDirection(shootDirection);
+    }
 
     _muzzleOffset
       .copy(getMuzzleOffset(activeWeapon, side, useWeaponStore.getState().dualWield))
       .applyQuaternion(camera.quaternion);
-    flash.position.copy(shootOrigin).add(_muzzleOffset);
+    if (isZombieArcade()) {
+      flash.position.copy(shootOrigin).add(shootDirection.clone().multiplyScalar(0.4));
+    } else {
+      flash.position.copy(shootOrigin).add(_muzzleOffset);
+    }
     flash.rotation.set(0, 0, Math.random() * Math.PI * 2);
     flash.visible = true;
     scene.add(flash);
@@ -257,9 +273,12 @@ export function ShootingSystem() {
       if (gameMode === "training") useGameStore.getState().incrementShots();
 
       if (gameMode === "zombie") {
-        camera.getWorldDirection(shootDirection);
         useZombieNetworkStore.getState().sendMelee({
-          direction: { x: shootDirection.x, y: shootDirection.y, z: shootDirection.z },
+          direction: {
+            x: zombieAim.direction.x,
+            y: zombieAim.direction.y,
+            z: zombieAim.direction.z,
+          },
           timestamp: performance.now(),
         });
       } else if (gameMode !== "training") {
@@ -344,13 +363,23 @@ export function ShootingSystem() {
       (Math.random() - 0.5) * spread
     );
 
-    raycaster.setFromCamera(spreadDir, camera);
+    if (gameMode === "zombie") {
+      shootOrigin.set(zombieAim.origin.x, zombieAim.origin.y, zombieAim.origin.z);
+      _arcadeDir
+        .set(zombieAim.direction.x, zombieAim.direction.y, zombieAim.direction.z)
+        .normalize();
+      _arcadeDir.applyAxisAngle(_up, spreadDir.x * 0.45);
+      raycaster.set(shootOrigin, _arcadeDir);
+    } else {
+      raycaster.setFromCamera(spreadDir, camera);
+    }
     const intersects = raycaster.intersectObjects(scene.children, true);
     const validHits = intersects.filter((hit) => {
       if (hit.distance < 0.4) return false;
       let current: THREE.Object3D | null = hit.object;
       while (current) {
         if (current.name && current.name.includes("weapon")) return false;
+        if (current.name === "local-player") return false;
         current = current.parent;
       }
       return true;
@@ -380,7 +409,9 @@ export function ShootingSystem() {
       });
 
       // Tracer via Zustand instead of window.dispatchEvent
-      const startPos = camera.getWorldPosition(_tempVec3);
+      const startPos = gameMode === "zombie"
+        ? shootOrigin.clone()
+        : camera.getWorldPosition(_tempVec3);
       _muzzleOffset
         .copy(getMuzzleOffset(activeWeapon, side, useWeaponStore.getState().dualWield))
         .applyQuaternion(camera.quaternion);
@@ -414,8 +445,17 @@ export function ShootingSystem() {
     // Play gunshot sound
     Sound.gunshot(activeWeapon);
 
-    camera.getWorldPosition(shootOrigin);
-    camera.getWorldDirection(shootDirection);
+    if (gameMode === "zombie") {
+      shootOrigin.set(zombieAim.origin.x, zombieAim.origin.y, zombieAim.origin.z);
+      if (_arcadeDir.lengthSq() > 0.01) {
+        shootDirection.copy(_arcadeDir);
+      } else {
+        shootDirection.set(zombieAim.direction.x, zombieAim.direction.y, zombieAim.direction.z);
+      }
+    } else {
+      camera.getWorldPosition(shootOrigin);
+      camera.getWorldDirection(shootDirection);
+    }
 
     if (gameMode === "zombie") {
       useZombieNetworkStore.getState().sendShoot({
@@ -457,8 +497,14 @@ export function ShootingSystem() {
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
-        // Menus release the pointer lock; clicking their buttons must not fire.
-        if (!document.pointerLockElement) return;
+        const arcade = isZombieArcade();
+        if (arcade) {
+          if (zombieAim.paused) return;
+          const tag = (e.target as HTMLElement | null)?.tagName;
+          if (tag !== "CANVAS") return;
+        } else if (!document.pointerLockElement) {
+          return;
+        }
 
         const weaponState = useWeaponStore.getState();
         const weapon = weaponState.activeWeapon;
@@ -501,7 +547,8 @@ export function ShootingSystem() {
 
   // Auto-fire + recoil recovery in frame loop
   useFrame(() => {
-    if (!document.pointerLockElement) mouseHeld.current = false;
+    if (!isZombieArcade() && !document.pointerLockElement) mouseHeld.current = false;
+    if (isZombieArcade() && zombieAim.paused) mouseHeld.current = false;
     if (mouseHeld.current && activeWeapon) {
       shoot();
     }
@@ -517,6 +564,7 @@ export function ShootingSystem() {
 
     const controller = recoilController.current;
     if (!controller) return;
+    if (isZombieArcade()) return;
 
     // Update recoil controller recovery with ADS-aware damping for a cleaner feel
     const { offsetX, offsetY } = controller.update(1 / 60);

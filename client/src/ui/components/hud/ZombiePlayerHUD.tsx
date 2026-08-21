@@ -3,6 +3,7 @@ import { HUD_EDGE, HUD_FONT, HUD_MONO, HUD_Z, hudPanel, hudPill, type HudAccent 
 
 export function ZombiePlayerHUD() {
   const localHp = useZombieNetworkStore((s) => s.localHp);
+  const localMaxHp = useZombieNetworkStore((s) => s.localMaxHp);
   const localArmor = useZombieNetworkStore((s) => s.localArmor);
   const localAmmo = useZombieNetworkStore((s) => s.localAmmo);
   const localReserveAmmo = useZombieNetworkStore((s) => s.localReserveAmmo);
@@ -15,7 +16,7 @@ export function ZombiePlayerHUD() {
   const kills = useZombieNetworkStore((s) => s.kills);
   const soloRevives = useZombieNetworkStore((s) => s.soloRevives);
 
-  const maxHp = hasJuggernog ? 200 : 100;
+  const maxHp = Math.max(100, localMaxHp || (hasJuggernog ? 200 : 100));
   const hpPercent = Math.max(0, Math.min(100, (localHp / maxHp) * 100));
   const hpColor = hpPercent > 50 ? "#22c55e" : hpPercent > 25 ? "#eab308" : "#ef4444";
 

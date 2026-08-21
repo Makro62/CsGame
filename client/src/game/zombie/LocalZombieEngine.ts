@@ -111,6 +111,7 @@ export class LocalZombieEngine {
 
     useZombieNetworkStore.setState({
       localHp: this.playerHp,
+      localMaxHp: this.playerMaxHp,
       localArmor: this.playerArmor,
       localIsDead: false,
       localIsDowned: false,
@@ -315,6 +316,13 @@ export class LocalZombieEngine {
         const bossBonus = this.isBossWave ? 1000 + this.currentWave * 200 : 0;
         const diffCfg = ZOMBIE_DIFFICULTIES[this.difficulty] || ZOMBIE_DIFFICULTIES.normal;
         useZombieStore.getState().addPoints(Math.round((clearBonus + bossBonus) * diffCfg.points));
+
+        this.playerMaxHp = Math.min(
+          useZombieNetworkStore.getState().hasJuggernog ? 200 : 160,
+          this.playerMaxHp + 10
+        );
+        this.playerHp = Math.min(this.playerMaxHp, this.playerHp + Math.max(25, Math.round(this.playerMaxHp * 0.25)));
+        useZombieNetworkStore.setState({ localHp: this.playerHp, localMaxHp: this.playerMaxHp });
         zombieSounds.waveClear();
       }
     } else if (this.waveState === "wave_clear") {
@@ -908,7 +916,7 @@ export class LocalZombieEngine {
     if (perk === "juggernog") {
       this.playerMaxHp = 200;
       this.playerHp = 200;
-      useZombieNetworkStore.setState({ localHp: 200, hasJuggernog: true });
+      useZombieNetworkStore.setState({ localHp: 200, localMaxHp: 200, hasJuggernog: true });
     } else if (perk === "speedcola") {
       useZombieNetworkStore.setState({ hasSpeedCola: true });
     } else if (perk === "doubletap") {

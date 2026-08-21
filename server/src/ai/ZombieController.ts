@@ -1,4 +1,4 @@
-import { ZombieState, ZombieType, ZOMBIE_TYPES, ZOMBIE_SPAWN, BarricadeState } from '@cs-game/shared'
+import { ZombieState, ZombieType, ZOMBIE_TYPES, ZOMBIE_SPAWN, BarricadeState, WAVE_CONFIG } from '@cs-game/shared'
 import { Pathfinder } from './Pathfinder'
 
 interface PlayerState {
@@ -39,8 +39,8 @@ export class ZombieController {
     wave: number
   ): ZombieState {
     const stats = ZOMBIE_TYPES[type]
-    const hpMultiplier = 1 + (wave - 1) * 0.15
-    const speedBonus = 1 + (wave - 1) * 0.03
+    const hpMultiplier = 1 + (wave - 1) * WAVE_CONFIG.hpMultiplierPerWave
+    const speedBonus = 1 + (wave - 1) * WAVE_CONFIG.speedBonusPerWave
 
     const zombie = new ZombieState()
     zombie.id = `zombie_${this.nextId++}`

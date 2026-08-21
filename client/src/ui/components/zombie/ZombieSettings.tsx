@@ -155,9 +155,10 @@ export function ZombieSettings({ onClose, onRestart, onMenu }: ZombieSettingsPro
             gap: "6px",
           }}
         >
-          <div><strong style={{ color: "#fff" }}>[ESC]</strong> Pause / Settings</div>
           <div><strong style={{ color: "#fff" }}>[WASD]</strong> Move</div>
-          <div><strong style={{ color: "#fff" }}>[1/2/3/Scroll]</strong> Weapons</div>
+          <div><strong style={{ color: "#fff" }}>[Mouse]</strong> Aim</div>
+          <div><strong style={{ color: "#fff" }}>[LMB]</strong> Shoot</div>
+          <div><strong style={{ color: "#fff" }}>[Shift]</strong> Sprint</div>
           <div><strong style={{ color: "#fff" }}>[F]</strong> Interact</div>
           <div><strong style={{ color: "#fff" }}>[Hold F]</strong> Heal / Revive</div>
           <div><strong style={{ color: "#fff" }}>[B]</strong> Shop</div>

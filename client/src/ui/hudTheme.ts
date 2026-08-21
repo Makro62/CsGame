@@ -93,6 +93,8 @@ export function hudActionButton(accent: HudAccent = "neutral"): CSSProperties {
     border: `1px solid ${border}`,
   };
 }
+
+/** Column that keeps centered banners from stacking on top of each other. */
 export function hudBannerStack(top: number): CSSProperties {
   return {
     position: "fixed",

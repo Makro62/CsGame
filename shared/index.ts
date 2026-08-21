@@ -1198,7 +1198,7 @@ export const WAVE_CONFIG = {
   spawnDuration: 10,      // seconds to spawn all zombies in a wave
   buyPhaseDuration: 15,   // seconds to buy weapons between waves
   firstWaveDelay: 20,     // seconds before first wave starts (initial buy phase)
-  hpMultiplierPerWave: 0.15,
+  hpMultiplierPerWave: 0.28,
   speedBonusPerWave: 0.03,
   // Spawn points (match ZOMBIE_SPAWN.spawnPoints — inside arena boundaries)
   spawnPoints: [

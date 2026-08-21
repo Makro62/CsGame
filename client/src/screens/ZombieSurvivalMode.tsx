@@ -1,16 +1,13 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
-import { PlayerController } from "../game/player/PlayerController";
-import { WeaponModel } from "../game/weapons/WeaponModel";
+import { ZombieArcadeController } from "../game/player/ZombieArcadeController";
 import { ShootingSystem } from "../game/weapons/ShootingSystem";
 import { ReloadSystem } from "../game/weapons/ReloadSystem";
-import { Crosshair } from "../components/Crosshair";
 import { HitMarker } from "../components/HitMarker";
 import { DamageVignette } from "../components/DamageVignette";
 import { DownedOverlay } from "../components/DownedOverlay";
 import { AudioManager } from "../components/AudioManager";
-import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
 import { ZombieArena } from "../game/map/ZombieArena";
 import { ZombieRenderer } from "../game/zombie/ZombieRenderer";
 import { PowerUpRenderer } from "../game/zombie/PowerUpRenderer";
@@ -562,14 +559,6 @@ export function ZombieSurvivalMode() {
     };
   }, []);
 
-  useEffect(() => {
-    if (lobbyOpen) return;
-    const id = window.setTimeout(() => {
-      document.querySelector("canvas")?.requestPointerLock();
-    }, 200);
-    return () => window.clearTimeout(id);
-  }, [lobbyOpen]);
-
   // Joining happens after the lobby closes so the chosen difficulty reaches the
   // room and no wave starts while the setup screen is still up.
   const handleStartGameFromLobby = useCallback(
@@ -724,7 +713,17 @@ export function ZombieSurvivalMode() {
         <>
       {/* Top Left Menu / Back Button, aligned with the radar below it */}
       <button
-        onClick={toggleSettings}
+        onClick={() => {
+          if (settingsOpen) {
+            setSettingsOpen(false);
+            return;
+          }
+          setShopOpen(false);
+          setMysteryBoxOpen(false);
+          setPackAPunchOpen(false);
+          setLeaderboardOpen(false);
+          setSettingsOpen(true);
+        }}
         style={{
           ...hudActionButton("red"),
           position: "fixed",
@@ -740,7 +739,7 @@ export function ZombieSurvivalMode() {
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.55)";
-          e.currentTarget.style.color = "#f8fafc";
+          e.currentTarget.style.color = "#f87171";
         }}
       >
         ⚙️ MENU [ESC]
@@ -748,21 +747,20 @@ export function ZombieSurvivalMode() {
 
       <HotkeyManager
         onToggleShop={toggleShop}
-        onToggleSettings={toggleSettings}
+        onEscape={handleEscape}
         onToggleLeaderboard={toggleLeaderboard}
         onInteractAction={handleInteract}
-        menuOpen={lobbyOpen || shopOpen || mysteryBoxOpen || packAPunchOpen || settingsOpen}
+        menuOpen={lobbyOpen || shopOpen || mysteryBoxOpen || packAPunchOpen || settingsOpen || leaderboardOpen}
       />
 
-      <Canvas shadows camera={{ fov: 75, position: [0, 1.6, -30] }}>
+      <Canvas shadows camera={{ fov: 50, position: [0, 18, -14] }} style={{ cursor: "crosshair" }}>
         <color attach="background" args={["#1a2333"]} />
         <fog attach="fog" args={["#1a2333", 40, 130]} />
         <ambientLight intensity={0.55} color="#9aabbc" />
         <directionalLight castShadow position={[15, 30, 10]} intensity={1.15} color="#d5e0ee" />
         <Physics gravity={[0, -9.81, 0]}>
           <ZombieArena />
-          <PlayerController />
-          <WeaponModel />
+          <ZombieArcadeController paused={paused} />
         </Physics>
         <LocalZombieUpdater paused={paused} />
         <ShootingSystem />
@@ -771,7 +769,6 @@ export function ZombieSurvivalMode() {
         <PowerUpRenderer powerUps={powerUps} onPickup={handlePickup} playerPosition={playerPos} />
       </Canvas>
 
-      <Crosshair />
       <HitMarker />
       <DamageVignette />
       <DownedOverlay />
@@ -849,7 +846,6 @@ export function ZombieSurvivalMode() {
         <AreaUnlockUI />
         <InteractionPrompt />
       </div>
-      <ClickToPlayOverlay onLock={() => {}} suppressed={paused} />
         </>
       )}
       {shopOpen && <WeaponShop onClose={toggleShop} />}
