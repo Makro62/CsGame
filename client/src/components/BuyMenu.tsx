@@ -205,16 +205,32 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
         return;
       }
       const item = BUY_CATALOG.find(
-        (i) => i.hotkey.toLowerCase() === e.key.toLowerCase() && isAllowed(i)
+        (i) => i.hotkey.toLowerCase() === e.key.toLowerCase()
       );
       if (item) {
         e.preventDefault();
-        handleBuy(item);
+        // Read fresh state from stores to avoid stale closures
+        const state = useNetworkStore.getState();
+        if (item.team && item.team !== state.localTeam) return;
+        const buyZone = BUY_ZONE[state.localTeam as keyof typeof BUY_ZONE];
+        if (buyZone) {
+          const dx = state.localX - buyZone.x;
+          const dz = state.localZ - buyZone.z;
+          if (Math.sqrt(dx * dx + dz * dz) > buyZone.radius) {
+            setFeedback({ text: FAIL_MESSAGES.outside_buy_zone, ok: false });
+            return;
+          }
+        }
+        if (state.localMoney < item.price) {
+          setFeedback({ text: FAIL_MESSAGES.no_money, ok: false });
+          return;
+        }
+        state.sendBuy(item.id);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  });
+  }, [onClose]);
 
   const renderSection = (
     title: string,

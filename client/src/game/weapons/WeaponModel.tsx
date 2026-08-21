@@ -10,8 +10,11 @@ import { gameEvents, type GameEvents } from '../../lib/gameEvents'
 import {
   WEAPON_POSITIONS,
   WEAPON_ROTATIONS,
-  ADS_POSITIONS,
+  getADSPosition,
   DEAGLE_HANDS,
+  GLOCK_HANDS,
+  TEC9_HANDS,
+  AUTOPISTOL_HANDS,
 } from './weaponRig'
 
 const weaponAnimator = new WeaponAnimator()
@@ -35,7 +38,7 @@ function useStudioEnvironment() {
 export function WeaponModel() {
   const groupRef = useRef<THREE.Group>(null)
   const recoilGroupRef = useRef<THREE.Group>(null)
-  const { activeWeapon, recoilOffset, isReloading, isSwitching, isADS } =
+  const { activeWeapon, recoilOffset, isReloading, isSwitching, isADS, dualWield, hasPackAPunch } =
     useWeaponStore()
 
   useStudioEnvironment()
@@ -137,9 +140,13 @@ export function WeaponModel() {
     )
     const adsFactor = adsProgress.current
 
-    const basePos = WEAPON_POSITIONS[activeWeapon] || [0.22, -0.22, -0.40]
+    // Dynamic dual-wield: deagle is always dual; others only when dualWield=true
+    const isDual = dualWield || activeWeapon === 'deagle'
+    const basePos = (isDual && WEAPON_POSITIONS[activeWeapon] && activeWeapon !== 'deagle')
+      ? WEAPON_POSITIONS.deagle  // Centered position for dual-wield pistols
+      : (WEAPON_POSITIONS[activeWeapon] || [0.22, -0.22, -0.40])
     const baseRot = WEAPON_ROTATIONS[activeWeapon] || [0, 0, 0]
-    const adsPos = ADS_POSITIONS[activeWeapon] || [0, -0.145, -0.30]
+    const adsPos = getADSPosition(activeWeapon, isDual)
 
     groupRef.current.position.copy(camera.position)
     groupRef.current.quaternion.copy(camera.quaternion)
@@ -166,14 +173,16 @@ export function WeaponModel() {
         {activeWeapon === 'awp' && <AWPModel />}
         {activeWeapon === 'deagle' && <DeagleModel />}
         {activeWeapon === 'mp5' && <MP5Model />}
-        {activeWeapon === 'glock' && <GlockModel />}
-        {activeWeapon === 'tec9' && <Tec9Model />}
-        {activeWeapon === 'autopistol' && <AutoPistolModel />}
+        {activeWeapon === 'glock' && (dualWield ? <GlockDualModel /> : <GlockModel />)}
+        {activeWeapon === 'tec9' && (dualWield ? <Tec9DualModel /> : <Tec9Model />)}
+        {activeWeapon === 'autopistol' && (dualWield ? <AutoPistolDualModel /> : <AutoPistolModel />)}
         {activeWeapon === 'knife' && <KnifeModel />}
         {activeWeapon === 'combatknife' && <CombatKnifeModel />}
         {activeWeapon === 'he' && <GrenadeModel type="he" />}
         {activeWeapon === 'smoke' && <GrenadeModel type="smoke" />}
         {activeWeapon === 'flash' && <GrenadeModel type="flash" />}
+        {/* Pack-a-Punch glow */}
+        {hasPackAPunch && <pointLight color="#c084fc" intensity={0.8} distance={0.6} />}
       </group>
     </group>
   )
@@ -1393,6 +1402,43 @@ function GlockModel() {
   )
 }
 
+// ─── Glock Dual Wield ──────────────────────────────────────────
+function GlockDualModel() {
+  const handRefs = useRef<Array<THREE.Group | null>>([])
+  const kicks = useRef<number[]>(GLOCK_HANDS.map(() => 0))
+
+  useEffect(() => {
+    const handleFired = ({ weapon, akimboSide }: GameEvents['weaponFired']) => {
+      if (weapon !== 'glock') return
+      const index = GLOCK_HANDS.findIndex(hand => hand.side === akimboSide)
+      if (index !== -1) kicks.current[index] = 1
+    }
+    gameEvents.on('weaponFired', handleFired)
+    return () => gameEvents.off('weaponFired', handleFired)
+  }, [])
+
+  useFrame((_, dt) => {
+    GLOCK_HANDS.forEach((hand, index) => {
+      const group = handRefs.current[index]
+      if (!group) return
+      const kick = THREE.MathUtils.damp(kicks.current[index], 0, 11, dt)
+      kicks.current[index] = kick < 0.001 ? 0 : kick
+      group.position.set(hand.position[0], hand.position[1] + kick * 0.01, hand.position[2] + kick * 0.035)
+      group.rotation.set(hand.rotation[0] + kick * 0.45, hand.rotation[1], hand.rotation[2] - kick * 0.1 * hand.side)
+    })
+  })
+
+  return (
+    <group>
+      {GLOCK_HANDS.map((hand, index) => (
+        <group key={`glock-hand-${hand.side}`} ref={el => { handRefs.current[index] = el }} position={hand.position} rotation={hand.rotation} scale={hand.scale}>
+          <GlockModel />
+        </group>
+      ))}
+    </group>
+  )
+}
+
 // ─── Tec-9 ──────────────────────────────────────────────────────
 // Intratec Tec-9 — open-bolt, simple construction (Symmetrical 3D Mesh)
 function Tec9Model() {
@@ -1521,6 +1567,43 @@ function Tec9Model() {
   )
 }
 
+// ─── Tec-9 Dual Wield ──────────────────────────────────────────
+function Tec9DualModel() {
+  const handRefs = useRef<Array<THREE.Group | null>>([])
+  const kicks = useRef<number[]>(TEC9_HANDS.map(() => 0))
+
+  useEffect(() => {
+    const handleFired = ({ weapon, akimboSide }: GameEvents['weaponFired']) => {
+      if (weapon !== 'tec9') return
+      const index = TEC9_HANDS.findIndex(hand => hand.side === akimboSide)
+      if (index !== -1) kicks.current[index] = 1
+    }
+    gameEvents.on('weaponFired', handleFired)
+    return () => gameEvents.off('weaponFired', handleFired)
+  }, [])
+
+  useFrame((_, dt) => {
+    TEC9_HANDS.forEach((hand, index) => {
+      const group = handRefs.current[index]
+      if (!group) return
+      const kick = THREE.MathUtils.damp(kicks.current[index], 0, 11, dt)
+      kicks.current[index] = kick < 0.001 ? 0 : kick
+      group.position.set(hand.position[0], hand.position[1] + kick * 0.01, hand.position[2] + kick * 0.035)
+      group.rotation.set(hand.rotation[0] + kick * 0.4, hand.rotation[1], hand.rotation[2] - kick * 0.1 * hand.side)
+    })
+  })
+
+  return (
+    <group>
+      {TEC9_HANDS.map((hand, index) => (
+        <group key={`tec9-hand-${hand.side}`} ref={el => { handRefs.current[index] = el }} position={hand.position} rotation={hand.rotation} scale={hand.scale}>
+          <Tec9Model />
+        </group>
+      ))}
+    </group>
+  )
+}
+
 // ─── Auto Pistol ────────────────────────────────────────────────
 // Auto Pistol — full-auto compact, similar to Glock 18C (Symmetrical 3D Mesh)
 function AutoPistolModel() {
@@ -1634,6 +1717,43 @@ function AutoPistolModel() {
         <boxGeometry args={[0.028, 0.006, 0.04]} />
         <meshStandardMaterial color="#4a4a4a" />
       </mesh>
+    </group>
+  )
+}
+
+// ─── Auto Pistol Dual Wield ────────────────────────────────────
+function AutoPistolDualModel() {
+  const handRefs = useRef<Array<THREE.Group | null>>([])
+  const kicks = useRef<number[]>(AUTOPISTOL_HANDS.map(() => 0))
+
+  useEffect(() => {
+    const handleFired = ({ weapon, akimboSide }: GameEvents['weaponFired']) => {
+      if (weapon !== 'autopistol') return
+      const index = AUTOPISTOL_HANDS.findIndex(hand => hand.side === akimboSide)
+      if (index !== -1) kicks.current[index] = 1
+    }
+    gameEvents.on('weaponFired', handleFired)
+    return () => gameEvents.off('weaponFired', handleFired)
+  }, [])
+
+  useFrame((_, dt) => {
+    AUTOPISTOL_HANDS.forEach((hand, index) => {
+      const group = handRefs.current[index]
+      if (!group) return
+      const kick = THREE.MathUtils.damp(kicks.current[index], 0, 11, dt)
+      kicks.current[index] = kick < 0.001 ? 0 : kick
+      group.position.set(hand.position[0], hand.position[1] + kick * 0.008, hand.position[2] + kick * 0.03)
+      group.rotation.set(hand.rotation[0] + kick * 0.4, hand.rotation[1], hand.rotation[2] - kick * 0.08 * hand.side)
+    })
+  })
+
+  return (
+    <group>
+      {AUTOPISTOL_HANDS.map((hand, index) => (
+        <group key={`autopistol-hand-${hand.side}`} ref={el => { handRefs.current[index] = el }} position={hand.position} rotation={hand.rotation} scale={hand.scale}>
+          <AutoPistolModel />
+        </group>
+      ))}
     </group>
   )
 }

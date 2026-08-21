@@ -142,7 +142,7 @@ export function ShootingSystem() {
     camera.getWorldDirection(shootDirection);
 
     _muzzleOffset
-      .copy(getMuzzleOffset(activeWeapon, side))
+      .copy(getMuzzleOffset(activeWeapon, side, useWeaponStore.getState().dualWield))
       .applyQuaternion(camera.quaternion);
     flash.position.copy(shootOrigin).add(_muzzleOffset);
     flash.rotation.set(0, 0, Math.random() * Math.PI * 2);
@@ -327,7 +327,7 @@ export function ShootingSystem() {
 
     controller.fire();
 
-    const side: AkimboSide = isAkimboWeapon(activeWeapon) ? akimboSide.current : 1;
+    const side: AkimboSide = isAkimboWeapon(activeWeapon, useWeaponStore.getState().dualWield) ? akimboSide.current : 1;
     akimboSide.current = side === 1 ? -1 : 1;
 
     const movementState = getMovementState(useGameStore.getState().lastInput);
@@ -382,7 +382,7 @@ export function ShootingSystem() {
       // Tracer via Zustand instead of window.dispatchEvent
       const startPos = camera.getWorldPosition(_tempVec3);
       _muzzleOffset
-        .copy(getMuzzleOffset(activeWeapon, side))
+        .copy(getMuzzleOffset(activeWeapon, side, useWeaponStore.getState().dualWield))
         .applyQuaternion(camera.quaternion);
       // Point blank: keep the tracer origin behind the impact point.
       if (hit.distance < _muzzleOffset.length() * 1.5) {

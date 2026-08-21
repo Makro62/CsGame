@@ -19,6 +19,7 @@ import { useZombieNetworkStore } from '../../stores/useZombieNetworkStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useWeaponStore, type WeaponKey } from '../../stores/useWeaponStore'
 import { useKillCamStore } from '../../stores/useKillCamStore'
+import { localZombieEngine } from '../zombie/LocalZombieEngine'
 
 const EYE_HEIGHT_STAND = 0.8
 const EYE_HEIGHT_CROUCH = 0.4
@@ -740,8 +741,11 @@ export function PlayerController() {
       adsPressedInAir.current = false
     }
 
-    // Send input to server
+    // Send input to server / local engine
     if (isZombieMode) {
+      if (useZombieNetworkStore.getState().isLocal) {
+        localZombieEngine.setPlayerPosition(_currentPos.x, _currentPos.y, _currentPos.z, _euler.y);
+      }
       useZombieNetworkStore.getState().sendInput({
         forward: input.forward,
         backward: input.backward,

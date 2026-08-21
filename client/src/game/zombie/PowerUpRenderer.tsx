@@ -55,6 +55,29 @@ function PowerUpMesh({ type }: PowerUpMeshProps) {
     }
   }, [visual.shape]);
 
+  const ringGeo = useMemo(() => new THREE.RingGeometry(0.3, 0.5, 32), []);
+  const ringMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: visual.color,
+        emissive: visual.emissive,
+        emissiveIntensity: 2,
+        transparent: true,
+        opacity: 0.5,
+        side: THREE.DoubleSide,
+      }),
+    [visual.color, visual.emissive]
+  );
+
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+      ringGeo.dispose();
+      ringMat.dispose();
+    };
+  }, []);
+
   useFrame((_, delta) => {
     if (!groupRef.current) return;
     timeRef.current += delta * 2;
@@ -66,17 +89,7 @@ function PowerUpMesh({ type }: PowerUpMeshProps) {
     <group ref={groupRef}>
       <mesh geometry={geometry} material={material} />
       {/* Glow ring */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]}>
-        <ringGeometry args={[0.3, 0.5, 32]} />
-        <meshStandardMaterial
-          color={visual.color}
-          emissive={visual.emissive}
-          emissiveIntensity={2}
-          transparent
-          opacity={0.5}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]} geometry={ringGeo} material={ringMat} />
     </group>
   );
 }

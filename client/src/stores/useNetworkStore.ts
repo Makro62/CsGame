@@ -794,7 +794,7 @@ function scheduleReconnect(nickname: string, mode: string) {
   useNetworkStore.setState({ reconnecting: true });
 
   const client = new Client(SERVER_URL);
-  let reconnectionToken = "";
+  let reconnectionToken: string;
   try {
     const parsed = JSON.parse(saved);
     reconnectionToken = parsed.reconnectionToken;

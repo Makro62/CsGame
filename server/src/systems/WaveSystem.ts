@@ -11,6 +11,7 @@ export class WaveSystem {
   private waveState: WaveState = 'waiting'
   private currentWave = 0
   private zombiesRemaining = 0
+  private buyPhaseTimer = 0
   private interWaveTimer = 0
   private spawnTimer = 0
   private spawnInterval = 0
@@ -31,6 +32,7 @@ export class WaveSystem {
     this.waveState = 'waiting'
     this.currentWave = 0
     this.zombiesRemaining = 0
+    this.buyPhaseTimer = 0
     this.interWaveTimer = 0
     this.spawnTimer = 0
     this.spawnInterval = 0
@@ -48,14 +50,36 @@ export class WaveSystem {
     this.state.interWaveTimer = 0
   }
 
+  /**
+   * Start the first buy phase before wave 1. Players get `firstWaveDelay`
+   * seconds to buy weapons before zombies start spawning.
+   */
   startFirstWave(): void {
-    this.startWave()
+    this.waveState = 'buy_phase'
+    this.buyPhaseTimer = WAVE_CONFIG.firstWaveDelay
+    this.state.waveState = 'buy_phase'
+    this.state.interWaveTimer = this.buyPhaseTimer
   }
 
+  /**
+   * Skip the current buy phase / wave clear and start the next wave immediately.
+   * Called when a player presses Space during buy_phase or wave_clear.
+   */
+  skipBuyPhase(): void {
+    if (this.waveState === 'buy_phase' || this.waveState === 'wave_clear') {
+      this.startWave()
+    }
+  }
+
+  /**
+   * Actually begin spawning the next wave. Called when a buy phase or
+   * inter-wave timer expires.
+   */
   private startWave(): void {
     this.currentWave++
     this.isBossWave = this.currentWave % BOSS_WAVE_INTERVAL === 0
     this.waveState = 'spawning'
+    this.buyPhaseTimer = 0
 
     let count: number
 
@@ -167,7 +191,18 @@ export class WaveSystem {
     // Pause wave system if state is waiting / game over
     if (this.state.phase !== 'active') return
 
-    // Handle spawning phase
+    // ── Buy Phase: countdown before spawning starts ──────────────────
+    if (this.waveState === 'buy_phase') {
+      this.buyPhaseTimer -= dt
+      this.state.interWaveTimer = Math.max(0, this.buyPhaseTimer)
+
+      if (this.buyPhaseTimer <= 0) {
+        this.startWave()
+      }
+      return
+    }
+
+    // ── Spawning Phase: drip-feed zombies onto the map ───────────────
     if (this.waveState === 'spawning') {
       this.spawnTimer += dt
       if (this.spawnTimer >= this.spawnInterval) {
@@ -183,10 +218,25 @@ export class WaveSystem {
 
         this.spawnBatch(activeSpawnCount)
       }
+
+      // If all zombies spawned and all dead (killed during spawn), clear the wave
+      if (this.zombiesSpawned >= this.zombiesToSpawn) {
+        const aliveCount = this.zombieCtrl.getAliveCount()
+        if (aliveCount === 0) {
+          this.waveState = 'wave_clear'
+          this.state.waveState = 'wave_clear'
+          this.giveWaveClearBonus()
+          if (this.isBossWave) this.giveBossWaveBonus()
+          if (this.currentWave >= 10) this.state.extractionAvailable = true
+          this.interWaveTimer = this.isBossWave ? 5.0 : 4.0
+          this.state.interWaveTimer = this.interWaveTimer
+        }
+      }
+
       return
     }
 
-    // Handle active wave
+    // ── Active Wave: zombies are alive, players fight them ───────────
     if (this.waveState === 'active') {
       const aliveCount = this.zombieCtrl.getAliveCount()
       this.syncRemaining()
@@ -206,22 +256,23 @@ export class WaveSystem {
           this.state.extractionAvailable = true
         }
 
-        // Start inter-wave timer (longer after boss waves)
-        this.interWaveTimer = Math.max(
-          WAVE_CONFIG.interWaveMinTime,
-          this.isBossWave ? WAVE_CONFIG.interWaveTime + 5 : WAVE_CONFIG.interWaveTime - (this.currentWave - 1)
-        )
+        // Brief celebratory wave clear pause before the buy phase starts
+        this.interWaveTimer = this.isBossWave ? 5.0 : 4.0
         this.state.interWaveTimer = this.interWaveTimer
       }
     }
 
-    // Handle inter-wave timer
+    // ── Wave Clear: rest period before the next buy phase ────────────
     if (this.waveState === 'wave_clear') {
       this.interWaveTimer -= dt
       this.state.interWaveTimer = Math.max(0, this.interWaveTimer)
 
       if (this.interWaveTimer <= 0) {
-        this.startWave()
+        // Transition to buy phase for the next wave
+        this.waveState = 'buy_phase'
+        this.buyPhaseTimer = WAVE_CONFIG.buyPhaseDuration
+        this.state.waveState = 'buy_phase'
+        this.state.interWaveTimer = this.buyPhaseTimer
       }
     }
   }
@@ -284,6 +335,14 @@ export class WaveSystem {
     return this.isBossWave
   }
 
+  getBuyPhaseTimer(): number {
+    return this.buyPhaseTimer
+  }
+
+  isInBuyPhase(): boolean {
+    return this.waveState === 'buy_phase'
+  }
+
   getStats(): { kills: number; headshots: number; wave: number } {
     return {
       kills: this.totalKills,
@@ -293,6 +352,6 @@ export class WaveSystem {
   }
 
   canStartNextWave(): boolean {
-    return this.waveState === 'wave_clear' || this.waveState === 'waiting'
+    return this.waveState === 'wave_clear' || this.waveState === 'waiting' || this.waveState === 'buy_phase'
   }
 }

@@ -74,6 +74,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   private ownedWeapons = new Map<string, Set<string>>();
   /** Magazine + reserve stashed per owned weapon so swaps keep leftover ammo. */
   private weaponAmmo = new Map<string, Map<string, { ammo: number; reserve: number }>>();
+  /** Weapons each player has Pack-a-Punched (per-weapon tracking). */
+  private papWeapons = new Map<string, Set<string>>();
   private antiCheat = new AntiCheatSystem();
   private difficulty: ZombieDifficulty = "normal";
   private zombieDifficulty = ZOMBIE_DIFFICULTIES.normal;
@@ -169,6 +171,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         ["knife", { ammo: 0, reserve: 0 }],
       ])
     );
+    this.papWeapons.set(client.sessionId, new Set());
     this.soloRevivesCount.set(client.sessionId, this.zombieDifficulty.soloRevives);
 
     // The Safe House is where everyone starts, so it must count as unlocked or
@@ -199,6 +202,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.lastInputTime.delete(client.sessionId);
     this.ownedWeapons.delete(client.sessionId);
     this.weaponAmmo.delete(client.sessionId);
+    this.papWeapons.delete(client.sessionId);
     this.soloRevivesCount.delete(client.sessionId);
     this.antiCheat.clearAll(client.sessionId);
 
@@ -685,8 +689,9 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         damage = weaponStats.headshot || damage * 2;
       }
 
-      // Pack-a-Punch multiplier
-      if (player.hasPackAPunch) {
+      // Pack-a-Punch multiplier (per-weapon check)
+      const playerPapWeapons = this.papWeapons.get(client.sessionId);
+      if (playerPapWeapons?.has(player.currentWeapon)) {
         damage = Math.floor(damage * 1.5);
       }
 
@@ -751,7 +756,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     if (!target) return;
     const hit: { id: string; type: string; x: number; z: number } = target;
 
-    const damage = Math.floor((meleeStats?.dmg ?? 50) * (player.hasPackAPunch ? 1.5 : 1));
+    const isPap = this.papWeapons.get(client.sessionId)?.has(player.currentWeapon);
+    const damage = Math.floor((meleeStats?.dmg ?? 50) * (isPap ? 1.5 : 1));
     const killed =
       this.state.activePowerUp === "insta_kill"
         ? this.waveSystem.damageZombie(hit.id, 99999)
@@ -889,10 +895,16 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     player.currentWeapon = data.weapon;
     this.restoreWeaponAmmo(client.sessionId, player, data.weapon);
 
+    // Update PaP and dual wield based on the switched-to weapon's status
+    const playerPapWeapons = this.papWeapons.get(client.sessionId);
+    player.hasPackAPunch = playerPapWeapons?.has(data.weapon) ?? false;
+    player.dualWield = player.hasPackAPunch && PACK_A_PUNCH.dualWieldWeapons.includes(data.weapon as any);
+
     client.send("weaponSwitched", {
       weapon: player.currentWeapon,
       ammo: player.ammo,
       reserveAmmo: player.reserveAmmo,
+      dualWield: player.dualWield,
     });
   }
 
@@ -939,6 +951,10 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     player.reserveAmmo = stats.reserveAmmo;
     this.stashCurrentAmmo(client.sessionId, player);
 
+    const playerPapWeapons = this.papWeapons.get(client.sessionId);
+    player.hasPackAPunch = playerPapWeapons?.has(weapon) ?? false;
+    player.dualWield = player.hasPackAPunch && PACK_A_PUNCH.dualWieldWeapons.includes(weapon as any);
+
     client.send("weaponBought", {
       weapon,
       ammo: player.ammo,
@@ -968,7 +984,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     const idle =
       this.state.phase === "waiting" ||
       this.state.waveState === "waiting" ||
-      this.state.waveState === "wave_clear";
+      this.state.waveState === "wave_clear" ||
+      this.state.waveState === "buy_phase";
     if (!idle) return;
 
     // A finished run (wipe or evac) starts over from wave 1 with everyone back
@@ -980,7 +997,13 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     }
 
     this.state.phase = "active";
-    this.waveSystem.startFirstWave();
+    // If already in buy_phase or wave_clear, skip directly to wave spawn.
+    // Only call startFirstWave() when starting from waiting state.
+    if (this.state.waveState === "buy_phase" || this.state.waveState === "wave_clear") {
+      this.waveSystem.skipBuyPhase();
+    } else {
+      this.waveSystem.startFirstWave();
+    }
     this.broadcast("gameStarted", { wave: this.state.currentWave });
   }
 
@@ -1001,6 +1024,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       player.ammo = WEAPONS.deagle.mag;
       player.reserveAmmo = WEAPONS.deagle.reserveAmmo;
       player.hasPackAPunch = false;
+      player.dualWield = false;
       player.hasJuggernog = false;
       player.hasSpeedCola = false;
       player.hasDoubleTap = false;
@@ -1008,6 +1032,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
       this.state.points.set(sessionId, 500);
       this.ownedWeapons.set(sessionId, new Set(["deagle", "knife"]));
+      this.papWeapons.set(sessionId, new Set());
       this.weaponAmmo.set(
         sessionId,
         new Map([
@@ -1197,7 +1222,9 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       this.buyFailed(client, "pack_a_punch", "unavailable");
       return;
     }
-    if (player.hasPackAPunch) {
+    // Per-weapon PaP check: each weapon can only be PaP'd once.
+    const playerPapWeapons = this.papWeapons.get(client.sessionId);
+    if (playerPapWeapons?.has(player.currentWeapon)) {
       this.buyFailed(client, "pack_a_punch", "already_owned");
       return;
     }
@@ -1218,12 +1245,25 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
     this.state.points.set(client.sessionId, points - PACK_A_PUNCH.price);
 
+    // Track this weapon as PaP'd
+    if (!playerPapWeapons) {
+      this.papWeapons.set(client.sessionId, new Set([player.currentWeapon]));
+    } else {
+      playerPapWeapons.add(player.currentWeapon);
+    }
     player.hasPackAPunch = true;
-    // The upgrade also comes with a deeper ammo pool.
+
+    // Upgrade ammo for this weapon
     const upgradedStats = WEAPONS[player.currentWeapon as keyof typeof WEAPONS];
     if (upgradedStats) {
       player.ammo = upgradedStats.mag;
       player.reserveAmmo = Math.floor(upgradedStats.reserveAmmo * PACK_A_PUNCH.extraAmmoMultiplier);
+    }
+    // Enable dual wield only for pistol-class weapons after PaP
+    if (PACK_A_PUNCH.dualWieldWeapons.includes(player.currentWeapon as any)) {
+      player.dualWield = true;
+    } else {
+      player.dualWield = false;
     }
     const variant = PAP_WEAPON_VARIANTS[player.currentWeapon];
 
@@ -1232,6 +1272,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       papName: variant?.name ?? `${player.currentWeapon} Upgraded`,
       ammo: player.ammo,
       reserveAmmo: player.reserveAmmo,
+      dualWield: player.dualWield,
     });
   }
 

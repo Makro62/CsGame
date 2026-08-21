@@ -51,6 +51,10 @@ interface WeaponState {
   grenadeType: "he" | "smoke" | "flash";
   /** Training modes fire without draining the magazine */
   infiniteAmmo: boolean;
+  dualWield: boolean;
+  hasPackAPunch: boolean;
+  upgradedWeapons: string[];
+  dualWieldWeapons: string[];
 
   equipWeapon: (weapon: WeaponKey, options?: EquipOptions) => void;
   switchToSlot: (slot: 1 | 2 | 3 | 4) => void;
@@ -64,6 +68,10 @@ interface WeaponState {
   updateRecoil: (x: number, y: number) => void;
   setRecoilAim: (yaw: number, pitch: number) => void;
   setInfiniteAmmo: (enabled: boolean) => void;
+  setDualWield: (enabled: boolean) => void;
+  setHasPackAPunch: (enabled: boolean) => void;
+  addUpgradedWeapon: (weapon: string, dualWield?: boolean) => void;
+  resetUpgrades: () => void;
   incrementBullets: () => void;
   resetBullets: () => void;
   setSwitching: (switching: boolean) => void;
@@ -111,6 +119,10 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   lastFireTimestamp: 0,
   grenadeType: "he",
   infiniteAmmo: false,
+  dualWield: false,
+  hasPackAPunch: false,
+  upgradedWeapons: [],
+  dualWieldWeapons: [],
 
   cycleGrenadeType: () => {
     const { grenadeType, activeWeapon } = get();
@@ -147,8 +159,14 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       return;
     }
 
+    const { upgradedWeapons, dualWieldWeapons } = get();
+    const isUpgraded = upgradedWeapons.includes(weapon);
+    const isDual = dualWieldWeapons.includes(weapon);
+
     set((state) => ({
       activeWeapon: weapon,
+      hasPackAPunch: isUpgraded,
+      dualWield: isDual,
       primaryWeapon: isPrimaryWeapon(weapon) ? weapon : state.primaryWeapon,
       secondaryWeapon: isSecondaryWeapon(weapon) ? weapon : state.secondaryWeapon,
       knifeSlot: melee ? weapon : state.knifeSlot,
@@ -210,9 +228,14 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     }
 
     const ammo = slot === 1 ? currentPrimaryAmmo : slot === 2 ? currentSecondaryAmmo : 0;
+    const { upgradedWeapons, dualWieldWeapons } = state;
+    const isUpgraded = upgradedWeapons.includes(target);
+    const isDual = dualWieldWeapons.includes(target);
 
     set(() => ({
       activeWeapon: target,
+      hasPackAPunch: isUpgraded,
+      dualWield: isDual,
       primaryAmmo: currentPrimaryAmmo,
       secondaryAmmo: currentSecondaryAmmo,
       currentAmmo: ammo,
@@ -309,6 +332,37 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
 
   setInfiniteAmmo: (enabled: boolean) => {
     set({ infiniteAmmo: enabled });
+  },
+
+  setDualWield: (enabled: boolean) => {
+    set({ dualWield: enabled });
+  },
+
+  setHasPackAPunch: (enabled: boolean) => {
+    set({ hasPackAPunch: enabled });
+  },
+
+  addUpgradedWeapon: (weapon: string, dualWield?: boolean) => {
+    const { upgradedWeapons, dualWieldWeapons, activeWeapon } = get();
+    const newUpgraded = upgradedWeapons.includes(weapon) ? upgradedWeapons : [...upgradedWeapons, weapon];
+    const newDual = dualWield
+      ? (dualWieldWeapons.includes(weapon) ? dualWieldWeapons : [...dualWieldWeapons, weapon])
+      : dualWieldWeapons;
+    set({
+      upgradedWeapons: newUpgraded,
+      dualWieldWeapons: newDual,
+      hasPackAPunch: activeWeapon === weapon ? true : get().hasPackAPunch,
+      dualWield: activeWeapon === weapon ? !!dualWield : get().dualWield,
+    });
+  },
+
+  resetUpgrades: () => {
+    set({
+      upgradedWeapons: [],
+      dualWieldWeapons: [],
+      hasPackAPunch: false,
+      dualWield: false,
+    });
   },
 
   incrementBullets: () => {

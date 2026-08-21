@@ -53,6 +53,7 @@ export class PlayerState extends Schema {
   hasQuickRevive: boolean
   selfReviveUsed: boolean
   hasPackAPunch: boolean
+  dualWield: boolean
   isUsingMysteryBox: boolean
   isDowned: boolean
   downedTimer: number
@@ -111,6 +112,7 @@ export class PlayerState extends Schema {
     this.hasQuickRevive = false
     this.selfReviveUsed = false
     this.hasPackAPunch = false
+    this.dualWield = false
     this.isUsingMysteryBox = false
     this.isDowned = false
     this.downedTimer = 0
@@ -170,6 +172,7 @@ defineTypes(PlayerState, {
   hasQuickRevive: 'boolean',
   selfReviveUsed: 'boolean',
   hasPackAPunch: 'boolean',
+  dualWield: 'boolean',
   isUsingMysteryBox: 'boolean',
   isDowned: 'boolean',
   downedTimer: 'number',
@@ -315,7 +318,7 @@ defineTypes(PowerUpState, {
   timeLeft: 'number',
 })
 
-export type WaveState = 'waiting' | 'spawning' | 'active' | 'wave_clear' | 'inter_wave'
+export type WaveState = 'waiting' | 'buy_phase' | 'spawning' | 'active' | 'wave_clear' | 'inter_wave'
 
 export type RoundPhase = 'buy' | 'active' | 'roundEnd' | 'matchEnd' | 'waiting'
 
@@ -679,6 +682,7 @@ export const WEAPONS = {
     price: 700,
     team: 'both',
     reserveAmmo: 70,
+    dualWieldable: true,
   },
   glock: {
     dmg: 22,
@@ -689,6 +693,7 @@ export const WEAPONS = {
     price: 200,
     team: 'both',
     reserveAmmo: 120,
+    dualWieldable: true,
   },
   tec9: {
     dmg: 18,
@@ -699,6 +704,7 @@ export const WEAPONS = {
     price: 500,
     team: 'T',
     reserveAmmo: 90,
+    dualWieldable: true,
   },
   autopistol: {
     dmg: 20,
@@ -709,6 +715,7 @@ export const WEAPONS = {
     price: 500,
     team: 'CT',
     reserveAmmo: 90,
+    dualWieldable: true,
   },
   // Melee
   knife: {
@@ -1033,8 +1040,10 @@ export const MYSTERY_BOX = {
 export const PACK_A_PUNCH = {
   price: 5000,
   upgradeMultiplier: 1.5, // 1.5x damage
-  extraAmmoMultiplier: 1.5,
-  allowedWeapons: ["ak47", "m4a1", "mp5", "awp", "deagle"] as const,
+  extraAmmoMultiplier: 2.0, // 2x magazine + reserve after upgrade
+  allowedWeapons: ["ak47", "m4a1", "mp5", "awp", "deagle", "glock", "tec9", "autopistol"] as const,
+  /** After Pack-a-Punch, pistol-class weapons become dual-wield. */
+  dualWieldWeapons: ["deagle", "glock", "tec9", "autopistol"] as const,
 } as const;
 
 // ─── Zombie Shop ───────────────────────────────────────────────
@@ -1128,28 +1137,34 @@ export const ZOMBIE_MAP_AREAS: MapArea[] = [
   { id: "bunker", name: "Underground Bunker", price: 2000, x: -25, z: 25, radius: 10, requires: "helipad" },
 ];
 
-export const ZOMBIE_TYPES: Record<ZombieType, { hp: number; speed: number; damage: number; color: number }> = {
-  walker:  { hp: 100, speed: 2.5, damage: 15, color: 0x4a6741 },
-  runner:  { hp: 60,  speed: 5.0, damage: 10, color: 0x8b4513 },
-  tank:    { hp: 400, speed: 1.5, damage: 30, color: 0x2c2c2c },
-  spitter: { hp: 80,  speed: 2.0, damage: 5,  color: 0x9acd32 },
-  boss:    { hp: 5000, speed: 3.0, damage: 50, color: 0x8b0000 },
+export const ZOMBIE_TYPES: Record<ZombieType, { hp: number; speed: number; damage: number; color: number; scale: number }> = {
+  walker:  { hp: 100, speed: 2.5, damage: 15, color: 0x4a6741, scale: 0.9 },
+  runner:  { hp: 60,  speed: 5.0, damage: 10, color: 0x8b4513, scale: 0.75 },
+  tank:    { hp: 400, speed: 1.5, damage: 30, color: 0x2c2c2c, scale: 1.3 },
+  spitter: { hp: 80,  speed: 2.0, damage: 5,  color: 0x9acd32, scale: 0.85 },
+  boss:    { hp: 8000, speed: 2.8, damage: 60, color: 0x8b0000, scale: 2.2 },
 }
 
 export const WAVE_CONFIG = {
   baseZombieCount: 6,
   zombiesPerWave: 4,
-  interWaveTime: 20,      // seconds between waves (wave 1)
-  interWaveMinTime: 12,   // minimum inter-wave time
+  interWaveTime: 5,       // seconds between waves (wave clear display)
+  interWaveMinTime: 3,    // minimum wave clear time
   spawnDuration: 10,      // seconds to spawn all zombies in a wave
+  buyPhaseDuration: 15,   // seconds to buy weapons between waves
+  firstWaveDelay: 5,      // seconds before first wave starts (initial buy phase)
   hpMultiplierPerWave: 0.15,
   speedBonusPerWave: 0.03,
-  // Spawn points (4 corners of arena)
+  // Spawn points (match ZOMBIE_SPAWN.spawnPoints — inside arena boundaries)
   spawnPoints: [
-    { x: -55, z: -55 },
-    { x: 55, z: -55 },
-    { x: -55, z: 55 },
-    { x: 55, z: 55 },
+    { x: 15, z: -20 },
+    { x: -15, z: -20 },
+    { x: 22, z: -10 },
+    { x: -22, z: -10 },
+    { x: 0, z: 0 },
+    { x: 18, z: 15 },
+    { x: -18, z: 15 },
+    { x: 0, z: 30 },
   ],
   // Active spawn points per wave range
   activeSpawns: [
@@ -1244,6 +1259,9 @@ export const PAP_WEAPON_VARIANTS: Record<string, { name: string; damageBonus: nu
   awp: { name: "AWP Thunderbolt", damageBonus: 1.5, effect: "chain_lightning", color: "#00bfff" },
   mp5: { name: "MP5-K Venom", damageBonus: 1.5, effect: "poison_dot", color: "#32cd32" },
   deagle: { name: "Deagle Apocalypse", damageBonus: 1.5, effect: "pierce", color: "#9932cc" },
+  glock: { name: "Glock Radiance", damageBonus: 1.5, effect: "stun", color: "#00ffcc" },
+  tec9: { name: "Tec-9 Overload", damageBonus: 1.5, effect: "fire_dot", color: "#ff6347" },
+  autopistol: { name: "Auto Pistol Venom", damageBonus: 1.5, effect: "poison_dot", color: "#7cfc00" },
 };
 
 export interface NavNode {

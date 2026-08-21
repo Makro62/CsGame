@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import { Html } from "@react-three/drei";
 import { useZombieStore } from "../../stores/useZombieStore";
@@ -36,6 +36,13 @@ function SingleBarricade({
       }),
     []
   );
+
+  useEffect(() => {
+    return () => {
+      woodMat.dispose();
+      postMat.dispose();
+    };
+  }, []);
 
   // 6 planks vertically stacked
   const plankHeights = [0.2, 0.45, 0.7, 0.95, 1.2, 1.45];

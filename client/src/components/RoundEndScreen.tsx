@@ -32,7 +32,7 @@ export function RoundEndScreen() {
   // teamRedScore = T wins, teamBlueScore = CT wins
   const tScore = round.teamRedScore ?? 0
   const ctScore = round.teamBlueScore ?? 0
-  let winner: 'ct' | 't' = ctScore >= tScore ? 'ct' : 't'
+  const winner: 'ct' | 't' = ctScore >= tScore ? 'ct' : 't'
   const localWon = localTeam && localTeam.toLowerCase() === winner
 
   const overlayStyle: React.CSSProperties = {

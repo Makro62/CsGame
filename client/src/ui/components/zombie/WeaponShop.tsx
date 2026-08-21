@@ -44,6 +44,8 @@ const SHOP_WEAPONS: ShopWeapon[] = [
   weaponEntry("awp", "AWP", "primary", "One-shot sniper"),
   weaponEntry("deagle", "Deagle", "secondary", "Powerful pistol"),
   weaponEntry("glock", "Glock", "secondary", "Standard pistol"),
+  weaponEntry("tec9", "Tec-9", "secondary", "Full-auto machine pistol"),
+  weaponEntry("autopistol", "Auto Pistol", "secondary", "Compact full-auto"),
   {
     id: "ammo",
     name: "Max Ammo",

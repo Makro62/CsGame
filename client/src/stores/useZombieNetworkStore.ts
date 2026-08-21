@@ -13,6 +13,7 @@ import { useWeaponStore, type WeaponKey } from "./useWeaponStore";
 import { useNetworkStore } from "./useNetworkStore";
 import { zombieSounds } from "../lib/zombieSounds";
 import { SERVER_URL } from "../config/network";
+import { localZombieEngine } from "../game/zombie/LocalZombieEngine";
 
 const SESSION_KEY = "zombie_room_session";
 
@@ -48,6 +49,7 @@ interface ZombieNetworkState {
   sessionId: string | null;
   connected: boolean;
   reconnecting: boolean;
+  isLocal: boolean;
 
   // Local player
   localHp: number;
@@ -132,6 +134,7 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
   sessionId: null,
   connected: false,
   reconnecting: false,
+  isLocal: false,
 
   ...FRESH_MATCH_STATE,
   downedAllies: [],
@@ -144,7 +147,7 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
     const client = new Client(SERVER_URL);
 
     // Never inherit HP, points or perks from a previous run.
-    set({ ...FRESH_MATCH_STATE, downedAllies: [], lastBuyFailure: null, difficulty });
+    set({ ...FRESH_MATCH_STATE, downedAllies: [], lastBuyFailure: null, difficulty, isLocal: false });
     useZombieStore.getState().resetMatch();
 
     try {
@@ -177,12 +180,22 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
         sessionId: room.sessionId,
         connected: true,
         reconnecting: false,
+        isLocal: false,
       });
 
       setupZombieRoom(room);
     } catch (e) {
-      console.error("Failed to join zombie room:", e);
-      set({ connected: false, reconnecting: false });
+      console.warn("Failed to join online room, starting local zombie simulation:", e);
+      // Fallback to full offline local simulation
+      set({
+        client: null,
+        room: null,
+        sessionId: "local_player",
+        connected: true,
+        reconnecting: false,
+        isLocal: true,
+      });
+      localZombieEngine.init(difficulty);
     }
   },
 
@@ -192,12 +205,15 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
       room.removeAllListeners();
       room.leave();
     }
+    localZombieEngine.stop();
     sessionStorage.removeItem(SESSION_KEY);
+    useWeaponStore.getState().resetUpgrades();
     set({
       client: null,
       room: null,
       sessionId: null,
       connected: false,
+      isLocal: false,
       ...FRESH_MATCH_STATE,
       downedAllies: [],
       lastBuyFailure: null,
@@ -206,17 +222,29 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
   },
 
   sendInput: (data: any) => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      // Local position is updated directly by PlayerController / localZombieEngine
+      return;
+    }
     if (room) room.send("input", data);
   },
 
   sendShoot: (data: any) => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleShoot(data);
+      return;
+    }
     if (room) room.send("shoot", data);
   },
 
   sendMelee: (data: any) => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleMelee(data);
+      return;
+    }
     if (room) room.send("melee", data);
   },
 
@@ -226,52 +254,95 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
   },
 
   sendSwitchWeapon: (weapon: string) => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      const stats = WEAPONS[weapon as WeaponKey];
+      if (stats) {
+        useWeaponStore.getState().equipWeapon(weapon as WeaponKey);
+      }
+      return;
+    }
     if (room) room.send("switch_weapon", { weapon });
   },
 
   sendBuyWeapon: (weapon: string) => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleBuyWeapon(weapon);
+      return;
+    }
     if (room) room.send("buy_weapon", { weapon });
   },
 
   sendStartGame: () => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.skipBuyPhase();
+      return;
+    }
     if (room) room.send("start_game");
   },
 
   sendBuyAmmo: () => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleBuyAmmo();
+      return;
+    }
     if (room) room.send("buy_ammo");
   },
 
   sendBuyArmor: () => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleBuyArmor();
+      return;
+    }
     if (room) room.send("buy_armor");
   },
 
   sendBuyPerk: (perk: string) => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleBuyPerk(perk);
+      return;
+    }
     if (room) room.send("buy_perk", { perk });
   },
 
   sendMysteryBox: () => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleMysteryBox();
+      return;
+    }
     if (room) room.send("use_mystery_box");
   },
 
   sendPackAPunch: () => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handlePackAPunch();
+      return;
+    }
     if (room) room.send("use_pack_a_punch");
   },
 
   sendUnlockArea: (areaId: string) => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleUnlockArea(areaId);
+      return;
+    }
     if (room) room.send("unlock_area", { areaId });
   },
 
   sendRepairBarricade: (barricadeId: string) => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleRepairBarricade(barricadeId);
+      return;
+    }
     if (room) room.send("repair_barricade", { barricadeId });
   },
 
@@ -296,7 +367,11 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
   },
 
   sendPickupPowerUp: (id: string) => {
-    const { room } = get();
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handlePickupPowerUp(id);
+      return;
+    }
     if (room) room.send("pickup_powerup", { id });
   },
 }));
@@ -344,6 +419,10 @@ function setupZombieRoom(room: Room<GameState>) {
     // Trigger waveClear SFX when entering wave_clear state
     if (state.waveState === "wave_clear" && prevWaveState !== "wave_clear") {
       zombieSounds.waveClear();
+    }
+    // Trigger buy phase SFX when entering buy_phase state
+    if (state.waveState === "buy_phase" && prevWaveState !== "buy_phase" && prevWaveState !== "waiting") {
+      zombieSounds.powerUp();
     }
     prevWaveState = state.waveState;
 
@@ -501,13 +580,17 @@ function setupZombieRoom(room: Room<GameState>) {
 
   room.onMessage(
     "weaponSwitched",
-    (data: { weapon: string; ammo: number; reserveAmmo: number }) => {
+    (data: { weapon: string; ammo: number; reserveAmmo: number; dualWield?: boolean }) => {
       useZombieNetworkStore.setState({
         localWeapon: data.weapon,
         localAmmo: data.ammo,
         localReserveAmmo: data.reserveAmmo,
       });
       syncLocalWeapon(data.weapon, data.ammo, data.reserveAmmo, false);
+      // Sync dual wield state from server
+      if (data.dualWield !== undefined) {
+        useWeaponStore.getState().setDualWield(data.dualWield);
+      }
     }
   );
 
@@ -539,7 +622,7 @@ function setupZombieRoom(room: Room<GameState>) {
 
   // Game started
   room.onMessage("gameStarted", (data: { wave: number }) => {
-    useZombieStore.setState({ currentWave: data.wave, waveState: "spawning" });
+    useZombieStore.setState({ currentWave: data.wave, waveState: "buy_phase" });
     zombieSounds.waveStart();
   });
 
@@ -640,8 +723,12 @@ function setupZombieRoom(room: Room<GameState>) {
   });
 
   // Pack-a-Punch complete
-  room.onMessage("packAPunchComplete", () => {
+  room.onMessage("packAPunchComplete", (data: { weapon: string; dualWield?: boolean }) => {
     zombieSounds.powerUp();
+    useWeaponStore.getState().setHasPackAPunch(true);
+    if (data.dualWield) {
+      useWeaponStore.getState().setDualWield(true);
+    }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("packAPunchComplete"));
     }

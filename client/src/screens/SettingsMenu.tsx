@@ -9,7 +9,7 @@ export default function SettingsMenu() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') setOpen(v => !v)
+      if (e.key === 'p' || e.key === 'P') setOpen(v => !v)
     }
     const onOpen = () => setOpen(true)
     window.addEventListener('keydown', onKey)

@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
 import { PlayerController } from "../game/player/PlayerController";
 import { WeaponModel } from "../game/weapons/WeaponModel";
@@ -14,6 +14,7 @@ import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
 import { ZombieArena } from "../game/map/ZombieArena";
 import { ZombieRenderer } from "../game/zombie/ZombieRenderer";
 import { PowerUpRenderer } from "../game/zombie/PowerUpRenderer";
+import { localZombieEngine } from "../game/zombie/LocalZombieEngine";
 import { ZombieMinimap } from "../components/ZombieMinimap";
 import { WaveHUD } from "../ui/components/hud/WaveHUD";
 import { PointsDisplay } from "../ui/components/hud/PointsDisplay";
@@ -128,10 +129,12 @@ function HotkeyManager({
   }, []);
 
   useEffect(() => {
-    if (!connected) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (localIsDead || isTyping()) return;
-      if (menuOpen && e.code !== "Escape") return;
+      // When a menu is open, only toggle keys (B, Tab, Escape) pass through
+      // so the user can close the menu with the same key that opened it.
+      const isToggleKey = e.code === "KeyB" || e.code === "Tab" || e.code === "Escape" || e.code === "KeyL";
+      if (menuOpen && !isToggleKey) return;
       switch (e.code) {
         case "KeyF": {
           // Holding [F] next to a downed ally revives them; the server drives
@@ -342,6 +345,13 @@ function InteractionPrompt() {
     );
   }
 
+  // Buy phase prompt — remind the player to gear up
+  if (waveState === "buy_phase") {
+    return (
+      <PromptBadge text="BUY PHASE — Press [B] to Open Shop" />
+    );
+  }
+
   return null;
 }
 
@@ -396,6 +406,15 @@ function BossWaveWarning() {
       </div>
     </div>
   );
+}
+
+function LocalZombieUpdater() {
+  useFrame((_, dt) => {
+    if (useZombieNetworkStore.getState().isLocal) {
+      localZombieEngine.update(dt);
+    }
+  });
+  return null;
 }
 
 // ============================================================================
@@ -597,6 +616,7 @@ export function ZombieSurvivalMode() {
           <PlayerController />
           <WeaponModel />
         </Physics>
+        <LocalZombieUpdater />
         <ShootingSystem />
         <ReloadSystem />
         <ZombieRenderer zombies={zombies} />
@@ -623,7 +643,7 @@ export function ZombieSurvivalMode() {
         <ExtractionHUD />
       </div>
 
-      {/* Top-right column: score plus the hotkeys players need mid-run */}
+      {/* Top-right interactive command bar */}
       <div
         style={{
           position: "fixed",
@@ -634,15 +654,158 @@ export function ZombieSurvivalMode() {
           alignItems: "flex-end",
           gap: 8,
           zIndex: HUD_Z.hud,
-          pointerEvents: "none",
           userSelect: "none",
         }}
       >
         <PointsDisplay points={points} />
-        <div style={{ display: "flex", gap: 4 }}>
-          <span style={hudPill("gold")}>[B] SHOP</span>
-          <span style={hudPill("neutral")}>[F] USE</span>
-          <span style={hudPill("neutral")}>[TAB] SCORE</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleShop();
+            }}
+            title="Open Weapon Shop [B]"
+            style={{
+              ...hudPill("gold"),
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              cursor: "pointer",
+              pointerEvents: "auto",
+              border: "1px solid rgba(255, 215, 0, 0.6)",
+              backgroundColor: "rgba(20, 16, 4, 0.85)",
+              color: "#ffd700",
+              fontWeight: 800,
+              fontSize: 12,
+              padding: "6px 12px",
+              borderRadius: 6,
+              transition: "all 0.15s ease",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.05)";
+              e.currentTarget.style.backgroundColor = "rgba(255, 215, 0, 0.25)";
+              e.currentTarget.style.borderColor = "#ffd700";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1.0)";
+              e.currentTarget.style.backgroundColor = "rgba(20, 16, 4, 0.85)";
+              e.currentTarget.style.borderColor = "rgba(255, 215, 0, 0.6)";
+            }}
+          >
+            🛒 <span>[B] SHOP</span>
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleInteract();
+            }}
+            title="Interact / Use [F]"
+            style={{
+              ...hudPill("neutral"),
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              cursor: "pointer",
+              pointerEvents: "auto",
+              border: "1px solid rgba(52, 211, 153, 0.6)",
+              backgroundColor: "rgba(6, 20, 14, 0.85)",
+              color: "#34d399",
+              fontWeight: 800,
+              fontSize: 12,
+              padding: "6px 12px",
+              borderRadius: 6,
+              transition: "all 0.15s ease",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.05)";
+              e.currentTarget.style.backgroundColor = "rgba(52, 211, 153, 0.25)";
+              e.currentTarget.style.borderColor = "#34d399";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1.0)";
+              e.currentTarget.style.backgroundColor = "rgba(6, 20, 14, 0.85)";
+              e.currentTarget.style.borderColor = "rgba(52, 211, 153, 0.6)";
+            }}
+          >
+            ⚡ <span>[F] USE</span>
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleLeaderboard();
+            }}
+            title="Toggle Scoreboard [TAB]"
+            style={{
+              ...hudPill("neutral"),
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              cursor: "pointer",
+              pointerEvents: "auto",
+              border: "1px solid rgba(96, 165, 250, 0.6)",
+              backgroundColor: "rgba(8, 16, 30, 0.85)",
+              color: "#60a5fa",
+              fontWeight: 800,
+              fontSize: 12,
+              padding: "6px 12px",
+              borderRadius: 6,
+              transition: "all 0.15s ease",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.05)";
+              e.currentTarget.style.backgroundColor = "rgba(96, 165, 250, 0.25)";
+              e.currentTarget.style.borderColor = "#60a5fa";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1.0)";
+              e.currentTarget.style.backgroundColor = "rgba(8, 16, 30, 0.85)";
+              e.currentTarget.style.borderColor = "rgba(96, 165, 250, 0.6)";
+            }}
+          >
+            📊 <span>[TAB] SCORE</span>
+          </button>
+
+          {(waveState === "buy_phase" || waveState === "wave_clear" || waveState === "waiting") && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                useZombieNetworkStore.getState().sendStartGame();
+              }}
+              title="Start Wave Now [SPACE]"
+              style={{
+                ...hudPill("green"),
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                cursor: "pointer",
+                pointerEvents: "auto",
+                border: "1px solid rgba(239, 68, 68, 0.8)",
+                backgroundColor: "rgba(220, 38, 38, 0.85)",
+                color: "#ffffff",
+                fontWeight: 900,
+                fontSize: 12,
+                padding: "6px 14px",
+                borderRadius: 6,
+                transition: "all 0.15s ease",
+                boxShadow: "0 0 12px rgba(239, 68, 68, 0.6)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "scale(1.05)";
+                e.currentTarget.style.backgroundColor = "#ef4444";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "scale(1.0)";
+                e.currentTarget.style.backgroundColor = "rgba(220, 38, 38, 0.85)";
+              }}
+            >
+              ▶️ <span>[SPACE] START</span>
+            </button>
+          )}
         </div>
       </div>
 
