@@ -20,33 +20,50 @@ interface SettingsState {
   setCrosshairStyle: (style: 'dot' | 'cross' | 'dynamic') => void;
 }
 
+function getStorage(key: string, fallback: string): string {
+  if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
+    try {
+      return localStorage.getItem(key) ?? fallback;
+    } catch {}
+  }
+  return fallback;
+}
+
+function setStorage(key: string, value: string): void {
+  if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
+    try {
+      localStorage.setItem(key, value);
+    } catch {}
+  }
+}
+
 export const useSettingsStore = create<SettingsState>()((set) => ({
-  sensitivity: parseFloat(localStorage.getItem("sensitivity") || "1.2"),
-  slideControl: parseInt(localStorage.getItem("slideControl") || `${PHYSICS.slideControlDefault}`, 10),
-  masterVolume: parseInt(localStorage.getItem("masterVolume") || "80", 10),
-  sfxVolume: parseInt(localStorage.getItem("sfxVolume") || "80", 10),
-  musicVolume: parseInt(localStorage.getItem("musicVolume") || "60", 10),
-  crosshairColor: localStorage.getItem("crosshairColor") || "#ffffff",
-  crosshairSize: parseInt(localStorage.getItem("crosshairSize") || "1", 10),
-  crosshairStyle: (localStorage.getItem("crosshairStyle") as 'dot' | 'cross' | 'dynamic') || "dynamic",
+  sensitivity: parseFloat(getStorage("sensitivity", "1.2")),
+  slideControl: parseInt(getStorage("slideControl", `${PHYSICS.slideControlDefault}`), 10),
+  masterVolume: parseInt(getStorage("masterVolume", "80"), 10),
+  sfxVolume: parseInt(getStorage("sfxVolume", "80"), 10),
+  musicVolume: parseInt(getStorage("musicVolume", "60"), 10),
+  crosshairColor: getStorage("crosshairColor", "#ffffff"),
+  crosshairSize: parseInt(getStorage("crosshairSize", "1"), 10),
+  crosshairStyle: (getStorage("crosshairStyle", "dynamic") as 'dot' | 'cross' | 'dynamic'),
 
   setSensitivity: (value: number) => {
-    localStorage.setItem("sensitivity", value.toString());
+    setStorage("sensitivity", value.toString());
     set({ sensitivity: value });
   },
 
   setSlideControl: (value: number) => {
-    localStorage.setItem("slideControl", value.toString());
+    setStorage("slideControl", value.toString());
     set({ slideControl: value });
   },
 
   setMasterVolume: (value: number) => {
-    localStorage.setItem("masterVolume", value.toString());
+    setStorage("masterVolume", value.toString());
     set({ masterVolume: value });
   },
 
   setSfxVolume: (value: number) => {
-    localStorage.setItem("sfxVolume", value.toString());
+    setStorage("sfxVolume", value.toString());
     set({ sfxVolume: value });
   },
 

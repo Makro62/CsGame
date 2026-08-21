@@ -411,7 +411,9 @@ export class LocalZombieEngine {
     const origin = data.origin ? new THREE.Vector3(data.origin.x, data.origin.y, data.origin.z) : new THREE.Vector3(this.playerX, this.playerY, this.playerZ);
     const dir = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z).normalize();
 
-    let closestHit: { zombie: ZombieState; dist: number; isHeadshot: boolean } | null = null;
+    let closestZombie: ZombieState | null = null;
+    let closestDist = Infinity;
+    let isHeadshotHit = false;
 
     this.zombies.forEach((zombie) => {
       if (zombie.isDead) return;
@@ -428,14 +430,17 @@ export class LocalZombieEngine {
       const hitRadius = zombie.type === "boss" ? 1.8 : 0.9;
       if (distToLine < hitRadius) {
         const isHeadshot = closestPoint.y >= zombie.y + (zombie.type === "boss" ? 2.0 : 1.3);
-        if (!closestHit || dot < closestHit.dist) {
-          closestHit = { zombie, dist: dot, isHeadshot };
+        if (dot < closestDist) {
+          closestDist = dot;
+          closestZombie = zombie;
+          isHeadshotHit = isHeadshot;
         }
       }
     });
 
-    if (closestHit) {
-      const { zombie, isHeadshot } = closestHit;
+    if (closestZombie) {
+      const targetZombie: ZombieState = closestZombie;
+      const isHeadshot = isHeadshotHit;
       let damage = isHeadshot ? (stats.headshot || stats.dmg * 2) : stats.dmg;
 
       // Pack-a-Punch multiplier
@@ -448,12 +453,12 @@ export class LocalZombieEngine {
         damage = 99999;
       }
 
-      zombie.hp -= damage;
+      targetZombie.hp -= damage;
       zombieSounds.zombieHit();
 
-      if (zombie.hp <= 0) {
-        zombie.hp = 0;
-        zombie.isDead = true;
+      if (targetZombie.hp <= 0) {
+        targetZombie.hp = 0;
+        targetZombie.isDead = true;
         this.kills++;
         if (isHeadshot) this.headshots++;
 
@@ -461,7 +466,7 @@ export class LocalZombieEngine {
         zombieSounds.zombieDeath();
 
         // Kill points
-        const baseKillPts = ZOMBIE_POINTS[zombie.type as ZombieType] || 50;
+        const baseKillPts = ZOMBIE_POINTS[targetZombie.type as ZombieType] || 50;
         const basePts = isHeadshot ? baseKillPts + ZOMBIE_POINTS.headshotBonus : baseKillPts;
         const doubleMult = useZombieStore.getState().activePowerUp === "double_points" ? 2 : 1;
         const diffCfg = ZOMBIE_DIFFICULTIES[this.difficulty] || ZOMBIE_DIFFICULTIES.normal;
@@ -469,7 +474,7 @@ export class LocalZombieEngine {
 
         // Power-up drop chance (7%)
         if (Math.random() < 0.07) {
-          this.spawnPowerUp(zombie.x, zombie.z);
+          this.spawnPowerUp(targetZombie.x, targetZombie.z);
         }
       } else {
         // Hit points
