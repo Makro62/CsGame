@@ -173,6 +173,7 @@ export function WeaponModel() {
         {activeWeapon === 'awp' && <AWPModel />}
         {activeWeapon === 'deagle' && <DeagleModel />}
         {activeWeapon === 'mp5' && <MP5Model />}
+        {activeWeapon === 'arccaster' && <ArcCasterModel />}
         {activeWeapon === 'glock' && (dualWield ? <GlockDualModel /> : <GlockModel />)}
         {activeWeapon === 'tec9' && (dualWield ? <Tec9DualModel /> : <Tec9Model />)}
         {activeWeapon === 'autopistol' && (dualWield ? <AutoPistolDualModel /> : <AutoPistolModel />)}
@@ -2022,6 +2023,60 @@ function GrenadeModel({ type }: { type: 'he' | 'smoke' | 'flash' }) {
         <torusGeometry args={[0.012, 0.002, 8, 16]} />
         <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
       </mesh>
+    </group>
+  )
+}
+
+// ─── Wonder Weapon: Arc Caster ─────────────────────────────────────
+// Futuristic high-voltage Tesla / Railgun with glowing energy coils
+function ArcCasterModel() {
+  return (
+    <group>
+      {/* Heavy futuristic chassis */}
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[0.065, 0.08, 0.42]} />
+        <meshStandardMaterial color="#0f172a" metalness={0.85} roughness={0.2} />
+      </mesh>
+      {/* Upper rail with energy conduits */}
+      <mesh position={[0, 0.045, -0.05]}>
+        <boxGeometry args={[0.045, 0.02, 0.32]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.15} />
+      </mesh>
+      {/* Glowing Tesla Coils / Capacitors */}
+      <mesh position={[0.035, 0.01, -0.08]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.016, 0.016, 0.18, 16]} />
+        <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.5} roughness={0.1} />
+      </mesh>
+      <mesh position={[-0.035, 0.01, -0.08]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.016, 0.016, 0.18, 16]} />
+        <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.5} roughness={0.1} />
+      </mesh>
+      {/* Dual Barrel Prongs (Arc Emitters) */}
+      <mesh position={[0.018, 0.01, -0.28]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.16, 12]} />
+        <meshStandardMaterial color="#38bdf8" metalness={0.95} roughness={0.1} emissive="#0284c7" emissiveIntensity={1.2} />
+      </mesh>
+      <mesh position={[-0.018, 0.01, -0.28]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.16, 12]} />
+        <meshStandardMaterial color="#38bdf8" metalness={0.95} roughness={0.1} emissive="#0284c7" emissiveIntensity={1.2} />
+      </mesh>
+      {/* Energy Core / Battery Cell */}
+      <mesh position={[0, -0.065, 0.04]}>
+        <boxGeometry args={[0.042, 0.075, 0.09]} />
+        <meshStandardMaterial color="#0284c7" emissive="#00ffff" emissiveIntensity={1.5} roughness={0.2} />
+      </mesh>
+      {/* Ergonomic Grip */}
+      <mesh position={[0, -0.08, 0.14]} rotation={[0.3, 0, 0]}>
+        <boxGeometry args={[0.038, 0.09, 0.045]} />
+        <meshStandardMaterial color="#020617" roughness={0.8} />
+      </mesh>
+      {/* Arc Emitter Focus Ring */}
+      <mesh position={[0, 0.01, -0.34]} rotation={[0, 0, 0]}>
+        <torusGeometry args={[0.026, 0.005, 12, 24]} />
+        <meshStandardMaterial color="#00ffff" emissive="#38bdf8" emissiveIntensity={3.0} />
+      </mesh>
+      {/* Ambient Arc Light */}
+      <pointLight position={[0, 0.02, -0.2]} color="#00ffff" intensity={1.5} distance={1.2} />
     </group>
   )
 }

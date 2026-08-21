@@ -203,7 +203,7 @@ defineTypes(SmokeState, {
 })
 
 // ─── Zombie State ───────────────────────────────────────────────
-export type ZombieType = 'walker' | 'runner' | 'tank' | 'spitter' | 'boss'
+export type ZombieType = 'walker' | 'runner' | 'tank' | 'spitter' | 'boss' | 'exploder'
 
 export class ZombieState extends Schema {
   id: string
@@ -672,6 +672,17 @@ export const WEAPONS = {
     team: 'both',
     reserveAmmo: 120,
   },
+  // Wonder Weapon (Mystery Box Exclusive)
+  arccaster: {
+    dmg: 40,
+    headshot: 40,
+    fireRate: 3.2,
+    mag: 12,
+    reload: 2.8,
+    price: 0,
+    team: 'both',
+    reserveAmmo: 36,
+  },
   // Pistols
   deagle: {
     dmg: 53,
@@ -1022,6 +1033,7 @@ export const MYSTERY_BOX = {
   weapons: [
     "ak47", "m4a1", "mp5", "awp",
     "deagle", "glock", "tec9", "autopistol",
+    "arccaster",
   ] as const,
   // Weighted probabilities (higher = more common)
   weights: {
@@ -1033,6 +1045,7 @@ export const MYSTERY_BOX = {
     glock: 20,
     tec9: 10,
     autopistol: 10,
+    arccaster: 4,
   },
 } as const;
 
@@ -1041,7 +1054,7 @@ export const PACK_A_PUNCH = {
   price: 5000,
   upgradeMultiplier: 1.5, // 1.5x damage
   extraAmmoMultiplier: 2.0, // 2x magazine + reserve after upgrade
-  allowedWeapons: ["ak47", "m4a1", "mp5", "awp", "deagle", "glock", "tec9", "autopistol"] as const,
+  allowedWeapons: ["ak47", "m4a1", "mp5", "awp", "deagle", "glock", "tec9", "autopistol", "arccaster"] as const,
   /** After Pack-a-Punch, pistol-class weapons become dual-wield. */
   dualWieldWeapons: ["deagle", "glock", "tec9", "autopistol"] as const,
 } as const;
@@ -1138,11 +1151,12 @@ export const ZOMBIE_MAP_AREAS: MapArea[] = [
 ];
 
 export const ZOMBIE_TYPES: Record<ZombieType, { hp: number; speed: number; damage: number; color: number; scale: number }> = {
-  walker:  { hp: 100, speed: 2.5, damage: 15, color: 0x4a6741, scale: 0.9 },
-  runner:  { hp: 60,  speed: 5.0, damage: 10, color: 0x8b4513, scale: 0.75 },
-  tank:    { hp: 400, speed: 1.5, damage: 30, color: 0x2c2c2c, scale: 1.3 },
-  spitter: { hp: 80,  speed: 2.0, damage: 5,  color: 0x9acd32, scale: 0.85 },
-  boss:    { hp: 8000, speed: 2.8, damage: 60, color: 0x8b0000, scale: 2.2 },
+  walker:   { hp: 100, speed: 2.5, damage: 15, color: 0x4a6741, scale: 0.9 },
+  runner:   { hp: 60,  speed: 5.0, damage: 10, color: 0x8b4513, scale: 0.75 },
+  tank:     { hp: 400, speed: 1.5, damage: 30, color: 0x2c2c2c, scale: 1.3 },
+  spitter:  { hp: 80,  speed: 2.0, damage: 12, color: 0x9acd32, scale: 0.85 },
+  exploder: { hp: 150, speed: 1.8, damage: 0,  color: 0xc9d94a, scale: 1.1 },
+  boss:     { hp: 8000, speed: 2.8, damage: 60, color: 0x8b0000, scale: 2.2 },
 }
 
 export const WAVE_CONFIG = {
@@ -1176,6 +1190,7 @@ export const WAVE_CONFIG = {
   // Special zombie type unlock waves
   specialUnlock: {
     runner: 3,
+    exploder: 4,
     tank: 5,
     spitter: 7,
     boss: 10,
@@ -1183,6 +1198,7 @@ export const WAVE_CONFIG = {
   // Special spawn chances (cumulative per wave)
   specialChances: {
     runner: 0.40,
+    exploder: 0.15,
     tank: 0.25,
     spitter: 0.15,
     boss: 0.05,
@@ -1194,6 +1210,7 @@ export const ZOMBIE_POINTS = {
   runner: 75,
   tank: 150,
   spitter: 100,
+  exploder: 80,
   boss: 500,
   headshotBonus: 25,
   knifeBonus: 100,
@@ -1214,7 +1231,7 @@ export const ZOMBIE_MAP_BOUNDARY = {
 export const ZOMBIE_SPAWN = {
   player: { x: 0, y: 0, z: -30 },
   safeHouse: { x: 0, y: 0, z: -40, radius: 15 },
-  helipad: { x: 0, y: 0, z: 50, radius: 12 },
+  helipad: { x: 0, y: 0, z: 30, radius: 12 },
   spawnPoints: [
     { x: 15, z: -20 },
     { x: -15, z: -20 },
@@ -1233,12 +1250,12 @@ export const BARRICADE_CONFIG = {
   pointsPerRepair: 10,
   hitsPerBoard: 2,
   locations: [
-    { id: 'barricade_1', x: -15, y: 0, z: -20, rot: 0.3 },
-    { id: 'barricade_2', x: 15, y: 0, z: -20, rot: -0.2 },
-    { id: 'barricade_3', x: -8, y: 0, z: 0, rot: 0.5 },
-    { id: 'barricade_4', x: 10, y: 0, z: 10, rot: -0.4 },
-    { id: 'barricade_5', x: -20, y: 0, z: 20, rot: 0.1 },
-    { id: 'barricade_6', x: 25, y: 0, z: -5, rot: -0.3 },
+    { id: 'barricade_1', x: -15, y: 0, z: -35, rot: 0 },
+    { id: 'barricade_2', x: 15, y: 0, z: -35, rot: 0 },
+    { id: 'barricade_3', x: 0, y: 0, z: -10, rot: 0 },
+    { id: 'barricade_4', x: 10, y: 0, z: 0, rot: 1.57 },
+    { id: 'barricade_5', x: -10, y: 0, z: 0, rot: 1.57 },
+    { id: 'barricade_6', x: -25, y: 0, z: 18, rot: 0 },
   ],
 } as const;
 
@@ -1248,7 +1265,7 @@ export const EXTRACTION_CONFIG = {
   manualMinWave: 5,
   duration: 30, // seconds
   helipadRadius: 12,
-  helipadPos: { x: 0, y: 0, z: 50 },
+  helipadPos: { x: 0, y: 0, z: 30 },
   spawnMultiplier: 3.0,
   bonusPoints: 5000,
 } as const;
@@ -1262,6 +1279,7 @@ export const PAP_WEAPON_VARIANTS: Record<string, { name: string; damageBonus: nu
   glock: { name: "Glock Radiance", damageBonus: 1.5, effect: "stun", color: "#00ffcc" },
   tec9: { name: "Tec-9 Overload", damageBonus: 1.5, effect: "fire_dot", color: "#ff6347" },
   autopistol: { name: "Auto Pistol Venom", damageBonus: 1.5, effect: "poison_dot", color: "#7cfc00" },
+  arccaster: { name: "Arc Caster Overcharge", damageBonus: 1.5, effect: "chain_lightning", color: "#00ffff" },
 };
 
 export interface NavNode {

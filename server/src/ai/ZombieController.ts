@@ -68,8 +68,9 @@ export class ZombieController {
     const roll = Math.random()
 
     if (wave >= 7 && roll < 0.15) return 'spitter'
-    if (wave >= 5 && roll < 0.25) return 'tank'
-    if (wave >= 3 && roll < 0.40) return 'runner'
+    if (wave >= 5 && roll < 0.30) return 'tank'
+    if (wave >= 4 && roll < 0.45) return 'exploder'
+    if (wave >= 3 && roll < 0.60) return 'runner'
 
     return 'walker'
   }
@@ -78,8 +79,14 @@ export class ZombieController {
     dt: number,
     players: Map<string, PlayerState>,
     barricades?: Map<string, BarricadeState> | Map<string, any>
-  ): { attackedBarricades: { barricadeId: string; damage: number }[] } {
+  ): {
+    attackedBarricades: { barricadeId: string; damage: number }[]
+    explodingZombies: { zombieId: string; x: number; z: number }[]
+    spitterAttacks: { zombieId: string; targetId: string; x: number; z: number }[]
+  } {
     const attackedBarricades: { barricadeId: string; damage: number }[] = []
+    const explodingZombies: { zombieId: string; x: number; z: number }[] = []
+    const spitterAttacks: { zombieId: string; targetId: string; x: number; z: number }[] = []
 
     this.zombies.forEach((zombie) => {
       if (zombie.isDead) return
@@ -99,8 +106,23 @@ export class ZombieController {
 
       if (targetBarricade) {
         const tb: BarricadeState = targetBarricade
-        // Attack barricade
         zombie.rotationY = Math.atan2(tb.x - zombie.x, tb.z - zombie.z)
+
+        if (zombie.type === 'exploder') {
+          // Exploders prime against barricades too
+          zombie.isAttacking = true
+          if (zombie.attackCooldown <= 0) {
+            zombie.attackCooldown = 1.5
+          } else {
+            zombie.attackCooldown -= dt
+            if (zombie.attackCooldown <= 0) {
+              explodingZombies.push({ zombieId: zombie.id, x: zombie.x, z: zombie.z })
+              zombie.isDead = true
+            }
+          }
+          return
+        }
+
         if (zombie.attackCooldown <= 0) {
           zombie.isAttacking = true
           zombie.attackCooldown = 1.0
@@ -130,6 +152,72 @@ export class ZombieController {
       const targetDz = target.z - zombie.z
       const targetDist = Math.sqrt(targetDx * targetDx + targetDz * targetDz)
 
+      // Spitter AI: Kiting & Ranged Acid Spit
+      if (zombie.type === 'spitter') {
+        zombie.rotationY = Math.atan2(targetDx, targetDz)
+
+        if (targetDist < 5.0) {
+          // Kite backwards
+          zombie.isAttacking = false
+          const nx = -targetDx / (targetDist || 1)
+          const nz = -targetDz / (targetDist || 1)
+          zombie.x += nx * zombie.speed * 0.7 * dt
+          zombie.z += nz * zombie.speed * 0.7 * dt
+        } else if (targetDist > 11.0) {
+          // Move closer
+          zombie.isAttacking = false
+          if (dist > 0.2) {
+            const nx = dx / (dist || 1)
+            const nz = dz / (dist || 1)
+            zombie.x += nx * zombie.speed * dt
+            zombie.z += nz * zombie.speed * dt
+          }
+        } else {
+          // In attack range (5-11m): stop and spit
+          if (zombie.attackCooldown <= 0) {
+            zombie.isAttacking = true
+            zombie.attackCooldown = 2.2
+            spitterAttacks.push({ zombieId: zombie.id, targetId: target.id, x: zombie.x, z: zombie.z })
+          } else {
+            zombie.isAttacking = false
+          }
+        }
+
+        if (zombie.attackCooldown > 0) {
+          zombie.attackCooldown -= dt
+        }
+        return
+      }
+
+      // Exploder AI: Move close then prime and detonate
+      if (zombie.type === 'exploder') {
+        zombie.rotationY = Math.atan2(dx, dz)
+
+        if (targetDist <= 4.0) {
+          zombie.isAttacking = true // priming
+          if (zombie.attackCooldown <= 0) {
+            zombie.attackCooldown = 1.5 // 1.5s priming
+          } else {
+            zombie.attackCooldown -= dt
+            if (zombie.attackCooldown <= 0) {
+              explodingZombies.push({ zombieId: zombie.id, x: zombie.x, z: zombie.z })
+              zombie.isDead = true
+              return
+            }
+          }
+        } else {
+          zombie.isAttacking = false
+          zombie.attackCooldown = 0
+          if (dist > 0.2) {
+            const nx = dx / (dist || 1)
+            const nz = dz / (dist || 1)
+            zombie.x += nx * zombie.speed * dt
+            zombie.z += nz * zombie.speed * dt
+          }
+        }
+        return
+      }
+
       // Face current movement direction / target
       zombie.rotationY = Math.atan2(dx, dz)
 
@@ -145,8 +233,8 @@ export class ZombieController {
           zombie.isAttacking = false
 
           if (dist > 0.2) {
-            const nx = dx / dist
-            const nz = dz / dist
+            const nx = dx / (dist || 1)
+            const nz = dz / (dist || 1)
             zombie.x += nx * zombie.speed * dt
             zombie.z += nz * zombie.speed * dt
           }
@@ -158,7 +246,7 @@ export class ZombieController {
       }
     })
 
-    return { attackedBarricades }
+    return { attackedBarricades, explodingZombies, spitterAttacks }
   }
 
   private updateBossAI(

@@ -97,6 +97,7 @@ Semua keputusan arsitektur, panduan desain, dan spesifikasi fitur disimpan di `d
 - [Design_Networking_Advanced.md](docs/Design_Networking_Advanced.md) — Server otoritatif, lag comp, reconnection, network monitor.
 - [Design_UI_Flow_Geometry.md](docs/Design_UI_Flow_Geometry.md) — Alur layar, geometri 3D, transition timing.
 - [Design_CSS_UI_System.md](docs/Design_CSS_UI_System.md) — Desain UI/HUD murni CSS (crosshair, minimap, FPS/ping).
+- [ZOMBIE_MODE.md](docs/ZOMBIE_MODE.md) — **Zombie Survival Mode** (Outpost Z-7, 7 Zona Fasilitas 3D, Spitter kiting, Exploder, Pack-a-Punch elemental, Arc Caster wonder weapon, Local simulation engine).
 
 ### Proses & Status
 - [Master Implementation Checklist](docs/Master_Implementation_Checklist.md) — fitur terverifikasi.

@@ -18,6 +18,7 @@ const ZOMBIE_COLORS: Record<ZombieType, {
   runner: { body: "#8b4513", head: "#a0522d", eyes: "#ffff00", arms: "#6b3410" },
   tank: { body: "#2f4f4f", head: "#3a5c5c", eyes: "#ff4444", arms: "#253f3f" },
   spitter: { body: "#556b2f", head: "#6b8e23", eyes: "#00ff00", arms: "#4a5d23" },
+  exploder: { body: "#7c8524", head: "#9da832", eyes: "#ffff33", arms: "#6b7218" },
   boss: { body: "#8b0000", head: "#a00000", eyes: "#ff0000", arms: "#6b0000" },
 };
 
@@ -113,9 +114,22 @@ function AnimatedZombie({ zombie }: AnimatedZombieProps) {
     groupRef.current.rotation.y = zombie.rotationY;
 
     // Animate limbs — boss swings slower and heavier
+    const isExploder = zombie.type === "exploder";
     const speedMult = isBoss ? 0.6 : isTank ? 0.7 : 1.0;
     const swing = Math.sin(timeRef.current * 4 * speedMult) * 0.4;
     const legSwing = Math.sin(timeRef.current * 4 * speedMult) * 0.3;
+
+    if (isExploder && zombie.isAttacking) {
+      // Priming explosion pulse
+      const pulse = 1.0 + Math.sin(timeRef.current * 14) * 0.18;
+      groupRef.current.scale.set(pulse, pulse, pulse);
+      bodyMat.emissive.setHex(0xff6600);
+      bodyMat.emissiveIntensity = 2.5;
+    } else {
+      groupRef.current.scale.set(1, 1, 1);
+      bodyMat.emissive.setHex(0x000000);
+      bodyMat.emissiveIntensity = 0;
+    }
 
     if (leftArmRef.current) leftArmRef.current.rotation.x = zombie.isAttacking ? -1.2 : -0.5 + swing;
     if (rightArmRef.current) rightArmRef.current.rotation.x = zombie.isAttacking ? -1.2 : -0.5 - swing;

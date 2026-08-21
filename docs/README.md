@@ -31,6 +31,7 @@
 | [Design_Networking_Advanced.md](Design_Networking_Advanced.md) | Networking + anti-cheat |
 | [Design_UI_Flow_Geometry.md](Design_UI_Flow_Geometry.md) | Screens + map geometry |
 | [Design_CSS_UI_System.md](Design_CSS_UI_System.md) | HUD CSS |
+| [ZOMBIE_MODE.md](ZOMBIE_MODE.md) | Zombie Survival (Outpost Z-7, AI, PaP, Elemental, Wonder Weapon) |
 
 ---
 

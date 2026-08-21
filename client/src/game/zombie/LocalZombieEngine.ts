@@ -16,6 +16,7 @@ import {
   ZombieDifficulty,
   ZOMBIE_DIFFICULTIES,
   BarricadeState,
+  PAP_WEAPON_VARIANTS,
 } from "@cs-game/shared";
 import { useZombieStore } from "../../stores/useZombieStore";
 import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
@@ -230,9 +231,12 @@ export class LocalZombieEngine {
   }
 
   private determineType(wave: number): ZombieType {
-    if (wave >= 7 && Math.random() < 0.25) return "spitter";
-    if (wave >= 5 && Math.random() < 0.3) return "tank";
-    if (wave >= 3 && Math.random() < 0.4) return "runner";
+    if (wave < 3) return "walker";
+    const roll = Math.random();
+    if (wave >= 7 && roll < 0.15) return "spitter";
+    if (wave >= 5 && roll < 0.30) return "tank";
+    if (wave >= 4 && roll < 0.45) return "exploder";
+    if (wave >= 3 && roll < 0.60) return "runner";
     return "walker";
   }
 
@@ -261,6 +265,9 @@ export class LocalZombieEngine {
 
     this.zombies.set(id, zombie);
   }
+
+  private zombieDots = new Map<string, { type: "fire" | "poison"; damagePerSec: number; remainingSec: number; stacks: number }[]>();
+  private playerDots: { damagePerSec: number; remainingSec: number }[] = [];
 
   update(dt: number) {
     if (!this.active) return;
@@ -323,6 +330,45 @@ export class LocalZombieEngine {
       }
     }
 
+    // Process Player Acid DOTs
+    for (let i = this.playerDots.length - 1; i >= 0; i--) {
+      const dot = this.playerDots[i];
+      dot.remainingSec -= dt;
+      this.damagePlayer(dot.damagePerSec * dt);
+      if (dot.remainingSec <= 0) {
+        this.playerDots.splice(i, 1);
+      }
+    }
+
+    // Process Zombie Elemental DOTs
+    this.zombieDots.forEach((dots, zId) => {
+      const z = this.zombies.get(zId);
+      if (!z || z.isDead) {
+        this.zombieDots.delete(zId);
+        return;
+      }
+      for (let i = dots.length - 1; i >= 0; i--) {
+        const dot = dots[i];
+        dot.remainingSec -= dt;
+        z.hp -= dot.damagePerSec * dt * (dot.stacks || 1);
+        if (z.hp <= 0) {
+          z.hp = 0;
+          z.isDead = true;
+          this.kills++;
+          useZombieNetworkStore.setState({ kills: this.kills });
+          zombieSounds.zombieDeath();
+          const baseKillPts = ZOMBIE_POINTS[z.type as ZombieType] || 50;
+          useZombieStore.getState().addPoints(baseKillPts);
+          this.zombieDots.delete(zId);
+          return;
+        }
+        if (dot.remainingSec <= 0) {
+          dots.splice(i, 1);
+        }
+      }
+      if (dots.length === 0) this.zombieDots.delete(zId);
+    });
+
     // Sync zombies and powerups to store for rendering
     useZombieStore.getState().setZombies(Array.from(this.zombies.values()).filter((z) => !z.isDead));
     useZombieStore.getState().setPowerUps(Array.from(this.powerUps.values()));
@@ -339,19 +385,79 @@ export class LocalZombieEngine {
       const dz = this.playerZ - zombie.z;
       const dist = Math.hypot(dx, dz);
 
-      // Rotate towards player
-      zombie.rotationY = Math.atan2(dx, dz);
+      // Spitter AI: Kiting & Ranged Acid Spit
+      if (zombie.type === "spitter") {
+        zombie.rotationY = Math.atan2(dx, dz);
+        if (dist < 5.0) {
+          // Kite away
+          zombie.isAttacking = false;
+          const nx = -dx / (dist || 1);
+          const nz = -dz / (dist || 1);
+          zombie.x += nx * zombie.speed * 0.7 * dt;
+          zombie.z += nz * zombie.speed * 0.7 * dt;
+        } else if (dist > 11.0) {
+          // Approach
+          zombie.isAttacking = false;
+          const nx = dx / (dist || 1);
+          const nz = dz / (dist || 1);
+          zombie.x += nx * zombie.speed * dt;
+          zombie.z += nz * zombie.speed * dt;
+        } else {
+          // In firing range (5-11m): spit attack
+          const lastAtk = this.lastZombieAttackTimes.get(zombie.id) || 0;
+          if (now - lastAtk >= 2200) {
+            this.lastZombieAttackTimes.set(zombie.id, now);
+            zombie.isAttacking = true;
+            this.damagePlayer(12 * diffCfg.zombieDamage);
+            this.playerDots.push({ damagePerSec: 2, remainingSec: 3 });
+            zombieSounds.zombieHit();
+          } else {
+            zombie.isAttacking = false;
+          }
+        }
+        return;
+      }
 
+      // Exploder AI: Move close then prime and explode
+      if (zombie.type === "exploder") {
+        zombie.rotationY = Math.atan2(dx, dz);
+        if (dist <= 4.0) {
+          zombie.isAttacking = true;
+          const lastAtk = this.lastZombieAttackTimes.get(zombie.id) || 0;
+          if (lastAtk === 0) {
+            this.lastZombieAttackTimes.set(zombie.id, now);
+          } else if (now - lastAtk >= 1500) {
+            // Detonate
+            zombie.isDead = true;
+            zombie.hp = 0;
+            zombieSounds.zombieDeath();
+            if (dist <= 5.0) {
+              const dmg = Math.round(60 * (1 - dist / 5.0) * diffCfg.zombieDamage);
+              if (dmg > 0) this.damagePlayer(dmg);
+            }
+            return;
+          }
+        } else {
+          zombie.isAttacking = false;
+          this.lastZombieAttackTimes.delete(zombie.id);
+          const nx = dx / (dist || 1);
+          const nz = dz / (dist || 1);
+          zombie.x += nx * zombie.speed * dt;
+          zombie.z += nz * zombie.speed * dt;
+        }
+        return;
+      }
+
+      // Standard / Boss Melee Behavior
+      zombie.rotationY = Math.atan2(dx, dz);
       const attackRange = zombie.type === "boss" ? 3.0 : 1.6;
 
       if (dist > attackRange) {
         zombie.isAttacking = false;
-        // Move towards player
         const moveStep = zombie.speed * dt;
         zombie.x += (dx / (dist || 1)) * moveStep;
         zombie.z += (dz / (dist || 1)) * moveStep;
       } else {
-        // Attack player with cooldown
         zombie.isAttacking = true;
         const lastAtk = this.lastZombieAttackTimes.get(zombie.id) || 0;
         const cooldown = zombie.type === "runner" ? 800 : 1200;
@@ -444,7 +550,8 @@ export class LocalZombieEngine {
       let damage = isHeadshot ? (stats.headshot || stats.dmg * 2) : stats.dmg;
 
       // Pack-a-Punch multiplier
-      if (useWeaponStore.getState().hasPackAPunch || this.papWeapons.has(activeWeapon)) {
+      const isPaP = useWeaponStore.getState().hasPackAPunch || this.papWeapons.has(activeWeapon);
+      if (isPaP) {
         damage = Math.floor(damage * 1.5);
       }
 
@@ -455,6 +562,10 @@ export class LocalZombieEngine {
 
       targetZombie.hp -= damage;
       zombieSounds.zombieHit();
+
+      const isArcCaster = activeWeapon === "arccaster";
+      const variant = PAP_WEAPON_VARIANTS[activeWeapon];
+      const effect = isArcCaster ? "chain_lightning" : (isPaP ? variant?.effect : null);
 
       if (targetZombie.hp <= 0) {
         targetZombie.hp = 0;
@@ -476,10 +587,95 @@ export class LocalZombieEngine {
         if (Math.random() < 0.07) {
           this.spawnPowerUp(targetZombie.x, targetZombie.z);
         }
+
+        // Explosive M4A4 kill effect
+        if (effect === "explosive") {
+          this.zombies.forEach((other) => {
+            if (other.id === targetZombie.id || other.isDead) return;
+            const dist = Math.hypot(other.x - targetZombie.x, other.z - targetZombie.z);
+            if (dist <= 3.0) {
+              other.hp -= Math.round(40 * (1 - dist / 3.0));
+              if (other.hp <= 0) {
+                other.hp = 0;
+                other.isDead = true;
+                this.kills++;
+                useZombieStore.getState().addPoints(ZOMBIE_POINTS.walker);
+              }
+            }
+          });
+        }
       } else {
         // Hit points
         const doubleMult = useZombieStore.getState().activePowerUp === "double_points" ? 2 : 1;
         useZombieStore.getState().addPoints(ZOMBIE_POINTS.assistDamage * doubleMult);
+      }
+
+      // Chain lightning (Arc Caster / AWP Thunderbolt)
+      if (effect === "chain_lightning") {
+        let maxChains = isArcCaster ? 2 : 3;
+        let chainDmg = Math.round(damage * (isArcCaster ? 0.6 : 0.7));
+        this.zombies.forEach((other) => {
+          if (other.id === targetZombie.id || other.isDead || maxChains <= 0) return;
+          const dist = Math.hypot(other.x - targetZombie.x, other.z - targetZombie.z);
+          if (dist <= 6.0) {
+            maxChains--;
+            other.hp -= chainDmg;
+            if (other.hp <= 0) {
+              other.hp = 0;
+              other.isDead = true;
+              this.kills++;
+              useZombieStore.getState().addPoints(ZOMBIE_POINTS.walker);
+            }
+          }
+        });
+      }
+
+      // Fire DoT (AK-117, Tec-9)
+      if (effect === "fire_dot") {
+        const dots = this.zombieDots.get(targetZombie.id) ?? [];
+        dots.push({ type: "fire", damagePerSec: 4, remainingSec: 3, stacks: 1 });
+        this.zombieDots.set(targetZombie.id, dots);
+      }
+
+      // Poison DoT (MP5-K, AutoPistol)
+      if (effect === "poison_dot") {
+        const dots = this.zombieDots.get(targetZombie.id) ?? [];
+        let pDot = dots.find((d) => d.type === "poison");
+        if (pDot) {
+          pDot.stacks = Math.min(3, pDot.stacks + 1);
+          pDot.remainingSec = 4;
+        } else {
+          dots.push({ type: "poison", damagePerSec: 2, remainingSec: 4, stacks: 1 });
+        }
+        this.zombieDots.set(targetZombie.id, dots);
+      }
+
+      // Pierce (Deagle)
+      if (effect === "pierce") {
+        let count = 0;
+        this.zombies.forEach((other) => {
+          if (other.id === targetZombie.id || other.isDead || count >= 2) return;
+          const toOther = new THREE.Vector3(other.x, other.y + 0.9, other.z).sub(origin);
+          const pDot = toOther.dot(dir);
+          if (pDot > closestDist && pDot < 80) {
+            const pClosest = new THREE.Vector3().copy(origin).addScaledVector(dir, pDot);
+            if (pClosest.distanceTo(new THREE.Vector3(other.x, other.y + 0.9, other.z)) < 1.0) {
+              count++;
+              other.hp -= Math.round(damage * 0.8);
+              if (other.hp <= 0) {
+                other.hp = 0;
+                other.isDead = true;
+                this.kills++;
+                useZombieStore.getState().addPoints(ZOMBIE_POINTS.walker);
+              }
+            }
+          }
+        });
+      }
+
+      // Stun (Glock)
+      if (effect === "stun") {
+        targetZombie.speed = Math.max(0.5, targetZombie.speed * 0.4);
       }
     }
   }
@@ -698,6 +894,7 @@ export class LocalZombieEngine {
         zombieSounds.purchase();
       }, 3000);
     }
+    return rolledWeapon;
   }
 
   handlePackAPunch() {

@@ -4,639 +4,357 @@
 
 1. [Overview](#overview)
 2. [Game Flow](#game-flow)
-3. [Controls](#controls)
-4. [Weapons](#weapons)
-5. [Zombie Types](#zombie-types)
-6. [Wave System](#wave-system)
+3. [Controls & Interactive Hotkeys](#controls--interactive-hotkeys)
+4. [Weapons & Wonder Weapons](#weapons--wonder-weapons)
+5. [Zombie Types & AI Behaviors](#zombie-types--ai-behaviors)
+6. [Wave System & Progression](#wave-system--progression)
 7. [Shop & Economy](#shop--economy)
 8. [Perks](#perks)
-9. [Pack-a-Punch](#pack-a-punch)
+9. [Pack-a-Punch & Elemental Effects](#pack-a-punch--elemental-effects)
 10. [Mystery Box](#mystery-box)
-11. [Map & Areas](#map--areas)
-12. [Barricades](#barricades)
-13. [Extraction](#extraction)
+11. [Map & 3D Facility Architecture (Outpost Z-7)](#map--3d-facility-architecture-outpost-z-7)
+12. [Doorway Barricades & Horde Funneling](#doorway-barricades--horde-funneling)
+13. [Extraction System](#extraction-system)
 14. [Power-Ups](#power-ups)
-15. [Difficulties](#difficulties)
+15. [Difficulty Levels](#difficulty-levels)
 16. [Scoring & Leaderboard](#scoring--leaderboard)
-17. [Technical Architecture](#technical-architecture)
+17. [Technical Architecture & Local Simulation Engine](#technical-architecture--local-simulation-engine)
 
 ---
 
 ## Overview
 
-Zombie Survival Mode is a cooperative PvE mode where 1+ players fight endless waves of zombies in the "Outpost Z-7" arena. Between waves, players buy weapons, perks, and upgrades to survive increasingly difficult rounds. The mode features a buy phase system, multiple zombie types, a Pack-a-Punch upgrade station, mystery box, barricades, and an extraction system.
+Zombie Survival Mode is a high-intensity, cooperative PvE and solo survival mode where players fight endless waves of the undead inside the fortified research facility **"Outpost Z-7"**. Between waves, players use points earned in combat to buy firearms, unlock specialized perks, fortify doorway barricades, unlock security sectors, spin the Mystery Box for Wonder Weapons, and upgrade their arsenal at the Pack-a-Punch forge.
 
-**Core Loop:** Fight zombies → Earn points → Buy gear → Survive harder waves → Extract or die trying.
+**Core Loop:** Fight zombie hordes → Earn combat points → Unlock facility sectors & buy upgrades → Survive special waves & boss encounters → Call helicopter extraction or fight to the last stand.
 
 ---
 
 ## Game Flow
 
-### 1. Lobby
+### 1. Lobby & Difficulty Selection
 
-When entering zombie mode, the `ZombieLobbySetup` screen appears with 4 difficulty cards:
+When entering Zombie Survival, the deployment lobby presents 4 selectable difficulty configurations:
 
-| Difficulty | Description |
-|------------|-------------|
-| **Casual** | 0.8x zombie HP/damage, 1.25x points, 5 solo revives |
-| **Normal** | Standard experience, 3 solo revives |
-| **Hardcore** | 1.15x HP, 1.2x speed, 1.3x damage, 1 solo revive |
-| **Nightmare** | 1.35x HP, 1.3x speed, 1.5x damage, 0 solo revives |
+| Difficulty | Multipliers | Solo Revives | Description |
+|------------|-------------|--------------|-------------|
+| **Casual** | 0.8× HP/damage, 1.25× points | 5 | For beginner training and relaxed exploration. |
+| **Normal** | 1.0× HP/speed/damage, 1.0× points | 3 | The standard balanced tactical survival experience. |
+| **Hardcore** | 1.15× HP, 1.2× speed, 1.3× damage | 1 | Fast and punishing; tight ammo and resource economy. |
+| **Nightmare** | 1.35× HP, 1.3× speed, 1.5× damage | 0 | Ultimate test of skill; no solo self-revives allowed. |
 
-Player clicks "DEPLOY TO OUTPOST Z-7" to connect to the server and start.
+### 2. Spawn & Initial Loadout
 
-### 2. Spawn
+- **Spawn Location:** `(0, 0, -30)` inside the fortified Safe House.
+- **Starting Equipment:** Deagle pistol (14/70 ammo) + Standard Combat Knife.
+- **Initial Bank:** 500 points (on Normal difficulty).
+- **Initial Prep Window:** 5 seconds before Wave 1 begins.
 
-- Player spawns at `(0, 0, -30)` inside the Safe House
-- Equipped with Deagle (14/70 ammo) + Knife
-- Starts with 500 points (normal difficulty)
-- First wave has a 5-second delay before starting
+### 3. Wave Lifecycle State Machine
 
-### 3. Wave State Machine
-
+```mermaid
+graph LR
+    waiting --> buy_phase
+    buy_phase --> spawning
+    spawning --> active
+    active --> wave_clear
+    wave_clear --> buy_phase
 ```
-waiting → buy_phase → spawning → active → wave_clear → buy_phase → ...
-```
 
-| State | Description |
-|-------|-------------|
-| **waiting** | Game not started or after game over |
-| **buy_phase** | 15s timer (5s for first wave). Buy weapons, perks, ammo |
-| **spawning** | Zombies spawn over 10s with calculated intervals |
-| **active** | All zombies spawned. Fight until all dead |
-| **wave_clear** | Rest period (20s, decreases with wave). Wave clear bonus awarded |
+| State | Duration | Description |
+|-------|----------|-------------|
+| **waiting** | Idle | Game not yet started or reset after a run. |
+| **buy_phase** | 15s (5s on Wave 1) | Free preparation window to buy weapons, perks, armor, and repair boards. Press `[SPACE]` to skip. |
+| **spawning** | 10s | Zombies dynamically stream into the facility from unlocked perimeter spawn zones. |
+| **active** | Variable | Horde is fully engaged. Players must eliminate all remaining hostiles. |
+| **wave_clear** | 4–5s | All hostiles eliminated. Wave completion bonus points are awarded. |
 
-### 4. Game Over
+### 4. Game End Conditions
 
-Three ways the game ends:
-
-1. **Team Wipe**: All players dead/downed simultaneously → Game Over screen
-2. **Solo Death**: Downed timer (30s) expires with no revives left → Game Over
-3. **Extraction Victory**: All alive players reach helipad within 30s → Victory screen
+1. **Extraction Victory:** All surviving players reach the Helipad zone `(0, 0, 30)` within the 30-second evacuation timer (+5,000 bonus points).
+2. **Team Wipe:** All players are downed or dead simultaneously → Game Over summary screen.
+3. **Solo Bleedout:** Downed timer (30s) expires with no solo revives remaining → Game Over.
 
 ---
 
-## Controls
+## Controls & Interactive Hotkeys
 
-| Key | Action |
-|-----|--------|
-| **WASD** | Move |
-| **Left Click** | Shoot |
-| **R** | Reload |
-| **F** (tap) | Interact with nearby object |
-| **F** (hold) | Revive downed teammate |
-| **1 / Numpad1** | Switch to primary weapon |
-| **2 / Numpad2** | Switch to secondary weapon |
-| **3 / Numpad3** | Switch to knife |
-| **Scroll Wheel** | Cycle weapons (1→2→3→1) |
-| **Space** | Start next wave (during buy_phase) |
-| **B** | Toggle Weapon Shop |
-| **TAB / L** | Toggle Leaderboard |
-| **ESC** | Toggle Settings/Pause |
-| **M** | Toggle Minimap |
+The HUD features both direct keyboard hotkeys and interactive, clickable HUD badges:
 
-### Interaction Priority (F key)
-
-When pressing F, the game checks in this order:
-
-1. **Revive ally** — Hold F near downed teammate (within 3m)
-2. **Mystery Box** — Within 4m of mystery box location
-3. **Pack-a-Punch** — Within 4m of PaP location
-4. **Repair barricade** — Within 4m of damaged barricade
-5. **Unlock area** — Near a locked door with enough points
-6. **Call extraction** — Within 14m of helipad (if available)
+| Key / Control | Action | Functionality |
+|---------------|--------|---------------|
+| **WASD** | Movement | Walk / strafe through corridors and doorways. |
+| **Left Click** | Attack | Fire active weapon / swing knife. |
+| **Right Click** | Aim (ADS) | Align iron sights on crosshair for tighter bullet spread. |
+| **R** | Reload | Reload active magazine from reserve ammo. |
+| **[F]** (Tap) | Contextual Use | Interact with Mystery Box, Pack-a-Punch, Barricades, Door Locks, and Helipad. |
+| **[F]** (Hold) | Revive Ally | Hold near a downed teammate (within 3m) to revive them. |
+| **[B]** | Weapon Shop | Opens the armory shop UI to purchase weapons, ammo, armor, and perks. |
+| **[TAB] / [L]** | Leaderboard | Opens real-time match scoreboard and local high scores. |
+| **[SPACE]** | Skip Buy Phase | Instantly ends buy phase / wave clear rest and starts next wave. |
+| **1 / 2 / 3** | Weapon Slots | Primary (`1`), Secondary (`2`), Knife Melee (`3`). |
+| **Scroll Wheel** | Cycle Weapons | Seamlessly cycle through carried arsenal. |
+| **[ESC]** | Menu / Settings | Opens settings, audio volume, and sensitivity configuration. |
 
 ---
 
-## Weapons
+## Weapons & Wonder Weapons
 
 ### Primary Weapons
 
-| Weapon | Damage | Headshot | Fire Rate | Mag | Reload | Reserve | Price |
-|--------|--------|----------|-----------|-----|--------|---------|-------|
-| **AK-47** | 35 | 100 | 10 rps | 30 | 2.4s | 90 | 1,200 |
-| **M4A1** | 31 | 92 | 11 rps | 25 | 3.1s | 75 | 1,400 |
-| **AWP** | 115 | 115 | 0.83 rps | 5 | 3.7s | 30 | 2,500 |
-| **MP5** | 24 | 72 | 10.5 rps | 30 | 2.1s | 120 | 800 |
+| Weapon | Type | Damage | Headshot | Fire Rate | Mag | Reload | Reserve | Price |
+|--------|------|--------|----------|-----------|-----|--------|---------|-------|
+| **AK-47** | Rifle | 35 | 100 | 10.0 rps | 30 | 2.4s | 90 | 1,200 |
+| **M4A1** | Rifle | 31 | 92 | 11.0 rps | 25 | 3.1s | 75 | 1,400 |
+| **AWP** | Sniper | 115 | 115 | 0.83 rps | 5 | 3.7s | 30 | 2,500 |
+| **MP5** | SMG | 24 | 72 | 10.5 rps | 30 | 2.1s | 120 | 800 |
+
+### Wonder Weapons (Mystery Box Exclusive)
+
+| Weapon | Type | Damage | Headshot | Fire Rate | Mag | Reload | Reserve | Special Feature |
+|--------|------|--------|----------|-----------|-----|--------|---------|-----------------|
+| **Arc Caster** | Wonder Weapon | 40 | 40 | 3.2 rps | 12 | 2.8s | 36 | **Tesla Arc:** Direct hits automatically chain high-voltage lightning to 2 adjacent zombies within 5m dealing 60% damage. |
 
 ### Secondary Weapons
 
-| Weapon | Damage | Headshot | Fire Rate | Mag | Reload | Reserve | Price |
-|--------|--------|----------|-----------|-----|--------|---------|-------|
-| **Glock** | 22 | 78 | 8 rps | 20 | 1.8s | 120 | 200 |
-| **Tec-9** | 18 | 65 | 12 rps | 18 | 1.6s | 90 | 500 |
-| **Auto Pistol** | 20 | 70 | 9 rps | 15 | 1.5s | 90 | 500 |
-| **Deagle** | 53 | 100 | 3.33 rps | 14 | 2.2s | 70 | 400 |
-
-### Melee
-
-| Weapon | Damage | Fire Rate | Price |
-|--------|--------|-----------|-------|
-| **Knife** | 50 | 2 rps | Free |
-| **Combat Knife** | 55 | 2.5 rps | 500 |
-
-### Ammo Refill
-
-- **Price:** 500 points
-- **Effect:** Refills magazine + 2x reserve ammo for current weapon
-- **Cap:** Maximum reserve capped at magazine size × 5
+| Weapon | Type | Damage | Headshot | Fire Rate | Mag | Reload | Reserve | Price |
+|--------|------|--------|----------|-----------|-----|--------|---------|-------|
+| **Deagle** | Pistol | 53 | 100 | 3.33 rps | 14 | 2.2s | 70 | 400 |
+| **Glock** | Pistol | 22 | 78 | 8.0 rps | 20 | 1.8s | 120 | 200 |
+| **Tec-9** | Pistol | 18 | 65 | 12.0 rps | 18 | 1.6s | 90 | 500 |
+| **Auto Pistol** | Pistol | 20 | 70 | 9.0 rps | 15 | 1.5s | 90 | 500 |
 
 ---
 
-## Zombie Types
+## Zombie Types & AI Behaviors
 
-| Type | HP | Speed | Damage | Color | Scale | Unlock Wave |
-|------|-----|-------|--------|-------|-------|-------------|
-| **Walker** | 100 | 2.5 | 15 | Dark green | 0.9x | 1 |
-| **Runner** | 60 | 5.0 | 10 | Brown | 0.75x | 3 |
-| **Tank** | 400 | 1.5 | 30 | Dark gray | 1.3x | 5 |
-| **Spitter** | 80 | 2.0 | 5 | Yellow-green | 0.85x | 7 |
-| **Boss** | 8,000 | 2.8 | 60 | Dark red | 2.2x | 10 (every 5 waves) |
-
-### Scaling
-
-Zombie stats scale with wave number:
-
-- **HP:** `base_hp × (1 + (wave-1) × 0.15) × difficulty_hp_multiplier`
-- **Speed:** `base_speed × (1 + (wave-1) × 0.03) × difficulty_speed_multiplier`
-
-### Behavior
-
-| Type | Behavior |
-|------|----------|
-| **Walker** | Standard zombie. Moves toward nearest player, attacks on contact |
-| **Runner** | Fast but fragile. Rushes players quickly |
-| **Tank** | Slow but tanky. High damage, high HP |
-| **Spitter** | Ranged attacker. Spits at distance |
-| **Boss** | 3 attack patterns: Leap (dash), Area Stomp (AoE), Heavy Melee |
-
-### Boss Special Attacks
-
-Boss zombies have 3 attack patterns based on cooldown:
-
-1. **Leap** (range 3-10m): 2.5× speed dash toward player
-2. **Area Stomp** (range < 2.5m): Damages all nearby players
-3. **Heavy Melee** (range < 2m): Slower but high-damage hit
-
-### Visual Differences
-
-- **Boss**: 2.2× scale, chest plate, shoulder pads, 4 glowing eyes, ground aura ring, larger health bar with HP text
-- **Walker**: Standard 0.9× scale, dark green
-- **Runner**: Smaller 0.75× scale, brown, faster limb animation
-- **Tank**: Larger 1.3× scale, dark gray, heavy build
-- **Spitter**: 0.85× scale, yellow-green
+| Type | Base HP | Speed | Base Damage | Visual Indicator | Unlock Wave | Special Mechanics |
+|------|---------|-------|-------------|------------------|-------------|-------------------|
+| **Walker** | 100 | 2.5 | 15 | Dark Olive Green | Wave 1 | Standard melee horde infantry. Funnels toward nearest survivor. |
+| **Runner** | 60 | 5.0 | 10 | Rust Brown | Wave 3 | Fast sprinter. Quickly closes distances and flanks survivors. |
+| **Exploder** | 150 | 1.8 | 60 (AoE) | Glowing Olive-Yellow | Wave 4 | **Priming Kamikaze:** When within 4m of player/barricade, stops and primes for 1.5s (pulsing glow). Detonates for 60 AoE damage unless eliminated first. |
+| **Tank** | 400 | 1.5 | 30 | Heavy Slate Gray | Wave 5 | Massive damage sponge. Destroys barricade boards with 30 damage per hit. |
+| **Spitter** | 80 | 2.0 | 12 + DOT | Chartreuse Green | Wave 7 | **Ranged Kiting AI:** Maintains 5–11m distance. Spits acid projectile every 2.2s (12 dmg + 3s Acid DOT). Retreats backwards if player closes within 5m. |
+| **Boss** | 8,000 | 2.8 | 60 | Crimson & Black Plate | Wave 10+ (Every 5) | **3 Attack Modes:** Leap Dash (range 3–10m), Ground Stomp AoE (range < 2.5m), and Heavy Melee. Summons reinforcements at 75%, 50%, and 25% HP. |
 
 ---
 
-## Wave System
+## Wave System & Progression
 
-### Wave Composition
+### Wave Composition & Spawn Scaling
 
-| Wave | Total Zombies | Formula |
-|------|---------------|---------|
-| 1 | 6 | baseZombieCount |
-| 2 | 10 | 6 + 1×4 |
-| 3 | 14 | 6 + 2×4 |
-| 5 | 22 | 6 + 4×4 |
-| 10 | 42 | 6 + 9×4 |
-| 20 | 82 | 6 + 19×4 |
+The total zombie count per wave scales according to:
+$$\text{Zombies} = 6 + (\text{Wave} - 1) \times 4$$
 
-**Formula:** `baseZombieCount (6) + (wave - 1) × zombiesPerWave (4)`
+- **HP Scaling:** $\text{Base HP} \times [1 + (\text{Wave} - 1) \times 0.15] \times \text{Difficulty Multiplier}$
+- **Speed Scaling:** $\text{Base Speed} \times [1 + (\text{Wave} - 1) \times 0.03] \times \text{Difficulty Multiplier}$
 
-### Boss Waves (every 5 waves)
+### Type Distribution Table
 
-Boss waves modify the composition:
-
-- Regular zombies: `count × 0.6` (40% reduction)
-- Boss zombies: `2 + floor(wave / 5)`
-- Example Wave 10: 25 regulars + 4 bosses = 29 total
-
-### Spawn System
-
-- **Active spawn points** scale with wave:
-  - Waves 1-2: 1 spawn point
-  - Waves 3-5: 2 spawn points
-  - Waves 6-8: 3 spawn points
-  - Waves 9+: 4 spawn points
-- **Spawn duration**: 10 seconds (zombies drip-feed)
-- **8 spawn locations** around arena edges
-
-### Zombie Type Selection
-
-| Wave | Available Types |
-|------|-----------------|
-| 1-2 | Walker only |
-| 3-4 | Walker (60%), Runner (40%) |
-| 5-6 | Walker (35%), Runner (40%), Tank (25%) |
-| 7+ | Walker (30%), Runner (30%), Tank (25%), Spitter (15%) |
-
-### Wave Clear Bonus
-
-- **Base**: 500 + wave × 100 points per living player
-- **Boss wave bonus**: Additional 1000 + wave × 200 points
-
-### Inter-Wave Timer
-
-- Starts at 20 seconds
-- Decreases with wave number
-- Minimum: 12 seconds
+| Waves | Walker | Runner | Exploder | Tank | Spitter | Boss |
+|-------|--------|--------|----------|------|---------|------|
+| **1 – 2** | 100% | — | — | — | — | — |
+| **3** | 60% | 40% | — | — | — | — |
+| **4** | 45% | 40% | 15% | — | — | — |
+| **5 – 6** | 30% | 30% | 15% | 25% | — | — |
+| **7 – 9** | 20% | 25% | 15% | 25% | 15% | — |
+| **10, 15, 20+** | 15% | 20% | 15% | 20% | 15% | 2 + $\lfloor \text{Wave} / 5 \rfloor$ Bosses |
 
 ---
 
 ## Shop & Economy
 
-### Weapon Shop (press B)
+### Points Economy Table
 
-Two tabs: **Weapons** and **Perks**
-
-#### Weapons Tab
-
-| Item | Price | Category |
-|------|-------|----------|
-| Glock | 200 | Secondary |
-| Deagle | 400 | Secondary |
-| Tec-9 | 500 | Secondary |
-| Auto Pistol | 500 | Secondary |
-| MP5 | 800 | Primary |
-| AK-47 | 1,200 | Primary |
-| M4A1 | 1,400 | Primary |
-| AWP | 2,500 | Primary |
-| Combat Knife | 500 | Melee |
-| Ammo Refill | 500 | Utility |
-| Armor (100) | 750 | Utility |
-
-#### Perks Tab
-
-| Perk | Price |
-|------|-------|
-| Juggernog | 2,500 |
-| Speed Cola | 3,000 |
-| Double Tap | 2,000 |
-| Quick Revive | 1,500 |
-
-### Point Sources
-
-| Event | Points |
-|-------|--------|
-| Walker kill | 50 |
-| Runner kill | 75 |
-| Tank kill | 150 |
-| Spitter kill | 100 |
-| Boss kill | 500 |
-| Headshot bonus | +25 |
-| Knife kill bonus | +100 |
-| Assist damage | +10 |
-| Revive ally | +250 |
-| Barricade repair | +10 |
-| Wave clear (base) | 500 |
-| Wave clear (per wave) | +100 |
-| Extraction bonus | +5,000 |
+| Action / Event | Points Earned |
+|----------------|---------------|
+| Walker Kill | +50 pts |
+| Runner Kill | +75 pts |
+| Exploder Kill | +80 pts |
+| Tank Kill | +150 pts |
+| Spitter Kill | +100 pts |
+| Boss Kill | +500 pts |
+| Headshot Bonus | +25 pts |
+| Knife Kill Bonus | +100 pts |
+| Bullet Hit (Assist) | +10 pts |
+| Barricade Board Repair | +10 pts |
+| Ally Revive | +250 pts |
+| Wave Clear Bonus | $500 + (\text{Wave} \times 100)$ pts |
+| Extraction Success | +5,000 pts |
 
 ---
 
 ## Perks
 
-| Perk | Price | Effect |
-|------|-------|--------|
-| **Juggernog** | 2,500 | +100 HP (200 total). On revive: 150 HP (vs 100 without) |
-| **Speed Cola** | 3,000 | 50% faster reload speed |
-| **Double Tap** | 2,000 | 1.33× fire rate (25% faster shooting) |
-| **Quick Revive** | 1,500 | 1.5s revive time (vs 3.0s). Solo: +1 extra self-revive |
+Vending machines are stationed in the Safe House and Armory:
 
-### Perk Details
-
-**Juggernog**
-- Increases max HP from 100 to 200
-- On revive, restores to 150 HP instead of 100 HP
-- Visual: Blue perk icon in HUD
-
-**Speed Cola**
-- Halves all reload times
-- AWP reload drops from 3.7s to 1.85s
-- Visual: Green perk icon in HUD
-
-**Double Tap**
-- Multiplies fire rate by 1.33
-- AK-47 goes from 10 rps to 13.3 rps
-- Bypasses fire-rate anti-cheat check
-- Visual: Orange perk icon in HUD
-
-**Quick Revive**
-- Revive time reduced from 3.0s to 1.5s
-- In solo mode: grants 1 extra self-revive life
-- Visual: Cyan perk icon in HUD
+| Perk | Price | Color | Gameplay Effect |
+|------|-------|-------|-----------------|
+| **Juggernog** | 2,500 pts | Red | Boosts max HP from 100 to 200. Restores 150 HP on revive. |
+| **Speed Cola** | 3,000 pts | Green | Cuts all weapon reload times by 50%. |
+| **Double Tap** | 2,000 pts | Orange | Increases fire rate by 33% (25% faster cooldown). |
+| **Quick Revive** | 1,500 pts | Cyan | Reduces ally revive time from 3.0s to 1.5s. In solo mode, grants +1 extra self-revive. |
 
 ---
 
-## Pack-a-Punch
+## Pack-a-Punch & Elemental Effects
 
-**Location:** Center of arena at `(0, 0)`
-**Price:** 5,000 points
+**Station Location:** Central Armory Hub `(0, 0, 0)`  
+**Price:** 5,000 points  
+**Base Upgrades:** 1.5× Damage multiplier, 2× magazine capacity, 2× reserve ammo, and dual-wield akimbo for pistols.
 
-### Upgrade Effects
+### Active Elemental Combat Effects
 
-- **Damage**: 1.5× multiplier on all shots
-- **Ammo**: 2× magazine size and reserve ammo
-- **Dual Wield**: Pistol-class weapons become dual-wielded (1→2 weapons)
-
-### Dual Wield Weapons
-
-After Pack-a-Punch, these pistols become akimbo:
-
-| Weapon | Dual Wield |
-|--------|------------|
-| Deagle | 2× Deagle (alternating fire) |
-| Glock | 2× Glock (alternating fire) |
-| Tec-9 | 2× Tec-9 (alternating fire) |
-| Auto Pistol | 2× Auto Pistol (alternating fire) |
-
-### Pack-a-Punch Variants
-
-| Base Weapon | Upgraded Name | Effect | Color |
-|-------------|--------------|--------|-------|
-| AK-47 | AK-117 Inferno | Fire DOT | #ff4500 |
-| M4A1 | M4A4 Hellfire | Explosive | #ff8c00 |
-| AWP | AWP Thunderbolt | Chain Lightning | #00bfff |
-| MP5 | MP5-K Venom | Poison DOT | #32cd32 |
-| Deagle | Deagle Apocalypse | Pierce | #9932cc |
-| Glock | Glock Radiance | Stun | #00ffcc |
-| Tec-9 | Tec-9 Overload | Fire DOT | #ff6347 |
-| Auto Pistol | Auto Pistol Venom | Poison DOT | #7cfc00 |
-
-### Visual Effects
-
-- Purple point light glow on the weapon model when PaP is active
-- HUD shows weapon name with star icon (e.g., "AK-47 ⭐")
+| Base Weapon | PaP Variant Name | Elemental Effect | Combat Behavior |
+|-------------|------------------|------------------|-----------------|
+| **AK-47** | **AK-117 Inferno** | `fire_dot` | Inflicts 3s burning DOT (4 dmg/s) on target; fire spreads to adjacent zombies within 2m. |
+| **M4A1** | **M4A4 Hellfire** | `explosive` | Killing a zombie triggers a 40 AoE explosive blast damaging all hostiles within 3m. |
+| **AWP** | **AWP Thunderbolt** | `chain_lightning` | Direct hits discharge electrical arcs striking up to 3 adjacent zombies within 6m (-30% dmg per chain). |
+| **MP5** | **MP5-K Venom** | `poison_dot` | Applies stackable neurotoxin (2 dmg/s per stack, up to 3 stacks = 6 dmg/s for 4s). |
+| **Deagle** | **Deagle Apocalypse** | `pierce` | High-velocity round pierces up to 2 zombies lined up behind the primary target. |
+| **Glock** | **Glock Radiance** | `stun` | Shocks and slows affected zombie movement speed by 60% for 2.5 seconds. |
+| **Arc Caster** | **Arc Caster Overcharge** | `chain_lightning` | Enhanced Tesla discharge chains to 3 hostiles with 80% cascading damage. |
 
 ---
 
 ## Mystery Box
 
-**Location:** `(0, 5)`
-**Price:** 950 points (10 during Fire Sale)
+**Station Location:** Courtyard `(0, 0, 5)`  
+**Standard Price:** 950 points (10 points during Fire Sale power-up)  
+**Spin Duration:** 4.0 seconds
 
-### Weapon Weights
+### Weapon Probability Weights
 
-| Weapon | Weight | Chance |
-|--------|--------|--------|
-| MP5 | 25 | 25% |
-| AK-47 | 20 | 20% |
-| M4A1 | 20 | 20% |
-| Glock | 20 | 20% |
-| Deagle | 15 | 15% |
-| Tec-9 | 10 | 10% |
-| Auto Pistol | 10 | 10% |
-| AWP | 5 | 5% |
-
-### Spin Duration
-
-- 4 seconds of weapon cycling animation
-- Random weapon selected from weighted pool
-- Fire Sale power-up reduces cost to 10 points
+| Weapon | Tier | Pool Weight | Approx. Chance |
+|--------|------|-------------|----------------|
+| **MP5** | SMG | 25 | 24.0% |
+| **AK-47** | Rifle | 20 | 19.2% |
+| **M4A1** | Rifle | 20 | 19.2% |
+| **Glock** | Pistol | 20 | 19.2% |
+| **Deagle** | Pistol | 15 | 14.4% |
+| **Tec-9** | Pistol | 10 | 9.6% |
+| **Auto Pistol** | Pistol | 10 | 9.6% |
+| **AWP** | Sniper | 5 | 4.8% |
+| **Arc Caster** | Wonder Weapon | 4 | 3.8% |
 
 ---
 
-## Map & Areas
+## Map & 3D Facility Architecture (Outpost Z-7)
 
-### Arena Layout
+Outpost Z-7 is structured with 7 distinct physical 3D sectors equipped with Rapier physical colliders, doorways, and verticality:
 
-The arena is a 120×120 meter enclosed area with the following landmarks:
+```
+                      [ WATCH TOWER ] (Sniping Platform y:4.8)
+                             ▲
+                             │ (Stairs)
+  [ WEST WING ] ───► [ ARMORY HUB ] ◄─── [ EAST WING ]
+(Barracks Loop)        (Pack-a-Punch)      (Cargo Warehouse)
+       ▲                     │                    ▲
+       │                     ▼                    │
+[ SAFE HOUSE ] ◄─────────── [ ] ─────────────────► [ ]
+(Spawn & Perks)
+       │
+       ▼
+ [ HELIPAD ] (Extraction z:30)
+```
 
-| Landmark | Position | Description |
-|----------|----------|-------------|
-| **Safe House** | (0, 0, -40) | Spawn area with walls and roof |
-| **Helipad** | (0, 0, 50) | Extraction point. "H" marking on ground |
-| **Mystery Box** | (0, 5) | Random weapon station |
-| **Pack-a-Punch** | (0, 0) | Weapon upgrade station |
+1. **Safe House (`0, -40`):** Concrete fortification with interior warm lighting, perk machines, and 2 reinforced doorway exits covered by `barricade_1` and `barricade_2`.
+2. **East Wing (`25, -15`):** Industrial shipping container warehouse with stacked cargo crates and tight chokepoints.
+3. **West Wing (`-25, -15`):** L-shaped military barracks engineered for zombie train looping and kiting.
+4. **Armory Hub (`0, 0`):** Fortified central bunker housing the Pack-a-Punch forge with 3 connecting archways.
+5. **Watch Tower (`25, 25`):** 2-story steel observation platform with a walkable 35° staircase ramp, perimeter railings, and elevated sightlines for snipers.
+6. **Underground Bunker (`-25, 25`):** Heavy reinforced blast-door bunker with an entrance chokepoint covered by `barricade_6`.
+7. **Helipad (`0, 30`):** Elevated landing pad with dynamic status lighting (Red = Locked, Amber = Available, Green = Evacuating).
 
-### Unlockable Areas
+### Security Sector Unlock Costs
 
-Areas must be unlocked in order (prerequisites required):
-
-| Area | Price | Requires | Position | Radius |
-|------|-------|----------|----------|--------|
-| **Spawn** | Free | — | (0, -40) | 15m |
-| **East Wing** | 750 | Spawn | (20, -20) | 12m |
-| **West Wing** | 750 | Spawn | (-20, -20) | 12m |
-| **Armory** | 1,000 | East Wing | (0, 0) | 10m |
-| **Helipad Area** | 1,250 | West Wing | (0, 30) | 15m |
-| **Tower** | 1,500 | Armory | (25, 25) | 8m |
-| **Bunker** | 2,000 | Helipad Area | (-25, 25) | 10m |
-
-### Navigation
-
-- 20-node navmesh for A* pathfinding
-- Nodes connected via neighbor lists
-- Direct movement when distance < 4m
-- Barricade detection: zombies attack barricades within 2.2m
-
----
-
-## Barricades
-
-**6 barricade locations** around the arena protect key areas.
-
-### Mechanics
-
-| Property | Value |
-|----------|-------|
-| Max boards per barricade | 6 |
-| Hits per board | 2 |
-| Repair cooldown | 0.5s per board |
-| Points per repair | +10 |
-
-### Behavior
-
-- Zombies attack barricades when within 2.2m
-- Each hit destroys 1 hit-point (2 hits per board)
-- When all boards destroyed, zombies pass through
-- Players repair by pressing F near damaged barricade
-- Carpenter power-up repairs all barricades instantly
-
-### Visual
-
-- Wooden planks rendered at each barricade position
-- Board count shown as "Boards: X/6" or "BROKEN (0/6)"
-- Green/amber/red indicators based on remaining boards
+| Sector | Cost | Unlocks Pathway |
+|--------|------|-----------------|
+| **Safe House** | Free | Starting Sector |
+| **East Wing Warehouse** | 750 pts | East corridor to Armory |
+| **West Wing Barracks** | 750 pts | West corridor to Armory |
+| **Armory Central Hub** | 1,000 pts | Pack-a-Punch Forge |
+| **Helipad Access** | 1,250 pts | South evacuation zone |
+| **Watch Tower** | 1,500 pts | Elevated high-ground sniper perch |
+| **Underground Bunker** | 2,000 pts | High-density fortified fallback point |
 
 ---
 
-## Extraction
+## Doorway Barricades & Horde Funneling
 
-### Availability
+6 physical barricades are situated directly within facility doorframes to hold back incoming hordes:
 
-| Method | Condition | Cost |
-|--------|-----------|------|
-| **Auto-unlock** | Wave ≥ 10 | Free |
-| **Manual** | Wave ≥ 5 | 5,000 points |
+| ID | Location | Coordinates | Rotation | Function |
+|----|----------|-------------|----------|----------|
+| `barricade_1` | Safe House West Door | `x: -15, z: -35` | 0 rad | Seals West Wing entrance |
+| `barricade_2` | Safe House East Door | `x: 15, z: -35` | 0 rad | Seals East Wing entrance |
+| `barricade_3` | Armory South Archway | `x: 0, z: -10` | 0 rad | Protects Pack-a-Punch hub from South |
+| `barricade_4` | Armory East Corridor | `x: 10, z: 0` | 1.57 rad | Corrugated corridor to East Wing |
+| `barricade_5` | Armory West Corridor | `x: -10, z: 0` | 1.57 rad | Corrugated corridor to West Wing |
+| `barricade_6` | Bunker Stairwell Door | `x: -25, z: 18` | 0 rad | Fortifies single bunker entrance |
 
-### Extraction Process
+- **Capacity:** 6 wooden planks per barricade.
+- **Repair Time:** 0.5s per board (+10 points per repair).
+- **Zombies:** Must break through boards before entering rooms.
 
-1. Player calls extraction at helipad (within 14m)
-2. 30-second countdown timer starts
-3. **Surge waves** spawn every 5 seconds (runners + tanks)
-4. All alive players must reach helipad (within 12m radius)
-5. If all players reach helipad within 30s → **Victory**
-6. +5,000 bonus points per player on success
+---
 
-### Helipad Visual States
+## Extraction System
 
-- **Red**: Locked (extraction not available)
-- **Amber**: Available (can be called)
-- **Green**: Active (extraction in progress)
+Survivors can call an extraction chopper to escape Outpost Z-7 with high-score bonuses:
+
+- **Automatic Evac Available:** Wave 10+ (Free).
+- **Manual Early Evac:** Wave 5+ (Costs 5,000 points).
+- **Countdown:** 30 seconds once triggered.
+- **Surge Wave:** Continuous spawns of Runners and Tanks during evacuation.
+- **Requirement:** All living survivors must stand inside the 12m Helipad circle `(0, 0, 30)` when the timer reaches zero.
 
 ---
 
 ## Power-Ups
 
-Dropped by zombies on death with 15% chance.
+Zombies have a 15% chance to drop floating, glowing power-up emblems on death:
 
 | Power-Up | Duration | Effect |
 |----------|----------|--------|
-| **Max Ammo** | Instant | Full ammo for all players' current weapons |
-| **Nuke** | Instant | Kill all zombies on map, +400 pts per player |
-| **Insta Kill** | 30s | All damage becomes one-hit kill |
-| **Double Points** | 30s | All point gains doubled |
-| **Carpenter** | Instant | Repair all barricades to full, +200 pts per player |
-| **Fire Sale** | 30s | Mystery Box costs 10 points |
-
-### Visual
-
-- Each type has unique shape, color, and glow ring
-- Floats and rotates above spawn location
-- Auto-pickup when player within 2m
-- 30-second lifetime before despawn
+| **Max Ammo** | Instant | Instantly tops off magazines and reserve ammo for all players. |
+| **Nuke** | Instant | Detonates across the facility, killing all active zombies and awarding +400 pts. |
+| **Insta-Kill** | 30s | All firearm, melee, and elemental hits become lethal 1-shot kills. |
+| **Double Points** | 30s | Doubles all point earnings from kills, assists, and barricade repairs. |
+| **Carpenter** | Instant | Completely repairs all 6 barricades to full 6/6 boards and awards +200 pts. |
+| **Fire Sale** | 30s | Slashes Mystery Box spin cost to 10 points. |
 
 ---
 
-## Difficulties
+## Technical Architecture & Local Simulation Engine
 
-| Difficulty | Zombie HP | Zombie Speed | Zombie Damage | Point Multiplier | Solo Revives |
-|------------|-----------|--------------|---------------|------------------|--------------|
-| **Casual** | 0.8× | 1.0× | 0.8× | 1.25× | 5 |
-| **Normal** | 1.0× | 1.0× | 1.0× | 1.0× | 3 |
-| **Hardcore** | 1.15× | 1.2× | 1.3× | 1.0× | 1 |
-| **Nightmare** | 1.35× | 1.3× | 1.5× | 1.1× | 0 |
-
-### Difficulty Effects
-
-- HP multiplier affects zombie max HP calculation
-- Speed multiplier affects zombie movement speed
-- Damage multiplier affects zombie melee damage
-- Point multiplier affects all point gains
-- Solo revives: number of self-revive chances when downed in solo play
-
----
-
-## Scoring & Leaderboard
-
-### Score Formula
-
-```
-Score = (wave × 1,000) + (kills × 10) + (headshots × 25) + extraction_bonus
-```
-
-### Extraction Bonus
-
-- +5,000 points on successful extraction
-
-### Leaderboard
-
-- Stored in localStorage (client-side only)
-- Top 10 scores displayed
-- Shows: rank, nickname, score, wave, kills, date
-- Persisted across sessions
-
----
-
-## Technical Architecture
-
-### Monorepo Structure
+### Monorepo Layering
 
 ```
 cs-game/
-├── shared/          # Shared types, configs, schemas
-│   └── index.ts     # ZOMBIE_TYPES, WAVE_CONFIG, WEAPONS, etc.
-├── server/          # Colyseus game server
-│   └── src/
-│       ├── rooms/
-│       │   ├── ZombieSurvivalRoom.ts  # Main game room
-│       │   └── AntiCheatSystem.ts     # Anti-cheat validation
-│       ├── systems/
-│       │   └── WaveSystem.ts          # Wave state machine
-│       └── ai/
-│           ├── ZombieController.ts    # Zombie AI behavior
-│           └── Pathfinder.ts          # A* pathfinding
-└── client/          # React + Three.js client
+├── shared/                     # Authoritative schemas, WEAPONS, ZOMBIE_TYPES, PAP_WEAPON_VARIANTS
+├── server/
+│   ├── src/rooms/
+│   │   └── ZombieSurvivalRoom.ts # Authoritative Colyseus room (multiplayer ticks & DOT engine)
+│   └── src/ai/
+│       ├── ZombieController.ts   # Spitter kiting, Exploder priming, Boss attack state machine
+│       └── Pathfinder.ts         # A* NavMesh traversal
+└── client/
     └── src/
-        ├── screens/
-        │   └── ZombieSurvivalMode.tsx    # Main zombie screen
-        ├── stores/
-        │   ├── useZombieNetworkStore.ts  # Network state
-        │   └── useZombieStore.ts         # Game state
-        ├── game/
-        │   ├── zombie/
-        │   │   ├── ZombieRenderer.tsx     # 3D zombie rendering
-        │   │   └── PowerUpRenderer.tsx    # 3D power-up rendering
-        │   ├── map/
-        │   │   ├── ZombieArena.tsx        # 3D arena map
-        │   │   └── InteractiveBarricades.tsx
-        │   └── weapons/
-        │       ├── WeaponModel.tsx        # First-person weapon models
-        │       ├── weaponRig.ts           # Weapon positions/rotations
-        │       ├── ShootingSystem.tsx     # Hitscan shooting
-        │       └── ReloadSystem.tsx       # Reload logic
-        ├── ui/components/
-        │   ├── zombie/
-        │   │   ├── WeaponShop.tsx
-        │   │   ├── MysteryBox.tsx
-        │   │   ├── PackAPunch.tsx
-        │   │   ├── ZombieLobbySetup.tsx
-        │   │   ├── ZombieGameOver.tsx
-        │   │   ├── ZombieLeaderboard.tsx
-        │   │   ├── ZombieSettings.tsx
-        │   │   └── AreaUnlockUI.tsx
-        │   └── hud/
-        │       ├── WaveHUD.tsx
-        │       ├── PointsDisplay.tsx
-        │       ├── ExtractionHUD.tsx
-        │       └── ZombiePlayerHUD.tsx
-        └── components/
-            ├── ZombieMinimap.tsx
-            ├── ClickToPlayOverlay.tsx
-            └── DownedOverlay.tsx
+        ├── game/zombie/
+        │   ├── LocalZombieEngine.ts # Full offline singleplayer physics & wave simulation
+        │   └── ZombieRenderer.tsx   # 3D procedural animated zombie models with priming glows
+        ├── game/map/
+        │   ├── ZombieArena.tsx       # 7 physical 3D facility zones with Rapier colliders
+        │   └── InteractiveBarricades.tsx # 3D wooden board rendering
+        └── game/weapons/
+            ├── WeaponModel.tsx       # 3D viewmodels including Arc Caster Tesla weapon
+            └── weaponRig.ts          # ADS, akimbo offsets, and muzzle alignments
 ```
 
-### Server-Client Communication
+### Local Simulation Engine (`LocalZombieEngine.ts`)
 
-| Protocol | Purpose |
-|----------|---------|
-| **Colyseus Schema** | Real-time state sync (players, zombies, barricades) |
-| **Room Messages** | Client→Server actions (shoot, buy, interact) |
-| **Broadcast** | Server→Client events (wave start, power-up, game over) |
-
-### Game Tick
-
-Server runs at 30 ticks/second. Each tick:
-
-1. Update zombie AI with player + barricade positions
-2. Process barricade damage from zombie attacks
-3. Check zombie melee hits on players
-4. Update revive progression
-5. Update downed bleedout timers
-6. Check game over conditions
-7. Update extraction timer + surge spawning
-8. Update wave system
-9. Sync zombie positions to state
-10. Update power-up timers
-11. Broadcast snapshot to all clients
-
-### Anti-Cheat
-
-| Check | Tolerance | Action |
-|-------|-----------|--------|
-| Speed | 1.35× max | Warning → Kick (3 violations) |
-| Fire rate | 1.3× tolerance | Reject shot |
-| Ammo | mag+10 max | Reject reload |
-| Input flood | 60/sec max | Throttle |
-| Teleport | >10m/tick | Reject position |
+When playing offline or in singleplayer mode, the client runs `LocalZombieEngine.ts`:
+- **60 FPS Simulation:** Updates wave timers, zombie pathing, Spitter kiting, and Exploder priming locally.
+- **Damage & Elemental Engine:** Simulates fire burn spreading, poison stacking, chain lightning hops, and explosive kill splash directly in memory.
+- **Store Sync:** Automatically mirrors local state into `useZombieStore` and `useZombieNetworkStore` so all HUDs, minimaps, and weapon shops function identically to multiplayer mode.

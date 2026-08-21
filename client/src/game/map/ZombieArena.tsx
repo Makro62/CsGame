@@ -7,7 +7,7 @@ import { InteractiveBarricades } from "./InteractiveBarricades";
 import { useZombieStore } from "../../stores/useZombieStore";
 
 // ============================================================================
-// Zombie Arena - Outpost Z-7 Arena Map
+// Zombie Arena - Outpost Z-7 3D Facility Map
 // ============================================================================
 
 function ArenaFloor() {
@@ -50,7 +50,7 @@ function ArenaBoundary() {
     return () => { wallMat.dispose(); };
   }, []);
 
-  const wallHeight = 6;
+  const wallHeight = 7;
   const wallThickness = 2;
   const size = 60;
 
@@ -91,6 +91,7 @@ function ArenaBoundary() {
   );
 }
 
+// ─── 1. Safe House (Spawn Area) ─────────────────────────────────────
 function SafeHouse() {
   const concreteMat = useMemo(
     () =>
@@ -108,7 +109,7 @@ function SafeHouse() {
       new THREE.MeshStandardMaterial({
         color: "#dc2626",
         emissive: "#dc2626",
-        emissiveIntensity: 1.2,
+        emissiveIntensity: 1.5,
       }),
     []
   );
@@ -131,20 +132,54 @@ function SafeHouse() {
         <CuboidCollider args={[15, 2.5, 0.5]} />
       </RigidBody>
 
-      {/* Left Wall */}
-      <RigidBody type="fixed" position={[-15, 2.5, 0]} colliders={false}>
+      {/* Left Wall (West) with doorway opening at z = 5 */}
+      <RigidBody type="fixed" position={[-15, 2.5, -5]} colliders={false}>
         <mesh castShadow receiveShadow material={concreteMat}>
-          <boxGeometry args={[1, 5, 20]} />
+          <boxGeometry args={[1, 5, 10]} />
         </mesh>
-        <CuboidCollider args={[0.5, 2.5, 10]} />
+        <CuboidCollider args={[0.5, 2.5, 5]} />
+      </RigidBody>
+      {/* West Doorway header */}
+      <RigidBody type="fixed" position={[-15, 4.0, 5]} colliders={false}>
+        <mesh castShadow receiveShadow material={concreteMat}>
+          <boxGeometry args={[1, 2, 4]} />
+        </mesh>
+        <CuboidCollider args={[0.5, 1.0, 2]} />
       </RigidBody>
 
-      {/* Right Wall */}
-      <RigidBody type="fixed" position={[15, 2.5, 0]} colliders={false}>
+      {/* Right Wall (East) with doorway opening at z = 5 */}
+      <RigidBody type="fixed" position={[15, 2.5, -5]} colliders={false}>
         <mesh castShadow receiveShadow material={concreteMat}>
-          <boxGeometry args={[1, 5, 20]} />
+          <boxGeometry args={[1, 5, 10]} />
         </mesh>
-        <CuboidCollider args={[0.5, 2.5, 10]} />
+        <CuboidCollider args={[0.5, 2.5, 5]} />
+      </RigidBody>
+      {/* East Doorway header */}
+      <RigidBody type="fixed" position={[15, 4.0, 5]} colliders={false}>
+        <mesh castShadow receiveShadow material={concreteMat}>
+          <boxGeometry args={[1, 2, 4]} />
+        </mesh>
+        <CuboidCollider args={[0.5, 1.0, 2]} />
+      </RigidBody>
+
+      {/* Front Wall (South toward Courtyard) with center archway */}
+      <RigidBody type="fixed" position={[-10, 2.5, 10]} colliders={false}>
+        <mesh castShadow receiveShadow material={concreteMat}>
+          <boxGeometry args={[10, 5, 1]} />
+        </mesh>
+        <CuboidCollider args={[5, 2.5, 0.5]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[10, 2.5, 10]} colliders={false}>
+        <mesh castShadow receiveShadow material={concreteMat}>
+          <boxGeometry args={[10, 5, 1]} />
+        </mesh>
+        <CuboidCollider args={[5, 2.5, 0.5]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[0, 4.0, 10]} colliders={false}>
+        <mesh castShadow receiveShadow material={concreteMat}>
+          <boxGeometry args={[10, 2, 1]} />
+        </mesh>
+        <CuboidCollider args={[5, 1.0, 0.5]} />
       </RigidBody>
 
       {/* Roof */}
@@ -160,11 +195,296 @@ function SafeHouse() {
       <pointLight position={[0, 6, 0]} intensity={1.5} distance={35} color="#dc2626" />
 
       {/* Interior warm safe light */}
-      <pointLight position={[0, 3.5, -2]} intensity={1.8} distance={25} color="#ffd8a8" />
+      <pointLight position={[0, 3.5, -2]} intensity={2.0} distance={25} color="#ffd8a8" />
     </group>
   );
 }
 
+// ─── 2. East Wing (Warehouse & Cargo Depot) ──────────────────────────
+function EastWingWarehouse() {
+  const containerMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#1e3a8a",
+        roughness: 0.6,
+        metalness: 0.5,
+      }),
+    []
+  );
+  const containerMat2 = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#991b1b",
+        roughness: 0.6,
+        metalness: 0.5,
+      }),
+    []
+  );
+
+  return (
+    <group position={[25, 0, -15]}>
+      {/* Shipping Containers forming Warehouse Walls & Chokepoints */}
+      <RigidBody type="fixed" position={[0, 1.5, -10]} colliders={false}>
+        <mesh castShadow receiveShadow material={containerMat}>
+          <boxGeometry args={[16, 3, 3]} />
+        </mesh>
+        <CuboidCollider args={[8, 1.5, 1.5]} />
+      </RigidBody>
+
+      <RigidBody type="fixed" position={[8, 1.5, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={containerMat2}>
+          <boxGeometry args={[3, 3, 16]} />
+        </mesh>
+        <CuboidCollider args={[1.5, 1.5, 8]} />
+      </RigidBody>
+
+      {/* Stacked Cargo Crates */}
+      <RigidBody type="fixed" position={[-4, 1.0, 2]} colliders={false}>
+        <mesh castShadow receiveShadow material={containerMat}>
+          <boxGeometry args={[2.5, 2.0, 2.5]} />
+        </mesh>
+        <CuboidCollider args={[1.25, 1.0, 1.25]} />
+      </RigidBody>
+
+      {/* Industrial Work Light */}
+      <pointLight position={[0, 4.0, 0]} intensity={1.5} distance={20} color="#60a5fa" />
+    </group>
+  );
+}
+
+// ─── 3. West Wing (Barracks & Training Loops) ────────────────────────
+function WestWingBarracks() {
+  const wallMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#334155",
+        roughness: 0.8,
+        metalness: 0.2,
+      }),
+    []
+  );
+
+  return (
+    <group position={[-25, 0, -15]}>
+      {/* L-Shaped Barracks Perimeter */}
+      <RigidBody type="fixed" position={[0, 2.0, -10]} colliders={false}>
+        <mesh castShadow receiveShadow material={wallMat}>
+          <boxGeometry args={[16, 4, 1]} />
+        </mesh>
+        <CuboidCollider args={[8, 2.0, 0.5]} />
+      </RigidBody>
+
+      <RigidBody type="fixed" position={[-8, 2.0, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={wallMat}>
+          <boxGeometry args={[1, 4, 18]} />
+        </mesh>
+        <CuboidCollider args={[0.5, 2.0, 9]} />
+      </RigidBody>
+
+      {/* Interior Dividing Partition for Kiting Loop */}
+      <RigidBody type="fixed" position={[0, 1.5, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={wallMat}>
+          <boxGeometry args={[8, 3, 0.8]} />
+        </mesh>
+        <CuboidCollider args={[4, 1.5, 0.4]} />
+      </RigidBody>
+
+      {/* Interior Barracks Light */}
+      <pointLight position={[-2, 3.5, 2]} intensity={1.5} distance={20} color="#f59e0b" />
+    </group>
+  );
+}
+
+// ─── 4. Armory Central Hub (Pack-a-Punch Fort) ──────────────────────
+function ArmoryHub() {
+  const steelMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#1e293b",
+        roughness: 0.7,
+        metalness: 0.5,
+      }),
+    []
+  );
+
+  return (
+    <group position={[0, 0, 0]}>
+      {/* Fortified Octagonal/Square Chamber Walls around Pack-a-Punch */}
+      {/* North Archway Doorway */}
+      <RigidBody type="fixed" position={[-4.5, 2.0, -6]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelMat}>
+          <boxGeometry args={[3, 4, 1]} />
+        </mesh>
+        <CuboidCollider args={[1.5, 2.0, 0.5]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[4.5, 2.0, -6]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelMat}>
+          <boxGeometry args={[3, 4, 1]} />
+        </mesh>
+        <CuboidCollider args={[1.5, 2.0, 0.5]} />
+      </RigidBody>
+
+      {/* South Archway Doorway */}
+      <RigidBody type="fixed" position={[-4.5, 2.0, 6]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelMat}>
+          <boxGeometry args={[3, 4, 1]} />
+        </mesh>
+        <CuboidCollider args={[1.5, 2.0, 0.5]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[4.5, 2.0, 6]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelMat}>
+          <boxGeometry args={[3, 4, 1]} />
+        </mesh>
+        <CuboidCollider args={[1.5, 2.0, 0.5]} />
+      </RigidBody>
+
+      {/* East & West Walls */}
+      <RigidBody type="fixed" position={[6, 2.0, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelMat}>
+          <boxGeometry args={[1, 4, 8]} />
+        </mesh>
+        <CuboidCollider args={[0.5, 2.0, 4]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[-6, 2.0, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelMat}>
+          <boxGeometry args={[1, 4, 8]} />
+        </mesh>
+        <CuboidCollider args={[0.5, 2.0, 4]} />
+      </RigidBody>
+    </group>
+  );
+}
+
+// ─── 5. Watch Tower (2-Story Vertical Sniper Platform) ───────────────
+function WatchTower() {
+  const steelTrussMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#475569",
+        roughness: 0.5,
+        metalness: 0.8,
+      }),
+    []
+  );
+
+  return (
+    <group position={[25, 0, 25]}>
+      {/* 4 Steel Support Pillars */}
+      <RigidBody type="fixed" position={[-2.5, 2.5, -2.5]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelTrussMat}>
+          <cylinderGeometry args={[0.2, 0.2, 5, 8]} />
+        </mesh>
+        <CuboidCollider args={[0.2, 2.5, 0.2]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[2.5, 2.5, -2.5]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelTrussMat}>
+          <cylinderGeometry args={[0.2, 0.2, 5, 8]} />
+        </mesh>
+        <CuboidCollider args={[0.2, 2.5, 0.2]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[-2.5, 2.5, 2.5]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelTrussMat}>
+          <cylinderGeometry args={[0.2, 0.2, 5, 8]} />
+        </mesh>
+        <CuboidCollider args={[0.2, 2.5, 0.2]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[2.5, 2.5, 2.5]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelTrussMat}>
+          <cylinderGeometry args={[0.2, 0.2, 5, 8]} />
+        </mesh>
+        <CuboidCollider args={[0.2, 2.5, 0.2]} />
+      </RigidBody>
+
+      {/* 2nd Floor Elevated Deck */}
+      <RigidBody type="fixed" position={[0, 4.8, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelTrussMat}>
+          <boxGeometry args={[6, 0.4, 6]} />
+        </mesh>
+        <CuboidCollider args={[3, 0.2, 3]} />
+      </RigidBody>
+
+      {/* Walkable Stairs Ramp */}
+      <RigidBody type="fixed" position={[0, 2.4, -4.5]} rotation={[0.45, 0, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={steelTrussMat}>
+          <boxGeometry args={[2, 0.2, 6.2]} />
+        </mesh>
+        <CuboidCollider args={[1, 0.1, 3.1]} />
+      </RigidBody>
+
+      {/* Platform Perimeter Railings */}
+      <mesh position={[0, 5.5, 2.9]} material={steelTrussMat}>
+        <boxGeometry args={[5.8, 1.0, 0.1]} />
+      </mesh>
+      <mesh position={[-2.9, 5.5, 0]} material={steelTrussMat}>
+        <boxGeometry args={[0.1, 1.0, 5.8]} />
+      </mesh>
+      <mesh position={[2.9, 5.5, 0]} material={steelTrussMat}>
+        <boxGeometry args={[0.1, 1.0, 5.8]} />
+      </mesh>
+
+      {/* Tower Spotlight */}
+      <pointLight position={[0, 6.5, 0]} intensity={2.5} distance={30} color="#f8fafc" />
+    </group>
+  );
+}
+
+// ─── 6. Underground Bunker (Defensive Dead-End) ──────────────────────
+function UndergroundBunker() {
+  const bunkerMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#1e293b",
+        roughness: 0.9,
+        metalness: 0.3,
+      }),
+    []
+  );
+
+  return (
+    <group position={[-25, 0, 25]}>
+      {/* Bunker Concrete Shell */}
+      <RigidBody type="fixed" position={[0, 2.0, 6]} colliders={false}>
+        <mesh castShadow receiveShadow material={bunkerMat}>
+          <boxGeometry args={[12, 4, 1]} />
+        </mesh>
+        <CuboidCollider args={[6, 2.0, 0.5]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[-6, 2.0, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={bunkerMat}>
+          <boxGeometry args={[1, 4, 12]} />
+        </mesh>
+        <CuboidCollider args={[0.5, 2.0, 6]} />
+      </RigidBody>
+      <RigidBody type="fixed" position={[6, 2.0, 0]} colliders={false}>
+        <mesh castShadow receiveShadow material={bunkerMat}>
+          <boxGeometry args={[1, 4, 12]} />
+        </mesh>
+        <CuboidCollider args={[0.5, 2.0, 6]} />
+      </RigidBody>
+
+      {/* Heavy Steel Blast Door Header */}
+      <RigidBody type="fixed" position={[0, 3.5, -6]} colliders={false}>
+        <mesh castShadow receiveShadow material={bunkerMat}>
+          <boxGeometry args={[12, 1.5, 1]} />
+        </mesh>
+        <CuboidCollider args={[6, 0.75, 0.5]} />
+      </RigidBody>
+
+      {/* Bunker Roof */}
+      <RigidBody type="fixed" position={[0, 4.2, 0]} colliders={false}>
+        <mesh receiveShadow material={bunkerMat}>
+          <boxGeometry args={[13, 0.4, 13]} />
+        </mesh>
+        <CuboidCollider args={[6.5, 0.2, 6.5]} />
+      </RigidBody>
+
+      {/* Hazard Warning Amber Light */}
+      <pointLight position={[0, 3.0, 0]} intensity={1.8} distance={18} color="#ea580c" />
+    </group>
+  );
+}
+
+// ─── 7. Helipad (Extraction Zone at z: 30) ───────────────────────────
 function Helipad() {
   const extractionActive = useZombieStore((s) => s.extractionActive);
   const extractionAvailable = useZombieStore((s) => s.extractionAvailable);
@@ -187,7 +507,7 @@ function Helipad() {
       new THREE.MeshStandardMaterial({
         color: markingColor,
         emissive: markingColor,
-        emissiveIntensity: isLit ? 1.0 : 0.4,
+        emissiveIntensity: isLit ? 1.2 : 0.4,
         roughness: 0.7,
         metalness: 0.2,
       }),
@@ -205,12 +525,12 @@ function Helipad() {
   }, []);
 
   return (
-    <group position={[0, 0.05, 50]}>
+    <group position={[0, 0.05, 30]}>
       {/* Pad */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} material={padMat}>
         <circleGeometry args={[12, 32]} />
       </mesh>
-      {/* H marking */}
+      {/* H marking ring */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} material={markingMat}>
         <ringGeometry args={[3, 4.5, 32]} />
       </mesh>
@@ -289,14 +609,14 @@ function MysteryBoxStation() {
       <mesh castShadow receiveShadow position={[0, 0.4, 0]} material={boxMat}>
         <boxGeometry args={[2.0, 0.8, 1.0]} />
       </mesh>
-      {/* Gold Trim / Corners */}
+      {/* Gold Trim */}
       <mesh position={[0, 0.4, 0.51]} material={trimMat}>
         <boxGeometry args={[1.8, 0.1, 0.05]} />
       </mesh>
       <mesh position={[0, 0.4, -0.51]} material={trimMat}>
         <boxGeometry args={[1.8, 0.1, 0.05]} />
       </mesh>
-      {/* Glowing Question Mark Core */}
+      {/* Glowing Core */}
       <mesh position={[0, 0.9, 0]} material={trimMat}>
         <boxGeometry args={[0.3, 0.3, 0.3]} />
       </mesh>
@@ -543,6 +863,11 @@ export function ZombieArena() {
       <ArenaFloor />
       <ArenaBoundary />
       <SafeHouse />
+      <EastWingWarehouse />
+      <WestWingBarracks />
+      <ArmoryHub />
+      <WatchTower />
+      <UndergroundBunker />
       <Helipad />
       <InteractiveBarricades />
       <MysteryBoxStation />
@@ -557,4 +882,3 @@ export function ZombieArena() {
     </group>
   );
 }
-

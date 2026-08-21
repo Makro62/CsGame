@@ -76,6 +76,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   private weaponAmmo = new Map<string, Map<string, { ammo: number; reserve: number }>>();
   /** Weapons each player has Pack-a-Punched (per-weapon tracking). */
   private papWeapons = new Map<string, Set<string>>();
+  private zombieDots = new Map<string, { type: "fire" | "poison"; damagePerSec: number; remainingSec: number; attackerId: string; stacks: number }[]>();
+  private playerDots = new Map<string, { damagePerSec: number; remainingSec: number }[]>();
   private antiCheat = new AntiCheatSystem();
   private difficulty: ZombieDifficulty = "normal";
   private zombieDifficulty = ZOMBIE_DIFFICULTIES.normal;
@@ -273,6 +275,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.extractionSurgeTimer = 0;
     this.reloadTimers.forEach((timer) => clearTimeout(timer));
     this.reloadTimers.clear();
+    this.zombieDots.clear();
+    this.playerDots.clear();
     this.waveSystem.reset();
     this.initBarricades();
   }
@@ -303,11 +307,111 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       }
     });
 
-    // Check zombie attacks on players. A swing only lands on the zombie's own
-    // target; otherwise standing together in co-op multiplies the damage taken.
+    // Handle Spitter ranged acid attacks
+    aiResult.spitterAttacks.forEach((att) => {
+      const victim = this.state.players.get(att.targetId);
+      if (victim && !victim.isDead) {
+        this.damagePlayer(att.targetId, victim, 12 * this.zombieDifficulty.zombieDamage);
+        const dots = this.playerDots.get(att.targetId) ?? [];
+        dots.push({ damagePerSec: 2, remainingSec: 3 });
+        this.playerDots.set(att.targetId, dots);
+
+        this.broadcast("zombieSpit", {
+          zombieId: att.zombieId,
+          targetId: att.targetId,
+          originX: att.x,
+          originY: 1.2,
+          originZ: att.z,
+          targetX: victim.x,
+          targetY: victim.y + 1.2,
+          targetZ: victim.z,
+        });
+      }
+    });
+
+    // Handle Exploder detonations
+    aiResult.explodingZombies.forEach((exp) => {
+      this.broadcast("zombieExploded", { x: exp.x, z: exp.z, radius: 5 });
+      this.zombieCtrl.removeZombie(exp.zombieId);
+      this.state.zombies.delete(exp.zombieId);
+      this.waveSystem.onZombieKilled(false);
+
+      // Damage nearby players (60 AoE with linear falloff)
+      this.state.players.forEach((p, pId) => {
+        if (p.isDead) return;
+        const dist = Math.hypot(p.x - exp.x, p.z - exp.z);
+        if (dist <= 5.0) {
+          const dmg = Math.round(60 * (1 - dist / 5.0) * this.zombieDifficulty.zombieDamage);
+          if (dmg > 0) this.damagePlayer(pId, p, dmg);
+        }
+      });
+
+      // Damage nearby barricades
+      this.state.barricades.forEach((b) => {
+        if (b.boards <= 0) return;
+        const dist = Math.hypot(b.x - exp.x, b.z - exp.z);
+        if (dist <= 5.0) {
+          b.boards = Math.max(0, b.boards - 2);
+          b.hp = 100;
+          this.broadcast("barricadeDamaged", { barricadeId: b.id, boards: b.boards });
+        }
+      });
+    });
+
+    // Process Player Acid DOTs
+    this.playerDots.forEach((dots, pId) => {
+      const p = this.state.players.get(pId);
+      if (!p || p.isDead) {
+        this.playerDots.delete(pId);
+        return;
+      }
+      for (let i = dots.length - 1; i >= 0; i--) {
+        const dot = dots[i];
+        dot.remainingSec -= dt;
+        this.damagePlayer(pId, p, dot.damagePerSec * dt);
+        if (dot.remainingSec <= 0) {
+          dots.splice(i, 1);
+        }
+      }
+      if (dots.length === 0) this.playerDots.delete(pId);
+    });
+
+    // Process Zombie Elemental DOTs
+    this.zombieDots.forEach((dots, zId) => {
+      const z = this.zombieCtrl.getZombie(zId);
+      if (!z || z.isDead) {
+        this.zombieDots.delete(zId);
+        return;
+      }
+      for (let i = dots.length - 1; i >= 0; i--) {
+        const dot = dots[i];
+        dot.remainingSec -= dt;
+        const dmg = dot.damagePerSec * dt * (dot.stacks || 1);
+        z.hp -= dmg;
+        if (z.hp <= 0) {
+          z.hp = 0;
+          z.isDead = true;
+          this.zombieCtrl.removeZombie(z.id);
+          this.state.zombies.delete(z.id);
+          this.waveSystem.onZombieKilled(false);
+          const killer = this.clients.find((c) => c.sessionId === dot.attackerId);
+          if (killer) {
+            this.rewardKill(killer, z.id, z.type, false, 0, z.x, z.z);
+          }
+          this.zombieDots.delete(zId);
+          return;
+        }
+        if (dot.remainingSec <= 0) {
+          dots.splice(i, 1);
+        }
+      }
+      if (dots.length === 0) this.zombieDots.delete(zId);
+    });
+
+    // Check zombie melee attacks on players.
     const zombiesForAttack = Array.from(this.zombieCtrl.getAllZombies().values());
     for (const zombie of zombiesForAttack) {
-      if (zombie.isDead || !zombie.isAttacking) continue;
+      if (zombie.isDead || !zombie.isAttacking || zombie.type === "spitter" || zombie.type === "exploder") continue;
 
       const victimId = zombie.targetId;
       const victim = victimId ? this.state.players.get(victimId) : undefined;
@@ -691,7 +795,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
 
       // Pack-a-Punch multiplier (per-weapon check)
       const playerPapWeapons = this.papWeapons.get(client.sessionId);
-      if (playerPapWeapons?.has(player.currentWeapon)) {
+      const isPaP = playerPapWeapons?.has(player.currentWeapon) ?? false;
+      if (isPaP) {
         damage = Math.floor(damage * 1.5);
       }
 
@@ -716,6 +821,123 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         damage,
         headshot: isHeadshot,
       });
+
+      // Elemental & Wonder Weapon Effects
+      const isArcCaster = player.currentWeapon === "arccaster";
+      const variant = PAP_WEAPON_VARIANTS[player.currentWeapon];
+      const effect = isArcCaster ? "chain_lightning" : (isPaP ? variant?.effect : null);
+
+      if (effect === "fire_dot") {
+        // Apply 3s Fire DOT (4 dmg/s)
+        const dots = this.zombieDots.get(closestZombie.id) ?? [];
+        dots.push({ type: "fire", damagePerSec: 4, remainingSec: 3, attackerId: client.sessionId, stacks: 1 });
+        this.zombieDots.set(closestZombie.id, dots);
+
+        // Spread fire to 1 adjacent zombie within 2m
+        const targetZ = this.zombieCtrl.getZombie(closestZombie.id);
+        if (targetZ) {
+          const adj = zombiesArray.find(
+            (other) => other.id !== closestZombie!.id && !other.isDead && Math.hypot(other.x - targetZ.x, other.z - targetZ.z) <= 2.0
+          );
+          if (adj) {
+            const adjDots = this.zombieDots.get(adj.id) ?? [];
+            adjDots.push({ type: "fire", damagePerSec: 4, remainingSec: 3, attackerId: client.sessionId, stacks: 1 });
+            this.zombieDots.set(adj.id, adjDots);
+          }
+        }
+        this.broadcast("elementalEffect", { type: "fire", targetId: closestZombie.id });
+      } else if (effect === "explosive" && killed) {
+        // Trigger 40 damage explosion in 3m radius on kill
+        const splashDmg = 40;
+        zombiesArray.forEach((other) => {
+          if (other.id === closestZombie!.id || other.isDead) return;
+          const dist = Math.hypot(other.x - zombieX, other.z - zombieZ);
+          if (dist <= 3.0) {
+            const falloffDmg = Math.round(splashDmg * (1 - dist / 3.0));
+            const splKilled = this.waveSystem.damageZombie(other.id, falloffDmg);
+            if (splKilled) {
+              this.rewardKill(client, other.id, other.type, false, 0, other.x, other.z);
+            }
+          }
+        });
+        this.broadcast("elementalEffect", { type: "explosion", x: zombieX, z: zombieZ, radius: 3 });
+      } else if (effect === "chain_lightning") {
+        // Chain to up to 3 (or 2 for Arc Caster) nearby zombies in 6m
+        const maxChains = isArcCaster ? 2 : 3;
+        const chainTargets = zombiesArray
+          .filter((other) => other.id !== closestZombie!.id && !other.isDead)
+          .map((other) => ({ zombie: other, dist: Math.hypot(other.x - zombieX, other.z - zombieZ) }))
+          .filter((item) => item.dist <= 6.0)
+          .sort((a, b) => a.dist - b.dist)
+          .slice(0, maxChains);
+
+        let chainDmg = Math.round(damage * (isArcCaster ? 0.6 : 0.7));
+        const chainedIds: string[] = [];
+        chainTargets.forEach(({ zombie: other }) => {
+          const chKilled = this.waveSystem.damageZombie(other.id, chainDmg);
+          chainedIds.push(other.id);
+          if (chKilled) {
+            this.rewardKill(client, other.id, other.type, false, 0, other.x, other.z);
+          }
+          chainDmg = Math.round(chainDmg * 0.7);
+        });
+
+        this.broadcast("elementalEffect", {
+          type: "chain_lightning",
+          sourceId: closestZombie.id,
+          sourceX: zombieX,
+          sourceZ: zombieZ,
+          targetIds: chainedIds,
+        });
+      } else if (effect === "poison_dot") {
+        // Stacking poison (2 dmg/s for 4s, up to 3 stacks)
+        const dots = this.zombieDots.get(closestZombie.id) ?? [];
+        let pDot = dots.find((d) => d.type === "poison");
+        if (pDot) {
+          pDot.stacks = Math.min(3, pDot.stacks + 1);
+          pDot.remainingSec = 4;
+        } else {
+          dots.push({ type: "poison", damagePerSec: 2, remainingSec: 4, attackerId: client.sessionId, stacks: 1 });
+        }
+        this.zombieDots.set(closestZombie.id, dots);
+        this.broadcast("elementalEffect", { type: "poison", targetId: closestZombie.id });
+      } else if (effect === "pierce") {
+        // Pierce through up to 2 zombies behind target
+        let pierceCount = 0;
+        for (const other of zombiesArray) {
+          if (other.id === closestZombie.id || other.isDead || pierceCount >= 2) continue;
+          const toOther = { x: other.x - origin.x, y: other.y - origin.y, z: other.z - origin.z };
+          const pDot = toOther.x * direction.x + toOther.y * direction.y + toOther.z * direction.z;
+          if (pDot > closestZombie.dist && pDot < MAX_SHOT_RANGE) {
+            const pClosestX = origin.x + direction.x * pDot;
+            const pClosestY = origin.y + direction.y * pDot;
+            const pClosestZ = origin.z + direction.z * pDot;
+            const pDistSq = (other.x - pClosestX) ** 2 + (other.y - pClosestY) ** 2 + (other.z - pClosestZ) ** 2;
+            if (pDistSq < 1.0) {
+              pierceCount++;
+              const pDamage = Math.round(damage * 0.8);
+              const pKilled = this.waveSystem.damageZombie(other.id, pDamage);
+              if (pKilled) {
+                this.rewardKill(client, other.id, other.type, false, 0, other.x, other.z);
+              }
+            }
+          }
+        }
+        this.broadcast("elementalEffect", { type: "pierce", targetId: closestZombie.id });
+      } else if (effect === "stun") {
+        const targetZ = this.zombieCtrl.getZombie(closestZombie.id);
+        if (targetZ) {
+          targetZ.speed = Math.max(0.5, targetZ.speed * 0.4);
+          setTimeout(() => {
+            const zCurr = this.zombieCtrl.getZombie(closestZombie!.id);
+            if (zCurr && !zCurr.isDead) {
+              const baseStats = ZOMBIE_TYPES[zCurr.type];
+              zCurr.speed = baseStats.speed * (1 + (this.state.currentWave - 1) * 0.03) * this.zombieDifficulty.zombieSpeed;
+            }
+          }, 2500);
+        }
+        this.broadcast("elementalEffect", { type: "stun", targetId: closestZombie.id });
+      }
     }
   }
 
