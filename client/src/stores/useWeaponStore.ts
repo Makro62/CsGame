@@ -56,6 +56,8 @@ interface WeaponState {
   upgradedWeapons: string[];
   dualWieldWeapons: string[];
 
+  fireRateMultiplier: number;
+
   equipWeapon: (weapon: WeaponKey, options?: EquipOptions) => void;
   switchToSlot: (slot: 1 | 2 | 3 | 4) => void;
   syncLoadout: (loadout: Loadout) => void;
@@ -72,6 +74,7 @@ interface WeaponState {
   setHasPackAPunch: (enabled: boolean) => void;
   addUpgradedWeapon: (weapon: string, dualWield?: boolean) => void;
   resetUpgrades: () => void;
+  setFireRateMultiplier: (multiplier: number) => void;
   incrementBullets: () => void;
   resetBullets: () => void;
   setSwitching: (switching: boolean) => void;
@@ -123,6 +126,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   hasPackAPunch: false,
   upgradedWeapons: [],
   dualWieldWeapons: [],
+  fireRateMultiplier: 1,
 
   cycleGrenadeType: () => {
     const { grenadeType, activeWeapon } = get();
@@ -362,7 +366,12 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       dualWieldWeapons: [],
       hasPackAPunch: false,
       dualWield: false,
+      fireRateMultiplier: 1,
     });
+  },
+
+  setFireRateMultiplier: (multiplier: number) => {
+    set({ fireRateMultiplier: Math.max(1, multiplier) });
   },
 
   incrementBullets: () => {
@@ -392,14 +401,14 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   },
 
   canFire: () => {
-    const { activeWeapon, currentAmmo, isReloading, isSwitching, lastFireTime } = get();
+    const { activeWeapon, currentAmmo, isReloading, isSwitching, lastFireTime, fireRateMultiplier } = get();
     if (!activeWeapon || isReloading || isSwitching) return false;
     // Knives swing without a magazine.
     if (currentAmmo <= 0 && !isMeleeWeapon(activeWeapon)) return false;
 
     const now = performance.now();
     const stats = WEAPONS[activeWeapon];
-    const minInterval = 1000 / stats.fireRate;
+    const minInterval = 1000 / (stats.fireRate * fireRateMultiplier);
 
     return now - lastFireTime >= minInterval;
   },

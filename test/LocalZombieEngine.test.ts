@@ -13,9 +13,9 @@ describe("LocalZombieEngine", () => {
     localZombieEngine.init("normal");
   });
 
-  it("initializes game state with 500 points and buy_phase", () => {
+  it("initializes game state with starting points and buy_phase", () => {
     const store = useZombieStore.getState();
-    expect(store.points).toBe(500);
+    expect(store.points).toBe(1000);
     expect(store.waveState).toBe("buy_phase");
     expect(store.currentWave).toBe(0);
     expect(store.barricades.length).toBeGreaterThan(0);
@@ -82,5 +82,32 @@ describe("LocalZombieEngine", () => {
     // Should consume 1 solo revive and restore HP
     expect(useZombieNetworkStore.getState().soloRevives).toBe(2);
     expect(useZombieNetworkStore.getState().localHp).toBe(100);
+  });
+
+  it("heals at the med station for points", () => {
+    localZombieEngine.damagePlayer(40);
+    expect(useZombieNetworkStore.getState().localHp).toBe(60);
+    const before = useZombieStore.getState().points;
+    localZombieEngine.handleHeal();
+    expect(useZombieNetworkStore.getState().localHp).toBe(100);
+    expect(useZombieStore.getState().points).toBe(before - 400);
+  });
+
+  it("rejects buying an already owned perk", () => {
+    useZombieStore.getState().setPoints(10000);
+    localZombieEngine.handleBuyPerk("juggernog");
+    const afterFirst = useZombieStore.getState().points;
+    localZombieEngine.handleBuyPerk("juggernog");
+    expect(useZombieStore.getState().points).toBe(afterFirst);
+  });
+
+  it("does not apply acid DoT as 1 damage per frame", () => {
+    const startHp = useZombieNetworkStore.getState().localHp;
+    for (let i = 0; i < 4; i++) {
+      localZombieEngine.damagePlayer(0.2, { fromDot: true });
+    }
+    expect(useZombieNetworkStore.getState().localHp).toBe(startHp);
+    localZombieEngine.damagePlayer(0.3, { fromDot: true });
+    expect(useZombieNetworkStore.getState().localHp).toBe(startHp - 1);
   });
 });

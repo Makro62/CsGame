@@ -104,6 +104,7 @@ interface ZombieNetworkState {
   sendCancelRevive: () => void;
   sendTickRevive: (progress: number) => void;
   sendPickupPowerUp: (id: string) => void;
+  sendHeal: () => void;
 }
 
 const FRESH_MATCH_STATE = {
@@ -374,6 +375,15 @@ export const useZombieNetworkStore = create<ZombieNetworkState>((set, get) => ({
     }
     if (room) room.send("pickup_powerup", { id });
   },
+
+  sendHeal: () => {
+    const { room, isLocal } = get();
+    if (isLocal) {
+      localZombieEngine.handleHeal();
+      return;
+    }
+    if (room) room.send("heal");
+  },
 }));
 
 function setupZombieRoom(room: Room<GameState>) {
@@ -401,6 +411,7 @@ function setupZombieRoom(room: Room<GameState>) {
         hasQuickRevive: localPlayer.hasQuickRevive,
         hasPackAPunch: localPlayer.hasPackAPunch,
       });
+      useWeaponStore.getState().setFireRateMultiplier(localPlayer.hasDoubleTap ? 1.33 : 1);
 
       useZombieStore.getState().setDownedState(localPlayer.isDowned, localPlayer.downedTimer);
 

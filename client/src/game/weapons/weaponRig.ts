@@ -11,65 +11,64 @@ import * as THREE from 'three'
  */
 
 export const WEAPON_POSITIONS: Record<string, [number, number, number]> = {
-  ak47: [0.22, -0.22, -0.40],
-  m4a1: [0.22, -0.22, -0.40],
-  awp: [0.24, -0.24, -0.46],
-  mp5: [0.21, -0.21, -0.36],
-  arccaster: [0.22, -0.22, -0.38],
-  // Akimbo: centered so both pistols frame the crosshair evenly.
-  deagle: [0, -0.2, -0.34],
-  glock: [0.16, -0.16, -0.29],
-  tec9: [0.16, -0.16, -0.29],
-  autopistol: [0.16, -0.16, -0.29],
+  ak47: [0.20, -0.19, -0.38],
+  m4a1: [0.20, -0.19, -0.38],
+  awp: [0.22, -0.21, -0.42],
+  mp5: [0.19, -0.18, -0.34],
+  arccaster: [0.20, -0.19, -0.36],
+  deagle: [0.16, -0.16, -0.30],
+  glock: [0.16, -0.16, -0.28],
+  tec9: [0.16, -0.16, -0.28],
+  autopistol: [0.16, -0.16, -0.28],
   knife: [0.18, -0.18, -0.28],
   combatknife: [0.18, -0.18, -0.28],
-  he: [0.18, -0.18, -0.28],
-  smoke: [0.18, -0.18, -0.28],
-  flash: [0.18, -0.18, -0.28],
+  he: [0.16, -0.17, -0.26],
+  smoke: [0.16, -0.17, -0.26],
+  flash: [0.16, -0.17, -0.26],
 }
 
 export const WEAPON_ROTATIONS: Record<string, [number, number, number]> = {
-  ak47: [-0.02, -0.05, 0.02],
-  m4a1: [-0.02, -0.05, 0.02],
-  awp: [-0.01, -0.04, 0.01],
-  mp5: [-0.02, -0.05, 0.02],
+  ak47: [-0.02, -0.04, 0.02],
+  m4a1: [-0.02, -0.04, 0.02],
+  awp: [-0.01, -0.03, 0.01],
+  mp5: [-0.02, -0.04, 0.02],
   arccaster: [-0.02, -0.04, 0.02],
-  deagle: [-0.015, 0, 0],
+  deagle: [-0.01, -0.03, 0.02],
   glock: [-0.01, -0.03, 0.02],
   tec9: [-0.01, -0.03, 0.02],
   autopistol: [-0.01, -0.03, 0.02],
   knife: [0.06, -0.08, -0.05],
   combatknife: [0.06, -0.08, -0.05],
-  he: [0.1, -0.05, 0.05],
-  smoke: [0.1, -0.05, 0.05],
-  flash: [0.1, -0.05, 0.05],
+  he: [0.08, -0.04, 0.04],
+  smoke: [0.08, -0.04, 0.04],
+  flash: [0.08, -0.04, 0.04],
 }
 
 /**
- * Height of each weapon's sight line above its model origin. The dual Deagle is
- * absent on purpose: two pistols cannot share one sight line, so it gets an
- * explicit aim pose below instead of a derived one.
+ * Height of each weapon's sight line above its model origin.
  */
 const SIGHT_HEIGHT: Record<string, number> = {
-  ak47: 0.055,
-  m4a1: 0.05,
-  awp: 0.06,
+  ak47: 0.052,
+  m4a1: 0.052,
+  awp: 0.060,
   mp5: 0.042,
-  arccaster: 0.05,
-  glock: 0.04,
-  tec9: 0.034,
+  arccaster: 0.048,
+  deagle: 0.058,
+  glock: 0.042,
+  tec9: 0.036,
   autopistol: 0.042,
 }
 
 const ADS_DEPTH: Record<string, number> = {
-  ak47: -0.3,
-  m4a1: -0.3,
-  awp: -0.32,
-  mp5: -0.26,
-  arccaster: -0.28,
-  glock: -0.23,
-  tec9: -0.23,
-  autopistol: -0.23,
+  ak47: -0.28,
+  m4a1: -0.28,
+  awp: -0.30,
+  mp5: -0.25,
+  arccaster: -0.26,
+  deagle: -0.24,
+  glock: -0.21,
+  tec9: -0.21,
+  autopistol: -0.21,
 }
 
 /** Single-wield ADS positions (derived from sight height). */
@@ -81,7 +80,7 @@ const SINGLE_ADS: Record<string, [number, number, number]> = Object.keys(
 }, {
   knife: WEAPON_POSITIONS.knife,
   combatknife: WEAPON_POSITIONS.combatknife,
-  deagle: [0, -0.15, -0.28],
+  deagle: [0, -0.058, -0.24],
 })
 
 /** Dual-wield ADS positions (both pistols frame the crosshair). */
@@ -94,7 +93,7 @@ const DUAL_ADS: Record<string, [number, number, number]> = {
 
 /**
  * ADS positions: returns dual-wield position if isDualWield is true,
- * otherwise single-wield position. Deagle is always dual.
+ * otherwise single-wield position.
  */
 export function getADSPosition(weapon: string, isDualWield: boolean): [number, number, number] {
   if (isDualWield && DUAL_ADS[weapon]) return DUAL_ADS[weapon]
@@ -111,7 +110,6 @@ const BARREL_TIP: Record<string, [number, number, number]> = {
   awp: [0, 0.005, -0.67],
   mp5: [0, 0.005, -0.345],
   arccaster: [0, 0.01, -0.42],
-  // Local to a single pistol; the akimbo hand offset is added separately.
   deagle: [0, 0.018, -0.29],
   glock: [0, 0.012, -0.20],
   tec9: [0, 0.008, -0.28],
@@ -140,8 +138,7 @@ export interface AkimboHand {
 }
 
 /**
- * Pose of each pistol of the dual Deagle inside the weapon group. The off hand
- * rides a little lower and further back, like a real akimbo carry.
+ * Pose of each pistol of the dual Deagle inside the weapon group.
  */
 export const DEAGLE_HANDS: AkimboHand[] = [
   { side: -1, position: [-0.1, -0.028, 0.03], rotation: [0, 0.1, -0.07], scale: 0.88 },
@@ -154,13 +151,13 @@ export const GLOCK_HANDS: AkimboHand[] = [
   { side: 1, position: [0.09, 0, 0], rotation: [0, -0.08, 0.06], scale: 0.9 },
 ]
 
-/** Akimbo hands for Tec-9. Slightly wider stance for the larger body. */
+/** Akimbo hands for Tec-9. */
 export const TEC9_HANDS: AkimboHand[] = [
   { side: -1, position: [-0.095, -0.03, 0.025], rotation: [0, 0.1, -0.06], scale: 0.88 },
   { side: 1, position: [0.095, 0, 0], rotation: [0, -0.1, 0.06], scale: 0.88 },
 ]
 
-/** Akimbo hands for Auto Pistol. Compact, so slightly tighter. */
+/** Akimbo hands for Auto Pistol. */
 export const AUTOPISTOL_HANDS: AkimboHand[] = [
   { side: -1, position: [-0.085, -0.022, 0.018], rotation: [0, 0.08, -0.05], scale: 0.92 },
   { side: 1, position: [0.085, 0, 0], rotation: [0, -0.08, 0.05], scale: 0.92 },
@@ -174,19 +171,15 @@ export const AKIMBO_HANDS: Record<string, AkimboHand[]> = {
   autopistol: AUTOPISTOL_HANDS,
 }
 
-/** Weapons that CAN be held in both hands. Deagle is always akimbo; others only when dualWield=true. */
-const ALWAYS_AKIMBO = new Set(['deagle'])
-const CONDITIONAL_AKIMBO = new Set(['glock', 'tec9', 'autopistol'])
+/** Weapons that can be dual-wielded when dualWield is enabled (e.g. after Pack-a-Punch). */
+const AKIMBO_ELIGIBLE = new Set(['deagle', 'glock', 'tec9', 'autopistol'])
 
 /**
  * Returns true if the weapon should fire from alternating left/right hands.
- * Deagle is always akimbo. Glock/Tec9/AutoPistol are only akimbo when
- * dualWield is true (i.e., after Pack-a-Punch upgrade).
  */
 export function isAkimboWeapon(weapon: string | null, dualWield: boolean = false): boolean {
   if (!weapon) return false
-  if (ALWAYS_AKIMBO.has(weapon)) return true
-  return dualWield && CONDITIONAL_AKIMBO.has(weapon)
+  return dualWield && AKIMBO_ELIGIBLE.has(weapon)
 }
 
 /** Muzzle of each akimbo hand: hip pose + hand offset + scaled barrel tip. */

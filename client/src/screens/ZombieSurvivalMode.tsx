@@ -24,6 +24,12 @@ import { WeaponShop } from "../ui/components/zombie/WeaponShop";
 import { MysteryBox } from "../ui/components/zombie/MysteryBox";
 import { PackAPunch } from "../ui/components/zombie/PackAPunch";
 import { AreaUnlockUI, nearestLockedArea } from "../ui/components/zombie/AreaUnlockUI";
+import {
+  isNearAmmoCrate,
+  isNearMedStation,
+  nearestPerkMachine,
+  nearestWallBuy,
+} from "../game/zombie/zombieWorldInteract";
 import { ZombieLeaderboard } from "../ui/components/zombie/ZombieLeaderboard";
 import { ZombieSettings } from "../ui/components/zombie/ZombieSettings";
 import { ZombieLobbySetup, DifficultyLevel } from "../ui/components/zombie/ZombieLobbySetup";
@@ -35,11 +41,14 @@ import { useWeaponStore } from "../stores/useWeaponStore";
 import {
   BARRICADE_CONFIG,
   EXTRACTION_CONFIG,
+  MED_STATION,
   MYSTERY_BOX,
   MYSTERY_BOX_POS,
   PACK_A_PUNCH,
   PACK_A_PUNCH_POS,
+  ZOMBIE_INTERACT_RANGE,
   ZOMBIE_POINTS,
+  ZOMBIE_SHOP,
 } from "@cs-game/shared";
 import {
   HUD_EDGE,
@@ -115,6 +124,8 @@ function HotkeyManager({
   const localIsDead = useZombieNetworkStore((s) => s.localIsDead);
   const reviveTarget = useRef<string | null>(null);
   const reviveTick = useRef<ReturnType<typeof setInterval> | null>(null);
+  const healTick = useRef<ReturnType<typeof setInterval> | null>(null);
+  const healStart = useRef(0);
 
   const stopRevive = useCallback(() => {
     if (reviveTick.current) {
@@ -128,6 +139,14 @@ function HotkeyManager({
     }
   }, []);
 
+  const stopHeal = useCallback(() => {
+    if (healTick.current) {
+      clearInterval(healTick.current);
+      healTick.current = null;
+    }
+    useZombieStore.getState().setHealProgress(0);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (localIsDead || isTyping()) return;
@@ -139,7 +158,7 @@ function HotkeyManager({
         case "KeyF": {
           // Holding [F] next to a downed ally revives them; the server drives
           // the progress bar while we keep the request alive.
-          if (e.repeat || reviveTarget.current) break;
+          if (e.repeat || reviveTarget.current || healTick.current) break;
           const ally = nearestDownedAlly();
           if (ally && !useZombieNetworkStore.getState().localIsDowned) {
             reviveTarget.current = ally.sessionId;
@@ -151,6 +170,30 @@ function HotkeyManager({
               }
               useZombieNetworkStore.getState().sendTickRevive(0);
             }, 250);
+            break;
+          }
+          const snap = useZombieNetworkStore.getState().lastSnapshot;
+          const net = useZombieNetworkStore.getState();
+          const maxHp = net.hasJuggernog ? 200 : 100;
+          if (snap && isNearMedStation(snap.x, snap.z) && net.localHp < maxHp) {
+            healStart.current = performance.now();
+            useZombieStore.getState().setHealProgress(0.01);
+            healTick.current = setInterval(() => {
+              const liveSnap = useZombieNetworkStore.getState().lastSnapshot;
+              if (!liveSnap || !isNearMedStation(liveSnap.x, liveSnap.z)) {
+                stopHeal();
+                return;
+              }
+              const progress = Math.min(
+                1,
+                (performance.now() - healStart.current) / 1000 / MED_STATION.channelSec
+              );
+              useZombieStore.getState().setHealProgress(progress);
+              if (progress >= 1) {
+                stopHeal();
+                useZombieNetworkStore.getState().sendHeal();
+              }
+            }, 50);
             break;
           }
           onInteractAction();
@@ -195,7 +238,10 @@ function HotkeyManager({
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === "KeyF") stopRevive();
+      if (e.code === "KeyF") {
+        stopRevive();
+        stopHeal();
+      }
     };
 
     const handleWheel = (e: WheelEvent) => {
@@ -232,6 +278,7 @@ function HotkeyManager({
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("wheel", handleWheel);
       stopRevive();
+      stopHeal();
     };
   }, [
     connected,
@@ -245,6 +292,7 @@ function HotkeyManager({
     onToggleLeaderboard,
     onInteractAction,
     stopRevive,
+    stopHeal,
   ]);
 
   return null;
@@ -258,11 +306,17 @@ function InteractionPrompt() {
   const lastSnapshot = useZombieNetworkStore((s) => s.lastSnapshot);
   const downedAllies = useZombieNetworkStore((s) => s.downedAllies);
   const localIsDowned = useZombieNetworkStore((s) => s.localIsDowned);
+  const localHp = useZombieNetworkStore((s) => s.localHp);
+  const hasJuggernog = useZombieNetworkStore((s) => s.hasJuggernog);
+  const hasSpeedCola = useZombieNetworkStore((s) => s.hasSpeedCola);
+  const hasDoubleTap = useZombieNetworkStore((s) => s.hasDoubleTap);
+  const hasQuickRevive = useZombieNetworkStore((s) => s.hasQuickRevive);
   const barricades = useZombieStore((s) => s.barricades);
   const waveState = useZombieStore((s) => s.waveState);
   const currentWave = useZombieStore((s) => s.currentWave);
-  // Recomputed from the store on every position update, hence the read below.
-  useZombieStore((s) => s.points);
+  const healProgress = useZombieStore((s) => s.healProgress);
+  const points = useZombieStore((s) => s.points);
+  const fireSale = useZombieStore((s) => s.activePowerUp) === "fire_sale";
   useZombieStore((s) => s.extractionActive);
 
   if (!lastSnapshot) return null;
@@ -278,13 +332,67 @@ function InteractionPrompt() {
     }
   }
 
+  const maxHp = hasJuggernog ? 200 : 100;
+  if (isNearMedStation(x, z) && localHp < maxHp) {
+    if (healProgress > 0) {
+      return (
+        <PromptBadge
+          text={`Healing… ${Math.round(healProgress * 100)}%`}
+        />
+      );
+    }
+    const canAfford = points >= MED_STATION.price;
+    return (
+      <PromptBadge
+        text={
+          canAfford
+            ? `Hold [F] to Heal (${MED_STATION.price} pts)`
+            : `Med Station needs ${MED_STATION.price} pts`
+        }
+      />
+    );
+  }
+
+  const wallBuy = nearestWallBuy(x, z);
+  if (wallBuy) {
+    return (
+      <PromptBadge
+        text={`Press [F] to Buy ${wallBuy.weapon.toUpperCase()} (${wallBuy.price.toLocaleString()} pts)`}
+      />
+    );
+  }
+
+  const perkMachine = nearestPerkMachine(x, z);
+  if (perkMachine) {
+    const owned =
+      (perkMachine.perk === "juggernog" && hasJuggernog) ||
+      (perkMachine.perk === "speedcola" && hasSpeedCola) ||
+      (perkMachine.perk === "doubletap" && hasDoubleTap) ||
+      (perkMachine.perk === "quickrevive" && hasQuickRevive);
+    if (owned) {
+      return <PromptBadge text={`${perkMachine.perk.toUpperCase()} owned`} />;
+    }
+    return (
+      <PromptBadge
+        text={`Press [F] to Buy ${perkMachine.perk.toUpperCase()} (${perkMachine.price.toLocaleString()} pts)`}
+      />
+    );
+  }
+
+  if (isNearAmmoCrate(x, z)) {
+    return (
+      <PromptBadge text={`Press [F] to Buy Ammo (${ZOMBIE_SHOP.ammoPrice} pts)`} />
+    );
+  }
+
   const distToMysteryBox = Math.hypot(x - MYSTERY_BOX_POS.x, z - MYSTERY_BOX_POS.z);
-  if (distToMysteryBox <= 4) {
-    return <PromptBadge text={`Press [F] to Open Mystery Box (${MYSTERY_BOX.price} pts)`} />;
+  if (distToMysteryBox <= ZOMBIE_INTERACT_RANGE) {
+    const boxPrice = fireSale ? MYSTERY_BOX.fireSalePrice : MYSTERY_BOX.price;
+    return <PromptBadge text={`Press [F] to Open Mystery Box (${boxPrice} pts)`} />;
   }
 
   const distToPaP = Math.hypot(x - PACK_A_PUNCH_POS.x, z - PACK_A_PUNCH_POS.z);
-  if (distToPaP <= 4) {
+  if (distToPaP <= ZOMBIE_INTERACT_RANGE) {
     return (
       <PromptBadge
         text={`Press [F] to Upgrade Weapon (${PACK_A_PUNCH.price.toLocaleString()} pts)`}
@@ -348,7 +456,7 @@ function InteractionPrompt() {
   // Buy phase prompt — remind the player to gear up
   if (waveState === "buy_phase") {
     return (
-      <PromptBadge text="BUY PHASE — Press [B] to Open Shop" />
+      <PromptBadge text="BUY PHASE — [B] shop · [F] wall-buy/heal · [SPACE] start wave" />
     );
   }
 
@@ -469,7 +577,11 @@ export function ZombieSurvivalMode() {
       useWeaponStore.getState().equipWeapon("deagle");
 
       await connect(nickname || "Survivor", difficulty);
-      useZombieNetworkStore.getState().sendStartGame();
+      // Local init already opens buy_phase. Online still needs start_game to
+      // leave waiting — without skipping that first buy window.
+      if (!useZombieNetworkStore.getState().isLocal) {
+        useZombieNetworkStore.getState().sendStartGame();
+      }
     },
     [connect, nickname]
   );
@@ -514,15 +626,32 @@ export function ZombieSurvivalMode() {
 
     // 1. Check near Mystery Box
     const distToMysteryBox = Math.hypot(x - MYSTERY_BOX_POS.x, z - MYSTERY_BOX_POS.z);
-    if (distToMysteryBox <= 4) {
+    if (distToMysteryBox <= ZOMBIE_INTERACT_RANGE) {
       setMysteryBoxOpen(true);
       return;
     }
 
     // 2. Check near Pack-a-Punch
     const distToPaP = Math.hypot(x - PACK_A_PUNCH_POS.x, z - PACK_A_PUNCH_POS.z);
-    if (distToPaP <= 4) {
+    if (distToPaP <= ZOMBIE_INTERACT_RANGE) {
       setPackAPunchOpen(true);
+      return;
+    }
+
+    const wallBuy = nearestWallBuy(x, z);
+    if (wallBuy) {
+      useZombieNetworkStore.getState().sendBuyWeapon(wallBuy.weapon);
+      return;
+    }
+
+    const perkMachine = nearestPerkMachine(x, z);
+    if (perkMachine) {
+      useZombieNetworkStore.getState().sendBuyPerk(perkMachine.perk);
+      return;
+    }
+
+    if (isNearAmmoCrate(x, z)) {
+      useZombieNetworkStore.getState().sendBuyAmmo();
       return;
     }
 
@@ -560,7 +689,7 @@ export function ZombieSurvivalMode() {
   const playerPos = { x: lastSnapshot?.x ?? 0, z: lastSnapshot?.z ?? -30 };
 
   return (
-    <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", backgroundColor: "#080c14" }}>
+    <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", backgroundColor: "#121826" }}>
       {lobbyOpen && (
         <ZombieLobbySetup
           onStart={handleStartGameFromLobby}
@@ -607,10 +736,10 @@ export function ZombieSurvivalMode() {
       />
 
       <Canvas shadows camera={{ fov: 75, position: [0, 1.6, -30] }}>
-        <color attach="background" args={["#080c14"]} />
-        <fog attach="fog" args={["#080c14", 15, 80]} />
-        <ambientLight intensity={0.25} color="#556677" />
-        <directionalLight castShadow position={[15, 30, 10]} intensity={0.8} color="#99aabb" />
+        <color attach="background" args={["#121826"]} />
+        <fog attach="fog" args={["#121826", 30, 110]} />
+        <ambientLight intensity={0.45} color="#8899aa" />
+        <directionalLight castShadow position={[15, 30, 10]} intensity={1.0} color="#c8d4e8" />
         <Physics gravity={[0, -9.81, 0]}>
           <ZombieArena />
           <PlayerController />

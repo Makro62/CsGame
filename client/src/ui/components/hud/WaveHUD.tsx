@@ -1,4 +1,4 @@
-import { WaveState } from "@cs-game/shared";
+import { WaveState, WAVE_CONFIG } from "@cs-game/shared";
 import { HUD_MONO, hudPanel, hudPill } from "../../hudTheme";
 
 interface WaveHUDProps {
@@ -14,8 +14,9 @@ export function WaveHUD({ currentWave, waveState, zombiesRemaining, interWaveTim
 
   const cleared = waveState === "wave_clear";
   const buying = waveState === "buy_phase";
-  const total = 10 + currentWave * 4;
-  const progress = Math.max(0, Math.min(100, (1 - zombiesRemaining / total) * 100));
+  const total = WAVE_CONFIG.baseZombieCount + currentWave * WAVE_CONFIG.zombiesPerWave;
+  const progress = Math.max(0, Math.min(100, (1 - zombiesRemaining / Math.max(1, total)) * 100));
+  const buyTotal = currentWave === 0 ? WAVE_CONFIG.firstWaveDelay : WAVE_CONFIG.buyPhaseDuration;
 
   const status = buying
     ? `BUY TIME ${Math.ceil(interWaveTimer)}S`
@@ -72,7 +73,13 @@ export function WaveHUD({ currentWave, waveState, zombiesRemaining, interWaveTim
       >
         <div
           style={{
-            width: buying ? `${Math.max(0, (interWaveTimer / 15) * 100)}%` : cleared ? "100%" : waveState === "active" ? `${progress}%` : "0%",
+            width: buying
+              ? `${Math.max(0, (interWaveTimer / buyTotal) * 100)}%`
+              : cleared
+                ? "100%"
+                : waveState === "active"
+                  ? `${progress}%`
+                  : "0%",
             height: "100%",
             background: buying ? "#ffd700" : cleared ? "#22c55e" : "#ef4444",
             transition: "width 0.3s ease-out",

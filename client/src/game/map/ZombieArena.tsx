@@ -2,7 +2,7 @@ import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import { Html } from "@react-three/drei";
 import { RigidBody, CuboidCollider } from "@react-three/rapier";
-import { MYSTERY_BOX_POS, PACK_A_PUNCH_POS, ZOMBIE_MAP_AREAS, ZOMBIE_SHOP } from "@cs-game/shared";
+import { MYSTERY_BOX_POS, PACK_A_PUNCH_POS, ZOMBIE_MAP_AREAS, ZOMBIE_SHOP, WALL_BUYS, AMMO_CRATE_POSITIONS, PERK_MACHINE_POSITIONS, MED_STATION } from "@cs-game/shared";
 import { InteractiveBarricades } from "./InteractiveBarricades";
 import { useZombieStore } from "../../stores/useZombieStore";
 
@@ -14,7 +14,7 @@ function ArenaFloor() {
   const floorMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#181a1f",
+        color: "#1c2230",
         roughness: 0.95,
         metalness: 0.05,
       }),
@@ -32,6 +32,153 @@ function ArenaFloor() {
       </mesh>
       <CuboidCollider args={[100, 0.25, 100]} />
     </RigidBody>
+  );
+}
+
+function ArcadeZoneFloors() {
+  const zones: { pos: [number, number, number]; size: [number, number, number]; color: string }[] = [
+    { pos: [0, 0.03, -40], size: [32, 0.05, 22], color: "#4a3b22" },
+    { pos: [25, 0.03, -15], size: [22, 0.05, 22], color: "#1a3358" },
+    { pos: [-25, 0.03, -15], size: [22, 0.05, 22], color: "#2a3d22" },
+    { pos: [0, 0.03, 0], size: [18, 0.05, 18], color: "#2a1a44" },
+    { pos: [25, 0.03, 25], size: [14, 0.05, 14], color: "#2a3344" },
+    { pos: [-25, 0.03, 25], size: [16, 0.05, 16], color: "#3a2418" },
+  ];
+
+  return (
+    <group>
+      {zones.map((zone, i) => (
+        <mesh key={i} position={zone.pos} receiveShadow>
+          <boxGeometry args={zone.size} />
+          <meshStandardMaterial color={zone.color} roughness={0.92} metalness={0.05} />
+        </mesh>
+      ))}
+      {[-4, -2, 0, 2, 4].map((x, i) => (
+        <mesh key={`stripe-${i}`} position={[x, 0.04, -10]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[1.4, 3.2]} />
+          <meshStandardMaterial
+            color={i % 2 === 0 ? "#facc15" : "#111827"}
+            roughness={0.7}
+            metalness={0.1}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function ArcadeProps() {
+  return (
+    <group>
+      {[
+        [-10, -32],
+        [10, -32],
+        [18, -8],
+        [-18, -8],
+        [8, 18],
+        [-8, 18],
+      ].map(([x, z], i) => (
+        <mesh key={`barrel-${i}`} position={[x, 0.55, z]} castShadow>
+          <cylinderGeometry args={[0.35, 0.38, 1.1, 10]} />
+          <meshStandardMaterial color="#c2410c" roughness={0.55} metalness={0.25} />
+        </mesh>
+      ))}
+      {[
+        [-6, -12],
+        [6, -12],
+        [0, 12],
+      ].map(([x, z], i) => (
+        <mesh key={`cone-${i}`} position={[x, 0.4, z]} castShadow>
+          <coneGeometry args={[0.28, 0.8, 8]} />
+          <meshStandardMaterial color="#f97316" roughness={0.45} emissive="#f97316" emissiveIntensity={0.25} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function MedStation() {
+  return (
+    <group position={[MED_STATION.x, 0, MED_STATION.z]}>
+      <mesh position={[0, 1.1, 0]} castShadow>
+        <boxGeometry args={[1.1, 2.2, 0.7]} />
+        <meshStandardMaterial color="#14532d" roughness={0.45} metalness={0.2} />
+      </mesh>
+      <mesh position={[0, 1.35, 0.38]}>
+        <boxGeometry args={[0.7, 0.7, 0.06]} />
+        <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.4} />
+      </mesh>
+      <mesh position={[0, 1.35, 0.42]}>
+        <boxGeometry args={[0.45, 0.12, 0.05]} />
+        <meshStandardMaterial color="#f8fafc" />
+      </mesh>
+      <mesh position={[0, 1.35, 0.45]}>
+        <boxGeometry args={[0.12, 0.45, 0.05]} />
+        <meshStandardMaterial color="#f8fafc" />
+      </mesh>
+      <pointLight position={[0, 1.6, 0.6]} intensity={1.4} distance={10} color="#4ade80" />
+      <Html position={[0, 2.5, 0]} center distanceFactor={18}>
+        <div
+          style={{
+            backgroundColor: "rgba(0,0,0,0.85)",
+            border: "1px solid #22c55e",
+            borderRadius: "6px",
+            padding: "4px 10px",
+            color: "#bbf7d0",
+            fontSize: "12px",
+            fontWeight: 800,
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+          }}
+        >
+          MED STATION [F] ({MED_STATION.price} PTS)
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+function WallBuyRacks() {
+  return (
+    <group>
+      {WALL_BUYS.map((buy) => {
+        const price = ZOMBIE_SHOP.weaponPrices[buy.weapon] ?? 0;
+        return (
+          <group key={buy.weapon} position={[buy.x, 0, buy.z]}>
+            <mesh position={[0, 1.35, 0]} castShadow>
+              <boxGeometry args={[1.6, 0.7, 0.18]} />
+              <meshStandardMaterial color="#111827" roughness={0.4} metalness={0.6} />
+            </mesh>
+            <mesh position={[0, 1.38, 0.12]} rotation={[0, 0, 0.15]}>
+              <boxGeometry args={[1.15, 0.14, 0.14]} />
+              <meshStandardMaterial color="#fbbf24" emissive="#f59e0b" emissiveIntensity={0.6} />
+            </mesh>
+            <mesh position={[0.35, 1.28, 0.12]}>
+              <boxGeometry args={[0.35, 0.28, 0.12]} />
+              <meshStandardMaterial color="#e5e7eb" metalness={0.7} roughness={0.3} />
+            </mesh>
+            <pointLight position={[0, 1.6, 0.4]} intensity={0.8} distance={6} color="#fbbf24" />
+            <Html position={[0, 2.05, 0]} center distanceFactor={18}>
+              <div
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.85)",
+                  border: "1px solid #fbbf24",
+                  borderRadius: "4px",
+                  padding: "3px 8px",
+                  color: "#fde68a",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                  whiteSpace: "nowrap",
+                  pointerEvents: "none",
+                }}
+              >
+                {buy.weapon.toUpperCase()} [F] ({price.toLocaleString()} PTS)
+              </div>
+            </Html>
+          </group>
+        );
+      })}
+    </group>
   );
 }
 
@@ -567,6 +714,23 @@ function AmmoCrate({ position }: { position: [number, number, number] }) {
         <boxGeometry args={[1.2, 0.8, 0.8]} />
       </mesh>
       <CuboidCollider args={[0.6, 0.4, 0.4]} position={[0, 0.4, 0]} />
+      <Html position={[0, 1.3, 0]} center distanceFactor={18}>
+        <div
+          style={{
+            backgroundColor: "rgba(0,0,0,0.85)",
+            border: "1px solid #f59e0b",
+            borderRadius: "4px",
+            padding: "2px 8px",
+            color: "#fde68a",
+            fontSize: "10px",
+            fontWeight: 800,
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+          }}
+        >
+          AMMO [F]
+        </div>
+      </Html>
     </RigidBody>
   );
 }
@@ -713,17 +877,25 @@ function PackAPunchStation() {
 }
 
 function PerkVendingMachines() {
-  const perks = [
-    { name: "JUGGERNOG", color: "#dc2626", pos: [-8, 0, -32] as [number, number, number], price: ZOMBIE_SHOP.perks.juggernog.price },
-    { name: "SPEED COLA", color: "#16a34a", pos: [8, 0, -32] as [number, number, number], price: ZOMBIE_SHOP.perks.speedcola.price },
-    { name: "QUICK REVIVE", color: "#0284c7", pos: [-12, 0, -35] as [number, number, number], price: ZOMBIE_SHOP.perks.quickrevive.price },
-    { name: "DOUBLE TAP", color: "#ea580c", pos: [12, 0, -35] as [number, number, number], price: ZOMBIE_SHOP.perks.doubletap.price },
-  ];
+  const perks = PERK_MACHINE_POSITIONS.map((machine) => ({
+    id: machine.perk,
+    name: machine.perk.toUpperCase(),
+    color:
+      machine.perk === "juggernog"
+        ? "#dc2626"
+        : machine.perk === "speedcola"
+          ? "#16a34a"
+          : machine.perk === "quickrevive"
+            ? "#0284c7"
+            : "#ea580c",
+    pos: [machine.x, 0, machine.z] as [number, number, number],
+    price: ZOMBIE_SHOP.perks[machine.perk].price,
+  }));
 
   return (
     <group>
-      {perks.map((p, i) => (
-        <group key={i} position={p.pos}>
+      {perks.map((p) => (
+        <group key={p.id} position={p.pos}>
           {/* Machine Body */}
           <mesh castShadow receiveShadow position={[0, 1.1, 0]}>
             <boxGeometry args={[1.0, 2.2, 0.8]} />
@@ -749,7 +921,7 @@ function PerkVendingMachines() {
                 pointerEvents: "none",
               }}
             >
-              🥤 {p.name} ({p.price} PTS)
+              🥤 {p.name} [F] ({p.price} PTS)
             </div>
           </Html>
         </group>
@@ -768,9 +940,9 @@ function AreaGates() {
   const barrierMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#b91c1c",
-        emissive: "#7f1d1d",
-        emissiveIntensity: 0.4,
+        color: "#7f1d1d",
+        emissive: "#dc2626",
+        emissiveIntensity: 0.55,
         roughness: 0.8,
         metalness: 0.2,
       }),
@@ -787,10 +959,18 @@ function AreaGates() {
         <group key={area.id} position={[area.x, 0, area.z]}>
           {/* Barricade / Gate Mesh */}
           <RigidBody type="fixed" colliders={false}>
-            <mesh position={[0, 1.5, 0]} material={barrierMat}>
-              <boxGeometry args={[4, 3, 0.4]} />
+            <mesh position={[0, 1.6, 0]} material={barrierMat}>
+              <boxGeometry args={[4.2, 3.2, 0.35]} />
             </mesh>
-            <CuboidCollider args={[2, 1.5, 0.2]} position={[0, 1.5, 0]} />
+            <mesh position={[-1.6, 1.6, 0.22]}>
+              <boxGeometry args={[0.28, 2.6, 0.12]} />
+              <meshStandardMaterial color="#facc15" emissive="#eab308" emissiveIntensity={0.8} />
+            </mesh>
+            <mesh position={[1.6, 1.6, 0.22]}>
+              <boxGeometry args={[0.28, 2.6, 0.12]} />
+              <meshStandardMaterial color="#facc15" emissive="#eab308" emissiveIntensity={0.8} />
+            </mesh>
+            <CuboidCollider args={[2.1, 1.6, 0.2]} position={[0, 1.6, 0]} />
           </RigidBody>
           <pointLight position={[0, 2.5, 0]} intensity={1.5} distance={12} color="#ef4444" />
           <Html position={[0, 3.2, 0]} center distanceFactor={18}>
@@ -861,6 +1041,7 @@ export function ZombieArena() {
   return (
     <group>
       <ArenaFloor />
+      <ArcadeZoneFloors />
       <ArenaBoundary />
       <SafeHouse />
       <EastWingWarehouse />
@@ -873,10 +1054,13 @@ export function ZombieArena() {
       <MysteryBoxStation />
       <PackAPunchStation />
       <PerkVendingMachines />
+      <MedStation />
+      <WallBuyRacks />
+      <ArcadeProps />
       <AreaGates />
-      <AmmoCrate position={[-5, 0, -33]} />
-      <AmmoCrate position={[5, 0, -33]} />
-      <AmmoCrate position={[0, 0, -37]} />
+      {AMMO_CRATE_POSITIONS.map((crate) => (
+        <AmmoCrate key={`${crate.x},${crate.z}`} position={[crate.x, 0, crate.z]} />
+      ))}
       <SpecialStationLights />
       <PerimeterLights />
     </group>

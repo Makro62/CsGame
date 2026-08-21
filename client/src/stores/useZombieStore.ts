@@ -25,6 +25,7 @@ interface ZombieStore {
   // Downed & Revive
   isDowned: boolean;
   downedTimer: number;
+  healProgress: number;
   reviveProgress: number;
   reviveTargetName: string;
 
@@ -48,6 +49,7 @@ interface ZombieStore {
   setBarricades: (barricades: BarricadeState[]) => void;
   setActivePowerUp: (type: PowerUpType | null, timer: number) => void;
   setDownedState: (isDowned: boolean, downedTimer: number) => void;
+  setHealProgress: (progress: number) => void;
   setReviveProgress: (progress: number, targetName?: string) => void;
   setExtractionState: (active: boolean, timer: number, available: boolean, evacSuccess?: boolean) => void;
   setUnlockedAreas: (areas: string[]) => void;
@@ -69,6 +71,7 @@ const INITIAL_MATCH_STATE = {
   powerUpTimer: 0,
   isDowned: false,
   downedTimer: 0,
+  healProgress: 0,
   reviveProgress: 0,
   reviveTargetName: "",
   extractionActive: false,
@@ -93,6 +96,7 @@ export const useZombieStore = create<ZombieStore>((set) => ({
   setBarricades: (barricades) => set({ barricades }),
   setActivePowerUp: (type, timer) => set({ activePowerUp: type, powerUpTimer: timer }),
   setDownedState: (isDowned, downedTimer) => set({ isDowned, downedTimer }),
+  setHealProgress: (healProgress) => set({ healProgress }),
   setReviveProgress: (reviveProgress, reviveTargetName = "") => set({ reviveProgress, reviveTargetName }),
   setExtractionState: (extractionActive, extractionTimer, extractionAvailable, evacSuccess = false) =>
     set({ extractionActive, extractionTimer, extractionAvailable, evacSuccess }),

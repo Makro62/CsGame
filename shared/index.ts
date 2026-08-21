@@ -1106,6 +1106,37 @@ export const ZOMBIE_INTERACT_RANGE = 6;
 export const MYSTERY_BOX_POS = { x: 0, z: 5 } as const;
 export const PACK_A_PUNCH_POS = { x: 0, z: 0 } as const;
 
+/** Opening bank so wave-1 players can afford an SMG before the first horde. */
+export const ZOMBIE_STARTING_POINTS = 1000;
+
+/** Safe House med station: hold F to restore HP to max. */
+export const MED_STATION = {
+  price: 400,
+  channelSec: 2.5,
+  x: 0,
+  z: -34,
+} as const;
+
+/** World wall-buys. Prices come from ZOMBIE_SHOP.weaponPrices. */
+export const WALL_BUYS: { weapon: string; x: number; z: number }[] = [
+  { weapon: "mp5", x: 8, z: -40 },
+  { weapon: "ak47", x: 25, z: -15 },
+  { weapon: "awp", x: 25, z: 25 },
+];
+
+export const AMMO_CRATE_POSITIONS: { x: number; z: number }[] = [
+  { x: -5, z: -33 },
+  { x: 5, z: -33 },
+  { x: 0, z: -37 },
+];
+
+export const PERK_MACHINE_POSITIONS: { perk: ZombiePerkId; x: number; z: number }[] = [
+  { perk: "juggernog", x: -8, z: -32 },
+  { perk: "speedcola", x: 8, z: -32 },
+  { perk: "quickrevive", x: -12, z: -35 },
+  { perk: "doubletap", x: 12, z: -35 },
+];
+
 // ─── Zombie Difficulty ─────────────────────────────────────────
 export type ZombieDifficulty = "casual" | "normal" | "hardcore" | "nightmare";
 
@@ -1166,7 +1197,7 @@ export const WAVE_CONFIG = {
   interWaveMinTime: 3,    // minimum wave clear time
   spawnDuration: 10,      // seconds to spawn all zombies in a wave
   buyPhaseDuration: 15,   // seconds to buy weapons between waves
-  firstWaveDelay: 5,      // seconds before first wave starts (initial buy phase)
+  firstWaveDelay: 20,     // seconds before first wave starts (initial buy phase)
   hpMultiplierPerWave: 0.15,
   speedBonusPerWave: 0.03,
   // Spawn points (match ZOMBIE_SPAWN.spawnPoints — inside arena boundaries)
@@ -1307,8 +1338,8 @@ export const NAVMESH_NODES: NavNode[] = [
   { id: "bunker", x: -25, z: 20, neighbors: ["west_wing", "courtyard_n"] },
 
   // Helipad
-  { id: "helipad_s", x: 0, z: 35, neighbors: ["courtyard_n", "helipad_c"] },
-  { id: "helipad_c", x: 0, z: 50, neighbors: ["helipad_s"] },
+  { id: "helipad_s", x: 0, z: 25, neighbors: ["courtyard_n", "helipad_c"] },
+  { id: "helipad_c", x: 0, z: 30, neighbors: ["helipad_s"] },
 
   // Barricades
   { id: "barricade_1", x: -15, z: -20, neighbors: ["sh_west", "courtyard_s"] },
@@ -1317,5 +1348,46 @@ export const NAVMESH_NODES: NavNode[] = [
   { id: "barricade_4", x: 10, z: 10, neighbors: ["courtyard_n", "tower"] },
   { id: "barricade_5", x: -20, z: 20, neighbors: ["courtyard_n", "bunker"] },
   { id: "barricade_6", x: 25, z: -5, neighbors: ["east_wing", "sh_east"] },
+];
+
+// ─── Competitive Map NavMesh (Container Yard) ────────────────────
+export const NAVMESH_COMPETITIVE: NavNode[] = [
+  // T Spawn area
+  { id: "t_spawn", x: -25, z: 0, neighbors: ["t_mid_approach", "t_b_upper", "t_b_lower"] },
+
+  // T approach to Mid
+  { id: "t_mid_approach", x: -15, z: 0, neighbors: ["t_spawn", "mid_barrels", "t_a_connector"] },
+
+  // Mid Lane
+  { id: "mid_barrels", x: -14, z: 0, neighbors: ["t_mid_approach", "mid_box", "mid_sniper_peek"] },
+  { id: "mid_box", x: 0, z: 0, neighbors: ["mid_barrels", "mid_sniper_peek", "a_mid_link", "b_mid_link"] },
+  { id: "mid_sniper_peek", x: 12, z: 0, neighbors: ["mid_box", "ct_mid_hold"] },
+
+  // CT Mid Hold
+  { id: "ct_mid_hold", x: 18, z: 0, neighbors: ["mid_sniper_peek", "ct_spawn"] },
+
+  // CT Spawn area
+  { id: "ct_spawn", x: 25, z: 0, neighbors: ["ct_mid_hold", "ct_a_site", "ct_b_site"] },
+
+  // A Site (North, z ≈ -15)
+  { id: "a_main_choke", x: -5, z: -15, neighbors: ["t_a_connector", "a_corridor"] },
+  { id: "t_a_connector", x: -8, z: -8, neighbors: ["t_mid_approach", "a_main_choke"] },
+  { id: "a_corridor", x: 2, z: -13, neighbors: ["a_main_choke", "a_site_plant"] },
+  { id: "a_site_plant", x: 15, z: -15, neighbors: ["a_corridor", "a_ninja", "ct_a_site"] },
+  { id: "a_ninja", x: 10, z: -18, neighbors: ["a_site_plant"] },
+  { id: "ct_a_site", x: 22, z: -15, neighbors: ["a_site_plant", "ct_spawn"] },
+
+  // B Site (South, z ≈ +15)
+  { id: "t_b_upper", x: -15, z: 12, neighbors: ["t_spawn", "b_tunnel_entrance"] },
+  { id: "t_b_lower", x: -10, z: 18, neighbors: ["t_spawn", "b_tunnel_exit"] },
+  { id: "b_tunnel_entrance", x: -8, z: 13, neighbors: ["t_b_upper", "b_tunnel_exit"] },
+  { id: "b_tunnel_exit", x: -2, z: 15, neighbors: ["b_tunnel_entrance", "t_b_lower", "b_ramp", "b_mid_link"] },
+  { id: "b_ramp", x: 7, z: 15, neighbors: ["b_tunnel_exit", "b_site_plant"] },
+  { id: "b_site_plant", x: 15, z: 15, neighbors: ["b_ramp", "ct_b_site"] },
+  { id: "ct_b_site", x: 22, z: 15, neighbors: ["b_site_plant", "ct_spawn"] },
+
+  // Mid-to-Lane Links
+  { id: "a_mid_link", x: 0, z: -8, neighbors: ["mid_box", "a_main_choke"] },
+  { id: "b_mid_link", x: 0, z: 8, neighbors: ["mid_box", "b_tunnel_exit"] },
 ];
 

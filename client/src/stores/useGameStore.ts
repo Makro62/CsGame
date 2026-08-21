@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { gameEvents } from '../lib/gameEvents'
 
-export type GameMode = 'menu' | 'training' | 'multiplayer' | 'zombie'
+export type GameMode = 'menu' | 'training' | 'multiplayer' | 'zombie' | 'offline5v5'
 
 interface Target {
   id: string
@@ -144,6 +144,8 @@ export const useGameStore = create<GameState>()((set, get) => {
         get().resetTargets()
         get().resetStats()
         set({ timer: 60, isTimerRunning: false })
+      } else if (mode === 'offline5v5') {
+        sessionStorage.removeItem('cs_game_session')
       }
     },
 

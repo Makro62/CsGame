@@ -419,6 +419,7 @@ export function ShootingSystem() {
 
     if (gameMode === "zombie") {
       useZombieNetworkStore.getState().sendShoot({
+        origin: { x: shootOrigin.x, y: shootOrigin.y, z: shootOrigin.z },
         direction: { x: shootDirection.x, y: shootDirection.y, z: shootDirection.z },
       });
     } else if (gameMode !== "training") {

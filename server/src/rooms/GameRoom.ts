@@ -51,7 +51,7 @@ import { EconomySystem } from "./EconomySystem";
 import { BombController } from "./BombController";
 import { AntiCheatSystem } from "./AntiCheatSystem";
 import { InterestManager } from "./InterestManager";
-import { BotAgent, BotConfig } from "../ai/BotAgent";
+import { BotAgent, BotConfig, BotCallbacks } from "../ai/BotAgent";
 
 const TICK_MS = 1000 / SERVER.tickRate;
 
@@ -1922,7 +1922,24 @@ export class GameRoom extends Room<GameState> {
       p.plantProgress = 0;
       p.defuseProgress = 0;
       p.hasBomb = false;
-      this.refillAmmo(p);
+
+      // Reset bots to default pistol (buy phase will upgrade them)
+      if (p.isBot) {
+        const pistol = DEFAULT_PISTOL[p.team as keyof typeof DEFAULT_PISTOL] ?? DEFAULT_PISTOL.T;
+        const stats = WEAPONS[pistol as keyof typeof WEAPONS];
+        p.currentWeapon = pistol;
+        p.primaryWeapon = "";
+        p.secondaryWeapon = pistol;
+        p.knifeSlot = "knife";
+        p.ammo = stats.mag;
+        p.reserveAmmo = stats.reserveAmmo;
+        p.primaryAmmo = 0;
+        p.primaryReserveAmmo = 0;
+        p.secondaryAmmo = stats.mag;
+        p.secondaryReserveAmmo = stats.reserveAmmo;
+      } else {
+        this.refillAmmo(p);
+      }
 
       const spawn = SPAWN[p.team as keyof typeof SPAWN];
       p.x = spawn.x;
@@ -2043,25 +2060,162 @@ export class GameRoom extends Room<GameState> {
       botPlayer.team = team;
       botPlayer.nickname = `Bot ${this.botSeq} (${team})`;
       botPlayer.hp = MAX_HP;
+      botPlayer.money = ECONOMY.startMoney;
       botPlayer.isBot = true;
       botPlayer.botDifficulty = this.botDifficulty;
-      botPlayer.currentWeapon = team === "T" ? "ak47" : "m4a1";
-      botPlayer.primaryWeapon = team === "T" ? "ak47" : "m4a1";
-      botPlayer.secondaryWeapon = "deagle";
+      // Default loadout — will be upgraded during buy phase
+      botPlayer.currentWeapon = team === "T" ? "glock" : "autopistol";
+      botPlayer.primaryWeapon = "";
+      botPlayer.secondaryWeapon = team === "T" ? "glock" : "autopistol";
       botPlayer.knifeSlot = "knife";
-      botPlayer.ammo = 30;
-      botPlayer.reserveAmmo = 90;
+      const pistolStats = WEAPONS[botPlayer.secondaryWeapon as keyof typeof WEAPONS];
+      botPlayer.ammo = pistolStats?.mag || 20;
+      botPlayer.reserveAmmo = pistolStats?.reserveAmmo || 120;
 
       this.state.players.set(botId, botPlayer);
 
-      const behavior = (["peeker", "rusher", "camper", "support", "awper"] as const)[this.botSeq % 5];
+      const behavior = (["entry", "support", "awper", "lurker", "igl"] as const)[this.botSeq % 5];
       const config: BotConfig = {
         difficulty: this.botDifficulty,
         behavior,
         team,
         spawnPos: { x: botPlayer.x, z: botPlayer.z },
       };
-      this.botAgents.set(botId, new BotAgent(config));
+      const agent = new BotAgent(config);
+
+      // Wire up callbacks so bot actions go through proper game systems
+      const callbacks: BotCallbacks = {
+        onDamage: (_botId, targetId, damage, weapon, headshot) => {
+          const victim = this.state.players.get(targetId);
+          if (!victim || victim.isDead) return;
+
+          // Spawn protection check
+          if (this.weaponManager.isSpawnProtected(this.spawnProtection, targetId)) return;
+
+          victim.hp -= damage;
+
+          this.broadcast("damage", {
+            shooterId: _botId,
+            victimId: targetId,
+            damage,
+            hp: victim.hp,
+            headshot,
+          });
+
+          if (victim.hp <= 0) {
+            const killer = this.state.players.get(_botId);
+            if (killer) {
+              this.handleKill(_botId, killer, targetId, victim, weapon, headshot);
+            }
+          }
+        },
+        onKill: (_botId, targetId, weapon, headshot) => {
+          const victim = this.state.players.get(targetId);
+          const killer = this.state.players.get(_botId);
+          if (victim && killer) {
+            this.handleKill(_botId, killer, targetId, victim, weapon, headshot);
+          }
+        },
+        onBuy: (_botId, item) => {
+          const result = this.economyManager.processBuy(_botId, { item }, this.state);
+          if (result.ok) {
+            this.broadcast("itemBought", {
+              playerId: _botId,
+              item: result.item,
+              slot: result.slot,
+              currentWeapon: result.currentWeapon,
+            });
+          }
+        },
+        onGrenadeThrow: (_botId, type, targetX, targetZ) => {
+          const player = this.state.players.get(_botId);
+          if (!player) return;
+
+          const ammoField = type === "he" ? "grenadeHE" : type === "smoke" ? "grenadeSmoke" : "grenadeFlash";
+          if ((player as unknown as Record<string, number>)[ammoField] <= 0) return;
+
+          // Calculate throw velocity toward target
+          const dx = targetX - player.x;
+          const dz = targetZ - player.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          const speed = 12;
+          const vx = (dx / dist) * speed;
+          const vz = (dz / dist) * speed;
+          const vy = dist * 1.2; // Arc based on distance
+
+          (player as unknown as Record<string, number>)[ammoField]--;
+
+          const id = `g-${_botId}-${++this.grenadeSeq}`;
+          const now = performance.now();
+          const sim: GrenadeSim = {
+            id,
+            type,
+            throwerId: _botId,
+            x: player.x,
+            y: 1.6,
+            z: player.z,
+            vx,
+            vy,
+            vz,
+            spawnTime: now,
+            detonated: false,
+          };
+          this.grenades.set(id, sim);
+
+          this.broadcast("grenadeThrown", {
+            id,
+            type,
+            throwerId: _botId,
+            x: sim.x,
+            y: sim.y,
+            z: sim.z,
+            vx: sim.vx,
+            vy: sim.vy,
+            vz: sim.vz,
+          });
+        },
+        onBombPlant: (_botId, site) => {
+          const player = this.state.players.get(_botId);
+          if (!player || player.isDead || player.team !== "T") return;
+          if (!player.hasBomb || this.state.bombPlanted) return;
+
+          const siteData = BOMB_SITES[site as keyof typeof BOMB_SITES];
+          if (!siteData) return;
+
+          player.isPlanting = true;
+          player.plantProgress = 0;
+
+          this.broadcast("plantStart", { playerId: _botId, site });
+
+          // Auto-complete plant after 3 seconds (simplified for bots)
+          setTimeout(() => {
+            const p = this.state.players.get(_botId);
+            if (!p || p.isDead) return;
+            this.completePlant(_botId, p);
+          }, 3000);
+        },
+        onBombDefuse: (_botId) => {
+          const player = this.state.players.get(_botId);
+          if (!player || player.isDead || player.team !== "CT") return;
+          if (!this.state.bombPlanted) return;
+
+          player.isDefusing = true;
+          player.defuseProgress = 0;
+
+          this.broadcast("defuseStart", { playerId: _botId, kit: player.hasDefuseKit });
+
+          // Auto-complete defuse after 5s (10s without kit, simplified)
+          const defuseTime = player.hasDefuseKit ? 5000 : 10000;
+          setTimeout(() => {
+            const p = this.state.players.get(_botId);
+            if (!p || p.isDead) return;
+            this.completeDefuse(_botId, p);
+          }, defuseTime);
+        },
+      };
+
+      agent.setCallbacks(callbacks);
+      this.botAgents.set(botId, agent);
     };
 
     for (let i = 0; i < tNeeded; i++) spawnBotForTeam("T");
@@ -2073,11 +2227,43 @@ export class GameRoom extends Room<GameState> {
   }
 
   private updateBots(dt: number) {
-    if (this.state.phase !== "active") return;
     this.botAgents.forEach((agent, botId) => {
       const botPlayer = this.state.players.get(botId);
       if (!botPlayer || botPlayer.isDead) return;
-      agent.think(this.state.players, botPlayer, this.state, dt);
+
+      // During buy phase, let bots buy
+      if (this.state.phase === "buy") {
+        // Only buy once per round (check if we just entered buy phase)
+        const purchases = agent.buyPhase(botPlayer);
+        if (purchases.length > 0) {
+          // Apply purchases through economy system
+          for (const item of purchases) {
+            const result = this.economyManager.processBuy(botId, { item }, this.state);
+            if (result.ok) {
+              this.broadcast("itemBought", {
+                playerId: botId,
+                item: result.item,
+                slot: result.slot,
+                currentWeapon: result.currentWeapon,
+              });
+            }
+          }
+          // Switch to primary weapon if bought one
+          if (botPlayer.primaryWeapon) {
+            botPlayer.currentWeapon = botPlayer.primaryWeapon;
+            const primaryStats = WEAPONS[botPlayer.primaryWeapon as keyof typeof WEAPONS];
+            if (primaryStats) {
+              botPlayer.ammo = primaryStats.mag;
+              botPlayer.reserveAmmo = primaryStats.reserveAmmo;
+            }
+          }
+        }
+        return;
+      }
+
+      if (this.state.phase !== "active") return;
+
+      agent.think(this.state.players, botPlayer, this.state, dt, botId);
 
       // Apply bot movement
       botPlayer.x = agent.pos.x;

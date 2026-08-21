@@ -47,8 +47,10 @@ When entering Zombie Survival, the deployment lobby presents 4 selectable diffic
 
 - **Spawn Location:** `(0, 0, -30)` inside the fortified Safe House.
 - **Starting Equipment:** Deagle pistol (14/70 ammo) + Standard Combat Knife.
-- **Initial Bank:** 500 points (on Normal difficulty).
-- **Initial Prep Window:** 5 seconds before Wave 1 begins.
+- **Initial Bank:** 1000 points (on Normal difficulty).
+- **Initial Prep Window:** 20 seconds before Wave 1 begins (press `[SPACE]` to skip).
+- **Med Station:** Hold `[F]` for 2.5s in the Safe House (400 pts) to restore HP to max.
+- **Wall-buys:** MP5 (Safe House), AK-47 (East Wing), AWP (Watch Tower). Perk machines and ammo crates are also `[F]` interactable.
 
 ### 3. Wave Lifecycle State Machine
 
@@ -64,7 +66,7 @@ graph LR
 | State | Duration | Description |
 |-------|----------|-------------|
 | **waiting** | Idle | Game not yet started or reset after a run. |
-| **buy_phase** | 15s (5s on Wave 1) | Free preparation window to buy weapons, perks, armor, and repair boards. Press `[SPACE]` to skip. |
+| **buy_phase** | 15s (20s on Wave 1) | Free preparation window to buy weapons, perks, armor, heal, and repair boards. Press `[SPACE]` to skip. |
 | **spawning** | 10s | Zombies dynamically stream into the facility from unlocked perimeter spawn zones. |
 | **active** | Variable | Horde is fully engaged. Players must eliminate all remaining hostiles. |
 | **wave_clear** | 4–5s | All hostiles eliminated. Wave completion bonus points are awarded. |
@@ -258,7 +260,7 @@ Outpost Z-7 is structured with 7 distinct physical 3D sectors equipped with Rapi
  [ HELIPAD ] (Extraction z:30)
 ```
 
-1. **Safe House (`0, -40`):** Concrete fortification with interior warm lighting, perk machines, and 2 reinforced doorway exits covered by `barricade_1` and `barricade_2`.
+1. **Safe House (`0, -40`):** Concrete fortification with interior warm lighting, perk machines, med station (hold F), MP5 wall-buy, ammo crates, and 2 reinforced doorway exits covered by `barricade_1` and `barricade_2`.
 2. **East Wing (`25, -15`):** Industrial shipping container warehouse with stacked cargo crates and tight chokepoints.
 3. **West Wing (`-25, -15`):** L-shaped military barracks engineered for zombie train looping and kiting.
 4. **Armory Hub (`0, 0`):** Fortified central bunker housing the Pack-a-Punch forge with 3 connecting archways.

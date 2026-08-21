@@ -34,6 +34,8 @@ import {
   ZombieBuyFailReason,
   ZombieDifficulty,
   ZombiePerkId,
+  MED_STATION,
+  ZOMBIE_STARTING_POINTS,
 } from "@cs-game/shared";
 import { ZombieController } from "../ai/ZombieController";
 import { WaveSystem } from "../systems/WaveSystem";
@@ -78,6 +80,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   private papWeapons = new Map<string, Set<string>>();
   private zombieDots = new Map<string, { type: "fire" | "poison"; damagePerSec: number; remainingSec: number; attackerId: string; stacks: number }[]>();
   private playerDots = new Map<string, { damagePerSec: number; remainingSec: number }[]>();
+  private playerDotRemainder = new Map<string, number>();
   private antiCheat = new AntiCheatSystem();
   private difficulty: ZombieDifficulty = "normal";
   private zombieDifficulty = ZOMBIE_DIFFICULTIES.normal;
@@ -126,6 +129,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.onMessage("pickup_powerup", (client, data: { id: string }) => {
       this.pickupPowerUp(client, data.id);
     });
+    this.onMessage("heal", this.handleHeal.bind(this));
 
     // Start game loop
     this.lastTick = Date.now();
@@ -164,7 +168,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     player.ammo = 14;
     player.reserveAmmo = 70;
     this.state.players.set(client.sessionId, player);
-    this.state.points.set(client.sessionId, 500);
+    this.state.points.set(client.sessionId, ZOMBIE_STARTING_POINTS);
     this.ownedWeapons.set(client.sessionId, new Set(["deagle", "knife"]));
     this.weaponAmmo.set(
       client.sessionId,
@@ -368,7 +372,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       for (let i = dots.length - 1; i >= 0; i--) {
         const dot = dots[i];
         dot.remainingSec -= dt;
-        this.damagePlayer(pId, p, dot.damagePerSec * dt);
+        this.damagePlayer(pId, p, dot.damagePerSec * dt, { fromDot: true });
         if (dot.remainingSec <= 0) {
           dots.splice(i, 1);
         }
@@ -613,9 +617,18 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     });
   }
 
-  /** Applies armor absorption, then health, and downs the player at zero. */
-  private damagePlayer(sessionId: string, player: PlayerState, rawDamage: number) {
-    let damage = Math.max(1, Math.round(rawDamage));
+  private damagePlayer(sessionId: string, player: PlayerState, rawDamage: number, opts?: { fromDot?: boolean }) {
+    if (player.isDead) return;
+
+    let damage: number;
+    if (opts?.fromDot) {
+      const rem = (this.playerDotRemainder.get(sessionId) ?? 0) + rawDamage;
+      damage = Math.floor(rem);
+      this.playerDotRemainder.set(sessionId, rem - damage);
+      if (damage < 1) return;
+    } else {
+      damage = Math.max(1, Math.round(rawDamage));
+    }
 
     if (player.armor > 0) {
       const absorbed = Math.min(player.armor, Math.ceil(damage * 0.5));
@@ -623,12 +636,14 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       damage -= absorbed;
     }
 
+    if (damage <= 0) return;
+
     player.hp = Math.max(0, player.hp - damage);
-    // The client needs an event to flash the damage vignette; state sync alone
-    // gives no hint about the direction or the moment of the hit.
     this.broadcast("damage", { victimId: sessionId, damage });
 
     if (player.hp <= 0) {
+      this.playerDots.delete(sessionId);
+      this.playerDotRemainder.delete(sessionId);
       this.handlePlayerDowned(sessionId, player);
     }
   }
@@ -1358,6 +1373,37 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     }
 
     client.send("perkBought", { perk: data.perk, hp: player.hp });
+  }
+
+  private handleHeal(client: Client) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
+    if (player.isDead || player.isDowned) {
+      this.buyFailed(client, "med_station", "unavailable");
+      return;
+    }
+    if (this.distanceTo(player, MED_STATION.x, MED_STATION.z) > ZOMBIE_INTERACT_RANGE) {
+      this.buyFailed(client, "med_station", "too_far");
+      return;
+    }
+
+    const maxHp = player.hasJuggernog ? 200 : 100;
+    if (player.hp >= maxHp) {
+      this.buyFailed(client, "med_station", "full");
+      return;
+    }
+
+    const points = this.pointsOf(client.sessionId);
+    if (points < MED_STATION.price) {
+      this.buyFailed(client, "med_station", "no_money");
+      return;
+    }
+
+    this.state.points.set(client.sessionId, points - MED_STATION.price);
+    player.hp = maxHp;
+    this.playerDots.delete(client.sessionId);
+    this.playerDotRemainder.delete(client.sessionId);
+    client.send("healed", { hp: player.hp });
   }
 
   private handleMysteryBox(client: Client) {

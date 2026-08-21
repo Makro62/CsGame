@@ -17,6 +17,9 @@ import {
   ZOMBIE_DIFFICULTIES,
   BarricadeState,
   PAP_WEAPON_VARIANTS,
+  ZOMBIE_STARTING_POINTS,
+  MED_STATION,
+  ZombiePerkId,
 } from "@cs-game/shared";
 import { useZombieStore } from "../../stores/useZombieStore";
 import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
@@ -80,6 +83,10 @@ export class LocalZombieEngine {
     this.papWeapons.clear();
     this.unlockedAreas = new Set(["spawn"]);
     this.lastZombieAttackTimes.clear();
+    this.zombieDots.clear();
+    this.playerDots = [];
+    this.playerDotRemainder = 0;
+    useWeaponStore.getState().setFireRateMultiplier(1);
 
     // Initialize barricades with full boards
     this.barricades.clear();
@@ -98,7 +105,7 @@ export class LocalZombieEngine {
 
     const store = useZombieStore.getState();
     store.resetMatch();
-    store.setPoints(500);
+    store.setPoints(ZOMBIE_STARTING_POINTS);
     store.setBarricades(Array.from(this.barricades.values()));
     store.setUnlockedAreas(Array.from(this.unlockedAreas));
 
@@ -132,6 +139,9 @@ export class LocalZombieEngine {
     this.active = false;
     this.zombies.clear();
     this.powerUps.clear();
+    this.zombieDots.clear();
+    this.playerDots = [];
+    this.playerDotRemainder = 0;
   }
 
   isActive() {
@@ -268,6 +278,7 @@ export class LocalZombieEngine {
 
   private zombieDots = new Map<string, { type: "fire" | "poison"; damagePerSec: number; remainingSec: number; stacks: number }[]>();
   private playerDots: { damagePerSec: number; remainingSec: number }[] = [];
+  private playerDotRemainder = 0;
 
   update(dt: number) {
     if (!this.active) return;
@@ -330,11 +341,17 @@ export class LocalZombieEngine {
       }
     }
 
+    // Dropped power-ups expire locally the same way they do on the server.
+    this.powerUps.forEach((pu, id) => {
+      pu.timeLeft -= dt;
+      if (pu.timeLeft <= 0) this.powerUps.delete(id);
+    });
+
     // Process Player Acid DOTs
     for (let i = this.playerDots.length - 1; i >= 0; i--) {
       const dot = this.playerDots[i];
       dot.remainingSec -= dt;
-      this.damagePlayer(dot.damagePerSec * dt);
+      this.damagePlayer(dot.damagePerSec * dt, { fromDot: true });
       if (dot.remainingSec <= 0) {
         this.playerDots.splice(i, 1);
       }
@@ -375,6 +392,7 @@ export class LocalZombieEngine {
   }
 
   private updateZombies(dt: number) {
+    if (useZombieNetworkStore.getState().localIsDead) return;
     const now = performance.now();
     const diffCfg = ZOMBIE_DIFFICULTIES[this.difficulty] || ZOMBIE_DIFFICULTIES.normal;
 
@@ -473,8 +491,18 @@ export class LocalZombieEngine {
     });
   }
 
-  damagePlayer(rawDamage: number) {
-    let damage = Math.max(1, Math.round(rawDamage));
+  damagePlayer(rawDamage: number, opts?: { fromDot?: boolean }) {
+    if (useZombieNetworkStore.getState().localIsDead) return;
+
+    let damage: number;
+    if (opts?.fromDot) {
+      this.playerDotRemainder += rawDamage;
+      damage = Math.floor(this.playerDotRemainder);
+      if (damage < 1) return;
+      this.playerDotRemainder -= damage;
+    } else {
+      damage = Math.max(1, Math.round(rawDamage));
+    }
 
     if (this.playerArmor > 0) {
       const absorbed = Math.min(this.playerArmor, Math.ceil(damage * 0.5));
@@ -483,13 +511,16 @@ export class LocalZombieEngine {
       useZombieNetworkStore.setState({ localArmor: this.playerArmor });
     }
 
+    if (damage <= 0) return;
+
     this.playerHp = Math.max(0, this.playerHp - damage);
     useZombieNetworkStore.setState({ localHp: this.playerHp });
 
-    // Damage sound
-    zombieSounds.playerHit();
+    if (!opts?.fromDot) zombieSounds.playerHit();
 
     if (this.playerHp <= 0) {
+      this.playerDots = [];
+      this.playerDotRemainder = 0;
       if (this.soloRevives > 0) {
         this.soloRevives--;
         this.playerHp = this.playerMaxHp;
@@ -507,6 +538,21 @@ export class LocalZombieEngine {
     }
   }
 
+  handleHeal() {
+    if (useZombieNetworkStore.getState().localIsDead) return;
+    if (this.playerHp >= this.playerMaxHp) return;
+
+    const points = useZombieStore.getState().points;
+    if (points < MED_STATION.price) return;
+
+    useZombieStore.getState().addPoints(-MED_STATION.price);
+    this.playerHp = this.playerMaxHp;
+    this.playerDots = [];
+    this.playerDotRemainder = 0;
+    useZombieNetworkStore.setState({ localHp: this.playerHp });
+    zombieSounds.powerUp();
+  }
+
   handleShoot(data: { direction: { x: number; y: number; z: number }; origin?: { x: number; y: number; z: number } }) {
     const activeWeapon = useWeaponStore.getState().activeWeapon;
     if (!activeWeapon || !(activeWeapon in WEAPONS)) return;
@@ -514,7 +560,9 @@ export class LocalZombieEngine {
     const stats = WEAPONS[activeWeapon as WeaponKey];
     if (!stats) return;
 
-    const origin = data.origin ? new THREE.Vector3(data.origin.x, data.origin.y, data.origin.z) : new THREE.Vector3(this.playerX, this.playerY, this.playerZ);
+    const origin = data.origin
+      ? new THREE.Vector3(data.origin.x, data.origin.y, data.origin.z)
+      : new THREE.Vector3(this.playerX, this.playerY + 1.5, this.playerZ);
     const dir = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z).normalize();
 
     let closestZombie: ZombieState | null = null;
@@ -843,8 +891,14 @@ export class LocalZombieEngine {
   }
 
   handleBuyPerk(perk: string) {
-    const perkCfg = (ZOMBIE_SHOP.perks as any)[perk];
+    const perkCfg = ZOMBIE_SHOP.perks[perk as ZombiePerkId];
     if (!perkCfg) return;
+
+    const net = useZombieNetworkStore.getState();
+    if (perk === "juggernog" && net.hasJuggernog) return;
+    if (perk === "speedcola" && net.hasSpeedCola) return;
+    if (perk === "doubletap" && net.hasDoubleTap) return;
+    if (perk === "quickrevive" && net.hasQuickRevive) return;
 
     const points = useZombieStore.getState().points;
     if (points < perkCfg.price) return;
@@ -859,6 +913,7 @@ export class LocalZombieEngine {
       useZombieNetworkStore.setState({ hasSpeedCola: true });
     } else if (perk === "doubletap") {
       useZombieNetworkStore.setState({ hasDoubleTap: true });
+      useWeaponStore.getState().setFireRateMultiplier(1.33);
     } else if (perk === "quickrevive") {
       this.soloRevives++;
       useZombieNetworkStore.setState({ hasQuickRevive: true, soloRevives: this.soloRevives });

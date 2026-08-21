@@ -11,6 +11,7 @@ import {
   WEAPON_POSITIONS,
   WEAPON_ROTATIONS,
   getADSPosition,
+  isAkimboWeapon,
   DEAGLE_HANDS,
   GLOCK_HANDS,
   TEC9_HANDS,
@@ -140,11 +141,11 @@ export function WeaponModel() {
     )
     const adsFactor = adsProgress.current
 
-    // Dynamic dual-wield: deagle is always dual; others only when dualWield=true
-    const isDual = dualWield || activeWeapon === 'deagle'
-    const basePos = (isDual && WEAPON_POSITIONS[activeWeapon] && activeWeapon !== 'deagle')
-      ? WEAPON_POSITIONS.deagle  // Centered position for dual-wield pistols
-      : (WEAPON_POSITIONS[activeWeapon] || [0.22, -0.22, -0.40])
+    // Dynamic dual-wield: only when dualWield=true and weapon is akimbo-eligible
+    const isDual = isAkimboWeapon(activeWeapon, dualWield)
+    const basePos = (isDual && WEAPON_POSITIONS[activeWeapon])
+      ? [0, -0.18, -0.32]  // Centered position for dual-wield pistols
+      : (WEAPON_POSITIONS[activeWeapon] || [0.20, -0.19, -0.38])
     const baseRot = WEAPON_ROTATIONS[activeWeapon] || [0, 0, 0]
     const adsPos = getADSPosition(activeWeapon, isDual)
 
@@ -171,7 +172,7 @@ export function WeaponModel() {
         {activeWeapon === 'ak47' && <AK47Model />}
         {activeWeapon === 'm4a1' && <M4A1Model />}
         {activeWeapon === 'awp' && <AWPModel />}
-        {activeWeapon === 'deagle' && <DeagleModel />}
+        {activeWeapon === 'deagle' && (dualWield ? <DeagleDualModel /> : <DeagleModel />)}
         {activeWeapon === 'mp5' && <MP5Model />}
         {activeWeapon === 'arccaster' && <ArcCasterModel />}
         {activeWeapon === 'glock' && (dualWield ? <GlockDualModel /> : <GlockModel />)}
@@ -841,24 +842,21 @@ function AWPModel() {
         <cylinderGeometry args={[0.005, 0.005, 0.01, 6]} />
         <meshStandardMaterial color="#333333" />
       </mesh>
-      {/* Safety lever */}
-      <mesh position={[0.028, 0.015, 0.12]}>
-        <boxGeometry args={[0.008, 0.012, 0.03]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      {/* Cheek riser adjustment knob */}
-      <mesh position={[-0.022, 0.032, 0.38]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.006, 0.006, 0.01, 8]} />
-        <meshStandardMaterial color="#444444" />
-      </mesh>
+    </group>
+  )
+}
+
+// ─── Single Desert Eagle ─────────────────────────────────────────
+function DeagleModel() {
+  return (
+    <group>
+      <DeaglePistol />
     </group>
   )
 }
 
 // ─── Dual Desert Eagle ───────────────────────────────────────────
-// One .50 AE per hand, firing alternately. Each shot kicks only the pistol that
-// fired, so the off hand never sits frozen while the other one recoils.
-function DeagleModel() {
+function DeagleDualModel() {
   const handRefs = useRef<Array<THREE.Group | null>>([])
   const kicks = useRef<number[]>(DEAGLE_HANDS.map(() => 0))
 
@@ -916,51 +914,51 @@ function DeagleModel() {
 function DeaglePistol() {
   return (
     <group>
-      {/* Slide — massive, tapered toward muzzle */}
+      {/* Slide — massive stainless steel, polygonal profile */}
       <mesh position={[0, 0.014, 0.01]}>
         <boxGeometry args={[0.038, 0.05, 0.24]} />
-        <meshStandardMaterial color="#CA9C24" metalness={0.85} roughness={0.18} />
+        <meshStandardMaterial color="#d4d8de" metalness={0.88} roughness={0.2} />
       </mesh>
-      {/* Slide front — narrows toward the muzzle */}
+      {/* Slide front — tapered toward the muzzle */}
       <mesh position={[0, 0.014, -0.11]} rotation={[0.02, 0, 0]}>
         <boxGeometry args={[0.034, 0.042, 0.09]} />
-        <meshStandardMaterial color="#C8941E" metalness={0.8} roughness={0.2} />
+        <meshStandardMaterial color="#ced2d9" metalness={0.88} roughness={0.2} />
       </mesh>
       {/* Slide crown — top chamfer */}
       <mesh position={[0, 0.036, -0.05]} rotation={[0.06, 0, 0]}>
         <boxGeometry args={[0.032, 0.016, 0.2]} />
-        <meshStandardMaterial color="#B8860B" metalness={0.8} roughness={0.22} />
+        <meshStandardMaterial color="#c0c5cd" metalness={0.85} roughness={0.22} />
       </mesh>
-      {/* Slide top serrations */}
-      {[0, 1, 2].map(i => (
-        <mesh key={`serr-${i}`} position={[0, 0.044, 0.06 + i * 0.014]}>
-          <boxGeometry args={[0.033, 0.009, 0.008]} />
-          <meshStandardMaterial color="#9a7414" metalness={0.75} roughness={0.25} />
-        </mesh>
-      ))}
-      {/* Rear serrations — angled */}
+      {/* Slide top Weaver rail */}
       {[0, 1, 2, 3].map(i => (
-        <mesh key={`rserr-${i}`} position={[0, 0.012, 0.1 + i * 0.015]}>
-          <boxGeometry args={[0.04, 0.052, 0.006]} />
-          <meshStandardMaterial color="#a88218" metalness={0.75} roughness={0.25} />
+        <mesh key={`rail-top-${i}`} position={[0, 0.044, -0.04 + i * 0.025]}>
+          <boxGeometry args={[0.026, 0.005, 0.012]} />
+          <meshStandardMaterial color="#a0a5ad" metalness={0.8} roughness={0.25} />
         </mesh>
       ))}
-      {/* Barrel — exposed, under slide */}
+      {/* Rear cocking serrations — deep angled cuts */}
+      {[0, 1, 2, 3, 4].map(i => (
+        <mesh key={`rserr-${i}`} position={[0, 0.012, 0.08 + i * 0.012]}>
+          <boxGeometry args={[0.04, 0.052, 0.005]} />
+          <meshStandardMaterial color="#9ca3af" metalness={0.75} roughness={0.3} />
+        </mesh>
+      ))}
+      {/* Barrel — exposed heavy match barrel under slide */}
       <mesh position={[0, 0.018, -0.19]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.0085, 0.0085, 0.13, 10]} />
-        <meshStandardMaterial color="#B8860B" metalness={0.78} roughness={0.2} />
+        <cylinderGeometry args={[0.0085, 0.0085, 0.13, 12]} />
+        <meshStandardMaterial color="#25272a" metalness={0.82} roughness={0.25} />
       </mesh>
-      {/* Barrel ribs — reinforced flutes */}
+      {/* Barrel gas tube & triangular contour */}
       <mesh position={[0, 0.026, -0.17]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.012, 0.012, 0.05, 10]} />
-        <meshStandardMaterial color="#C8941E" metalness={0.75} roughness={0.2} />
+        <meshStandardMaterial color="#ced2d9" metalness={0.85} roughness={0.2} />
       </mesh>
-      {/* Muzzle — brake with barrel */}
+      {/* Muzzle with integrated compensator ports */}
       <mesh position={[0, 0.018, -0.265]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.0145, 0.012, 0.035, 10]} />
-        <meshStandardMaterial color="#8B7500" metalness={0.72} roughness={0.25} />
+        <cylinderGeometry args={[0.0145, 0.012, 0.035, 12]} />
+        <meshStandardMaterial color="#9ca3af" metalness={0.85} roughness={0.25} />
       </mesh>
-      {/* Muzzle brake ports — Symmetrical on Left and Right */}
+      {/* Muzzle brake exhaust ports — Symmetrical Left and Right */}
       {[-0.014, 0.014].map(xSide =>
         [0, 1].map(i => (
           <mesh
@@ -968,157 +966,137 @@ function DeaglePistol() {
             position={[xSide, 0.018, -0.25 - i * 0.018]}
             rotation={[Math.PI / 2, 0, 0]}
           >
-            <cylinderGeometry args={[0.003, 0.003, 0.008, 6]} />
-            <meshStandardMaterial color="#5c4a00" />
+            <cylinderGeometry args={[0.0035, 0.0035, 0.008, 6]} />
+            <meshStandardMaterial color="#1a1c1e" />
           </mesh>
         ))
       )}
-      {/* Muzzle crown */}
+      {/* Muzzle crown ring */}
       <mesh position={[0, 0.018, -0.285]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.012, 0.014, 0.008, 10]} />
-        <meshStandardMaterial color="#6B5500" metalness={0.72} roughness={0.25} />
+        <cylinderGeometry args={[0.012, 0.014, 0.008, 12]} />
+        <meshStandardMaterial color="#6b7280" metalness={0.85} roughness={0.25} />
       </mesh>
-      {/* Frame — lower, rounded bottom */}
+      {/* Frame — lower tactical gunmetal */}
       <mesh position={[0, -0.016, 0.03]}>
         <boxGeometry args={[0.036, 0.024, 0.19]} />
-        <meshStandardMaterial color="#B8860B" metalness={0.78} roughness={0.2} />
+        <meshStandardMaterial color="#1e2022" metalness={0.65} roughness={0.35} />
       </mesh>
-      {/* Frame dust-cover rail */}
+      {/* Frame dust-cover front */}
       <mesh position={[0, -0.028, -0.07]}>
         <boxGeometry args={[0.032, 0.009, 0.09]} />
-        <meshStandardMaterial color="#C8941E" metalness={0.72} roughness={0.22} />
+        <meshStandardMaterial color="#222426" metalness={0.65} roughness={0.35} />
       </mesh>
       {/* Accessory rail teeth */}
       {[0, 1, 2, 3].map(i => (
         <mesh key={`rail-${i}`} position={[0, -0.034, -0.04 - i * 0.016]}>
           <boxGeometry args={[0.022, 0.005, 0.012]} />
-          <meshStandardMaterial color="#a88218" metalness={0.65} roughness={0.3} />
+          <meshStandardMaterial color="#374151" metalness={0.65} roughness={0.3} />
         </mesh>
       ))}
-      {/* Trigger guard — squared but contoured */}
+      {/* Trigger guard — contoured */}
       <mesh position={[0, -0.042, 0.06]}>
         <boxGeometry args={[0.033, 0.017, 0.052]} />
-        <meshStandardMaterial color="#8B7500" metalness={0.72} roughness={0.25} />
+        <meshStandardMaterial color="#1e2022" metalness={0.65} roughness={0.35} />
       </mesh>
       {/* Trigger guard — curved front */}
       <mesh position={[0, -0.04, 0.022]} rotation={[0.5, 0, 0]}>
         <boxGeometry args={[0.03, 0.014, 0.035]} />
-        <meshStandardMaterial color="#8B7500" metalness={0.72} roughness={0.25} />
+        <meshStandardMaterial color="#1e2022" metalness={0.65} roughness={0.35} />
       </mesh>
-      {/* Trigger */}
+      {/* Skeletonized Combat Trigger */}
       <mesh position={[0, -0.037, 0.05]} rotation={[0.35, 0, 0]}>
         <boxGeometry args={[0.005, 0.024, 0.004]} />
-        <meshStandardMaterial color="#333333" />
+        <meshStandardMaterial color="#94a3b8" metalness={0.8} roughness={0.2} />
       </mesh>
-      {/* Trigger spur — curved back */}
-      <mesh position={[0, -0.028, 0.048]} rotation={[-0.3, 0, 0]}>
-        <boxGeometry args={[0.005, 0.015, 0.004]} />
-        <meshStandardMaterial color="#2a2a2a" />
-      </mesh>
-      {/* Grip — ergonomic wraparound, wider at bottom */}
+      {/* Ergonomic Combat Grip — wrap-around black polymer */}
       <mesh position={[0, -0.085, 0.085]} rotation={[0.3, 0, 0]}>
         <boxGeometry args={[0.036, 0.075, 0.042]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.72} />
+        <meshStandardMaterial color="#111214" roughness={0.7} />
       </mesh>
       {/* Grip lower flare */}
       <mesh position={[0, -0.128, 0.1]} rotation={[0.3, 0, 0]}>
         <boxGeometry args={[0.042, 0.028, 0.048]} />
-        <meshStandardMaterial color="#232323" roughness={0.72} />
+        <meshStandardMaterial color="#18191b" roughness={0.7} />
       </mesh>
-      {/* Grip front strap — finger grooves (Symmetrical Centered on X=0) */}
+      {/* Grip front finger grooves */}
       {[0, 1, 2].map(i => (
         <mesh key={`groove-${i}`} position={[0, -0.06 - i * 0.016, 0.072]} rotation={[0.3, 0, 0]}>
           <boxGeometry args={[0.037, 0.014, 0.036]} />
-          <meshStandardMaterial color="#2f2f2f" roughness={0.75} />
+          <meshStandardMaterial color="#1e2022" roughness={0.75} />
         </mesh>
       ))}
-      {/* Grip texture — symmetrical panels on Left and Right */}
+      {/* Grip texture panels on Left and Right */}
       <mesh position={[0.019, -0.085, 0.085]} rotation={[0.3, 0, 0]}>
         <boxGeometry args={[0.004, 0.06, 0.036]} />
-        <meshStandardMaterial color="#333333" />
+        <meshStandardMaterial color="#25282c" roughness={0.8} />
       </mesh>
       <mesh position={[-0.019, -0.085, 0.085]} rotation={[0.3, 0, 0]}>
         <boxGeometry args={[0.004, 0.06, 0.036]} />
-        <meshStandardMaterial color="#333333" />
+        <meshStandardMaterial color="#25282c" roughness={0.8} />
       </mesh>
-      {/* Grip backstrap */}
-      <mesh position={[0, -0.078, 0.107]} rotation={[0.3, 0, 0]}>
-        <boxGeometry args={[0.032, 0.065, 0.01]} />
-        <meshStandardMaterial color="#2a2a2a" roughness={0.75} />
+      {/* Iconic Eagle Medallion on Grip Left & Right */}
+      <mesh position={[0.021, -0.085, 0.085]} rotation={[0, Math.PI / 2, 0]}>
+        <cylinderGeometry args={[0.007, 0.007, 0.003, 16]} />
+        <meshStandardMaterial color="#e2e8f0" metalness={0.9} roughness={0.15} />
       </mesh>
-      {/* Magazine — extended with gold base */}
+      <mesh position={[-0.021, -0.085, 0.085]} rotation={[0, -Math.PI / 2, 0]}>
+        <cylinderGeometry args={[0.007, 0.007, 0.003, 16]} />
+        <meshStandardMaterial color="#e2e8f0" metalness={0.9} roughness={0.15} />
+      </mesh>
+      {/* Magazine — steel body with black base plate */}
       <mesh position={[0, -0.135, 0.095]} rotation={[0.3, 0, 0]}>
         <boxGeometry args={[0.03, 0.055, 0.032]} />
-        <meshStandardMaterial color="#A88218" metalness={0.75} roughness={0.22} />
+        <meshStandardMaterial color="#475569" metalness={0.7} roughness={0.3} />
       </mesh>
-      {/* Magazine base plate */}
       <mesh position={[0, -0.172, 0.1]} rotation={[0.3, 0, 0]}>
         <boxGeometry args={[0.035, 0.014, 0.038]} />
-        <meshStandardMaterial color="#C8941E" metalness={0.75} roughness={0.2} />
+        <meshStandardMaterial color="#1e2022" roughness={0.6} />
       </mesh>
-      {/* Rear sight — adjustable, serrated */}
+      {/* Tactical Rear Combat Sight with U-notch */}
       <mesh position={[0, 0.048, 0.075]}>
         <boxGeometry args={[0.03, 0.014, 0.022]} />
-        <meshStandardMaterial color="#333333" metalness={0.55} roughness={0.4} />
+        <meshStandardMaterial color="#1e2022" metalness={0.55} roughness={0.4} />
       </mesh>
-      {/* Rear sight notch */}
       <mesh position={[0, 0.056, 0.075]}>
         <boxGeometry args={[0.012, 0.007, 0.016]} />
-        <meshStandardMaterial color="#222222" />
+        <meshStandardMaterial color="#0f172a" />
       </mesh>
-      {/* Front sight — ramped blade */}
+      {/* Front Sight Blade with White Dot */}
       <mesh position={[0, 0.052, -0.115]} rotation={[0.12, 0, 0]}>
-        <boxGeometry args={[0.009, 0.02, 0.013]} />
-        <meshStandardMaterial color="#333333" metalness={0.55} roughness={0.4} />
+        <boxGeometry args={[0.008, 0.02, 0.013]} />
+        <meshStandardMaterial color="#1e2022" metalness={0.55} roughness={0.4} />
       </mesh>
-      {/* Front sight base */}
-      <mesh position={[0, 0.042, -0.12]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.005, 0.005, 0.015, 8]} />
-        <meshStandardMaterial color="#2a2a2a" />
+      <mesh position={[0, 0.058, -0.112]}>
+        <boxGeometry args={[0.004, 0.004, 0.004]} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} />
       </mesh>
-      {/* Front sight dot */}
-      <mesh position={[0, 0.063, -0.115]}>
-        <boxGeometry args={[0.005, 0.005, 0.005]} />
-        <meshStandardMaterial color="#ff4444" emissive="#ff2222" emissiveIntensity={0.35} />
-      </mesh>
-      {/* Hammer — external, large */}
+      {/* Combat Hammer with serrated spur */}
       <mesh position={[0, 0.048, 0.135]} rotation={[0.55, 0, 0]}>
         <boxGeometry args={[0.016, 0.022, 0.013]} />
-        <meshStandardMaterial color="#555555" metalness={0.65} roughness={0.3} />
+        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.3} />
       </mesh>
-      {/* Hammer spur */}
       <mesh position={[0, 0.062, 0.14]} rotation={[0.0, 0, 0]}>
         <boxGeometry args={[0.014, 0.012, 0.01]} />
-        <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.3} />
+        <meshStandardMaterial color="#4b5563" metalness={0.7} roughness={0.3} />
       </mesh>
-      {/* Slide stops — Symmetrical Left and Right */}
+      {/* Slide Stops & Safety Levers */}
       <mesh position={[0.02, 0.002, 0.045]}>
         <boxGeometry args={[0.006, 0.013, 0.038]} />
-        <meshStandardMaterial color="#C8941E" metalness={0.75} roughness={0.2} />
+        <meshStandardMaterial color="#1e2022" metalness={0.6} roughness={0.3} />
       </mesh>
       <mesh position={[-0.02, 0.002, 0.045]}>
         <boxGeometry args={[0.006, 0.013, 0.038]} />
-        <meshStandardMaterial color="#C8941E" metalness={0.75} roughness={0.2} />
+        <meshStandardMaterial color="#1e2022" metalness={0.6} roughness={0.3} />
       </mesh>
-      {/* Safety levers — Ambidextrous Left and Right */}
       <mesh position={[0.02, 0.026, 0.09]}>
         <boxGeometry args={[0.006, 0.011, 0.028]} />
-        <meshStandardMaterial color="#C8941E" metalness={0.75} roughness={0.2} />
+        <meshStandardMaterial color="#1e2022" metalness={0.6} roughness={0.3} />
       </mesh>
       <mesh position={[-0.02, 0.026, 0.09]}>
         <boxGeometry args={[0.006, 0.011, 0.028]} />
-        <meshStandardMaterial color="#C8941E" metalness={0.75} roughness={0.2} />
+        <meshStandardMaterial color="#1e2022" metalness={0.6} roughness={0.3} />
       </mesh>
-      {/* Magazine release — Symmetrical Left and Right */}
-      <mesh position={[-0.019, -0.024, 0.048]}>
-        <boxGeometry args={[0.006, 0.013, 0.016]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      <mesh position={[0.019, -0.024, 0.048]}>
-        <boxGeometry args={[0.006, 0.013, 0.016]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      {/* Top slide bevel / ejection cutout — Centered */}
+      {/* Top slide bevel / ejection port cutout */}
       <mesh position={[0, 0.034, -0.045]}>
         <boxGeometry args={[0.03, 0.014, 0.05]} />
         <meshStandardMaterial color="#7a6300" metalness={0.8} roughness={0.2} />

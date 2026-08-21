@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { GameState } from "@cs-game/shared";
+import { GameState, WAVE_CONFIG } from "@cs-game/shared";
 import { WaveSystem } from "../server/src/systems/WaveSystem";
 import { ZombieController } from "../server/src/ai/ZombieController";
+
+const BUY_PHASE_TICK = WAVE_CONFIG.firstWaveDelay + 1;
 
 /** Kill every alive zombie through the wave system, then tick once. */
 function killAll(waveSystem: WaveSystem, zombieCtrl: ZombieController) {
@@ -13,7 +15,7 @@ function killAll(waveSystem: WaveSystem, zombieCtrl: ZombieController) {
 /** Drive one full wave cycle: buy_phase → spawning → active → wave_clear. */
 function runWaveToClear(waveSystem: WaveSystem, zombieCtrl: ZombieController) {
   // buy_phase timer expires → wave starts spawning
-  waveSystem.update(20);
+  waveSystem.update(WAVE_CONFIG.firstWaveDelay + 0.1);
   // Finish spawning immediately so all zombies exist
   waveSystem.finishSpawning();
   // Kill them all
@@ -45,7 +47,7 @@ describe("WaveSystem", () => {
     waveSystem.startFirstWave();
     expect(waveSystem.getWaveState()).toBe("buy_phase");
 
-    waveSystem.update(6.0);
+    waveSystem.update(BUY_PHASE_TICK);
     expect(waveSystem.getWaveState()).toBe("spawning");
     expect(waveSystem.getCurrentWave()).toBe(1);
     expect(state.currentWave).toBe(1);
@@ -83,7 +85,7 @@ describe("WaveSystem", () => {
 
   it("should pause wave update when phase is not active", () => {
     waveSystem.startFirstWave();
-    waveSystem.update(6.0); // buy_phase → spawning (wave 1)
+    waveSystem.update(BUY_PHASE_TICK); // buy_phase → spawning (wave 1)
     state.phase = "waiting";
     const initialZombies = zombieCtrl.getAliveCount();
     waveSystem.update(5.0);
@@ -100,7 +102,7 @@ describe("WaveSystem", () => {
 
   it("should reset wave state and stats on reset()", () => {
     waveSystem.startFirstWave();
-    waveSystem.update(6.0);
+    waveSystem.update(BUY_PHASE_TICK);
     waveSystem.onZombieKilled(true);
     waveSystem.reset();
     expect(waveSystem.getCurrentWave()).toBe(0);
@@ -115,7 +117,7 @@ describe("WaveSystem", () => {
     expect(waveSystem.isInBuyPhase()).toBe(true);
     expect(waveSystem.getBuyPhaseTimer()).toBeGreaterThan(0);
 
-    waveSystem.update(6.0); // buy_phase → spawning
+    waveSystem.update(BUY_PHASE_TICK); // buy_phase → spawning
     expect(waveSystem.isInBuyPhase()).toBe(false);
     expect(waveSystem.getBuyPhaseTimer()).toBe(0);
   });
