@@ -5,7 +5,7 @@ import { useNetworkStore } from "../stores/useNetworkStore";
 import { ServerBrowser } from "../components/ServerBrowser";
 import { MAPS } from "../game/map/MapRegistry";
 
-type ModeId = "training" | "zombie" | "match";
+type ModeId = "training" | "zombie" | "match" | "offline5v5";
 
 interface ModeCard {
   id: ModeId;
@@ -36,6 +36,17 @@ const MODES: ModeCard[] = [
     action: "MULAI LATIHAN",
   },
   {
+    id: "offline5v5",
+    glyph: "🤖",
+    title: "5V5 OFFLINE vs BOT",
+    tagline: "Bomb defusal local, lawan 9 bot AI",
+    players: "SOLO • OFFLINE • NO SERVER",
+    accent: "#f59e0b",
+    accentSoft: "rgba(245,158,11,",
+    features: ["Buy menu & ekonomi CS", "Bot AI beli senjata & tanam bom", "Full 15 ronde bomb defusal"],
+    action: "MULAI OFFLINE",
+  },
+  {
     id: "zombie",
     glyph: "☣",
     title: "ZOMBIE SURVIVAL",
@@ -50,7 +61,7 @@ const MODES: ModeCard[] = [
     id: "match",
     glyph: "⚔",
     title: "COMPETITIVE 5V5",
-    tagline: "Bomb defusal klasik dengan buy economy",
+    tagline: "Bomb defusal online dengan buy economy",
     players: "5V5 • ONLINE",
     accent: "#3b82f6",
     accentSoft: "rgba(59,130,246,",
@@ -95,6 +106,11 @@ export function MainMenu() {
     if (selected === "training") {
       setMode("training");
       setLocation("/training");
+      return;
+    }
+    if (selected === "offline5v5") {
+      setMode("offline5v5");
+      setLocation("/offline5v5");
       return;
     }
     if (selected === "zombie") {
@@ -389,7 +405,7 @@ export function MainMenu() {
               {activeMode.title}
             </p>
 
-            {selected === "match" && (
+            {(selected === "match" || selected === "offline5v5") && (
               <div style={{ marginTop: "16px" }}>
                 <p style={{ margin: "0 0 8px", fontSize: "10px", letterSpacing: "1.5px", color: "#6b7280" }}>
                   PILIH MAP

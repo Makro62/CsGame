@@ -357,6 +357,17 @@ export function PlayerController() {
     // shooting raycast, which uses the camera) climbs with the spray pattern.
     applyLook()
 
+    // Menus and click-to-play release the pointer lock. Freeze look-driven
+    // movement so pause actually pauses instead of letting WASD keep walking.
+    if (!document.pointerLockElement) {
+      const rbFrozen = rigidBodyRef.current
+      if (rbFrozen) {
+        const pos = rbFrozen.translation()
+        camera.position.set(pos.x, pos.y + EYE_HEIGHT_STAND, pos.z)
+      }
+      return
+    }
+
     const input = getInput()
     const controller = controllerRef.current
     const rb = rigidBodyRef.current

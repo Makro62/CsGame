@@ -34,6 +34,7 @@ import SettingsMenu from './screens/SettingsMenu'
 import { MainMenu } from './screens/MainMenu'
 import { TrainingRange } from './game/training/TrainingRange'
 import { ZombieSurvivalMode } from './screens/ZombieSurvivalMode'
+import { Offline5v5Mode } from './screens/Offline5v5Mode'
 import { useWeaponSwitch } from './hooks/useWeaponSwitch'
 import { useGameStore } from './stores/useGameStore'
 import { useNetworkStore } from './stores/useNetworkStore'
@@ -144,6 +145,8 @@ function SyncModeToURL() {
       useGameStore.getState().setMode('training')
     } else if (location === '/play' && mode !== 'multiplayer') {
       useGameStore.getState().setMode('multiplayer')
+    } else if (location === '/offline5v5' && mode !== 'offline5v5') {
+      useGameStore.getState().setMode('offline5v5')
     } else if (location === '/zombie' && mode !== 'zombie') {
       useGameStore.getState().setMode('zombie')
     }
@@ -159,6 +162,8 @@ function SyncModeToURL() {
         setLocation('/training')
       } else if (state.mode === 'multiplayer' && location !== '/play') {
         setLocation('/play')
+      } else if (state.mode === 'offline5v5' && location !== '/offline5v5') {
+        setLocation('/offline5v5')
       } else if (state.mode === 'zombie' && location !== '/zombie') {
         setLocation('/zombie')
       }
@@ -175,6 +180,7 @@ function GameRoutes() {
   // Render the right component based on URL
   if (location === '/training') return <TrainingRange />
   if (location === '/play') return <MultiplayerMode />
+  if (location === '/offline5v5') return <Offline5v5Mode />
   if (location === '/zombie') return <ZombieSurvivalMode />
   return <MainMenu />
 }
@@ -187,6 +193,7 @@ export default function App() {
         <Route path="/" component={GameRoutes} />
         <Route path="/training" component={GameRoutes} />
         <Route path="/play" component={GameRoutes} />
+        <Route path="/offline5v5" component={GameRoutes} />
         <Route path="/zombie" component={GameRoutes} />
         <Redirect to="/" />
       </Switch>

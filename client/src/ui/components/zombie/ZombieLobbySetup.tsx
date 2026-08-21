@@ -193,13 +193,16 @@ export function ZombieLobbySetup({ onStart, onBack }: ZombieLobbySetupProps) {
             <div><strong style={{ color: "#fff" }}>[1, 2, 3 / Scroll]</strong> Ganti Senjata</div>
             <div><strong style={{ color: "#fff" }}>[Klik Kiri]</strong> Tembak Senjata</div>
             <div><strong style={{ color: "#fff" }}>[R]</strong> Reload Amunisi</div>
-            <div><strong style={{ color: "#fff" }}>[F]</strong> Interaksi / Repair / PaP</div>
-            <div><strong style={{ color: "#fff" }}>[Tahan F]</strong> Revive Rekan Tim</div>
+            <div><strong style={{ color: "#fff" }}>[F]</strong> Wall-buy / Ammo / Perk / PaP</div>
+            <div><strong style={{ color: "#fff" }}>[Tahan F]</strong> Heal Med Station / Revive</div>
             <div><strong style={{ color: "#fff" }}>[B]</strong> Buka Armory Shop</div>
             <div><strong style={{ color: "#fff" }}>[M]</strong> Buka / Tutup Mini-Map</div>
             <div><strong style={{ color: "#fff" }}>[TAB]</strong> Papan Skor</div>
-            <div><strong style={{ color: "#fff" }}>[Space]</strong> Mulai Wave Selanjutnya</div>
+            <div><strong style={{ color: "#fff" }}>[Space]</strong> Skip buy phase / mulai wave</div>
             <div><strong style={{ color: "#fff" }}>[ESC]</strong> Pause / Settings Menu</div>
+          </div>
+          <div style={{ marginTop: 10, color: "#94a3b8", fontSize: 11 }}>
+            Start: 1000 pts · 20s buy time · Deagle. Beli MP5 di dinding Safe House, isi darah di Med Station (tahan F, 400 pts).
           </div>
         </div>
 

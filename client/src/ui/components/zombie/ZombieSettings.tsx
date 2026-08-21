@@ -155,15 +155,16 @@ export function ZombieSettings({ onClose, onRestart, onMenu }: ZombieSettingsPro
             gap: "6px",
           }}
         >
+          <div><strong style={{ color: "#fff" }}>[ESC]</strong> Pause / Settings</div>
           <div><strong style={{ color: "#fff" }}>[WASD]</strong> Move</div>
           <div><strong style={{ color: "#fff" }}>[1/2/3/Scroll]</strong> Weapons</div>
-          <div><strong style={{ color: "#fff" }}>[F]</strong> Interact / Repair</div>
-          <div><strong style={{ color: "#fff" }}>[Hold F]</strong> Revive Ally</div>
-          <div><strong style={{ color: "#fff" }}>[B]</strong> Armory Shop</div>
+          <div><strong style={{ color: "#fff" }}>[F]</strong> Interact</div>
+          <div><strong style={{ color: "#fff" }}>[Hold F]</strong> Heal / Revive</div>
+          <div><strong style={{ color: "#fff" }}>[B]</strong> Shop</div>
           <div><strong style={{ color: "#fff" }}>[R]</strong> Reload</div>
-          <div><strong style={{ color: "#fff" }}>[M]</strong> Toggle Radar</div>
-          <div><strong style={{ color: "#fff" }}>[TAB]</strong> Scoreboard</div>
-          <div><strong style={{ color: "#fff" }}>[Space]</strong> Next Wave</div>
+          <div><strong style={{ color: "#fff" }}>[M]</strong> Radar</div>
+          <div><strong style={{ color: "#fff" }}>[TAB]</strong> Score</div>
+          <div><strong style={{ color: "#fff" }}>[Space]</strong> Start wave</div>
         </div>
 
         {/* Action Buttons */}

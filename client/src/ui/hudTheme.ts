@@ -79,7 +79,20 @@ export function hudPill(accent: HudAccent = "neutral"): CSSProperties {
   };
 }
 
-/** Column that keeps centered banners from stacking on top of each other. */
+/** Compact clickable HUD chrome used by zombie command buttons. */
+export function hudActionButton(accent: HudAccent = "neutral"): CSSProperties {
+  const { border, text } = ACCENTS[accent];
+  return {
+    ...hudPill(accent),
+    pointerEvents: "auto",
+    cursor: "pointer",
+    fontSize: 11,
+    padding: "6px 11px",
+    fontWeight: 800,
+    color: text,
+    border: `1px solid ${border}`,
+  };
+}
 export function hudBannerStack(top: number): CSSProperties {
   return {
     position: "fixed",

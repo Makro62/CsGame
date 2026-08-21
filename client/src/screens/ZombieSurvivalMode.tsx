@@ -50,15 +50,7 @@ import {
   ZOMBIE_POINTS,
   ZOMBIE_SHOP,
 } from "@cs-game/shared";
-import {
-  HUD_EDGE,
-  HUD_MONO,
-  HUD_Z,
-  hudBannerStack,
-  hudPanel,
-  hudPill,
-  hudPromptStack,
-} from "../ui/hudTheme";
+import { HUD_EDGE, HUD_MONO, HUD_Z, hudActionButton, hudBannerStack, hudPanel, hudPromptStack } from "../ui/hudTheme";
 
 /** Reviving an ally takes a held key, so a stray tap cannot start it. */
 const REVIVE_RANGE = 3;
@@ -106,13 +98,13 @@ function canCallExtraction(): { allowed: boolean; free: boolean } {
 
 function HotkeyManager({
   onToggleShop,
-  onToggleSettings,
+  onEscape,
   onToggleLeaderboard,
   onInteractAction,
   menuOpen,
 }: {
   onToggleShop: () => void;
-  onToggleSettings: () => void;
+  onEscape: () => void;
   onToggleLeaderboard: () => void;
   onInteractAction: () => void;
   menuOpen: boolean;
@@ -232,7 +224,8 @@ function HotkeyManager({
           onToggleLeaderboard();
           break;
         case "Escape":
-          onToggleSettings();
+          e.preventDefault();
+          onEscape();
           break;
       }
     };
@@ -288,7 +281,7 @@ function HotkeyManager({
     sendStartGame,
     switchToSlot,
     onToggleShop,
-    onToggleSettings,
+    onEscape,
     onToggleLeaderboard,
     onInteractAction,
     stopRevive,
@@ -516,8 +509,9 @@ function BossWaveWarning() {
   );
 }
 
-function LocalZombieUpdater() {
+function LocalZombieUpdater({ paused }: { paused: boolean }) {
   useFrame((_, dt) => {
+    if (paused) return;
     if (useZombieNetworkStore.getState().isLocal) {
       localZombieEngine.update(dt);
     }
@@ -558,6 +552,7 @@ export function ZombieSurvivalMode() {
   } = useZombieStore();
 
   const localIsDead = useZombieNetworkStore((s) => s.localIsDead);
+  const paused = settingsOpen || shopOpen || mysteryBoxOpen || packAPunchOpen || gameOver || leaderboardOpen;
 
   useEffect(() => {
     useGameStore.getState().setMode("zombie");
@@ -566,6 +561,14 @@ export function ZombieSurvivalMode() {
       useZombieNetworkStore.getState().disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    if (lobbyOpen) return;
+    const id = window.setTimeout(() => {
+      document.querySelector("canvas")?.requestPointerLock();
+    }, 200);
+    return () => window.clearTimeout(id);
+  }, [lobbyOpen]);
 
   // Joining happens after the lobby closes so the chosen difficulty reaches the
   // room and no wave starts while the setup screen is still up.
@@ -613,6 +616,26 @@ export function ZombieSurvivalMode() {
   const toggleShop = useCallback(() => setShopOpen((p) => !p), []);
   const toggleSettings = useCallback(() => setSettingsOpen((p) => !p), []);
   const toggleLeaderboard = useCallback(() => setLeaderboardOpen((p) => !p), []);
+
+  const handleEscape = useCallback(() => {
+    if (shopOpen) {
+      setShopOpen(false);
+      return;
+    }
+    if (mysteryBoxOpen) {
+      setMysteryBoxOpen(false);
+      return;
+    }
+    if (packAPunchOpen) {
+      setPackAPunchOpen(false);
+      return;
+    }
+    if (leaderboardOpen) {
+      setLeaderboardOpen(false);
+      return;
+    }
+    setSettingsOpen((open) => !open);
+  }, [shopOpen, mysteryBoxOpen, packAPunchOpen, leaderboardOpen]);
 
   const handlePickup = useCallback((id: string) => {
     useZombieNetworkStore.getState().sendPickupPowerUp(id);
@@ -697,23 +720,19 @@ export function ZombieSurvivalMode() {
         />
       )}
 
+      {!lobbyOpen && (
+        <>
       {/* Top Left Menu / Back Button, aligned with the radar below it */}
       <button
         onClick={toggleSettings}
         style={{
-          ...hudPanel("red"),
+          ...hudActionButton("red"),
           position: "fixed",
           top: HUD_EDGE,
           left: HUD_EDGE,
           width: 168,
-          padding: "7px 12px",
-          color: "#f8fafc",
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: 1,
-          cursor: "pointer",
+          justifyContent: "center",
           zIndex: HUD_Z.chrome,
-          transition: "all 0.2s",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.borderColor = "#ef4444";
@@ -736,16 +755,16 @@ export function ZombieSurvivalMode() {
       />
 
       <Canvas shadows camera={{ fov: 75, position: [0, 1.6, -30] }}>
-        <color attach="background" args={["#121826"]} />
-        <fog attach="fog" args={["#121826", 30, 110]} />
-        <ambientLight intensity={0.45} color="#8899aa" />
-        <directionalLight castShadow position={[15, 30, 10]} intensity={1.0} color="#c8d4e8" />
+        <color attach="background" args={["#1a2333"]} />
+        <fog attach="fog" args={["#1a2333", 40, 130]} />
+        <ambientLight intensity={0.55} color="#9aabbc" />
+        <directionalLight castShadow position={[15, 30, 10]} intensity={1.15} color="#d5e0ee" />
         <Physics gravity={[0, -9.81, 0]}>
           <ZombieArena />
           <PlayerController />
           <WeaponModel />
         </Physics>
-        <LocalZombieUpdater />
+        <LocalZombieUpdater paused={paused} />
         <ShootingSystem />
         <ReloadSystem />
         <ZombieRenderer zombies={zombies} />
@@ -787,118 +806,27 @@ export function ZombieSurvivalMode() {
         }}
       >
         <PointsDisplay points={points} />
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, pointerEvents: "auto" }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
               toggleShop();
             }}
             title="Open Weapon Shop [B]"
-            style={{
-              ...hudPill("gold"),
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              cursor: "pointer",
-              pointerEvents: "auto",
-              border: "1px solid rgba(255, 215, 0, 0.6)",
-              backgroundColor: "rgba(20, 16, 4, 0.85)",
-              color: "#ffd700",
-              fontWeight: 800,
-              fontSize: 12,
-              padding: "6px 12px",
-              borderRadius: 6,
-              transition: "all 0.15s ease",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "scale(1.05)";
-              e.currentTarget.style.backgroundColor = "rgba(255, 215, 0, 0.25)";
-              e.currentTarget.style.borderColor = "#ffd700";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "scale(1.0)";
-              e.currentTarget.style.backgroundColor = "rgba(20, 16, 4, 0.85)";
-              e.currentTarget.style.borderColor = "rgba(255, 215, 0, 0.6)";
-            }}
+            style={hudActionButton("gold")}
           >
-            🛒 <span>[B] SHOP</span>
+            [B] SHOP
           </button>
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleInteract();
-            }}
-            title="Interact / Use [F]"
-            style={{
-              ...hudPill("neutral"),
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              cursor: "pointer",
-              pointerEvents: "auto",
-              border: "1px solid rgba(52, 211, 153, 0.6)",
-              backgroundColor: "rgba(6, 20, 14, 0.85)",
-              color: "#34d399",
-              fontWeight: 800,
-              fontSize: 12,
-              padding: "6px 12px",
-              borderRadius: 6,
-              transition: "all 0.15s ease",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "scale(1.05)";
-              e.currentTarget.style.backgroundColor = "rgba(52, 211, 153, 0.25)";
-              e.currentTarget.style.borderColor = "#34d399";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "scale(1.0)";
-              e.currentTarget.style.backgroundColor = "rgba(6, 20, 14, 0.85)";
-              e.currentTarget.style.borderColor = "rgba(52, 211, 153, 0.6)";
-            }}
-          >
-            ⚡ <span>[F] USE</span>
-          </button>
-
           <button
             onClick={(e) => {
               e.stopPropagation();
               toggleLeaderboard();
             }}
             title="Toggle Scoreboard [TAB]"
-            style={{
-              ...hudPill("neutral"),
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              cursor: "pointer",
-              pointerEvents: "auto",
-              border: "1px solid rgba(96, 165, 250, 0.6)",
-              backgroundColor: "rgba(8, 16, 30, 0.85)",
-              color: "#60a5fa",
-              fontWeight: 800,
-              fontSize: 12,
-              padding: "6px 12px",
-              borderRadius: 6,
-              transition: "all 0.15s ease",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "scale(1.05)";
-              e.currentTarget.style.backgroundColor = "rgba(96, 165, 250, 0.25)";
-              e.currentTarget.style.borderColor = "#60a5fa";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "scale(1.0)";
-              e.currentTarget.style.backgroundColor = "rgba(8, 16, 30, 0.85)";
-              e.currentTarget.style.borderColor = "rgba(96, 165, 250, 0.6)";
-            }}
+            style={hudActionButton("blue")}
           >
-            📊 <span>[TAB] SCORE</span>
+            [TAB] SCORE
           </button>
-
           {(waveState === "buy_phase" || waveState === "wave_clear" || waveState === "waiting") && (
             <button
               onClick={(e) => {
@@ -906,33 +834,9 @@ export function ZombieSurvivalMode() {
                 useZombieNetworkStore.getState().sendStartGame();
               }}
               title="Start Wave Now [SPACE]"
-              style={{
-                ...hudPill("green"),
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                cursor: "pointer",
-                pointerEvents: "auto",
-                border: "1px solid rgba(239, 68, 68, 0.8)",
-                backgroundColor: "rgba(220, 38, 38, 0.85)",
-                color: "#ffffff",
-                fontWeight: 900,
-                fontSize: 12,
-                padding: "6px 14px",
-                borderRadius: 6,
-                transition: "all 0.15s ease",
-                boxShadow: "0 0 12px rgba(239, 68, 68, 0.6)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "scale(1.05)";
-                e.currentTarget.style.backgroundColor = "#ef4444";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1.0)";
-                e.currentTarget.style.backgroundColor = "rgba(220, 38, 38, 0.85)";
-              }}
+              style={hudActionButton("red")}
             >
-              ▶️ <span>[SPACE] START</span>
+              [SPACE] START
             </button>
           )}
         </div>
@@ -945,7 +849,9 @@ export function ZombieSurvivalMode() {
         <AreaUnlockUI />
         <InteractionPrompt />
       </div>
-      {!lobbyOpen && <ClickToPlayOverlay onLock={() => {}} />}
+      <ClickToPlayOverlay onLock={() => {}} suppressed={paused} />
+        </>
+      )}
       {shopOpen && <WeaponShop onClose={toggleShop} />}
       {mysteryBoxOpen && <MysteryBox onClose={() => setMysteryBoxOpen(false)} />}
       {packAPunchOpen && <PackAPunch onClose={() => setPackAPunchOpen(false)} />}

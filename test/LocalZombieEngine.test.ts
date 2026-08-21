@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { ZOMBIE_STARTING_POINTS, WAVE_CONFIG } from "@cs-game/shared";
 import { localZombieEngine } from "../client/src/game/zombie/LocalZombieEngine";
 import { useZombieStore } from "../client/src/stores/useZombieStore";
 import { useWeaponStore } from "../client/src/stores/useWeaponStore";
@@ -15,9 +16,10 @@ describe("LocalZombieEngine", () => {
 
   it("initializes game state with starting points and buy_phase", () => {
     const store = useZombieStore.getState();
-    expect(store.points).toBe(1000);
+    expect(store.points).toBe(ZOMBIE_STARTING_POINTS);
     expect(store.waveState).toBe("buy_phase");
     expect(store.currentWave).toBe(0);
+    expect(store.interWaveTimer).toBe(WAVE_CONFIG.firstWaveDelay);
     expect(store.barricades.length).toBeGreaterThan(0);
     expect(localZombieEngine.isActive()).toBe(true);
   });

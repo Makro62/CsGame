@@ -1114,7 +1114,7 @@ export const MED_STATION = {
   price: 400,
   channelSec: 2.5,
   x: 0,
-  z: -34,
+  z: -36,
 } as const;
 
 /** World wall-buys. Prices come from ZOMBIE_SHOP.weaponPrices. */
