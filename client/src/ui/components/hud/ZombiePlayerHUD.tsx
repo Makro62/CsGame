@@ -16,7 +16,7 @@ export function ZombiePlayerHUD() {
   const kills = useZombieNetworkStore((s) => s.kills);
   const soloRevives = useZombieNetworkStore((s) => s.soloRevives);
 
-  const maxHp = Math.max(100, localMaxHp || (hasJuggernog ? 200 : 100));
+  const maxHp = Math.max(hasJuggernog ? 200 : 100, localMaxHp || 0);
   const hpPercent = Math.max(0, Math.min(100, (localHp / maxHp) * 100));
   const hpColor = hpPercent > 50 ? "#22c55e" : hpPercent > 25 ? "#eab308" : "#ef4444";
 

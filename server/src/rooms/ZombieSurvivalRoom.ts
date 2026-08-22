@@ -39,7 +39,7 @@ import {
 } from "@cs-game/shared";
 import { ZombieController } from "../ai/ZombieController";
 import { WaveSystem } from "../systems/WaveSystem";
-import { AntiCheatSystem } from "./AntiCheatSystem";
+import { AntiCheatSystem, MAX_SPEED_MULTIPLIER } from "./AntiCheatSystem";
 
 const TICK_MS = 1000 / SERVER.tickRate;
 
@@ -705,7 +705,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     let nextZ = player.z + rdz;
 
     if (!this.antiCheat.validateSpeed(client.sessionId, player, nextX, nextZ, dt)) {
-      const allowedDist = PHYSICS.sprintSpeed * 1.35 * dt;
+      const allowedDist = PHYSICS.sprintSpeed * MAX_SPEED_MULTIPLIER * dt;
       const actualDist = Math.sqrt(rdx * rdx + rdz * rdz);
       if (actualDist > 0.001) {
         const scale = allowedDist / actualDist;

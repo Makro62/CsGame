@@ -49,7 +49,7 @@ import {
 import { WeaponManager } from "./WeaponManager";
 import { EconomySystem } from "./EconomySystem";
 import { BombController } from "./BombController";
-import { AntiCheatSystem } from "./AntiCheatSystem";
+import { AntiCheatSystem, MAX_SPEED_MULTIPLIER } from "./AntiCheatSystem";
 import { InterestManager } from "./InterestManager";
 import { BotAgent, BotConfig, BotCallbacks } from "../ai/BotAgent";
 
@@ -1090,7 +1090,7 @@ export class GameRoom extends Room<GameState> {
       // Anti-cheat: validate speed (must be checked before position is written)
       if (!this.antiCheat.validateSpeed(sessionId, player, nextX, nextZ, dt)) {
         // Speed violation — clamp movement to max allowed
-        const allowedDist = PHYSICS.sprintSpeed * 1.35 * dt;
+        const allowedDist = PHYSICS.sprintSpeed * MAX_SPEED_MULTIPLIER * dt;
         const actualDist = Math.sqrt(moveX * moveX + moveZ * moveZ);
         if (actualDist > 0.001) {
           const scale = allowedDist / actualDist;

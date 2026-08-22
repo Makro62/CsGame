@@ -14,7 +14,7 @@ interface ViolationRecord {
   lastAt: number
 }
 
-const MAX_SPEED_MULTIPLIER = 1.35        // allow 35% tolerance over max speed
+export const MAX_SPEED_MULTIPLIER = 1.55 // allow 55% tolerance — accommodates slide-hop (1.45x) with margin
 const MAX_POSITION_DELTA_SQ = 100        // 10m max position change per tick
 const MAX_INPUTS_PER_SECOND = 60         // flood protection
 const FIRE_RATE_VIOLATIONS_THRESHOLD = 5 // warn after 5 violations

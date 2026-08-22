@@ -60,13 +60,15 @@ export function useNetwork(nickname: string) {
   const reconcile = useCallback(
     (
       localPos: { x: number; y: number; z: number },
-      snapshot: { x: number; y: number; z: number } | null
+      snapshot: { x: number; y: number; z: number; lastProcessedSeq?: number } | null
     ) => {
       if (!snapshot) return { x: localPos.x, y: localPos.y, z: localPos.z };
 
+      const serverSeq = snapshot.lastProcessedSeq ?? 0;
+
       // Acknowledge server snapshot (removes acknowledged inputs, replays remaining)
       predictionRef.current.acknowledgeSnapshot({
-        seq: 0,
+        seq: serverSeq,
         x: snapshot.x,
         y: snapshot.y,
         z: snapshot.z,
@@ -75,7 +77,7 @@ export function useNetwork(nickname: string) {
       // Use ServerPredictionManager for enhanced reconciliation
       const result = predictionRef.current.reconcile(
         new THREE.Vector3(localPos.x, localPos.y, localPos.z),
-        { seq: 0, x: snapshot.x, y: snapshot.y, z: snapshot.z },
+        { seq: serverSeq, x: snapshot.x, y: snapshot.y, z: snapshot.z },
         RECONCILE_SNAP,
         RECONCILE_LERP
       );

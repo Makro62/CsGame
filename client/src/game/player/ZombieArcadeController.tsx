@@ -95,6 +95,10 @@ export function ZombieArcadeController({ paused }: { paused: boolean }) {
     lastFrame.current = now;
 
     zombieAim.paused = paused;
+    if (paused || isDead) {
+      motionRef.current.moving = false;
+      motionRef.current.sprinting = false;
+    }
 
     const rb = rigidBodyRef.current;
     const controller = controllerRef.current;
@@ -195,6 +199,15 @@ export function ZombieArcadeController({ paused }: { paused: boolean }) {
         rotationY: zombieAim.yaw,
         seq: Date.now(),
       });
+    }
+
+    if (visualRef.current) {
+      visualRef.current.position.set(
+        _currentPos.x,
+        _currentPos.y - TOTAL_HEIGHT / 2,
+        _currentPos.z
+      );
+      visualRef.current.rotation.y = zombieAim.yaw;
     }
 
     if (aimMarkerRef.current) {

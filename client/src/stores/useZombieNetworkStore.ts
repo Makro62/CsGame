@@ -400,6 +400,7 @@ function setupZombieRoom(room: Room<GameState>) {
     if (localPlayer) {
       useZombieNetworkStore.setState({
         localHp: localPlayer.hp,
+        localMaxHp: localPlayer.hasJuggernog ? 200 : 100,
         localIsDead: localPlayer.isDead,
         localIsDowned: localPlayer.isDowned,
         localDownedTimer: localPlayer.downedTimer,

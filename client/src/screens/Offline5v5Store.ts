@@ -290,16 +290,7 @@ function botThink(
       }
     }
 
-    // Progress plant
-    if (bot.isPlanting) {
-      bot.plantProgress += dt / 3;
-      if (bot.plantProgress >= 1) {
-        bot.isPlanting = false;
-        bot.plantProgress = 0;
-        bot.hasBomb = false;
-        addPatch({ bombPlanted: true, bombTimeLeft: 40, bombSite: bot.plantSite || "A" });
-      }
-    }
+    if (bot.isPlanting) return patch;
   }
 
   // ── Find nearest enemy ──
@@ -538,42 +529,37 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       }
     });
 
-    // ── Update bots + collect bomb patches ──
-    let bombPatch: BombPatch | null = null;
+    // ── Update bots + apply bomb patches ──
     const bombState = {
       bombDropped: s.bombDropped,
       bombDropX: s.bombDropX,
       bombDropZ: s.bombDropZ,
       bombPlanted: s.bombPlanted,
+      bombTimeLeft: s.bombTimeLeft,
+      bombSite: s.bombSite,
     };
     players.forEach((p) => {
       if (p.isBot && !p.isDead) {
         const result = botThink(p, players, dt, now, bombState);
         if (result) {
-          bombPatch = bombPatch ? { ...bombPatch, ...result } : result;
-          // Update bombState so later bots see the latest
+          // Apply patches directly to bombState so later bots see the latest
           if (result.bombPlanted !== undefined) bombState.bombPlanted = result.bombPlanted;
           if (result.bombDropped !== undefined) bombState.bombDropped = result.bombDropped;
+          if (result.bombDropX !== undefined) bombState.bombDropX = result.bombDropX;
+          if (result.bombDropZ !== undefined) bombState.bombDropZ = result.bombDropZ;
+          if (result.bombTimeLeft !== undefined) bombState.bombTimeLeft = result.bombTimeLeft;
+          if (result.bombSite !== undefined) bombState.bombSite = result.bombSite;
         }
       }
     });
 
     // ── Bomb timer ──
-    let bombPlanted = s.bombPlanted;
-    let bombTimeLeft = s.bombTimeLeft;
-    let bombSite = s.bombSite;
-    let bombDropped = s.bombDropped;
-    let bombDropX = s.bombDropX;
-    let bombDropZ = s.bombDropZ;
-
-    if (bombPatch) {
-      if (bombPatch.bombPlanted !== undefined) bombPlanted = bombPatch.bombPlanted;
-      if (bombPatch.bombTimeLeft !== undefined) bombTimeLeft = bombPatch.bombTimeLeft;
-      if (bombPatch.bombSite !== undefined) bombSite = bombPatch.bombSite;
-      if (bombPatch.bombDropped !== undefined) bombDropped = bombPatch.bombDropped;
-      if (bombPatch.bombDropX !== undefined) bombDropX = bombPatch.bombDropX;
-      if (bombPatch.bombDropZ !== undefined) bombDropZ = bombPatch.bombDropZ;
-    }
+    let bombPlanted = bombState.bombPlanted;
+    let bombTimeLeft = bombState.bombTimeLeft;
+    let bombSite = bombState.bombSite;
+    let bombDropped = bombState.bombDropped;
+    let bombDropX = bombState.bombDropX;
+    let bombDropZ = bombState.bombDropZ;
 
     if (bombPlanted) {
       bombTimeLeft -= dt;

@@ -16,6 +16,7 @@ export class ZombieController {
   private nextId = 0
   private hpScale = 1
   private speedScale = 1
+  private aliveCount = 0
 
   /** Difficulty multipliers chosen in the lobby, applied to every new zombie. */
   setDifficulty(hpScale: number, speedScale: number): void {
@@ -58,6 +59,7 @@ export class ZombieController {
     zombie.attackCooldown = 0
 
     this.zombies.set(zombie.id, zombie)
+    this.aliveCount++
     return zombie
   }
 
@@ -118,6 +120,7 @@ export class ZombieController {
             if (zombie.attackCooldown <= 0) {
               explodingZombies.push({ zombieId: zombie.id, x: zombie.x, z: zombie.z })
               zombie.isDead = true
+              this.aliveCount--
             }
           }
           return
@@ -202,6 +205,7 @@ export class ZombieController {
             if (zombie.attackCooldown <= 0) {
               explodingZombies.push({ zombieId: zombie.id, x: zombie.x, z: zombie.z })
               zombie.isDead = true
+              this.aliveCount--
               return
             }
           }
@@ -339,11 +343,14 @@ export class ZombieController {
   }
 
   removeZombie(id: string): void {
+    const z = this.zombies.get(id)
+    if (z && !z.isDead) this.aliveCount--
     this.zombies.delete(id)
   }
 
   clearAll(): void {
     this.zombies.clear()
+    this.aliveCount = 0
   }
 
   getAttackDamage(type: ZombieType): number {

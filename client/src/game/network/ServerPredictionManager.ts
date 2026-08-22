@@ -37,7 +37,7 @@ const INTERPOLATION_DELAY = 0.1 // 100ms behind
 
 export class ServerPredictionManager {
   private inputBuffer: PlayerInput[] = []
-  private nextSeq: number = 0
+  private nextSeq: number = 1
   private pendingInputs: PlayerInput[] = []
 
   /** Local prediction */

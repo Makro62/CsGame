@@ -415,7 +415,12 @@ export function PlayerController() {
     if (activeSnapshot) {
       const reconciled = reconcile(
         { x: _currentPos.x, y: _currentPos.y, z: _currentPos.z },
-        { x: activeSnapshot.x, y: activeSnapshot.y, z: activeSnapshot.z }
+        {
+          x: activeSnapshot.x,
+          y: activeSnapshot.y,
+          z: activeSnapshot.z,
+          lastProcessedSeq: activeSnapshot.lastProcessedSeq,
+        }
       )
       _currentPos.set(reconciled.x, reconciled.y, reconciled.z)
     }

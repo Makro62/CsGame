@@ -193,6 +193,7 @@ export function ZombieLobbySetup({ onStart, onBack }: ZombieLobbySetupProps) {
             <div><strong style={{ color: "#fff" }}>[Mouse]</strong> Arah tembak</div>
             <div><strong style={{ color: "#fff" }}>[Klik Kiri]</strong> Tembak</div>
             <div><strong style={{ color: "#fff" }}>[Shift]</strong> Lari</div>
+            <div><strong style={{ color: "#fff" }}>[1, 2, 3]</strong> Ganti senjata</div>
             <div><strong style={{ color: "#fff" }}>[R]</strong> Reload Amunisi</div>
             <div><strong style={{ color: "#fff" }}>[F]</strong> Wall-buy / Ammo / Perk / PaP</div>
             <div><strong style={{ color: "#fff" }}>[Tahan F]</strong> Heal Med Station / Revive</div>

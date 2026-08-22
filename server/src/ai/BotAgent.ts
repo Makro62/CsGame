@@ -256,7 +256,7 @@ export class BotAgent {
     }
 
     // Perception: find nearest enemy (always, to react)
-    const nearest = this.findNearestEnemy(allPlayers, botPlayer, gameState, diff)
+    const nearest = this.findNearestEnemy(allPlayers, botPlayer, gameState, diff, botId)
 
     if (nearest) {
       this.targetId = nearest.id
@@ -606,13 +606,14 @@ export class BotAgent {
     allPlayers: Map<string, PlayerState>,
     botPlayer: PlayerState,
     gameState: GameState,
-    diff: (typeof DIFFICULTY)[1]
+    diff: (typeof DIFFICULTY)[1],
+    botId: string
   ): { id: string; player: PlayerState; dist: number } | null {
     let nearest: { id: string; player: PlayerState; dist: number } | null = null
 
     allPlayers.forEach((player, id) => {
       if (player.isDead) return
-      if (id === "") return // skip self placeholder
+      if (id === botId) return // skip self
       if (player.team === this.config.team && gameState.gameMode !== "ffa") return
 
       const dx = player.x - this.pos.x

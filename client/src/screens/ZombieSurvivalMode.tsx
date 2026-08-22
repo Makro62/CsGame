@@ -163,7 +163,7 @@ function HotkeyManager({
           }
           const snap = useZombieNetworkStore.getState().lastSnapshot;
           const net = useZombieNetworkStore.getState();
-          const maxHp = net.hasJuggernog ? 200 : 100;
+          const maxHp = Math.max(net.hasJuggernog ? 200 : 100, net.localMaxHp || 0);
           if (snap && isNearMedStation(snap.x, snap.z) && net.localHp < maxHp) {
             healStart.current = performance.now();
             useZombieStore.getState().setHealProgress(0.01);
@@ -297,6 +297,7 @@ function InteractionPrompt() {
   const downedAllies = useZombieNetworkStore((s) => s.downedAllies);
   const localIsDowned = useZombieNetworkStore((s) => s.localIsDowned);
   const localHp = useZombieNetworkStore((s) => s.localHp);
+  const localMaxHp = useZombieNetworkStore((s) => s.localMaxHp);
   const hasJuggernog = useZombieNetworkStore((s) => s.hasJuggernog);
   const hasSpeedCola = useZombieNetworkStore((s) => s.hasSpeedCola);
   const hasDoubleTap = useZombieNetworkStore((s) => s.hasDoubleTap);
@@ -322,7 +323,7 @@ function InteractionPrompt() {
     }
   }
 
-  const maxHp = hasJuggernog ? 200 : 100;
+  const maxHp = Math.max(hasJuggernog ? 200 : 100, localMaxHp || 0);
   if (isNearMedStation(x, z) && localHp < maxHp) {
     if (healProgress > 0) {
       return (

@@ -26,6 +26,13 @@ describe("AntiCheatSystem", () => {
     expect(antiCheat.validateSpeed("p1", player, nextX, player.z, dt)).toBe(true);
   });
 
+  it("accepts slide-hop speed (sprint * slideBoost)", () => {
+    const player = makePlayer();
+    const dt = 0.05;
+    const nextX = player.x + PHYSICS.sprintSpeed * PHYSICS.slideBoost * dt;
+    expect(antiCheat.validateSpeed("p1", player, nextX, player.z, dt)).toBe(true);
+  });
+
   it("rejects movement far beyond sprint speed", () => {
     const player = makePlayer();
     const dt = 0.05;

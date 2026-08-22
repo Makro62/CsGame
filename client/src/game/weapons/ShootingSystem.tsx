@@ -132,9 +132,54 @@ export function ShootingSystem() {
   const lastWeapon = useRef<string | null>(null);
   const seqRef = useRef(0);
   const mouseHeld = useRef(false);
-  const muzzleFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const impactTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const flashTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const casingRafs = useRef<number[]>([]);
+  const liveFx = useRef<Array<{ mesh: THREE.Mesh; recycle: (m: THREE.Mesh) => void }>>([]);
   // Akimbo weapons alternate hands, so every shot flips this.
   const akimboSide = useRef<AkimboSide>(1);
+
+  const dropLiveFx = useCallback((mesh: THREE.Mesh) => {
+    const idx = liveFx.current.findIndex((fx) => fx.mesh === mesh);
+    if (idx < 0) return;
+    const { recycle } = liveFx.current[idx];
+    liveFx.current.splice(idx, 1);
+    if (mesh.parent) mesh.parent.remove(mesh);
+    recycle(mesh);
+  }, []);
+
+  const spawnImpact = useCallback((point: THREE.Vector3) => {
+    const spark = getImpactMesh();
+    spark.position.copy(point);
+    spark.visible = true;
+    scene.add(spark);
+    liveFx.current.push({ mesh: spark, recycle: recycleImpact });
+
+    const timerId = setTimeout(() => {
+      dropLiveFx(spark);
+      const idx = impactTimers.current.indexOf(timerId);
+      if (idx >= 0) impactTimers.current.splice(idx, 1);
+    }, 200);
+    impactTimers.current.push(timerId);
+  }, [scene, dropLiveFx]);
+
+  // Clear in-flight VFX on unmount. Module-level pools stay alive so React
+  // Strict Mode remounts (and the next match) can reuse them.
+  useEffect(() => {
+    return () => {
+      impactTimers.current.forEach(clearTimeout);
+      flashTimers.current.forEach(clearTimeout);
+      casingRafs.current.forEach((id) => cancelAnimationFrame(id));
+      impactTimers.current.length = 0;
+      flashTimers.current.length = 0;
+      casingRafs.current.length = 0;
+      liveFx.current.forEach(({ mesh, recycle }) => {
+        if (mesh.parent) mesh.parent.remove(mesh);
+        recycle(mesh);
+      });
+      liveFx.current.length = 0;
+    };
+  }, []);
 
   useEffect(() => {
     if (activeWeapon && activeWeapon !== lastWeapon.current) {
@@ -164,13 +209,15 @@ export function ShootingSystem() {
     flash.rotation.set(0, 0, Math.random() * Math.PI * 2);
     flash.visible = true;
     scene.add(flash);
+    liveFx.current.push({ mesh: flash, recycle: recycleMuzzleFlash });
 
-    if (muzzleFlashTimer.current) clearTimeout(muzzleFlashTimer.current);
-    muzzleFlashTimer.current = setTimeout(() => {
-      scene.remove(flash);
-      recycleMuzzleFlash(flash);
+    const timerId = setTimeout(() => {
+      dropLiveFx(flash);
+      const idx = flashTimers.current.indexOf(timerId);
+      if (idx >= 0) flashTimers.current.splice(idx, 1);
     }, 50);
-  }, [camera, scene, activeWeapon]);
+    flashTimers.current.push(timerId);
+  }, [camera, scene, activeWeapon, dropLiveFx]);
 
   const createShellCasing = useCallback((side: AkimboSide = 1) => {
     const casing = getShellCasingMesh();
@@ -181,6 +228,7 @@ export function ShootingSystem() {
     casing.position.copy(shootOrigin).add(_casingOffset);
     casing.visible = true;
     scene.add(casing);
+    liveFx.current.push({ mesh: casing, recycle: recycleShellCasing });
 
     const casingDir = new THREE.Vector3(
       (0.5 + Math.random() * 0.3) * side,
@@ -209,14 +257,15 @@ export function ShootingSystem() {
       }
 
       if (frames < maxFrames) {
-        requestAnimationFrame(animate);
+        const rafId = requestAnimationFrame(animate);
+        casingRafs.current.push(rafId);
       } else {
-        scene.remove(casing);
-        recycleShellCasing(casing);
+        dropLiveFx(casing);
       }
     };
-    requestAnimationFrame(animate);
-  }, [camera, scene]);
+    const rafId = requestAnimationFrame(animate);
+    casingRafs.current.push(rafId);
+  }, [camera, scene, dropLiveFx]);
 
   /** Damage the first training dummy the given hit belongs to. */
   const damageTrainingTarget = useCallback(
@@ -266,7 +315,7 @@ export function ShootingSystem() {
       Sound.melee(!!hit);
 
       if (hit) {
-        createImpactEffect(hit.point, scene);
+        spawnImpact(hit.point);
         if (gameMode === "training") damageTrainingTarget(hit.object, weapon);
       }
 
@@ -293,7 +342,7 @@ export function ShootingSystem() {
       incrementBullets();
       setLastFireTime(performance.now());
     },
-    [camera, scene, damageTrainingTarget, incrementBullets, setLastFireTime]
+    [camera, scene, damageTrainingTarget, incrementBullets, setLastFireTime, spawnImpact]
   );
 
   const shoot = useCallback(() => {
@@ -387,7 +436,7 @@ export function ShootingSystem() {
 
     if (validHits.length > 0) {
       const hit = validHits[0];
-      createImpactEffect(hit.point, scene);
+      spawnImpact(hit.point);
 
       if (hit.face) {
         _normalMatrix.getNormalMatrix(hit.object.matrixWorld);
@@ -491,6 +540,7 @@ export function ShootingSystem() {
     createShellCasing,
     damageTrainingTarget,
     meleeAttack,
+    spawnImpact,
   ]);
 
   // Mouse down/up tracking
@@ -586,16 +636,4 @@ export function ShootingSystem() {
   });
 
   return null;
-}
-
-function createImpactEffect(point: THREE.Vector3, scene: THREE.Scene) {
-  const spark = getImpactMesh();
-  spark.position.copy(point);
-  spark.visible = true;
-  scene.add(spark);
-
-  setTimeout(() => {
-    scene.remove(spark);
-    recycleImpact(spark);
-  }, 200);
 }
