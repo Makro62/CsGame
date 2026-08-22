@@ -5,10 +5,21 @@ import {
   ROUND,
   ECONOMY,
   MAP_BOUNDARY,
+  MAP_OBSTACLES,
   DEFAULT_PISTOL,
   isMeleeWeapon,
   BOMB_SITES,
 } from "@cs-game/shared";
+
+export type BotTacticalState =
+  | "idle"
+  | "patrol"
+  | "hold"
+  | "peek"
+  | "engage"
+  | "retreat"
+  | "plant"
+  | "defuse";
 
 export interface LocalPlayer {
   id: string;
@@ -43,9 +54,11 @@ export interface LocalPlayer {
   plantProgress: number;
   defuseProgress: number;
   botTargetId: string | null;
-  botState: "idle" | "patrol" | "engage";
+  botState: BotTacticalState;
   botLastShootTime: number;
   botStrafeDir: number;
+  botStrafeTimer: number;
+  botStrafeDuration: number;
   botAmmoInMag: number;
   botAccuracy: number;
   botHsRate: number;
@@ -94,6 +107,7 @@ interface OfflineGameState {
   killFeed: KillEvent[];
   hitEnemy: boolean;
   hitHeadshot: boolean;
+  botTimers: Map<string, ReturnType<typeof setTimeout>[]>;
 
   initMatch: (nickname: string, team: "T" | "CT") => void;
   tick: (dt: number) => void;
@@ -110,6 +124,7 @@ interface OfflineGameState {
   checkRoundEnd: () => void;
   endRound: (winner: "T" | "CT") => void;
   resetForRound: () => void;
+  clearBotTimers: () => void;
 }
 
 // ─── Helpers ───
@@ -125,6 +140,37 @@ function clamp(p: { x: number; z: number }) {
 
 function dist(a: { x: number; z: number }, b: { x: number; z: number }) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.z - b.z) ** 2);
+}
+
+export function hasLineOfSight(
+  from: { x: number; z: number },
+  to: { x: number; z: number }
+): boolean {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const distance = Math.hypot(dx, dz);
+  if (distance <= 0.001) return true;
+
+  const steps = Math.ceil(distance * 2); // Sample every 0.5m
+  const stepX = dx / steps;
+  const stepZ = dz / steps;
+
+  for (let i = 1; i < steps; i++) {
+    const cx = from.x + stepX * i;
+    const cz = from.z + stepZ * i;
+
+    for (const obs of MAP_OBSTACLES) {
+      if (
+        cx >= obs.minX &&
+        cx <= obs.maxX &&
+        cz >= obs.minZ &&
+        cz <= obs.maxZ
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 function mkPlayer(id: string, team: "T" | "CT", nickname: string, isBot: boolean): LocalPlayer {
@@ -167,6 +213,8 @@ function mkPlayer(id: string, team: "T" | "CT", nickname: string, isBot: boolean
     botState: "idle",
     botLastShootTime: 0,
     botStrafeDir: 1,
+    botStrafeTimer: 0.8,
+    botStrafeDuration: 0.8,
     botAmmoInMag: ws?.mag || 20,
     botAccuracy: 0.65,
     botHsRate: 0.25,
@@ -191,12 +239,11 @@ function defaultLoadout(p: LocalPlayer) {
 }
 
 function refillAmmo(p: LocalPlayer) {
-  const pr = stats(p.primaryWeapon);
-  const sc = stats(p.secondaryWeapon);
   const cur = stats(p.currentWeapon);
-  if (pr) { p.ammo = pr.mag; p.reserveAmmo = pr.reserveAmmo; }
-  else if (sc) { p.ammo = sc.mag; p.reserveAmmo = sc.reserveAmmo; }
-  if (cur && !isMeleeWeapon(p.currentWeapon)) { p.ammo = cur.mag; p.reserveAmmo = cur.reserveAmmo; }
+  if (cur && !isMeleeWeapon(p.currentWeapon)) {
+    p.ammo = cur.mag;
+    p.reserveAmmo = cur.reserveAmmo;
+  }
 }
 
 // ─── Bot AI ───
@@ -204,33 +251,59 @@ function refillAmmo(p: LocalPlayer) {
 function botBuy(bot: LocalPlayer) {
   let m = bot.money;
 
-  // Armor
+  // Armor & Helmet
   if (bot.armor < 100 && m >= 650) {
-    if (m >= 1000 && !bot.hasHelmet) { bot.armor = 100; bot.hasHelmet = true; m -= 1000; }
-    else { bot.armor = 100; m -= 650; }
+    bot.armor = 100;
+    m -= 650;
+  }
+  if (!bot.hasHelmet && m >= 350) {
+    bot.hasHelmet = true;
+    m -= 350;
   }
 
   // Primary weapon
   if (!bot.primaryWeapon) {
     const wk = bot.team === "T" ? "ak47" : "m4a1";
     const ws = stats(wk);
-    if (ws && m >= ws.price) { bot.primaryWeapon = wk; m -= ws.price; }
-    else if (m >= 1500) { bot.primaryWeapon = "mp5"; m -= 1500; }
+    if (ws && m >= ws.price) {
+      bot.primaryWeapon = wk;
+      m -= ws.price;
+    } else if (m >= 1500) {
+      bot.primaryWeapon = "mp5";
+      m -= 1500;
+    }
   }
 
   // Secondary weapon
   if (!bot.secondaryWeapon) {
-    if (m >= 700) { bot.secondaryWeapon = "deagle"; m -= 700; }
-    else if (m >= 200) { bot.secondaryWeapon = "glock"; m -= 200; }
+    if (m >= 700) {
+      bot.secondaryWeapon = "deagle";
+      m -= 700;
+    } else if (m >= 200) {
+      bot.secondaryWeapon = "glock";
+      m -= 200;
+    }
   }
 
   // Grenades
-  if (m >= 300 && bot.grenadeHE < 1) { bot.grenadeHE++; m -= 300; }
-  if (m >= 200 && bot.grenadeFlash < 2) { bot.grenadeFlash++; m -= 200; }
-  if (m >= 300 && bot.grenadeSmoke < 1) { bot.grenadeSmoke++; m -= 300; }
+  if (m >= 300 && bot.grenadeHE < 1) {
+    bot.grenadeHE++;
+    m -= 300;
+  }
+  if (m >= 200 && bot.grenadeFlash < 2) {
+    bot.grenadeFlash++;
+    m -= 200;
+  }
+  if (m >= 300 && bot.grenadeSmoke < 1) {
+    bot.grenadeSmoke++;
+    m -= 300;
+  }
 
   // CT defuse kit
-  if (bot.team === "CT" && m >= 400 && !bot.hasDefuseKit) { bot.hasDefuseKit = true; m -= 400; }
+  if (bot.team === "CT" && m >= 400 && !bot.hasDefuseKit) {
+    bot.hasDefuseKit = true;
+    m -= 400;
+  }
 
   bot.money = m;
 
@@ -238,11 +311,19 @@ function botBuy(bot: LocalPlayer) {
   if (bot.primaryWeapon) {
     bot.currentWeapon = bot.primaryWeapon;
     const ws = stats(bot.primaryWeapon);
-    if (ws) { bot.ammo = ws.mag; bot.reserveAmmo = ws.reserveAmmo; bot.botAmmoInMag = ws.mag; }
+    if (ws) {
+      bot.ammo = ws.mag;
+      bot.reserveAmmo = ws.reserveAmmo;
+      bot.botAmmoInMag = ws.mag;
+    }
   } else {
     bot.currentWeapon = bot.secondaryWeapon || "glock";
     const ws = stats(bot.currentWeapon);
-    if (ws) { bot.ammo = ws.mag; bot.reserveAmmo = ws.reserveAmmo; bot.botAmmoInMag = ws.mag; }
+    if (ws) {
+      bot.ammo = ws.mag;
+      bot.reserveAmmo = ws.reserveAmmo;
+      bot.botAmmoInMag = ws.mag;
+    }
   }
 }
 
@@ -252,12 +333,32 @@ function botThink(
   dt: number,
   now: number,
   bombState: { bombDropped: boolean; bombDropX: number; bombDropZ: number; bombPlanted: boolean },
+  registerTimer?: (botId: string, timer: ReturnType<typeof setTimeout>) => void
 ): BombPatch | null {
   if (bot.isDead || bot.isReloading) return null;
   if (bot.botAmmoInMag <= 0 && bot.ammo > 0) bot.botAmmoInMag = bot.ammo;
 
   let patch: BombPatch | null = null;
-  const addPatch = (extra: BombPatch) => { patch = { ...patch, ...extra }; };
+  const addPatch = (extra: BombPatch) => {
+    patch = { ...patch, ...extra };
+  };
+
+  // ── Tactical Retreat when HP is very low (< 30%) ──
+  const hpRatio = bot.hp / 100;
+  if (hpRatio < 0.3 && !bot.isPlanting && !bot.isDefusing) {
+    bot.botState = "retreat";
+    const spawn = SPAWN[bot.team];
+    const rdx = spawn.x - bot.x;
+    const rdz = spawn.z - bot.z;
+    const rdist = Math.hypot(rdx, rdz);
+    if (rdist > 3) {
+      bot.x += (rdx / rdist) * bot.botSpeed * 0.7 * dt;
+      bot.z += (rdz / rdist) * bot.botSpeed * 0.7 * dt;
+      bot.rotationY = Math.atan2(rdx, rdz);
+      clamp(bot);
+      return patch;
+    }
+  }
 
   // ── Bomb: pick up / move toward / plant ──
   if (bot.team === "T" && !bot.isDead) {
@@ -265,7 +366,7 @@ function botThink(
     if (bombState.bombDropped && !bot.hasBomb) {
       const bdx = bombState.bombDropX - bot.x;
       const bdz = bombState.bombDropZ - bot.z;
-      const bdd = Math.sqrt(bdx * bdx + bdz * bdz);
+      const bdd = Math.hypot(bdx, bdz);
       if (bdd < 2) {
         bot.hasBomb = true;
         addPatch({ bombDropped: false });
@@ -281,46 +382,68 @@ function botThink(
 
     // Plant bomb at bombsite
     if (bot.hasBomb && !bot.isPlanting && !bombState.bombPlanted) {
-      const nearA = Math.abs(bot.x - BOMB_SITES.A.x) < 5 && Math.abs(bot.z - BOMB_SITES.A.z) < 5;
-      const nearB = Math.abs(bot.x - BOMB_SITES.B.x) < 5 && Math.abs(bot.z - BOMB_SITES.B.z) < 5;
+      const nearA = Math.hypot(bot.x - BOMB_SITES.A.x, bot.z - BOMB_SITES.A.z) <= 3.0;
+      const nearB = Math.hypot(bot.x - BOMB_SITES.B.x, bot.z - BOMB_SITES.B.z) <= 3.0;
       if (nearA || nearB) {
         bot.isPlanting = true;
         bot.plantProgress = 0;
         bot.plantSite = nearA ? "A" : "B";
+        bot.botState = "plant";
       }
     }
 
     if (bot.isPlanting) return patch;
   }
 
-  // ── Find nearest enemy ──
+  // ── Find nearest visible enemy (Line of Sight check) ──
   let nearestId: string | null = null;
   let nearestDist = Infinity;
   players.forEach((o, id) => {
     if (id === bot.id || o.isDead || o.team === bot.team) return;
     const dd = dist(bot, o);
-    if (dd < bot.botViewDist && dd < nearestDist) { nearestId = id; nearestDist = dd; }
+    if (dd < bot.botViewDist && dd < nearestDist) {
+      if (hasLineOfSight(bot, o)) {
+        nearestId = id;
+        nearestDist = dd;
+      }
+    }
   });
 
   if (!nearestId) {
+    // ── CT Hold angle near bombsite ──
+    if (bot.team === "CT" && !bombState.bombPlanted) {
+      const nearSiteA = Math.hypot(bot.x - BOMB_SITES.A.x, bot.z - BOMB_SITES.A.z) < 8;
+      const nearSiteB = Math.hypot(bot.x - BOMB_SITES.B.x, bot.z - BOMB_SITES.B.z) < 8;
+      if (nearSiteA || nearSiteB) {
+        bot.botState = "hold";
+        bot.botTargetId = null;
+        bot.rotationY = Math.atan2(SPAWN.T.x - bot.x, SPAWN.T.z - bot.z);
+        return patch;
+      }
+    }
+
     // ── Patrol ──
     bot.botTargetId = null;
     bot.botState = "patrol";
     let tgtX: number, tgtZ: number;
     if (bot.hasBomb) {
       const site = Math.random() < 0.5 ? BOMB_SITES.A : BOMB_SITES.B;
-      tgtX = site.x; tgtZ = site.z;
+      tgtX = site.x;
+      tgtZ = site.z;
     } else {
       const enemySpawn = bot.team === "T" ? SPAWN.CT : SPAWN.T;
-      tgtX = enemySpawn.x; tgtZ = enemySpawn.z;
+      tgtX = enemySpawn.x;
+      tgtZ = enemySpawn.z;
     }
-    const dx = tgtX - bot.x, dz = tgtZ - bot.z;
-    const dd = Math.sqrt(dx * dx + dz * dz);
+    const dx = tgtX - bot.x;
+    const dz = tgtZ - bot.z;
+    const dd = Math.hypot(dx, dz);
     if (dd > 3) {
       const spd = bot.botSpeed * 0.6;
       bot.x += (dx / dd) * spd * dt;
       bot.z += (dz / dd) * spd * dt;
-      const perpX = -dz / dd, perpZ = dx / dd;
+      const perpX = -dz / dd;
+      const perpZ = dx / dd;
       const zigzag = Math.sin(now * 0.0015 + bot.id.charCodeAt(4)) * 0.6;
       bot.x += perpX * zigzag * spd * dt;
       bot.z += perpZ * zigzag * spd * dt;
@@ -334,20 +457,25 @@ function botThink(
   bot.botTargetId = nearestId;
   bot.botState = "engage";
   const tgt = players.get(nearestId)!;
-  const dx = tgt.x - bot.x, dz = tgt.z - bot.z;
-  const dd = Math.sqrt(dx * dx + dz * dz);
+  const dx = tgt.x - bot.x;
+  const dz = tgt.z - bot.z;
+  const dd = Math.hypot(dx, dz);
 
   // Aim
   const err = (1 - bot.botAccuracy) * (Math.random() - 0.5) * 0.3;
   bot.rotationY = Math.atan2(dx, dz) + err;
 
-  // Strafe direction: flip every ~0.8s
-  if (now % 1600 < 80) {
-    bot.botStrafeDir = ((now / 800) | 0) % 2 === 0 ? 1 : -1;
+  // State-based Strafe timer
+  bot.botStrafeTimer -= dt;
+  if (bot.botStrafeTimer <= 0) {
+    bot.botStrafeDir = Math.random() < 0.5 ? 1 : -1;
+    bot.botStrafeDuration = 0.5 + Math.random() * 0.8;
+    bot.botStrafeTimer = bot.botStrafeDuration;
   }
 
   // Movement
-  const perpX = -dz / dd, perpZ = dx / dd;
+  const perpX = -dz / dd;
+  const perpZ = dx / dd;
   const strafeSpd = bot.botSpeed * 0.45;
   const rushSpd = bot.botSpeed * 0.7;
 
@@ -385,9 +513,12 @@ function botThink(
       const distPenalty = Math.min(dd / bot.botViewDist, 0.5);
       if (Math.random() < bot.botAccuracy * (1 - distPenalty * 0.3)) {
         const hs = Math.random() < bot.botHsRate;
-        tgt.hp -= hs ? ws.headshot : ws.dmg;
+        const dmg = hs ? ws.headshot : ws.dmg;
+        tgt.hp = Math.max(0, tgt.hp - dmg);
         if (tgt.hp <= 0) {
-          tgt.hp = 0; tgt.isDead = true; bot.kills++; tgt.deaths++;
+          tgt.isDead = true;
+          bot.kills++;
+          tgt.deaths++;
           if (tgt.hasBomb) {
             tgt.hasBomb = false;
             addPatch({ bombDropped: true, bombDropX: tgt.x, bombDropZ: tgt.z });
@@ -400,11 +531,12 @@ function botThink(
     }
   }
 
-  // Reload
+  // Reload with registered timer cleanup
   if (bot.botAmmoInMag <= 5 && !bot.isReloading && bot.reserveAmmo > 0) {
     bot.isReloading = true;
     const rt = (ws?.reload || 2) * 1000;
-    setTimeout(() => {
+    const botId = bot.id;
+    const timer = setTimeout(() => {
       if (bot.isDead) return;
       const mag = ws?.mag || 30;
       const load = Math.min(mag - bot.botAmmoInMag, bot.reserveAmmo);
@@ -413,13 +545,20 @@ function botThink(
       bot.ammo = bot.botAmmoInMag;
       bot.isReloading = false;
     }, rt);
+    if (registerTimer) {
+      registerTimer(botId, timer);
+    }
   }
 
   // Switch to pistol when out of ammo
   if (bot.botAmmoInMag <= 0 && bot.reserveAmmo <= 0 && bot.secondaryWeapon) {
     bot.currentWeapon = bot.secondaryWeapon;
     const sws = stats(bot.secondaryWeapon);
-    if (sws) { bot.botAmmoInMag = sws.mag; bot.ammo = sws.mag; bot.reserveAmmo = sws.reserveAmmo; }
+    if (sws) {
+      bot.botAmmoInMag = sws.mag;
+      bot.ammo = sws.mag;
+      bot.reserveAmmo = sws.reserveAmmo;
+    }
   }
 
   return patch;
@@ -448,8 +587,18 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
   killFeed: [],
   hitEnemy: false,
   hitHeadshot: false,
+  botTimers: new Map(),
+
+  clearBotTimers: () => {
+    const timersMap = get().botTimers;
+    timersMap.forEach((timers) => {
+      timers.forEach((t) => clearTimeout(t));
+    });
+    timersMap.clear();
+  },
 
   initMatch: (nickname: string, team: "T" | "CT") => {
+    get().clearBotTimers();
     const players = new Map<string, LocalPlayer>();
     const local = mkPlayer("local", team, nickname, false);
     local.money = ECONOMY.startMoney;
@@ -490,9 +639,14 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     if (s.phase === "buy") {
       const t = s.buyPhaseTimeLeft - dt;
       if (t <= 0) {
-        // Buy and start
         const players = new Map(s.players);
-        players.forEach((p) => { if (p.isBot) botBuy(p); });
+        players.forEach((p, id) => {
+          if (p.isBot) {
+            const cloned = { ...p };
+            botBuy(cloned);
+            players.set(id, cloned);
+          }
+        });
         set({ phase: "active", buyPhaseTimeLeft: 0, roundTimeLeft: ROUND.activePhaseDuration, players });
       } else {
         set({ buyPhaseTimeLeft: t });
@@ -520,12 +674,17 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     const players = new Map(s.players);
 
     // ── Apply player plant/defuse progress ──
-    players.forEach((p) => {
+    players.forEach((p, id) => {
       if (p.isPlanting) {
-        p.plantProgress += dt / 3;
+        const updated = { ...p, plantProgress: p.plantProgress + dt / 3 };
+        players.set(id, updated);
       }
       if (p.isDefusing) {
-        p.defuseProgress += dt / (p.hasDefuseKit ? 5 : 10);
+        const updated = {
+          ...p,
+          defuseProgress: p.defuseProgress + dt / (p.hasDefuseKit ? 5 : 10),
+        };
+        players.set(id, updated);
       }
     });
 
@@ -538,11 +697,20 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       bombTimeLeft: s.bombTimeLeft,
       bombSite: s.bombSite,
     };
-    players.forEach((p) => {
+
+    const registerBotTimer = (botId: string, timer: ReturnType<typeof setTimeout>) => {
+      const timersMap = get().botTimers;
+      const list = timersMap.get(botId) || [];
+      list.push(timer);
+      timersMap.set(botId, list);
+    };
+
+    players.forEach((p, id) => {
       if (p.isBot && !p.isDead) {
-        const result = botThink(p, players, dt, now, bombState);
+        const botClone = { ...p };
+        const result = botThink(botClone, players, dt, now, bombState, registerBotTimer);
+        players.set(id, botClone);
         if (result) {
-          // Apply patches directly to bombState so later bots see the latest
           if (result.bombPlanted !== undefined) bombState.bombPlanted = result.bombPlanted;
           if (result.bombDropped !== undefined) bombState.bombDropped = result.bombDropped;
           if (result.bombDropX !== undefined) bombState.bombDropX = result.bombDropX;
@@ -557,9 +725,9 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     let bombPlanted = bombState.bombPlanted;
     let bombTimeLeft = bombState.bombTimeLeft;
     let bombSite = bombState.bombSite;
-    let bombDropped = bombState.bombDropped;
-    let bombDropX = bombState.bombDropX;
-    let bombDropZ = bombState.bombDropZ;
+    const bombDropped = bombState.bombDropped;
+    const bombDropX = bombState.bombDropX;
+    const bombDropZ = bombState.bombDropZ;
 
     if (bombPlanted) {
       bombTimeLeft -= dt;
@@ -570,12 +738,11 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       }
     }
 
-    // ── Check plant complete (local player) ──
-    players.forEach((p) => {
+    // ── Check plant complete (local player or bot) ──
+    players.forEach((p, id) => {
       if (p.isPlanting && p.plantProgress >= 1 && !bombPlanted) {
-        p.isPlanting = false;
-        p.plantProgress = 0;
-        p.hasBomb = false;
+        const updated = { ...p, isPlanting: false, plantProgress: 0, hasBomb: false };
+        players.set(id, updated);
         bombPlanted = true;
         bombTimeLeft = 40;
         bombSite = p.plantSite || "A";
@@ -583,10 +750,10 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     });
 
     // ── Check defuse complete ──
-    players.forEach((p) => {
+    players.forEach((p, id) => {
       if (p.isDefusing && p.defuseProgress >= 1) {
-        p.isDefusing = false;
-        p.defuseProgress = 0;
+        const updated = { ...p, isDefusing: false, defuseProgress: 0 };
+        players.set(id, updated);
         set({ players, bombPlanted: false, bombTimeLeft: 0, bombDropped, bombDropX, bombDropZ });
         get().endRound("CT");
         return;
@@ -602,8 +769,14 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     }
 
     // ── Check elimination ──
-    let aliveT = 0, aliveCT = 0;
-    players.forEach((p) => { if (!p.isDead) { if (p.team === "T") aliveT++; else aliveCT++; } });
+    let aliveT = 0;
+    let aliveCT = 0;
+    players.forEach((p) => {
+      if (!p.isDead) {
+        if (p.team === "T") aliveT++;
+        else aliveCT++;
+      }
+    });
 
     set({
       players,
@@ -616,14 +789,24 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       bombDropZ,
     });
 
-    if (aliveT === 0 && !bombPlanted) { get().endRound("CT"); return; }
-    if (aliveCT === 0) { get().endRound("T"); return; }
+    if (aliveT === 0 && !bombPlanted) {
+      get().endRound("CT");
+      return;
+    }
+    if (aliveCT === 0) {
+      get().endRound("T");
+      return;
+    }
   },
 
   setLocalPos: (x: number, z: number, rotY: number) => {
     const s = get();
     const p = s.players.get("local");
-    if (p) { p.x = x; p.z = z; p.rotationY = rotY; set({ players: new Map(s.players) }); }
+    if (p) {
+      const players = new Map(s.players);
+      players.set("local", { ...p, x, z, rotationY: rotY });
+      set({ players });
+    }
   },
 
   localShoot: (targetId: string | null, headshot: boolean) => {
@@ -633,40 +816,50 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     const ws = stats(me.currentWeapon);
     if (!ws || me.ammo <= 0) return;
 
-    me.ammo--;
+    const players = new Map(s.players);
+    const newMe = { ...me, ammo: me.ammo - 1 };
     const updates: Partial<OfflineGameState> = {};
 
     if (targetId) {
       const victim = s.players.get(targetId);
       if (victim && !victim.isDead && victim.team !== me.team) {
+        const newVictim = { ...victim };
         const dmg = headshot ? ws.headshot : ws.dmg;
-        victim.hp -= dmg;
+        newVictim.hp = Math.max(0, newVictim.hp - dmg);
         updates.hitEnemy = true;
         updates.hitHeadshot = headshot;
-        if (victim.hp <= 0) {
-          victim.hp = 0;
-          victim.isDead = true;
-          me.kills++;
-          victim.deaths++;
-          if (victim.hasBomb) {
-            victim.hasBomb = false;
+
+        if (newVictim.hp <= 0) {
+          newVictim.isDead = true;
+          newMe.kills = newMe.kills + 1;
+          newVictim.deaths = newVictim.deaths + 1;
+
+          if (newVictim.hasBomb) {
+            newVictim.hasBomb = false;
             updates.bombDropped = true;
-            updates.bombDropX = victim.x;
-            updates.bombDropZ = victim.z;
+            updates.bombDropX = newVictim.x;
+            updates.bombDropZ = newVictim.z;
           }
-          const kf = [...s.killFeed, {
-            killerName: me.nickname,
-            victimName: victim.nickname,
-            weapon: me.currentWeapon,
+
+          const newEntry: KillEvent = {
+            killerName: newMe.nickname,
+            victimName: newVictim.nickname,
+            weapon: newMe.currentWeapon,
             headshot,
             timestamp: Date.now(),
-          }].slice(0, 5);
+          };
+
+          const kf = s.killFeed.length >= 5
+            ? [...s.killFeed.slice(1), newEntry]
+            : [...s.killFeed, newEntry];
           updates.killFeed = kf;
         }
+        players.set(targetId, newVictim);
       }
     }
 
-    set({ players: new Map(s.players), ...updates });
+    players.set("local", newMe);
+    set({ players, ...updates });
     if (updates.bombDropped || updates.hitEnemy) get().checkRoundEnd();
   },
 
@@ -676,30 +869,58 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     const me = s.players.get("local");
     if (!me) return false;
     const ws = stats(item);
+    const players = new Map(s.players);
+
     if (ws) {
       if (ws.price > me.money) return false;
       if (ws.team !== "both" && ws.team !== me.team) return false;
-      me.money -= ws.price;
+      const newMe = { ...me, money: me.money - ws.price };
       if (item === "ak47" || item === "m4a1" || item === "awp" || item === "mp5") {
-        me.primaryWeapon = item;
-        me.currentWeapon = item;
-        me.ammo = ws.mag;
-        me.reserveAmmo = ws.reserveAmmo;
+        newMe.primaryWeapon = item;
+        newMe.currentWeapon = item;
+        newMe.ammo = ws.mag;
+        newMe.reserveAmmo = ws.reserveAmmo;
       } else if (item === "deagle" || item === "glock" || item === "tec9" || item === "autopistol") {
-        me.secondaryWeapon = item;
-        me.currentWeapon = item;
-        me.ammo = ws.mag;
-        me.reserveAmmo = ws.reserveAmmo;
+        newMe.secondaryWeapon = item;
+        newMe.currentWeapon = item;
+        newMe.ammo = ws.mag;
+        newMe.reserveAmmo = ws.reserveAmmo;
       }
-      set({ players: new Map(s.players) });
+      players.set("local", newMe);
+      set({ players });
       return true;
     }
-    if (item === "kevlar" && me.money >= 650) { me.armor = 100; me.money -= 650; set({ players: new Map(s.players) }); return true; }
-    if (item === "helmet" && me.money >= 1000) { me.armor = 100; me.hasHelmet = true; me.money -= 1000; set({ players: new Map(s.players) }); return true; }
-    if (item === "defuseKit" && me.money >= 400 && me.team === "CT") { me.hasDefuseKit = true; me.money -= 400; set({ players: new Map(s.players) }); return true; }
-    if (item === "grenadeHE" && me.money >= 300) { me.grenadeHE++; me.money -= 300; set({ players: new Map(s.players) }); return true; }
-    if (item === "grenadeSmoke" && me.money >= 300) { me.grenadeSmoke++; me.money -= 300; set({ players: new Map(s.players) }); return true; }
-    if (item === "grenadeFlash" && me.money >= 200) { me.grenadeFlash++; me.money -= 200; set({ players: new Map(s.players) }); return true; }
+
+    if (item === "kevlar" && me.money >= 650) {
+      players.set("local", { ...me, armor: 100, money: me.money - 650 });
+      set({ players });
+      return true;
+    }
+    if (item === "helmet" && me.money >= 350 && !me.hasHelmet) {
+      players.set("local", { ...me, hasHelmet: true, money: me.money - 350 });
+      set({ players });
+      return true;
+    }
+    if (item === "defuseKit" && me.money >= 400 && me.team === "CT" && !me.hasDefuseKit) {
+      players.set("local", { ...me, hasDefuseKit: true, money: me.money - 400 });
+      set({ players });
+      return true;
+    }
+    if (item === "grenadeHE" && me.money >= 300 && me.grenadeHE < 1) {
+      players.set("local", { ...me, grenadeHE: me.grenadeHE + 1, money: me.money - 300 });
+      set({ players });
+      return true;
+    }
+    if (item === "grenadeSmoke" && me.money >= 300 && me.grenadeSmoke < 1) {
+      players.set("local", { ...me, grenadeSmoke: me.grenadeSmoke + 1, money: me.money - 300 });
+      set({ players });
+      return true;
+    }
+    if (item === "grenadeFlash" && me.money >= 200 && me.grenadeFlash < 2) {
+      players.set("local", { ...me, grenadeFlash: me.grenadeFlash + 1, money: me.money - 200 });
+      set({ players });
+      return true;
+    }
     return false;
   },
 
@@ -709,59 +930,97 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     if (!me || me.isDead || me.isReloading) return;
     const ws = stats(me.currentWeapon);
     if (!ws || me.ammo >= ws.mag || me.reserveAmmo <= 0) return;
-    me.isReloading = true;
-    set({ players: new Map(s.players) });
+
+    const players = new Map(s.players);
+    players.set("local", { ...me, isReloading: true });
+    set({ players });
+
     setTimeout(() => {
-      const p = get().players.get("local");
-      if (!p) return;
-      const needed = ws.mag - p.ammo;
-      const load = Math.min(needed, p.reserveAmmo);
-      p.ammo += load;
-      p.reserveAmmo -= load;
-      p.isReloading = false;
-      set({ players: new Map(get().players) });
+      const currentMe = get().players.get("local");
+      if (!currentMe || currentMe.isDead) return;
+      const needed = ws.mag - currentMe.ammo;
+      const load = Math.min(needed, currentMe.reserveAmmo);
+      const updatedPlayers = new Map(get().players);
+      updatedPlayers.set("local", {
+        ...currentMe,
+        ammo: currentMe.ammo + load,
+        reserveAmmo: currentMe.reserveAmmo - load,
+        isReloading: false,
+      });
+      set({ players: updatedPlayers });
     }, ws.reload * 1000);
   },
 
-  localPlantStart: (_site: string) => {
+  localPlantStart: (site: string) => {
     const s = get();
     const me = s.players.get("local");
     if (!me || me.isDead || me.team !== "T" || !me.hasBomb || s.bombPlanted) return;
-    me.isPlanting = true;
-    me.plantProgress = 0;
-    set({ players: new Map(s.players) });
+
+    const sitePos = BOMB_SITES[site as keyof typeof BOMB_SITES] || BOMB_SITES.A;
+    const distToSite = Math.hypot(me.x - sitePos.x, me.z - sitePos.z);
+    if (distToSite > 3.5) return; // Distance validation
+
+    const players = new Map(s.players);
+    players.set("local", { ...me, isPlanting: true, plantProgress: 0, plantSite: site });
+    set({ players });
   },
 
   localPlantCancel: () => {
     const s = get();
     const me = s.players.get("local");
-    if (me) { me.isPlanting = false; me.plantProgress = 0; set({ players: new Map(s.players) }); }
+    if (me) {
+      const players = new Map(s.players);
+      players.set("local", { ...me, isPlanting: false, plantProgress: 0 });
+      set({ players });
+    }
   },
 
   localDefuseStart: () => {
     const s = get();
     const me = s.players.get("local");
     if (!me || me.isDead || me.team !== "CT" || !s.bombPlanted) return;
-    me.isDefusing = true;
-    me.defuseProgress = 0;
-    set({ players: new Map(s.players) });
+
+    let bombX = s.bombDropX;
+    let bombZ = s.bombDropZ;
+    if (s.bombPlanted && s.bombSite) {
+      const sitePos = BOMB_SITES[s.bombSite as keyof typeof BOMB_SITES];
+      if (sitePos) {
+        bombX = sitePos.x;
+        bombZ = sitePos.z;
+      }
+    }
+
+    const distToBomb = Math.hypot(me.x - bombX, me.z - bombZ);
+    if (distToBomb > 3.0) return; // Distance validation
+
+    const players = new Map(s.players);
+    players.set("local", { ...me, isDefusing: true, defuseProgress: 0 });
+    set({ players });
   },
 
   localDefuseCancel: () => {
     const s = get();
     const me = s.players.get("local");
-    if (me) { me.isDefusing = false; me.defuseProgress = 0; set({ players: new Map(s.players) }); }
+    if (me) {
+      const players = new Map(s.players);
+      players.set("local", { ...me, isDefusing: false, defuseProgress: 0 });
+      set({ players });
+    }
   },
 
   localSwitchWeapon: (slot: number) => {
     const s = get();
     const me = s.players.get("local");
     if (!me) return;
-    if (slot === 1 && me.primaryWeapon) me.currentWeapon = me.primaryWeapon;
-    else if (slot === 2) me.currentWeapon = me.secondaryWeapon;
-    else if (slot === 3) me.currentWeapon = me.knifeSlot;
-    me.isReloading = false;
-    set({ players: new Map(s.players) });
+
+    let newCurrent = me.currentWeapon;
+    if (slot === 1 && me.primaryWeapon) newCurrent = me.primaryWeapon;
+    else if (slot === 2 && me.secondaryWeapon) newCurrent = me.secondaryWeapon;
+    else if (slot === 3 && me.knifeSlot) newCurrent = me.knifeSlot;
+
+    const players = new Map(s.players);
+    players.set("local", { ...me, currentWeapon: newCurrent, isReloading: false });
+    set({ players });
   },
 
   clearHit: () => set({ hitEnemy: false, hitHeadshot: false }),
@@ -769,15 +1028,29 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
   checkRoundEnd: () => {
     const s = get();
     if (s.phase !== "active") return;
-    let aliveT = 0, aliveCT = 0;
-    s.players.forEach((p) => { if (!p.isDead) { if (p.team === "T") aliveT++; else aliveCT++; } });
-    if (aliveT === 0 && !s.bombPlanted) { get().endRound("CT"); return; }
-    if (aliveCT === 0) { get().endRound("T"); return; }
+    let aliveT = 0;
+    let aliveCT = 0;
+    s.players.forEach((p) => {
+      if (!p.isDead) {
+        if (p.team === "T") aliveT++;
+        else aliveCT++;
+      }
+    });
+    if (aliveT === 0 && !s.bombPlanted) {
+      get().endRound("CT");
+      return;
+    }
+    if (aliveCT === 0) {
+      get().endRound("T");
+      return;
+    }
   },
 
   endRound: (winner: "T" | "CT") => {
     const s = get();
     if (s.phase === "roundEnd" || s.phase === "matchEnd") return;
+    get().clearBotTimers();
+
     const tScore = s.teamRedScore + (winner === "T" ? 1 : 0);
     const ctScore = s.teamBlueScore + (winner === "CT" ? 1 : 0);
     const target = s.maxRounds / 2;
@@ -785,10 +1058,20 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       set({ phase: "matchEnd", teamRedScore: tScore, teamBlueScore: ctScore });
       return;
     }
-    s.players.forEach((p) => {
-      if (p.team === winner) p.money = Math.min(p.money + ECONOMY.roundWinBonus, ECONOMY.maxMoney);
-      else p.money = Math.min(p.money + ECONOMY.lossBonus1, ECONOMY.maxMoney);
+
+    const players = new Map(s.players);
+    players.forEach((p, id) => {
+      const bonus = p.team === winner ? ECONOMY.roundWinBonus : ECONOMY.lossBonus1;
+      players.set(id, {
+        ...p,
+        money: Math.min(p.money + bonus, ECONOMY.maxMoney),
+        isPlanting: false,
+        isDefusing: false,
+        plantProgress: 0,
+        defuseProgress: 0,
+      });
     });
+
     set({
       phase: "roundEnd",
       teamRedScore: tScore,
@@ -797,35 +1080,46 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       bombPlanted: false,
       bombTimeLeft: 0,
       bombDropped: false,
+      players,
     });
   },
 
   resetForRound: () => {
     const s = get();
-    s.players.forEach((p) => {
-      p.hp = 100;
-      p.isDead = false;
-      p.isReloading = false;
-      p.isPlanting = false;
-      p.isDefusing = false;
-      p.plantProgress = 0;
-      p.defuseProgress = 0;
-      p.hasBomb = false;
-      p.grenadeHE = 0;
-      p.grenadeSmoke = 0;
-      p.grenadeFlash = 0;
-      const sp = SPAWN[p.team as keyof typeof SPAWN];
-      p.x = sp.x + (p.isBot ? (Math.random() - 0.5) * 8 : 0);
-      p.z = sp.z + (p.isBot ? (Math.random() - 0.5) * 8 : 0);
-      if (p.isBot) {
-        defaultLoadout(p);
-        p.botAmmoInMag = p.ammo;
+    get().clearBotTimers();
+    const players = new Map<string, LocalPlayer>();
+
+    s.players.forEach((p, id) => {
+      const cloned = { ...p };
+      cloned.hp = 100;
+      cloned.isDead = false;
+      cloned.isReloading = false;
+      cloned.isPlanting = false;
+      cloned.isDefusing = false;
+      cloned.plantProgress = 0;
+      cloned.defuseProgress = 0;
+      cloned.hasBomb = false;
+      cloned.grenadeHE = 0;
+      cloned.grenadeSmoke = 0;
+      cloned.grenadeFlash = 0;
+
+      const sp = SPAWN[cloned.team as keyof typeof SPAWN];
+      cloned.x = sp.x + (cloned.isBot ? (Math.random() - 0.5) * 8 : 0);
+      cloned.z = sp.z + (cloned.isBot ? (Math.random() - 0.5) * 8 : 0);
+
+      if (cloned.isBot) {
+        defaultLoadout(cloned);
+        cloned.botAmmoInMag = cloned.ammo;
+        cloned.botState = "idle";
       } else {
-        refillAmmo(p);
+        refillAmmo(cloned);
       }
+      players.set(id, cloned);
     });
-    const local = s.players.get("local");
+
+    const local = players.get("local");
     if (local && local.team === "T") local.hasBomb = true;
+
     set({
       phase: "buy",
       bombPlanted: false,
@@ -836,7 +1130,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       bombDropZ: 0,
       buyPhaseTimeLeft: ROUND.buyPhaseDuration,
       roundTimeLeft: ROUND.activePhaseDuration,
-      players: new Map(s.players),
+      players,
     });
   },
 }));

@@ -24,7 +24,9 @@ function getStorage(key: string, fallback: string): string {
   if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
     try {
       return localStorage.getItem(key) ?? fallback;
-    } catch {}
+    } catch {
+      // localStorage may fail in private browsing mode or sandboxed environments
+    }
   }
   return fallback;
 }
@@ -33,7 +35,9 @@ function setStorage(key: string, value: string): void {
   if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
     try {
       localStorage.setItem(key, value);
-    } catch {}
+    } catch {
+      // localStorage may fail in private browsing mode or quota exceeded
+    }
   }
 }
 

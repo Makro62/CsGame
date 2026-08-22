@@ -125,12 +125,14 @@ export class RecoilController {
     return { offsetX: this.currentOffset.x, offsetY: this.currentOffset.y }
   }
 
-  update(_deltaTime: number): { offsetX: number; offsetY: number } {
+  update(deltaTime: number): { offsetX: number; offsetY: number } {
     const now = performance.now()
     const timeSinceLastFire = now - this.lastFireTime
 
     if (timeSinceLastFire > 40) {
-      this.currentOffset.lerp(new THREE.Vector2(0, 0), 0.12)
+      const recoverySpeed = 7.5
+      const t = 1 - Math.exp(-recoverySpeed * (deltaTime || 0.016))
+      this.currentOffset.lerp(new THREE.Vector2(0, 0), t)
     }
 
     if (timeSinceLastFire > 260) {
@@ -196,10 +198,10 @@ export function getSpreadRadius(
 
   const movementMultiplier: Record<string, number> = {
     idle: 1,
-    walk: 3,
-    sprint: 12.5,
-    slide: 12.5,
-    airborne: 22.5,
+    walk: 2.2,
+    sprint: 4.0,
+    slide: 4.5,
+    airborne: 6.0,
   }
 
   const base = baseSpread[weapon] || 0.02

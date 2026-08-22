@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, useState } from "react";
+import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
 import { ZombieArcadeController } from "../game/player/ZombieArcadeController";
@@ -209,9 +209,13 @@ function HotkeyManager({
           if (active) sendSwitchWeapon(active);
           break;
         }
-        case "Space":
-          sendStartGame();
+        case "Space": {
+          const wState = useZombieStore.getState().waveState;
+          if (wState === "waiting" || wState === "buy_phase") {
+            sendStartGame();
+          }
           break;
+        }
         case "KeyB":
           onToggleShop();
           break;
@@ -310,6 +314,12 @@ function InteractionPrompt() {
   const fireSale = useZombieStore((s) => s.activePowerUp) === "fire_sale";
   useZombieStore((s) => s.extractionActive);
 
+  const barricadeLookup = useMemo(() => {
+    const map = new Map<string, (typeof barricades)[0]>();
+    barricades.forEach((b) => map.set(b.id, b));
+    return map;
+  }, [barricades]);
+
   if (!lastSnapshot) return null;
   const { x, z } = lastSnapshot;
 
@@ -395,7 +405,7 @@ function InteractionPrompt() {
   for (const loc of BARRICADE_CONFIG.locations) {
     const distSq = (loc.x - x) ** 2 + (loc.z - z) ** 2;
     if (distSq < 16) {
-      const b = barricades.find((item) => item.id === loc.id);
+      const b = barricadeLookup.get(loc.id);
       if (!b || b.boards < BARRICADE_CONFIG.maxBoards) {
         return (
           <PromptBadge
@@ -492,18 +502,26 @@ function BossWaveWarning() {
   if (!show) return null;
 
   return (
-    <div
-      style={{
-        ...hudPanel("red"),
-        background: "linear-gradient(150deg, rgba(153, 27, 27, 0.92), rgba(69, 10, 10, 0.9))",
-        padding: "10px 28px",
-        animation: "pulse 0.6s infinite",
-      }}
-    >
-      <div style={{ color: "#fff", fontSize: 20, fontWeight: 900, letterSpacing: 2, textAlign: "center" }}>
-        ⚠️ BOSS WAVE
+    <>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.75; transform: scale(1.04); }
+        }
+      `}</style>
+      <div
+        style={{
+          ...hudPanel("red"),
+          background: "linear-gradient(150deg, rgba(153, 27, 27, 0.92), rgba(69, 10, 10, 0.9))",
+          padding: "10px 28px",
+          animation: "pulse 0.6s infinite",
+        }}
+      >
+        <div style={{ color: "#fff", fontSize: 20, fontWeight: 900, letterSpacing: 2, textAlign: "center" }}>
+          ⚠️ BOSS WAVE
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

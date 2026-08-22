@@ -29,6 +29,13 @@ import { useOffline5v5Store } from "./Offline5v5Store";
 
 function OfflineGameLoop() {
   const lastTime = useRef(performance.now());
+  const lastSyncTime = useRef(0);
+  const cachedRemotePlayers = useRef(new Map<string, {
+    x: number; y: number; z: number; rotationY: number;
+    nickname: string; team: string; hp: number; isDead: boolean;
+    currentWeapon: string; hasBomb: boolean; kills: number; deaths: number;
+    isSprinting: boolean; isCrouching: boolean;
+  }>());
 
   useFrame(() => {
     const now = performance.now();
@@ -37,46 +44,80 @@ function OfflineGameLoop() {
     const store = useOffline5v5Store.getState();
     store.tick(dt);
 
+    // Throttle network store update to ~20 Hz (50ms) to reduce React render pressure
+    if (now - lastSyncTime.current < 50) return;
+    lastSyncTime.current = now;
+
     const me = store.players.get("local");
     if (me) {
-      const remotePlayers = new Map<string, {
-        x: number; y: number; z: number; rotationY: number;
-        nickname: string; team: string; hp: number; isDead: boolean;
-        currentWeapon: string; hasBomb: boolean; kills: number; deaths: number;
-        isSprinting: boolean; isCrouching: boolean;
-      }>();
+      const remoteMap = cachedRemotePlayers.current;
+      remoteMap.clear();
       store.players.forEach((p, id) => {
         if (id !== "local") {
-          remotePlayers.set(id, {
-            x: p.x, y: p.y, z: p.z, rotationY: p.rotationY,
-            nickname: p.nickname, team: p.team, hp: p.hp, isDead: p.isDead,
-            currentWeapon: p.currentWeapon, hasBomb: p.hasBomb,
-            kills: p.kills, deaths: p.deaths, isSprinting: false, isCrouching: false,
+          remoteMap.set(id, {
+            x: p.x,
+            y: p.y,
+            z: p.z,
+            rotationY: p.rotationY,
+            nickname: p.nickname,
+            team: p.team,
+            hp: p.hp,
+            isDead: p.isDead,
+            currentWeapon: p.currentWeapon,
+            hasBomb: p.hasBomb,
+            kills: p.kills,
+            deaths: p.deaths,
+            isSprinting: false,
+            isCrouching: false,
           });
         }
       });
 
       useNetworkStore.setState({
-        remotePlayers,
-        localHp: me.hp, localIsDead: me.isDead, localMoney: me.money,
-        localTeam: me.team, localWeapon: me.currentWeapon,
-        localPrimaryWeapon: me.primaryWeapon, localSecondaryWeapon: me.secondaryWeapon,
-        localKnifeSlot: me.knifeSlot, localAmmo: me.ammo, localReserveAmmo: me.reserveAmmo,
-        localArmor: me.armor, localHelmet: me.hasHelmet,
-        localGrenadeHE: me.grenadeHE, localGrenadeSmoke: me.grenadeSmoke,
-        localGrenadeFlash: me.grenadeFlash, localHasBomb: me.hasBomb,
-        localKills: me.kills, localDeaths: me.deaths,
-        localX: me.x, localZ: me.z, localRotationY: me.rotationY,
-        sessionId: "local", connected: true,
+        remotePlayers: new Map(remoteMap),
+        localHp: me.hp,
+        localIsDead: me.isDead,
+        localMoney: me.money,
+        localTeam: me.team,
+        localWeapon: me.currentWeapon,
+        localPrimaryWeapon: me.primaryWeapon,
+        localSecondaryWeapon: me.secondaryWeapon,
+        localKnifeSlot: me.knifeSlot,
+        localAmmo: me.ammo,
+        localReserveAmmo: me.reserveAmmo,
+        localArmor: me.armor,
+        localHelmet: me.hasHelmet,
+        localGrenadeHE: me.grenadeHE,
+        localGrenadeSmoke: me.grenadeSmoke,
+        localGrenadeFlash: me.grenadeFlash,
+        localHasBomb: me.hasBomb,
+        localKills: me.kills,
+        localDeaths: me.deaths,
+        localX: me.x,
+        localZ: me.z,
+        localRotationY: me.rotationY,
+        sessionId: "local",
+        connected: true,
         round: {
-          phase: store.phase, roundTimeLeft: store.roundTimeLeft,
-          buyPhaseTimeLeft: store.buyPhaseTimeLeft, roundNumber: store.roundNumber,
-          teamRedScore: store.teamRedScore, teamBlueScore: store.teamBlueScore,
-          bombPlanted: store.bombPlanted, bombTimeLeft: store.bombTimeLeft,
-          bombSite: store.bombSite, isHalfTime: store.isHalfTime,
-          isOvertime: false, isSuddenDeath: false, readyCount: 0,
-          maxRounds: store.maxRounds, gameMode: "bomb_defusal",
-          kothCapturingTeam: "", kothCaptureProgress: 0, kothScoreT: 0, kothScoreCT: 0,
+          phase: store.phase,
+          roundTimeLeft: store.roundTimeLeft,
+          buyPhaseTimeLeft: store.buyPhaseTimeLeft,
+          roundNumber: store.roundNumber,
+          teamRedScore: store.teamRedScore,
+          teamBlueScore: store.teamBlueScore,
+          bombPlanted: store.bombPlanted,
+          bombTimeLeft: store.bombTimeLeft,
+          bombSite: store.bombSite,
+          isHalfTime: store.isHalfTime,
+          isOvertime: false,
+          isSuddenDeath: false,
+          readyCount: 0,
+          maxRounds: store.maxRounds,
+          gameMode: "bomb_defusal",
+          kothCapturingTeam: "",
+          kothCaptureProgress: 0,
+          kothScoreT: 0,
+          kothScoreCT: 0,
         },
       });
     }
@@ -181,7 +222,7 @@ export function Offline5v5Mode() {
     ws.equipWeapon("deagle");
 
     initMatch(nickname || "Player", "T");
-  }, []);
+  }, [initMatch, nickname]);
 
   const handleBack = useCallback(() => {
     useNetworkStore.getState().disconnect();

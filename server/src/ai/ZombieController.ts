@@ -17,6 +17,8 @@ export class ZombieController {
   private hpScale = 1
   private speedScale = 1
   private aliveCount = 0
+  /** Path cache: zombieId -> { targetX, targetZ, path } — recompute only if target moved > 3m */
+  private pathCache = new Map<string, { targetX: number; targetZ: number; path: { x: number; z: number }[] }>()
 
   /** Difficulty multipliers chosen in the lobby, applied to every new zombie. */
   setDifficulty(hpScale: number, speedScale: number): void {
@@ -120,7 +122,6 @@ export class ZombieController {
             if (zombie.attackCooldown <= 0) {
               explodingZombies.push({ zombieId: zombie.id, x: zombie.x, z: zombie.z })
               zombie.isDead = true
-              this.aliveCount--
             }
           }
           return
@@ -143,8 +144,16 @@ export class ZombieController {
 
       zombie.targetId = target.id
 
-      // Calculate path with A* Pathfinder
-      const path = this.pathfinder.findPath(zombie.x, zombie.z, target.x, target.z)
+      // Calculate path with caching — only recompute if target moved > 3m
+      let path: { x: number; z: number }[]
+      const cached = this.pathCache.get(zombie.id)
+      const targetMoved = !cached || Math.abs(cached.targetX - target.x) > 3 || Math.abs(cached.targetZ - target.z) > 3
+      if (targetMoved) {
+        path = this.pathfinder.findPath(zombie.x, zombie.z, target.x, target.z)
+        this.pathCache.set(zombie.id, { targetX: target.x, targetZ: target.z, path })
+      } else {
+        path = cached!.path
+      }
       const nextWaypoint = path[0] ?? { x: target.x, z: target.z }
 
       const dx = nextWaypoint.x - zombie.x
@@ -205,7 +214,6 @@ export class ZombieController {
             if (zombie.attackCooldown <= 0) {
               explodingZombies.push({ zombieId: zombie.id, x: zombie.x, z: zombie.z })
               zombie.isDead = true
-              this.aliveCount--
               return
             }
           }
@@ -343,14 +351,15 @@ export class ZombieController {
   }
 
   removeZombie(id: string): void {
-    const z = this.zombies.get(id)
-    if (z && !z.isDead) this.aliveCount--
+    if (this.zombies.has(id)) this.aliveCount--
     this.zombies.delete(id)
+    this.pathCache.delete(id)
   }
 
   clearAll(): void {
     this.zombies.clear()
     this.aliveCount = 0
+    this.pathCache.clear()
   }
 
   getAttackDamage(type: ZombieType): number {
@@ -362,6 +371,6 @@ export class ZombieController {
   }
 
   getAliveCount(): number {
-    return this.getAliveZombies().length
+    return this.aliveCount
   }
 }

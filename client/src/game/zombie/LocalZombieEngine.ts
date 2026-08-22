@@ -35,6 +35,44 @@ const POWER_UP_TYPES: PowerUpType[] = [
   "fire_sale",
 ];
 
+class SpatialGrid {
+  private cells = new Map<string, Set<string>>();
+  private cellSize = 5;
+
+  insert(id: string, x: number, z: number) {
+    const key = `${Math.floor(x / this.cellSize)},${Math.floor(z / this.cellSize)}`;
+    if (!this.cells.has(key)) this.cells.set(key, new Set());
+    this.cells.get(key)!.add(id);
+  }
+
+  query(x: number, z: number, radius: number): Set<string> {
+    const result = new Set<string>();
+    const r = Math.ceil(radius / this.cellSize);
+    const cx = Math.floor(x / this.cellSize);
+    const cz = Math.floor(z / this.cellSize);
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dz = -r; dz <= r; dz++) {
+        const cell = this.cells.get(`${cx + dx},${cz + dz}`);
+        if (cell) cell.forEach((id) => result.add(id));
+      }
+    }
+    return result;
+  }
+
+  clear() {
+    this.cells.clear();
+  }
+}
+
+const ZOMBIE_HITBOXES: Record<ZombieType, { headY: number; headRadius: number }> = {
+  walker: { headY: 1.5, headRadius: 0.28 },
+  runner: { headY: 1.3, headRadius: 0.25 },
+  tank: { headY: 1.8, headRadius: 0.38 },
+  spitter: { headY: 1.45, headRadius: 0.3 },
+  exploder: { headY: 1.45, headRadius: 0.3 },
+  boss: { headY: 2.2, headRadius: 0.45 },
+};
+
 export class LocalZombieEngine {
   private active = false;
   private difficulty: ZombieDifficulty = "normal";
@@ -49,6 +87,10 @@ export class LocalZombieEngine {
   private totalBosses = 0;
   private bossesSpawned = 0;
   private isBossWave = false;
+  private spawnCounter = 0;
+  private engineInstance = 0;
+  private mysteryBoxTimer: ReturnType<typeof setTimeout> | null = null;
+  private spatialGrid = new SpatialGrid();
 
   private zombies = new Map<string, ZombieState>();
   private powerUps = new Map<string, PowerUpState>();
@@ -69,6 +111,12 @@ export class LocalZombieEngine {
   private lastZombieAttackTimes = new Map<string, number>();
 
   init(difficulty: ZombieDifficulty = "normal") {
+    this.engineInstance++;
+    if (this.mysteryBoxTimer) {
+      clearTimeout(this.mysteryBoxTimer);
+      this.mysteryBoxTimer = null;
+    }
+    this.spatialGrid.clear();
     this.difficulty = difficulty;
     const diffCfg = ZOMBIE_DIFFICULTIES[difficulty] || ZOMBIE_DIFFICULTIES.normal;
     this.soloRevives = diffCfg.soloRevives;
@@ -222,7 +270,7 @@ export class LocalZombieEngine {
 
     for (let i = 0; i < batchSize; i++) {
       const spawn = spawns[Math.floor(Math.random() * spawns.length)];
-      let type: ZombieType = "walker";
+      let type: ZombieType;
 
       if (this.isBossWave && this.bossesSpawned < this.totalBosses) {
         type = "boss";
@@ -252,7 +300,7 @@ export class LocalZombieEngine {
   }
 
   private spawnSingleZombie(type: ZombieType, x: number, z: number) {
-    const id = `z_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const id = `z_${Date.now()}_${++this.spawnCounter}_${Math.random().toString(36).slice(2, 6)}`;
     const base = ZOMBIE_TYPES[type] || ZOMBIE_TYPES.walker;
     const diffCfg = ZOMBIE_DIFFICULTIES[this.difficulty] || ZOMBIE_DIFFICULTIES.normal;
 
@@ -404,12 +452,38 @@ export class LocalZombieEngine {
     const now = performance.now();
     const diffCfg = ZOMBIE_DIFFICULTIES[this.difficulty] || ZOMBIE_DIFFICULTIES.normal;
 
+    // Refresh spatial grid
+    this.spatialGrid.clear();
+    this.zombies.forEach((z) => {
+      if (!z.isDead) this.spatialGrid.insert(z.id, z.x, z.z);
+    });
+
     this.zombies.forEach((zombie) => {
       if (zombie.isDead) return;
 
       const dx = this.playerX - zombie.x;
       const dz = this.playerZ - zombie.z;
       const dist = Math.hypot(dx, dz);
+
+      // Boids-style separation to prevent stacking
+      let sepX = 0;
+      let sepZ = 0;
+      const nearbyIds = this.spatialGrid.query(zombie.x, zombie.z, 2.0);
+      nearbyIds.forEach((otherId) => {
+        if (otherId === zombie.id) return;
+        const other = this.zombies.get(otherId);
+        if (!other || other.isDead) return;
+        const odx = zombie.x - other.x;
+        const odz = zombie.z - other.z;
+        const odist = Math.hypot(odx, odz);
+        if (odist < 1.4 && odist > 0.001) {
+          const push = (1.4 - odist) / odist;
+          sepX += odx * push;
+          sepZ += odz * push;
+        }
+      });
+      zombie.x += sepX * 1.2 * dt;
+      zombie.z += sepZ * 1.2 * dt;
 
       // Spitter AI: Kiting & Ranged Acid Spit
       if (zombie.type === "spitter") {
@@ -591,7 +665,10 @@ export class LocalZombieEngine {
 
       const hitRadius = zombie.type === "boss" ? 1.8 : 0.9;
       if (distToLine < hitRadius) {
-        const isHeadshot = closestPoint.y >= zombie.y + (zombie.type === "boss" ? 2.0 : 1.3);
+        const hitbox = ZOMBIE_HITBOXES[zombie.type] || ZOMBIE_HITBOXES.walker;
+        const headCenter = new THREE.Vector3(zombie.x, zombie.y + hitbox.headY, zombie.z);
+        const distToHead = closestPoint.distanceTo(headCenter);
+        const isHeadshot = distToHead <= hitbox.headRadius;
         if (dot < closestDist) {
           closestDist = dot;
           closestZombie = zombie;
@@ -669,7 +746,7 @@ export class LocalZombieEngine {
       // Chain lightning (Arc Caster / AWP Thunderbolt)
       if (effect === "chain_lightning") {
         let maxChains = isArcCaster ? 2 : 3;
-        let chainDmg = Math.round(damage * (isArcCaster ? 0.6 : 0.7));
+        const chainDmg = Math.round(damage * (isArcCaster ? 0.6 : 0.7));
         this.zombies.forEach((other) => {
           if (other.id === targetZombie.id || other.isDead || maxChains <= 0) return;
           const dist = Math.hypot(other.x - targetZombie.x, other.z - targetZombie.z);
@@ -696,7 +773,7 @@ export class LocalZombieEngine {
       // Poison DoT (MP5-K, AutoPistol)
       if (effect === "poison_dot") {
         const dots = this.zombieDots.get(targetZombie.id) ?? [];
-        let pDot = dots.find((d) => d.type === "poison");
+        const pDot = dots.find((d) => d.type === "poison");
         if (pDot) {
           pDot.stacks = Math.min(3, pDot.stacks + 1);
           pDot.remainingSec = 4;
@@ -934,6 +1011,7 @@ export class LocalZombieEngine {
   }
 
   handleMysteryBox() {
+    const instance = this.engineInstance;
     const isFireSale = useZombieStore.getState().activePowerUp === "fire_sale";
     const price = isFireSale ? MYSTERY_BOX.fireSalePrice : MYSTERY_BOX.price;
     const points = useZombieStore.getState().points;
@@ -949,7 +1027,9 @@ export class LocalZombieEngine {
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("mysteryBoxSpin", { detail: { weapon: rolledWeapon } }));
-      setTimeout(() => {
+      if (this.mysteryBoxTimer) clearTimeout(this.mysteryBoxTimer);
+      this.mysteryBoxTimer = setTimeout(() => {
+        if (instance !== this.engineInstance) return;
         if (rolledWeapon in WEAPONS) {
           useWeaponStore.getState().equipWeapon(rolledWeapon as WeaponKey);
         }

@@ -154,6 +154,7 @@ export class BotAgent {
     if (money >= GEAR.grenadeFlash.price && botPlayer.grenadeFlash < 2) {
       if (Math.random() < diff.grenadeChance + (fullBuy ? 0.3 : 0.1)) {
         if (this.tryBuy(botPlayer, "grenadeFlash")) {
+          // eslint-disable-next-line no-useless-assignment
           money -= GEAR.grenadeFlash.price
           purchases.push("grenadeFlash")
         }

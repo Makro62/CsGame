@@ -63,6 +63,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   private waveSystem!: WaveSystem;
   private tickInterval!: ReturnType<typeof setInterval>;
   private lastTick = 0;
+  /** Reusable player snapshot map — avoids GC pressure in hot tick loop */
+  private tickPlayerSnapshot = new Map<string, { x: number; y: number; z: number; hp: number; isDead: boolean; isDowned?: boolean }>();
   private extractionSurgeTimer = 0;
 
   // Rate limiting / cooldowns per player
@@ -71,6 +73,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
   private lastInputTime = new Map<string, number>();
   private activeMysteryBoxTimers = new Map<string, NodeJS.Timeout>();
   private reloadTimers = new Map<string, NodeJS.Timeout>();
+  private stunTimers = new Map<string, NodeJS.Timeout>();
   private soloRevivesCount = new Map<string, number>();
   /** Weapons a player actually paid for; switching is limited to these. */
   private ownedWeapons = new Map<string, Set<string>>();
@@ -211,6 +214,9 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.papWeapons.delete(client.sessionId);
     this.soloRevivesCount.delete(client.sessionId);
     this.antiCheat.clearAll(client.sessionId);
+    this.zombieDots.delete(client.sessionId);
+    this.playerDots.delete(client.sessionId);
+    this.playerDotRemainder.delete(client.sessionId);
 
     const timer = this.activeMysteryBoxTimers.get(client.sessionId);
     if (timer) {
@@ -245,6 +251,8 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     this.activeMysteryBoxTimers.clear();
     this.reloadTimers.forEach((timer) => clearTimeout(timer));
     this.reloadTimers.clear();
+    this.stunTimers.forEach((timer) => clearTimeout(timer));
+    this.stunTimers.clear();
     this.zombieCtrl.clearAll();
   }
 
@@ -290,13 +298,13 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     const dt = (now - this.lastTick) / 1000;
     this.lastTick = now;
 
-    // Update zombie AI with barricade awareness
-    const players = new Map<string, { x: number; y: number; z: number; hp: number; isDead: boolean; isDowned?: boolean }>();
+    // Update zombie AI with barricade awareness (reuse pre-allocated map)
+    this.tickPlayerSnapshot.clear();
     this.state.players.forEach((p, id) => {
-      players.set(id, { x: p.x, y: p.y, z: p.z, hp: p.hp, isDead: p.isDead, isDowned: p.isDowned });
+      this.tickPlayerSnapshot.set(id, { x: p.x, y: p.y, z: p.z, hp: p.hp, isDead: p.isDead, isDowned: p.isDowned });
     });
 
-    const aiResult = this.zombieCtrl.update(dt, players, this.state.barricades);
+    const aiResult = this.zombieCtrl.update(dt, this.tickPlayerSnapshot, this.state.barricades);
 
     // Handle attacked barricades
     aiResult.attackedBarricades.forEach((att) => {
@@ -539,7 +547,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     }
 
     if (this.state.phase === "active") {
-      this.waveSystem.update(dt, players);
+      this.waveSystem.update(dt, this.tickPlayerSnapshot);
     }
 
     // Sync zombie positions to state
@@ -907,7 +915,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
       } else if (effect === "poison_dot") {
         // Stacking poison (2 dmg/s for 4s, up to 3 stacks)
         const dots = this.zombieDots.get(closestZombie.id) ?? [];
-        let pDot = dots.find((d) => d.type === "poison");
+        const pDot = dots.find((d) => d.type === "poison");
         if (pDot) {
           pDot.stacks = Math.min(3, pDot.stacks + 1);
           pDot.remainingSec = 4;
@@ -943,13 +951,19 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         const targetZ = this.zombieCtrl.getZombie(closestZombie.id);
         if (targetZ) {
           targetZ.speed = Math.max(0.5, targetZ.speed * 0.4);
-          setTimeout(() => {
-            const zCurr = this.zombieCtrl.getZombie(closestZombie!.id);
+          const zombieId = closestZombie.id;
+          // Clear any existing stun timer for this zombie
+          const prev = this.stunTimers.get(zombieId);
+          if (prev) clearTimeout(prev);
+          const timer = setTimeout(() => {
+            this.stunTimers.delete(zombieId);
+            const zCurr = this.zombieCtrl.getZombie(zombieId);
             if (zCurr && !zCurr.isDead) {
               const baseStats = ZOMBIE_TYPES[zCurr.type];
               zCurr.speed = baseStats.speed * (1 + (this.state.currentWave - 1) * 0.03) * this.zombieDifficulty.zombieSpeed;
             }
           }, 2500);
+          this.stunTimers.set(zombieId, timer);
         }
         this.broadcast("elementalEffect", { type: "stun", targetId: closestZombie.id });
       }
@@ -1469,10 +1483,15 @@ export class ZombieSurvivalRoom extends Room<GameState> {
         }
 
         player.isUsingMysteryBox = false;
-        setTimeout(() => {
+        // Clear any existing mystery box display timer for this player
+        const prevBoxTimer = this.activeMysteryBoxTimers.get(client.sessionId);
+        if (prevBoxTimer) clearTimeout(prevBoxTimer);
+        const boxTimer = setTimeout(() => {
+          this.activeMysteryBoxTimers.delete(client.sessionId);
           this.state.mysteryBoxActive = false;
           this.state.mysteryBoxWeapon = "";
         }, 2000);
+        this.activeMysteryBoxTimers.set(client.sessionId, boxTimer);
         return;
       }
       client.send("mysteryBoxSpin", { weapon: allWeapons[spinIndex % allWeapons.length] });
@@ -1682,7 +1701,7 @@ export class ZombieSurvivalRoom extends Room<GameState> {
     if (!reviver || !target || reviver.isDead || reviver.isDowned || !target.isDowned || target.isDead) return;
 
     const distSq = (reviver.x - target.x) ** 2 + (reviver.z - target.z) ** 2;
-    if (distSq > 12) return;
+    if (distSq > 12.25) return; // 3.5^2
 
     reviver.isReviving = true;
     reviver.reviveTargetId = data.targetId;

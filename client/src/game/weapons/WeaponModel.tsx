@@ -20,18 +20,29 @@ import {
 
 const weaponAnimator = new WeaponAnimator()
 
-// Procedural studio env map so metalness looks good without external HDR assets
+// Procedural studio env map singleton with ref counting
+let globalEnvMap: THREE.Texture | null = null
+let envMapRefCount = 0
+
 function useStudioEnvironment() {
   const gl = useThree((s) => s.gl)
   const scene = useThree((s) => s.scene)
 
   useEffect(() => {
-    const pmrem = new THREE.PMREMGenerator(gl)
-    const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
-    scene.environment = envMap
-    return () => {
-      envMap.dispose()
+    if (!globalEnvMap) {
+      const pmrem = new THREE.PMREMGenerator(gl)
+      globalEnvMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
       pmrem.dispose()
+    }
+    envMapRefCount++
+    scene.environment = globalEnvMap
+
+    return () => {
+      envMapRefCount--
+      if (envMapRefCount <= 0 && globalEnvMap) {
+        globalEnvMap.dispose()
+        globalEnvMap = null
+      }
     }
   }, [gl, scene])
 }
@@ -50,21 +61,6 @@ export function WeaponModel() {
   const swingProgress = useRef(0)
   const mouseDelta = useRef({ x: 0, y: 0 })
   const adsProgress = useRef(0)
-
-  useEffect(() => {
-    const checkMovement = () => {
-      const input = useGameStore.getState().lastInput
-      if (input) {
-        const moving =
-          input.forward || input.backward || input.left || input.right
-        const sprinting = input.sprint
-        isMoving.current = moving
-        moveIntensity.current = sprinting ? 1.5 : moving ? 1.0 : 0
-      }
-    }
-    const interval = setInterval(checkMovement, 100)
-    return () => clearInterval(interval)
-  }, [])
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -110,6 +106,14 @@ export function WeaponModel() {
 
   useFrame(({ camera }, dt) => {
     if (!groupRef.current || !recoilGroupRef.current || !activeWeapon) return
+
+    // Frame-synced movement check
+    const input = useGameStore.getState().lastInput
+    if (input) {
+      const moving = input.forward || input.backward || input.left || input.right
+      isMoving.current = moving
+      moveIntensity.current = input.sprint ? 1.5 : moving ? 1.0 : 0
+    }
 
     weaponAnimator.update(dt)
     weaponAnimator.updateBob(dt, moveIntensity.current * 5, moveIntensity.current > 1, isMoving.current)

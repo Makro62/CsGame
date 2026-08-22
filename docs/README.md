@@ -13,7 +13,6 @@
 | [../Game_Design_Document.md](../Game_Design_Document.md) | High-level design & arsitektur |
 | [Gameplay_Mechanics_Bible.md](Gameplay_Mechanics_Bible.md) | Aturan & angka gameplay (sinkronkan ke `shared/` bila drift) |
 | [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md) | Referensi parameter kunci & rationale |
-| [Master_Implementation_Checklist.md](Master_Implementation_Checklist.md) | Checklist fitur terverifikasi |
 | [IMPROVEMENTS_AND_FIXES_AUDIT.md](IMPROVEMENTS_AND_FIXES_AUDIT.md) | Backlog P1–P3 (performa, polish, AI, mobile) |
 | [GAMEPLAY_SYSTEM.md](GAMEPLAY_SYSTEM.md) | Training range, bot AI, rating |
 
@@ -43,16 +42,20 @@
 | Training Range (aim + recoil) | ✅ |
 | Zombie Survival (shop, PaP, wave, revive, extraction) | ✅ |
 | Anti-cheat 5v5 + Zombie (real-dt, speed, fire-rate, flood) | ✅ |
+| Offline 5v5 vs Bots (tactical AI, raycast LOS, bomb plant/defuse) | ✅ |
 | FFA / TDM / Gun Game UI | 🟨 partial / roadmap |
 
 ---
 
 ## Catatan Pembersihan Docs
 
-Dihapus karena sudah diimplementasi atau usang:
+Dihapus karena sudah selesai diimplementasikan ke codebase:
 
+- `CsGame_Offline_Zombie_Detailed_Analysis.md` → 39 poin perbaikan Offline 5v5 & Zombie Survival telah diimplementasikan
+- `Master_Implementation_Checklist.md` → seluruh checklist v3.1 telah selesai dan terverifikasi di kode
+- `GAMEPLAY_AND_IMPROVEMENTS_ROADMAP.md` → baseline status & rencana peningkatan awal telah diterapkan
 - `Audit_QA_Independen.md` → temuan P0/P1 diterapkan di kode
 - `Krunker_Style_Roadmap.md` → kontradiktif dengan kode aktual
 - `Guide_Weapon_Buy_Controls.md` → panduan slot senjata sudah usang
 
-Dokumen `Design_*` dan Bible **tetap** karena masih berisi spek yang belum 100% (ragdoll, audio occlusion, FFA UI, dll.). Sinkronkan angka lag-comp ke **200ms** saat mengeditnya.
+Dokumen `Design_*` dan Bible **tetap** sebagai acuan desain sistem, mekanika, dan arsitektur fitur mendatang.

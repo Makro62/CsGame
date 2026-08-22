@@ -412,6 +412,7 @@ export function ShootingSystem() {
       (Math.random() - 0.5) * spread
     );
 
+    raycaster.far = Infinity;
     if (gameMode === "zombie") {
       shootOrigin.set(zombieAim.origin.x, zombieAim.origin.y, zombieAim.origin.z);
       _arcadeDir

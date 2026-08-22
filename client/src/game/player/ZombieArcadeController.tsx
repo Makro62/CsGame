@@ -87,9 +87,7 @@ export function ZombieArcadeController({ paused }: { paused: boolean }) {
       controllerRef.current.enableAutostep(0.5, 0.3, true);
       controllerRef.current.enableSnapToGround(1.0);
     }
-  });
 
-  useFrame(() => {
     const now = performance.now();
     const dt = Math.min((now - lastFrame.current) / 1000, 0.05);
     lastFrame.current = now;

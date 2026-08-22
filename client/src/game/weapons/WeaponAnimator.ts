@@ -75,36 +75,42 @@ export class WeaponAnimator {
       loop: false,
     })
 
-    // Steady Reload animation (no extra tilting/raising/dipping)
+    // Procedural Reload animation (dip down, tilt left, insert mag, return)
     this.addClip({
       name: 'reload',
       keyframes: [
         { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
+        { time: 0.15, position: new THREE.Vector3(0.02, -0.05, 0.02), rotation: new THREE.Euler(0.15, -0.08, 0.1) },
+        { time: 0.45, position: new THREE.Vector3(0.04, -0.09, 0.03), rotation: new THREE.Euler(0.25, -0.15, 0.18) },
+        { time: 0.70, position: new THREE.Vector3(0.03, -0.07, 0.02), rotation: new THREE.Euler(0.18, -0.1, 0.12) },
+        { time: 0.88, position: new THREE.Vector3(0.01, -0.02, 0.01), rotation: new THREE.Euler(0.05, -0.02, 0.03) },
         { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
       ],
       duration: 2.2,
       loop: false,
     })
 
-    // Draw animation (steady equip)
+    // Draw animation (pull up from bottom)
     this.addClip({
       name: 'draw',
       keyframes: [
-        { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
+        { time: 0, position: new THREE.Vector3(0, -0.12, 0.06), rotation: new THREE.Euler(-0.4, 0.1, -0.1) },
+        { time: 0.6, position: new THREE.Vector3(0, 0.01, -0.01), rotation: new THREE.Euler(0.05, -0.02, 0.02) },
         { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
       ],
-      duration: 0.15,
+      duration: 0.25,
       loop: false,
     })
 
-    // Holster animation (steady holster)
+    // Holster animation (lower down)
     this.addClip({
       name: 'holster',
       keyframes: [
         { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
-        { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
+        { time: 0.4, position: new THREE.Vector3(0, 0.01, -0.01), rotation: new THREE.Euler(0.05, -0.02, 0.02) },
+        { time: 1, position: new THREE.Vector3(0, -0.15, 0.08), rotation: new THREE.Euler(-0.45, 0.1, -0.1) },
       ],
-      duration: 0.15,
+      duration: 0.2,
       loop: false,
     })
 

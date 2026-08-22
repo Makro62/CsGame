@@ -618,11 +618,13 @@ export function PlayerController() {
       doubleJumpUsed.current = false
     } else if (!grounded.current && hasJumpBuffer && !doubleJumpUsed.current) {
       // Double Jump
-      const hasStamina = spendJumpStamina()
-      if (hasStamina && PHYSICS.doubleJumpEnabled) {
-        velocityY.current = JUMP_VELOCITY * DOUBLE_JUMP_BOOST
-        doubleJumpUsed.current = true
-        input.jumpBuffer.length = 0
+      if (PHYSICS.doubleJumpEnabled) {
+        const hasStamina = spendJumpStamina()
+        if (hasStamina) {
+          velocityY.current = JUMP_VELOCITY * DOUBLE_JUMP_BOOST
+          doubleJumpUsed.current = true
+          input.jumpBuffer.length = 0
+        }
       }
     }
 

@@ -54,7 +54,7 @@ export function useNetwork(nickname: string) {
       });
       sendInput(playerInput as unknown as Record<string, unknown>);
     },
-    [sendInput]
+    [sendInput, connected]
   );
 
   const reconcile = useCallback(
