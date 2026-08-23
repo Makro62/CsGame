@@ -1,137 +1,12 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect } from 'react'
 import { Switch, Route, useLocation, Redirect } from 'wouter'
-import { Canvas } from '@react-three/fiber'
-import { Sky } from '@react-three/drei'
-import { Physics } from '@react-three/rapier'
-import { getMapById } from './game/map/MapRegistry'
-import { PlayerController } from './game/player/PlayerController'
-import { RemotePlayers } from './game/player/RemotePlayers'
-import { WeaponModel } from './game/weapons/WeaponModel'
-import { ShootingSystem } from './game/weapons/ShootingSystem'
-import { ReloadSystem } from './game/weapons/ReloadSystem'
-import { GrenadeSystem } from './game/weapons/GrenadeSystem'
-import { Crosshair } from './components/Crosshair'
-import { HUDLayout } from './ui/components/hud/HUDLayout'
-import { HitMarker } from './components/HitMarker'
-import { BuyMenu } from './components/BuyMenu'
-import { DamageVignette } from './components/DamageVignette'
-import { DeathScreen } from './components/DeathScreen'
-import { Leaderboard } from './components/Leaderboard'
-import SniperScope from './components/SniperScope'
-import Minimap from './components/Minimap'
-import KillConfirm from './components/KillConfirm'
-import { AudioManager } from './components/AudioManager'
-import { RoundEndScreen } from './components/RoundEndScreen'
-import { ClickToPlayOverlay } from './components/ClickToPlayOverlay'
-import VoteKick from './components/VoteKick'
-import { FlashEffect } from './components/FlashEffect'
-import FootstepPlayer from './components/FootstepPlayer'
-import { KOTH } from './components/KOTH'
-import { TracerManager } from './game/effects/TracerManager'
-import { CalloutLabels } from './game/map/CalloutLabels'
-import { ReconnectOverlay } from './components/ReconnectOverlay'
-import SettingsMenu from './screens/SettingsMenu'
 import { MainMenu } from './screens/MainMenu'
 import { TrainingRange } from './game/training/TrainingRange'
 import { ZombieSurvivalMode } from './screens/ZombieSurvivalMode'
 import { Offline5v5Mode } from './screens/Offline5v5Mode'
-import { useWeaponSwitch } from './hooks/useWeaponSwitch'
+import { L4DMode } from './screens/L4DMode'
 import { useGameStore } from './stores/useGameStore'
-import { useNetworkStore } from './stores/useNetworkStore'
 import './index.css'
-
-function MultiplayerMode() {
-  const { buyMenuOpen, closeBuyMenu } = useWeaponSwitch()
-  const { round, connected, measurePing } = useNetworkStore()
-  const currentMap = useGameStore((s) => s.currentMap)
-  const MapComponent = getMapById(currentMap).component
-  const noop = useCallback(() => {}, [])
-
-  useEffect(() => {
-    if (!connected) return
-
-    measurePing()
-    const interval = setInterval(() => {
-      measurePing()
-    }, 2000)
-
-    return () => clearInterval(interval)
-  }, [connected, measurePing])
-
-  return (
-    <div
-      style={{
-        width: '100vw',
-        height: '100vh',
-        position: 'relative',
-        overflow: 'hidden',
-        backgroundColor: '#000',
-      }}
-    >
-      <Canvas shadows camera={{ fov: 75 }}>
-        <Sky sunPosition={[100, 20, 100]} />
-        <ambientLight intensity={0.5} />
-        <directionalLight castShadow position={[10, 10, 10]} intensity={1.5} />
-        <Physics gravity={[0, -9.81, 0]}>
-          <MapComponent />
-          <PlayerController />
-          <RemotePlayers />
-          <WeaponModel />
-        </Physics>
-        <ShootingSystem />
-        <ReloadSystem />
-        <GrenadeSystem />
-        <TracerManager />
-        <CalloutLabels />
-      </Canvas>
-      <Crosshair />
-      <SniperScope />
-      <HitMarker />
-      <HUDLayout />
-      <KillConfirm />
-      <DamageVignette />
-      <DeathScreen />
-      <KOTH />
-      <Leaderboard />
-      <Minimap />
-      <AudioManager />
-      <FootstepPlayer />
-      <RoundEndScreen />
-      <SettingsMenu />
-      <VoteKick />
-      <FlashEffect />
-      {/* Top Left Menu / Back Button */}
-      <button
-        onClick={() => window.dispatchEvent(new CustomEvent('openSettings'))}
-        style={{
-          position: 'absolute',
-          top: 14,
-          left: 14,
-          zIndex: 400,
-          background: 'rgba(15, 23, 42, 0.85)',
-          border: '1px solid rgba(59, 130, 246, 0.4)',
-          borderRadius: 8,
-          padding: '6px 12px',
-          color: '#93c5fd',
-          fontSize: 11,
-          fontWeight: 'bold',
-          letterSpacing: 1,
-          cursor: 'pointer',
-          fontFamily: 'monospace',
-          backdropFilter: 'blur(8px)',
-        }}
-      >
-        ⚙️ MENU / BACK [ESC / P]
-      </button>
-
-      {buyMenuOpen && round.phase === 'buy' && (
-        <BuyMenu onClose={closeBuyMenu} />
-      )}
-      <ClickToPlayOverlay onLock={noop} suppressed={buyMenuOpen} />
-      <ReconnectOverlay />
-    </div>
-  )
-}
 
 function SyncModeToURL() {
   const [location, setLocation] = useLocation()
@@ -143,12 +18,12 @@ function SyncModeToURL() {
       useGameStore.getState().setMode('menu')
     } else if (location === '/training' && mode !== 'training') {
       useGameStore.getState().setMode('training')
-    } else if (location === '/play' && mode !== 'multiplayer') {
-      useGameStore.getState().setMode('multiplayer')
     } else if (location === '/offline5v5' && mode !== 'offline5v5') {
       useGameStore.getState().setMode('offline5v5')
     } else if (location === '/zombie' && mode !== 'zombie') {
       useGameStore.getState().setMode('zombie')
+    } else if (location === '/l4d' && mode !== 'l4d') {
+      useGameStore.getState().setMode('l4d')
     }
   }, [location])
 
@@ -160,12 +35,12 @@ function SyncModeToURL() {
         setLocation('/')
       } else if (state.mode === 'training' && location !== '/training') {
         setLocation('/training')
-      } else if (state.mode === 'multiplayer' && location !== '/play') {
-        setLocation('/play')
       } else if (state.mode === 'offline5v5' && location !== '/offline5v5') {
         setLocation('/offline5v5')
       } else if (state.mode === 'zombie' && location !== '/zombie') {
         setLocation('/zombie')
+      } else if (state.mode === 'l4d' && location !== '/l4d') {
+        setLocation('/l4d')
       }
     })
     return unsub
@@ -177,11 +52,11 @@ function SyncModeToURL() {
 function GameRoutes() {
   const [location] = useLocation()
 
-  // Render the right component based on URL
+  // Render the right component based on URL — all offline
   if (location === '/training') return <TrainingRange />
-  if (location === '/play') return <MultiplayerMode />
   if (location === '/offline5v5') return <Offline5v5Mode />
   if (location === '/zombie') return <ZombieSurvivalMode />
+  if (location === '/l4d') return <L4DMode />
   return <MainMenu />
 }
 
@@ -192,9 +67,9 @@ export default function App() {
       <Switch>
         <Route path="/" component={GameRoutes} />
         <Route path="/training" component={GameRoutes} />
-        <Route path="/play" component={GameRoutes} />
         <Route path="/offline5v5" component={GameRoutes} />
         <Route path="/zombie" component={GameRoutes} />
+        <Route path="/l4d" component={GameRoutes} />
         <Redirect to="/" />
       </Switch>
     </>

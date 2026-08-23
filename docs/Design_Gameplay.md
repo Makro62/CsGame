@@ -1,4 +1,6 @@
-# 🏆 Desain Gameplay Taktis ala CS:GO (v2.0 — Complete Spec + Roadmap)
+# 🏆 Desain Gameplay Taktis ala CS:GO (v2.1 — Offline)
+
+> **OFFLINE BUILD 2026-08-23:** 4 mode offline: `Training` (infinite lives, aim/recoil), `5v5 Offline` (`Offline5v5Store.tick fixed 1/60` 1+9 bot `idle→patrol→hold→peek→engage→retreat→plant→defuse`), `Zombie Shooter v1.0` (`ZombieEngine` wave_active START `0,-30` → FINISH `0,30`), `L4D Campaign` (Director BuildUp/Sustain/Relief, horde cap 42, crescendo 8s). Tidak ada server Colyseus.
 
 Dokumen ini mencakup alur pertandingan lengkap, sistem ekonomi Buy Menu, utilitas granat taktis, kondisi kemenangan, mekanisme ronde standar CS:GO, **Mode Single (Training Range)**, **aturan match quality** (ready/skip, forfeit, vote kick, reconnect, overtime), serta **roadmap mode tambahan**.
 

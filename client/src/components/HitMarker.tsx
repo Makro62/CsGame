@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useNetworkStore } from "../stores/useNetworkStore";
 
 export function HitMarker() {

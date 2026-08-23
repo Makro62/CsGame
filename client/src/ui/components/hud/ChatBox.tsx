@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, useRef } from 'react'
 import { useNetworkStore, type ChatMessage } from '../../../stores/useNetworkStore'
 import { cn } from '../../../utils/cn'

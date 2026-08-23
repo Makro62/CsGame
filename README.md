@@ -1,24 +1,25 @@
-# 🎯 CS Web FPS (CS:GO / Krunker Clone)
+# 🎯 CS Web FPS — Zombie Survival Offline v1.0 (CS:GO / Krunker)
 
-**v2.1** — Game First-Person Shooter (FPS) berbasis web bergaya *low-poly blocky* ala **Krunker.io** dengan elemen taktis layaknya **CS:GO** (Mode Bomb Defusal 5v5). Dibangun murni menggunakan **React Three Fiber** (Frontend WebGL) dan **Colyseus** (Backend Multiplayer Otoritatif). Model senjata Krunker-style (blocky/voxel) dengan **10 senjata** termasuk pistol & pisau.
+**v3.0 Offline** — Game **fully offline** (no server). Mode utama **Zombie Survival** dengan `ZombieEngine` + `SpatialGrid 5m` + `InstancedZombieRenderer` (1 draw call). Dibangun **React Three Fiber** + **Rapier** + **Zustand**. Model Krunker blocky/voxel 10 senjata. Map **START (0,-30) → FINISH (0,30)** jelas.
+
+> Lihat `docs/Zombie_Shooter_System_v1.md` (Single Source of Truth) + `docs/ZOMBIE_MODE.md` untuk detail mode.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Full Offline)
 
 ```bash
-# 1. Instal semua dependensi (root, client, server, shared sekaligus)
+# 1. Instal semua dependensi (root, client, shared)
 npm install
 
-# 2. Jalankan development (2 proses: Vite + Colyseus server)
+# 2. Jalankan development (hanya Vite, no server)
 npm run dev
 
 # 3. Buka browser
-#    Frontend:  http://localhost:5173
-#    Backend:   http://localhost:2567  (Colyseus monitor: /colyseus)
+#    Frontend:  http://localhost:5173  (semua mode offline)
 ```
 
-**Prasyarat:** Node.js v18+.
+**Prasyarat:** Node.js v18+. Tidak butuh server — semua mode jalan offline (`Training`, `5v5 Offline`, `Zombie Shooter`, `L4D Campaign`).
 
 ---
 
@@ -32,47 +33,38 @@ npm run dev
 - **Slide Control Setting** (normalisasi FPS → movement fairness)
 - **Frame-Perfect Input Buffer** (scroll wheel jump support)
 
-### Mode Permainan
-| Mode | Format | Status |
-| :--- | :--- | :--- |
-| Training Range | 1 pemain, aim trainer + recoil practice | ✅ |
-| Bomb Defusal 5v5 | 5v5, 15 ronde, first-to-8 + overtime | ✅ |
-| Zombie Survival | Solo / co-op 1–4, wave ∞, shop, PaP, extraction | ✅ |
-| FFA / TDM / Gun Game | Server-side partial / roadmap | 🟨 |
+### Mode Permainan (All Offline — START → FINISH jelas)
+| Mode | Format | START → FINISH | Status |
+| :--- | :--- | :--- | :--- |
+| Training Range | Solo aim & recoil, dummy + marker | Spawn → Target wall | ✅ Offline |
+| 5v5 Offline (Bomb) | 1 pemain + 9 bot, 5v5 bomb defusal | T-Spawn/CT-Spawn → Bomb Site A/B | ✅ Offline |
+| Zombie Shooter v1 | Wave survival, SpatialGrid + Instanced | START `0,-30` SafeRoom → FINISH `0,30` Rescue | ✅ Offline |
+| Left 4 Dead Campaign | 4 survivors (1+3 bot), Director AI, 4 chapter | SafeRoom START → Corridor → Finale Rescue | ✅ Offline (mirip L4D) |
 
-### Sistem Lainnya
-- Sistem ekonomi buy menu CS:GO style ($800 start, kill/round rewards)
-- **10 Senjata** — Rifle, SMG, Pistol, Sniper, Melee (Glock, Tec-9, Auto Pistol, Combat Knife)
-- Bomb Defusal lengkap (plant 3s, timer 40s, defuse 5s/10s) + bomb pickup setelah terjatuh
-- Training Range (dummy target, aim trainer, recoil practice)
-- Anti-cheat server-side + lag compensation **200ms** + interest management
-- HUD pure CSS zero-asset (crosshair, minimap, kill feed, FPS/ping monitor)
-- Model senjata **Krunker.io blocky/voxel style** — semua dari box geometry
+### Sistem Lainnya (Offline)
+- **ZombieEngine** `SpatialGrid 5m` + `InstancedMesh MAX 100` (1 draw call) + `HitDetection` head/body sphere — 60 FPS wave 20
+- **L4D Director AI** — pacing BuildUp/Sustain/Relief, horde timer, special Infected (Hunter/Smoker/Boomer/Tank/Witch), crescendo, panic level
+- **5v5 Offline Bot AI** — patrol/hold/peek/engage/retreat/plant/defuse, economy buy
+- **Training Range** — dummy, recoil wall, marker jarak, tracking stats
+- **Ekonomi** buy menu CS:GO style ($800 start), **10 senjata** Rifle/SMG/Pistol/Sniper/Melee
+- HUD pure CSS zero-asset, Tailwind, Krunker blocky voxel weapons
 
 ---
 
 ## 🛠️ Tech Stack
 
-### Frontend (Client)
+### Frontend (Client — Offline All)
 | Komponen | Teknologi |
 | :--- | :--- |
 | Framework | React + Vite + TypeScript |
 | 3D Engine | Three.js + React Three Fiber (`@react-three/fiber`, `@react-three/drei`) |
-| Physics | Rapier.js (`@react-three/rapier`) — Kinematic Character Controller |
-| State | Zustand (`useGameStore`, `useNetworkStore`, `useWeaponStore`) |
-| UI / Styling | Tailwind CSS + Vanilla CSS (Zero Asset UI — tanpa gambar/ikon eksternal) |
-| Audio | Web Audio API (3D Positional) + Howler.js (2D UI) |
+| Physics | Rapier.js (`@react-three/rapier`) — KinematicCharacterController (ZombieArcade) / Simple pos clamp (L4D) |
+| State | Zustand (`useGameStore`, `useZombieStore`, `useL4DStore`, `useOffline5v5Store`, `useWeaponStore`) |
+| UI / Styling | Tailwind CSS + Vanilla CSS (Zero Asset UI) |
+| Audio | Web Audio API + Howler.js (2D UI) — no server audio sync |
 
-### Backend (Server)
-| Komponen | Teknologi |
-| :--- | :--- |
-| Runtime | Node.js + TypeScript |
-| Multiplayer | Colyseus |
-| State Sync | `@colyseus/schema` |
-| Arsitektur | Server Otoritatif (validasi HP, damage, peluru, ekonomi, anti-cheat) |
-
-### Arsitektur Proyek
-- **Monorepo NPM Workspaces** (`client`, `server`, `shared`) — berbagi tipe & schema Colyseus untuk mencegah type-mismatch.
+### Arsitektur Proyek (Offline)
+- **Monorepo NPM Workspaces** (`client`, `shared`) — `shared` hanya constants (`WEAPONS`, `PHYSICS`, `MAP`); logic semua di `client/src/game/*` offline.
 
 ---
 
@@ -81,23 +73,19 @@ npm run dev
 Semua keputusan arsitektur, panduan desain, dan spesifikasi fitur disimpan di `docs/`. Silakan baca sebelum memulai pengembangan:
 
 ### Core Design
-- [Game Design Document (GDD)](Game_Design_Document.md) — Dokumen roadmap + gameplay loop utama.
-- [Analysis Reference Doc](docs/Analysis_Reference_Doc.md) — **Referensi final v2.0** semua spesifikasi yang dikunci.
-- [Master Implementation Checklist](docs/Master_Implementation_Checklist.md) — Papan tugas fitur + status (zombie dikoreksi).
-- [Gameplay Mechanics Bible](docs/Gameplay_Mechanics_Bible.md) — **Dokumen gameplay paling detail** (loop, timing, decision tree, edge cases).
-- [docs/README.md](docs/README.md) — Index dokumentasi terkini.
+- [Zombie Shooter System v1.0 (Single Source)](docs/Zombie_Shooter_System_v1.md) — 14 bab offline (Store, Engine, Grid, HitDetection, Instanced, Downed, etc) — **START→FINISH modular**
+- [L4D Campaign Design](docs/ZOMBIE_MODE.md#technical-architecture--offline-only-v10) — Director AI, 4 chapter SafeRoom→Rescue, Special Infected
+- [Game Design Document (GDD)](Game_Design_Document.md) — Roadmap + loop
+- [Master Implementation Checklist](docs/Master_Implementation_Checklist.md) — status fitur v1.0 offline
 
 
-### Spesifikasi Fitur (Design)
-- [Design_Player.md](docs/Design_Player.md) — Model karakter, hitbox, **Movement Physics Bible v2.0**.
-- [Design_Weapons.md](docs/Design_Weapons.md) — Statistik senjata, recoil "7", wallbang, balance rationale.
-- [Design_Combat_Kill.md](docs/Design_Combat_Kill.md) — Hitbox/damage, death/respawn, **spectator system**, edge cases.
-- [Design_Gameplay.md](docs/Design_Gameplay.md) — Ekonomi, C4, format ronde, **training range**, roadmap mode, OT.
-- [Design_Audio.md](docs/Design_Audio.md) — Sistem audio 3D/2D, occlusion, priority matrix.
-- [Design_Networking_Advanced.md](docs/Design_Networking_Advanced.md) — Server otoritatif, lag comp, reconnection, network monitor.
-- [Design_UI_Flow_Geometry.md](docs/Design_UI_Flow_Geometry.md) — Alur layar, geometri 3D, transition timing.
-- [Design_CSS_UI_System.md](docs/Design_CSS_UI_System.md) — Desain UI/HUD murni CSS (crosshair, minimap, FPS/ping).
-- [ZOMBIE_MODE.md](docs/ZOMBIE_MODE.md) — **Zombie Survival Mode** (Outpost Z-7, 7 Zona Fasilitas 3D, Spitter kiting, Exploder, Pack-a-Punch elemental, Arc Caster wonder weapon, Local simulation engine).
+### Spesifikasi Fitur (Design — Offline)
+- [Zombie Shooter System v1.0](docs/Zombie_Shooter_System_v1.md) — Store/Engine/Grid/HitDetection/Barricade/PowerUp/Instanced/Movement
+- [ZOMBIE_MODE.md Offline v1.0](docs/ZOMBIE_MODE.md#technical-architecture--offline-only-v10) — Outpost Z-7 START→FINISH, Director-free (wave)
+- [L4D Campaign](docs/Zombie_Shooter_System_v1.md) + `useL4DStore`/`L4DDirector` — 4 chapter, SafeRoom START, Rescue FINISH, Hunter/Smoker/Boomer/Tank/Witch
+- [Design_Player.md](docs/Design_Player.md) — hitbox & movement bible
+- [Design_Weapons.md](docs/Design_Weapons.md) — 10 senjata
+- [Design_UI_Flow_Geometry.md](docs/Design_UI_Flow_Geometry.md) — flow & 3D geometry
 
 ### Proses & Status
 - [Master Implementation Checklist](docs/Master_Implementation_Checklist.md) — fitur terverifikasi.
@@ -110,44 +98,42 @@ Semua keputusan arsitektur, panduan desain, dan spesifikasi fitur disimpan di `d
 
 ---
 
-## 📂 Struktur Folder
+## 📂 Struktur Folder (Offline)
 
 ```text
 cs-game/
-├── package.json           # Konfigurasi Monorepo (NPM Workspaces)
-├── client/                # Kode Frontend (React, Vite, R3F)
-│   ├── src/components/    # Komponen React (HUD, Crosshair, Minimap)
-│   ├── src/game/          # Logika Game 3D (Player, Map, Senjata)
-│   ├── src/hooks/         # Custom hooks (usePlayerInput, dll)
-│   ├── src/screens/       # MainMenu, BuyMenu, Leaderboard, DeathScreen
-│   └── src/stores/        # Zustand State (Game, Network, Weapon)
-├── server/                # Kode Backend (Node.js, Colyseus)
-│   ├── src/rooms/         # Logika Room & Bomb Defusal
-│   └── src/index.ts       # Entry point server
-├── shared/                # Kode dipakai Client & Server
-│   └── src/schema/        # Colyseus State Schema
-└── docs/                  # Seluruh dokumen desain game (v2.0)
+├── package.json           # Monorepo (client, shared) — dev hanya Vite
+├── client/                # Frontend offline
+│   ├── src/components/    # HUD, Crosshair, Minimap (no network)
+│   ├── src/game/          # Game 3D
+│   │   ├── zombie/        # ZombieEngine, SpatialGrid, HitDetection, Barricade, PowerUp, Instanced
+│   │   ├── l4d/           # L4DDirector, L4DCampaignMap (START→FINISH)
+│   │   ├── player/        # ZombieArcadeController, MinecraftCharacter
+│   │   ├── weapons/       # ZombieShootingSystem, WeaponModel
+│   │   └── training/      # TrainingRange (offline)
+│   ├── src/screens/       # MainMenu (4 mode), ZombieSurvivalMode, L4DMode, Offline5v5Mode
+│   └── src/stores/        # useGameStore, useZombieStore, useL4DStore, useOffline5v5Store, useWeaponStore
+├── shared/                # Constants only (WEAPONS, PHYSICS, MAP)
+└── docs/                  # Zombie_Shooter_System_v1.md, ZOMBIE_MODE.md, AUDIT
 ```
 
 ---
 
-## 🎯 Target Performa (Performance Budget)
+## 🎯 Target Performa (Performance Budget — Offline)
 
-| Parameter | Target |
-| :--- | :--- |
-| FPS | 120+ (target), minimal 60 di GPU integrated |
-| Load Time | < 3 detik (aset primer: 3D primitif, tanpa GLB besar) |
-| Draw Calls | < 500 (instancedMesh untuk kontainer/boks) |
-| Memory | < 400 MB (browser) |
-| Server Tick | 30 tick/detik |
-| Ping Monitoring | HUD warning saat ping > 120ms / packet loss > 5% |
+| Parameter | Target | Implementasi v1.0 |
+| :--- | :--- | :--- |
+| FPS | 60+ (min 60) | 60 FPS wave 20 (60 zombies) |
+| Load Time | < 3 detik | < 2s (no server) |
+| Draw Calls | < 500 | < 80 (InstancedMesh 1 call / 100 zombies) |
+| Memory | < 400 MB | < 300 MB |
+| Offline Tick | 60 Hz (requestAnimationFrame) | ZombieEngine.update(1/60) + SpatialGrid O(1) |
 
 ---
 
-## ⚠️ Keterbatasan yang Diketahui (Known Limitations)
+## ⚠️ Keterbatasan (Offline)
 
-1. **WebSocket/TCP Head-of-Line Blocking** — rubber-banding mungkin terjadi saat packet loss (trade-off yang didokumentasikan).
+1. **Full Offline** — tidak ada multiplayer online (sengaja dihapus per request). 5v5 pakai 9 bot, Zombie & L4D solo + 3 bot survivors.
 2. **Audio Context** — browser memblokir autoplay; wajib "Click to Play" untuk unlock AudioContext.
-3. **No-Mobile MVP** — kontrol touch belum didukung di versi pertama (desktop browser saja).
-4. **Reserve Ammo ∞** — tidak ada sistem pickup amunisi di map (keputusan desain).
-5. **Class Uniform** — semua pemain 100 HP & kecepatan sama (skill-based murni); angka & trade-off di [Gameplay_Mechanics_Bible.md](docs/Gameplay_Mechanics_Bible.md) / [Analysis_Reference_Doc.md](docs/Analysis_Reference_Doc.md).
+3. **No-Mobile MVP** — desktop browser dulu; touch belum.
+4. **No Server Anti-Cheat** — validasi hanya client offline.

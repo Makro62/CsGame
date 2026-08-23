@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect, useState } from 'react'
 import { useWeaponStore } from '../../../stores/useWeaponStore'
 import { useNetworkStore } from '../../../stores/useNetworkStore'

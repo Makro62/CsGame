@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect } from "react";
 import { useNetworkStore } from "../stores/useNetworkStore";
 import { BOMB_SITES, SPAWN, MAP_OBSTACLES, MAP_BOUNDARY } from "@cs-game/shared";

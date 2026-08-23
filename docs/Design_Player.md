@@ -1,4 +1,6 @@
-# 👤 Desain Karakter, Animasi, Hitbox & Movement Physics Bible (v2.0)
+# 👤 Desain Karakter, Animasi, Hitbox & Movement Physics Bible (v2.1 — Offline)
+
+> **OFFLINE BUILD 2026-08-23:** Dua controller offline. FPS `PlayerController.tsx` (Training & 5v5 Offline, KinematicCharacterController, bounds `training ±15`, `container ±29`, `l4d ±35/42`, wall jump `offline5v5|training`, spawn `SPAWN.T/CT` offline) dan Arcade `ZombieArcadeController.tsx` (Zombie Shooter & L4D top-down, `WALK 4 SPRINT 7`, aim ground ray `lerp 14`, camera `lerp 8`, `useAimStore`). Tidak ada `useNetworkStore`.
 
 Dokumen ini mencakup spesifikasi model 3D karakter, pembeda visual tim, presisi *hitbox*, FPV Arm model, fisika kematian, UI *nametag*, suara vokal — serta **(baru) Movement Physics Bible** lengkap dengan seluruh movement tech ala Krunker.io.
 

@@ -1,9 +1,9 @@
 # Web-Based FPS Game Design & Implementation Plan (CS:GO / Valorant Tactical Shooter)
 
-**Version:** v3.0 — CS:GO Aligned  
-**Status:** Design Complete — Ready for Implementation  
-**Last Updated:** 2026-08-13  
-**Design Philosophy:** Tactical 5v5 Bomb Defusal with Competitive Integrity
+**Version:** v4.0 — FULL OFFLINE  
+**Status:** Offline Build — 4 Modes Live  
+**Last Updated:** 2026-08-23  
+**Design Philosophy:** Tactical FPS + Zombie Horde — Full Offline (no server)
 
 ---
 
@@ -11,14 +11,13 @@
 
 A competitive web-based First-Person Shooter inspired by **CS:GO's tactical gameplay** and **Valorant's ability-driven combat**, built for modern browsers. This document serves as the **single source of truth** for all game mechanics, systems, and implementation guidelines.
 
-### Core Identity
-- **Genre:** Tactical FPS (5v5 Bomb Defusal)
-- **Platform:** Web Browser (WebGL + WebSocket)
-- **Tick Rate:** 30 tick/server (optimized for web)
+### Core Identity — FULL OFFLINE (no Colyseus, `server/` not used)
+- **Genre:** Tactical FPS + Horde Survival (4 offline modes)
+- **Platform:** Web Browser (WebGL, no WebSocket — all logic in `client/`)
+- **Modes:** Training (offline infinite lives) · 5v5 Offline (1+9 bots) · Zombie Shooter v1.0 · Left 4 Dead Campaign (Director)
 - **Target FPS:** 60 FPS (minimum 30 FPS on low-end devices)
-- **Player Count:** 5v5 (max 10 players per match)
-- **Round Time:** 1 minute 55 seconds
-- **Match Format:** First to 8 wins (15 rounds max, OT at 7-7)
+- **Offline Tick:** Fixed 1/60 via `requestAnimationFrame` → `ZombieEngine.update(1/60)` / `Offline5v5Store.tick(dt)` / `L4DDirector.update(dt)`
+- **Round/Match:** 5v5 Offline first-to-8 (15 rounds max, OT 7-7); Zombie wave_active; L4D 4 chapters SafeRoom START → Rescue FINISH
 
 ---
 
@@ -55,6 +54,19 @@ Every round starts with a **15-second Buy Phase**:
 - **HE Grenades:** Area damage with self-damage risk
 - **Tactical positioning** over raw aim
 
+### 6. Zombie Shooter v1.0 (Offline Horde — START→FINISH)
+- **Engine:** `ZombieEngine` + `SpatialGrid 5m` (O(1) query) + `InstancedZombieRenderer` (1 draw call / 100 zombies)
+- **Loop:** `requestAnimationFrame` 60Hz → `engine.update(1/60)` → grid clear/insert → separation 2m → barricade <2m → attack <1.5m
+- **Flow:** `WaveState waiting → buy_phase → wave_active → wave_clear → game_over/extraction`; START ring `0,-30` → FINISH circle `0,30`
+
+### 7. Left 4 Dead Campaign — AI Director (Offline)
+- **Director:** Phases `BuildUp / Sustain / Relief` + `finale` (intensity 0-100, panic 0-100); horde cap **42** common, crescendo 8s, `hordeCooldown 35±25s` / `specialCooldown 12±12s`
+- **Campaign:** 4 chapters, each **SafeRoom START (0,-30 or 0,-36) → Corridor / Traverse → Rescue FINISH (0,30 or 0,36)** modular map
+- **Specials:** hunter / smoker / boomer / tank (3000 HP) / witch — spawned by Director, chase nearest survivor with SpatialGrid separation
+
+### 8. Modular Map — START→FINISH Principle
+- All zombie/L4D maps follow **SafeRoom at 0,-30 (or 0,-36 for L4D) → Corridor (8×70) → Rescue at 0,30 (or 0,36)** on Ground 120; barricades at doorframes block horde funneling
+
 ---
 
 ## 📋 Table of Contents
@@ -65,14 +77,16 @@ Every round starts with a **15-second Buy Phase**:
 4. [Movement System](#movement-system)
 5. [Weapon Mechanics](#weapon-mechanics)
 6. [Combat & Damage](#combat--damage)
-7. [Bomb Defusal Mode](#bomb-defusal-mode)
+7. [Bomb Defusal Mode — Offline 5v5](#bomb-defusal-mode)
 8. [Grenades & Utility](#grenades--utility)
-9. [Map Design](#map-design)
-10. [Audio System](#audio-system)
-11. [Networking & Anti-Cheat](#networking--anti-cheat)
-12. [UI & HUD](#ui--hud)
-13. [Spectator System](#spectator-system)
-14. [Settings & Accessibility](#settings--accessibility)
+9. [Map Design — START→FINISH Modular](#map-design)
+10. [Zombie Shooter v1.0 — ZombieEngine + SpatialGrid + Instanced](#zombie-shooter-v10)
+11. [Left 4 Dead Campaign — Director + 4 Chapters](#left-4-dead-campaign)
+12. [Audio System](#audio-system)
+13. [Networking — LEGACY (offline stub)](#networking--anti-cheat)
+14. [UI & HUD](#ui--hud)
+15. [Spectator System](#spectator-system)
+16. [Settings & Accessibility](#settings--accessibility)
 
 ---
 
@@ -573,11 +587,13 @@ Final Damage = Base Damage × Hitbox Multiplier × Wallbang Modifier
 
 ---
 
-## 🌐 Networking & Anti-Cheat
+## 🌐 Networking & Anti-Cheat — LEGACY (Full Offline Build)
 
-### Server Authority Architecture
+> **LEGACY — Online networking removed.** This section documents the former Colyseus architecture. Current build is **full offline**; `server/` not used. `client/src/stores/useNetworkStore.ts` and `useZombieNetworkStore.ts` are stubs (no-ops / local fallbacks). No WebSocket, no Tick 30 server, no lag compensation.
+
+### Former Server Authority Architecture (kept for reference)
 ```
-CLIENT (Browser)                      SERVER (Colyseus Node.js)
+CLIENT (Browser)                      SERVER (Colyseus Node.js) — NOT USED
 ─────────────────                      ──────────────────────────
 Input (WASD)  ──── WebSocket ────►     Receive input
 ↓                                      Validate anti-cheat

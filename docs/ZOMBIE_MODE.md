@@ -1,4 +1,6 @@
-# Zombie Survival Mode — Complete Documentation
+# Zombie Survival Mode — Complete Documentation (Offline v1.0 — 2026-08-23)
+
+> **Update v1.0 Offline:** Mode berjalan **full offline** `ZombieEngine` + `SpatialGrid 5m` + `InstancedZombieRenderer` (1 draw call). Lihat `Zombie_Shooter_System_v1.md` sebagai sumber kebenaran teknis. State `WaveState = waiting|buy_phase|wave_active|wave_clear|game_over|extraction`.
 
 ## Table of Contents
 
@@ -328,35 +330,28 @@ Zombies have a 15% chance to drop floating, glowing power-up emblems on death:
 
 ---
 
-## Technical Architecture & Local Simulation Engine
+## Technical Architecture — Offline Only (v1.0)
 
-### Monorepo Layering
+### Monorepo Layering (Offline — No Server)
 
 ```
-cs-game/
-├── shared/                     # Authoritative schemas, WEAPONS, ZOMBIE_TYPES, PAP_WEAPON_VARIANTS
-├── server/
-│   ├── src/rooms/
-│   │   └── ZombieSurvivalRoom.ts # Authoritative Colyseus room (multiplayer ticks & DOT engine)
-│   └── src/ai/
-│       ├── ZombieController.ts   # Spitter kiting, Exploder priming, Boss attack state machine
-│       └── Pathfinder.ts         # A* NavMesh traversal
-└── client/
-    └── src/
-        ├── game/zombie/
-        │   ├── LocalZombieEngine.ts # Full offline singleplayer physics & wave simulation
-        │   └── ZombieRenderer.tsx   # 3D procedural animated zombie models with priming glows
-        ├── game/map/
-        │   ├── ZombieArena.tsx       # 7 physical 3D facility zones with Rapier colliders
-        │   └── InteractiveBarricades.tsx # 3D wooden board rendering
-        └── game/weapons/
-            ├── WeaponModel.tsx       # 3D viewmodels including Arc Caster Tesla weapon
-            └── weaponRig.ts          # ADS, akimbo offsets, and muzzle alignments
+cs-game/  (offline only, no colyseus)
+├── shared/constants.ts            # WEAPONS, PHYSICS, MAP_BOUNDARY
+└── client/src/
+    ├── stores/useZombieStore.ts   # Single Source of Truth (doc bab 2)
+    ├── game/zombie/
+    │   ├── ZombieEngine.ts        # Logic + Wave + DOT (bab 3)
+    │   ├── SpatialGrid.ts         # O(1) query (bab 4)
+    │   ├── HitDetection.ts        # Sphere raycast (bab 5)
+    │   ├── Barricade.tsx          # Planks (bab 6)
+    │   ├── PowerUpRenderer.tsx    # Octahedron + light (bab 7)
+    │   └── InstancedZombieRenderer.tsx # 1 draw call / 100 zombies (bab 8)
+    ├── game/player/ZombieArcadeController.tsx # Top-Down input (bab 11)
+    ├── game/weapons/ZombieShootingSystem.tsx  # Shooting offline (bab 12)
+    └── screens/ZombieSurvivalMode.tsx         # Canvas + Ground 120 + START 0,-30 → FINISH 0,30 (bab 10)
 ```
 
-### Local Simulation Engine (`LocalZombieEngine.ts`)
-
-When playing offline or in singleplayer mode, the client runs `LocalZombieEngine.ts`:
-- **60 FPS Simulation:** Updates wave timers, zombie pathing, Spitter kiting, and Exploder priming locally.
-- **Damage & Elemental Engine:** Simulates fire burn spreading, poison stacking, chain lightning hops, and explosive kill splash directly in memory.
-- **Store Sync:** Automatically mirrors local state into `useZombieStore` and `useZombieNetworkStore` so all HUDs, minimaps, and weapon shops function identically to multiplayer mode.
+- **60 FPS Offline Loop:** `requestAnimationFrame` → `zombieEngine.update(1/60)` (SpatialGrid + separation + barricade).
+- **Instanced Rendering:** 1 `InstancedMesh` vs 60 meshes → draw calls 350→<60.
+- **START → FINISH:** Barricades `[b_start 0,-25, b_finish 0,25]`, START ring green `0,-30`, FINISH circle `0,30` (yellow ready / green extraction).
+- **Source of Truth:** `Zombie_Shooter_System_v1.md` bab 1-14.

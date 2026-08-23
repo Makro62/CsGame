@@ -1,4 +1,6 @@
-# Gameplay Mechanics Bible (v2.0)
+# Gameplay Mechanics Bible (v2.1 — Offline)
+
+> **OFFLINE 2026-08-23:** Online server legacy. Kini 4 mode offline: `Training` (infinite), `5v5 Offline` (fixed `1/60`, `Offline5v5Store`), `Zombie Shooter` (`ZombieEngine` wave_active START→FINISH), `L4D Campaign` (Director 4ch). Konstanta di `shared` + `stores/use*Store.ts` + `ZombieEngine`. Mantan `colyseus` = stub.
 
 > **Referensi:** [Design_Player.md](Design_Player.md) • [Design_Gameplay.md](Design_Gameplay.md) • [Design_Weapons.md](Design_Weapons.md) • [Impl_Map_ContainerYard_v3.md](Impl_Map_ContainerYard_v3.md) (map aktif) • [Analysis_Reference_Doc.md](Analysis_Reference_Doc.md)
 

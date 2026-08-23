@@ -1,16 +1,13 @@
 import { CSSProperties, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useGameStore } from "../stores/useGameStore";
-import { useNetworkStore } from "../stores/useNetworkStore";
-import { ServerBrowser } from "../components/ServerBrowser";
 import { MAPS } from "../game/map/MapRegistry";
 import { AnimatedLogo } from "../ui/components/menu/AnimatedLogo";
 import { GlassPanel } from "../ui/components/shared/GlassPanel";
 import { Badge } from "../ui/components/shared/Badge";
 import { HUD_MONO } from "../ui/hudTheme";
-import { MatchLobbySetup, TeamChoice } from "../ui/components/match/MatchLobbySetup";
 
-type ModeId = "training" | "zombie" | "match" | "offline5v5";
+type ModeId = "training" | "zombie" | "offline5v5" | "l4d";
 
 interface ModeCard {
   id: ModeId;
@@ -58,7 +55,7 @@ const MODES: ModeCard[] = [
     glyph: "☣",
     title: "ZOMBIE SURVIVAL",
     tagline: "Wave survival arcade di Outpost Z-7.",
-    players: "1–4 PEMAIN",
+    players: "SOLO · OFFLINE",
     accent: "#dc2626",
     accentSoft: "rgba(220,38,38,",
     features: ["Shop senjata & Pack-a-Punch", "Med station & extraction"],
@@ -67,17 +64,17 @@ const MODES: ModeCard[] = [
     variant: "danger",
   },
   {
-    id: "match",
-    glyph: "⚔",
-    title: "COMPETITIVE 5V5",
-    tagline: "Bomb defusal online dengan lag compensation.",
-    players: "5V5 · ONLINE",
-    accent: "#3b82f6",
-    accentSoft: "rgba(59,130,246,",
-    features: ["15 ronde plant / defuse", "Buy economy & overtime"],
-    controls: ["WASD gerak", "LMB tembak", "B buy menu", "E plant / defuse"],
-    action: "QUICK JOIN",
-    variant: "info",
+    id: "l4d",
+    glyph: "🧟",
+    title: "LEFT 4 DEAD — CAMPAIGN",
+    tagline: "4 survivors, Director AI, horde & rescue (mirip L4D).",
+    players: "SOLO + 3 BOT · OFFLINE",
+    accent: "#16a34a",
+    accentSoft: "rgba(22,163,74,",
+    features: ["START SafeRoom → FINALE Rescue (4 chapter)", "Special: Hunter/Smoker/Boomer/Tank/Witch", "Director horde & crescendo"],
+    controls: ["WASD gerak", "LMB tembak", "F tolong/revive", "Tahan di Rescue"],
+    action: "MULAI CAMPAIGN",
+    variant: "success",
   },
 ];
 
@@ -93,15 +90,11 @@ const KEYFRAMES = `
 `;
 
 export function MainMenu() {
-  const { setMode, nickname, setNickname, setServerMode, currentMap, setCurrentMap } = useGameStore();
+  const { setMode, nickname, setNickname, currentMap, setCurrentMap } = useGameStore();
   const [, setLocation] = useLocation();
-  const [showBrowser, setShowBrowser] = useState(false);
-  const [showMatchLobby, setShowMatchLobby] = useState(false);
-  const [selected, setSelected] = useState<ModeId>("match");
-  const connect = useNetworkStore((s) => s.connect);
-  const joinRoomById = useNetworkStore((s) => s.joinRoomById);
+  const [selected, setSelected] = useState<ModeId>("zombie");
 
-  const activeMode = MODES.find((m) => m.id === selected) ?? MODES[3];
+  const activeMode = MODES.find((m) => m.id === selected) ?? MODES[2];
   const availableMaps = selected === "offline5v5"
     ? MAPS.filter((m) => m.id === "container_yard")
     : MAPS;
@@ -111,14 +104,6 @@ export function MainMenu() {
       setCurrentMap("container_yard");
     }
   }, [selected, currentMap, setCurrentMap]);
-
-  const handleStart5v5 = (teamChoice: TeamChoice) => {
-    setShowMatchLobby(false);
-    setServerMode("bomb_defusal");
-    connect(nickname, "bomb_defusal", teamChoice);
-    setMode("multiplayer");
-    setLocation("/play");
-  };
 
   const launchSelected = () => {
     if (selected === "training") {
@@ -137,14 +122,11 @@ export function MainMenu() {
       setLocation("/zombie");
       return;
     }
-    setShowMatchLobby(true);
-  };
-
-  const handleJoinRoom = (roomId: string) => {
-    setServerMode("bomb_defusal");
-    joinRoomById(roomId, nickname);
-    setMode("multiplayer");
-    setLocation("/play");
+    if (selected === "l4d") {
+      setMode("l4d");
+      setLocation("/l4d");
+      return;
+    }
   };
 
   return (
@@ -247,7 +229,7 @@ export function MainMenu() {
                 ))}
               </div>
 
-              {(selected === "match" || selected === "offline5v5") && (
+              {selected === "offline5v5" && (
                 <div>
                   <p style={styles.detailLabel}>Map</p>
                   <div style={styles.mapRow}>
@@ -273,11 +255,6 @@ export function MainMenu() {
               )}
 
               <div style={styles.launchRow}>
-                {selected === "match" && (
-                  <button onClick={() => setShowBrowser(true)} style={styles.secondaryBtn}>
-                    SERVER BROWSER
-                  </button>
-                )}
                 <button
                   onClick={launchSelected}
                   style={{
@@ -304,21 +281,6 @@ export function MainMenu() {
           </div>
         </footer>
       </div>
-
-      {showBrowser && (
-        <ServerBrowser
-          onClose={() => setShowBrowser(false)}
-          onJoinRoom={handleJoinRoom}
-          onCreateRoom={() => setShowMatchLobby(true)}
-        />
-      )}
-
-      {showMatchLobby && (
-        <MatchLobbySetup
-          onStart={handleStart5v5}
-          onBack={() => setShowMatchLobby(false)}
-        />
-      )}
     </div>
   );
 }

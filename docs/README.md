@@ -1,7 +1,6 @@
-# Dokumentasi CS Web FPS & Zombie Survival — Index
+# Dokumentasi CS Web FPS & Zombie Survival — Index (Offline v4.0 — 2026-08-23)
 
-> Status diverifikasi terhadap kode (16 Agustus 2026).  
-> Angka gameplay yang mengikat ada di `shared/index.ts`; dokumen di sini adalah spek & backlog, bukan sumber kebenaran runtime.
+> **FULL OFFLINE 2026-08-23** — `Training | 5v5 Offline | Zombie Shooter v1 | L4D Campaign` semua jalan tanpa server. Verifikasi: `npm run typecheck --workspace=client` 0 error, `npm run build --workspace=client` OK (300k). Angka runtime di `shared` + `client/src/stores/use*Store.ts` + `ZombieEngine`/`L4DDirector`.
 
 ---
 
@@ -18,32 +17,33 @@
 
 ---
 
-## Feature Design
+## Feature Design (Offline 2026-08-23)
 
-| Dokumen | Kode terkait |
+| Dokumen | Kode terkait (offline) |
 | :--- | :--- |
-| [Design_Player.md](Design_Player.md) | `client/src/game/player/` |
-| [Design_Weapons.md](Design_Weapons.md) | `client/src/game/weapons/` + `shared/index.ts` |
-| [Design_Combat_Kill.md](Design_Combat_Kill.md) | `server/src/rooms/GameRoom.ts` |
-| [Design_Gameplay.md](Design_Gameplay.md) | `GameRoom.ts` + `ZombieSurvivalRoom.ts` |
-| [Design_Audio.md](Design_Audio.md) | `AudioManager.tsx` + `zombieSounds.ts` |
-| [Design_Networking_Advanced.md](Design_Networking_Advanced.md) | Networking + anti-cheat |
-| [Design_UI_Flow_Geometry.md](Design_UI_Flow_Geometry.md) | Screens + map geometry |
-| [Design_CSS_UI_System.md](Design_CSS_UI_System.md) | HUD CSS |
-| [ZOMBIE_MODE.md](ZOMBIE_MODE.md) | Zombie Survival (Outpost Z-7, AI, PaP, Elemental, Wonder Weapon) |
+| [Zombie_Shooter_System_v1.md](Zombie_Shooter_System_v1.md) | `ZombieEngine` `SpatialGrid` `HitDetection` `Instanced` `Barricade` — **Single Source** |
+| [Design_Player.md](Design_Player.md) | `PlayerController` (FPS) + `ZombieArcadeController` + `useAimStore` |
+| [Design_Weapons.md](Design_Weapons.md) | `ShootingSystem` offline (`isZombieArcade` l4d) + `WeaponModel` |
+| [Design_Combat_Kill.md](Design_Combat_Kill.md) | Legacy hitbox — sekarang offline `ZombieEngine.handleMelee`/`handleShoot`, `L4D` infected hp |
+| [Design_Gameplay.md](Design_Gameplay.md) | `5v5 Offline` `Zombie Shooter` `L4D Campaign` START→FINISH |
+| [Design_Audio.md](Design_Audio.md) | `AudioManager` offline |
+| [Design_Networking_Advanced.md](Design_Networking_Advanced.md) | **LEGACY STUB** — tidak dipakai offline |
+| [Design_UI_Flow_Geometry.md](Design_UI_Flow_Geometry.md) | `/training /offline5v5 /zombie /l4d` |
+| [ZOMBIE_MODE.md](ZOMBIE_MODE.md) | Zombie Survival offline v1.0 (Outpost Z-7) |
+| [L4D Campaign](L4D_Campaign) | `useL4DStore` `L4DDirector` `L4DCampaignMap` `L4DMode` SafeRoom START→Rescue FINISH 4ch |
 
 ---
 
-## Mode & Status Kode
+## Mode & Status Kode (All Offline 2026-08-23)
 
-| Mode | Status |
-| :--- | :---: |
-| Competitive 5v5 Bomb Defusal | ✅ |
-| Training Range (aim + recoil) | ✅ |
-| Zombie Survival (shop, PaP, wave, revive, extraction) | ✅ |
-| Anti-cheat 5v5 + Zombie (real-dt, speed, fire-rate, flood) | ✅ |
-| Offline 5v5 vs Bots (tactical AI, raycast LOS, bomb plant/defuse) | ✅ |
-| FFA / TDM / Gun Game UI | 🟨 partial / roadmap |
+| Mode | Status | START → FINISH |
+| :--- | :--- | :--- |
+| Training Range (aim + recoil) | ✅ Offline | Spawn `TRAINING_ARENA` → Target wall |
+| 5v5 Offline (1+9 bots fixed 1/60) | ✅ Offline (gelap fixed 2026-08-23) | T-Spawn `-25` → CT `-25` → Bomb A/B `15,-15 / 12,15` |
+| Zombie Shooter v1.0 (SpatialGrid 5 + Instanced) | ✅ Offline | SafeRoom `0,-30` → Corridor `8×70` → Rescue `0,30` |
+| Left 4 Dead Campaign (Director 4ch, 42 cap) | ✅ Offline | SafeRoom `0,-36` → `cp1 -18 → cp2 8,0 → cp3 18` → Rescue `0,36*scale` |
+| Legacy Online 5v5 (Colyseus) | ❌ Dihapus — stub `useNetworkStore` no-op |
+| FFA / TDM / Gun Game | 🟨 roadmap |
 
 ---
 

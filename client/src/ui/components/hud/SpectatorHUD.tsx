@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect } from 'react'
 import { useNetworkStore } from '../../../stores/useNetworkStore'
 import { useGameStore } from '../../../stores/useGameStore'

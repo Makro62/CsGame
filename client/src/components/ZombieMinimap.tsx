@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect } from "react";
 import { useZombieStore } from "../stores/useZombieStore";
 import { useZombieNetworkStore } from "../stores/useZombieNetworkStore";

@@ -1,4 +1,6 @@
-# 📋 Dokumen Desain Game FPS Web — Analisis Lengkap (v2.0)
+# 📋 Dokumen Desain Game FPS Web — Analisis Lengkap (v2.1 — Offline)
+
+> **OFFLINE 2026-08-23:** Stack `Colyseus` legacy, sekarang `Zustand + ZombieEngine + L4DDirector + Offline5v5Store` full offline. Mode `Training | 5v5 Offline | Zombie Shooter | L4D Campaign` (START→FINISH modular). `useNetworkStore` stubs untuk compat HUD legacy.
 ## CS:GO / Krunker Clone — Production-Ready Design Reference
 
 **Versi:** 2.0  

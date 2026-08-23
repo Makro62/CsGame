@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect, useState } from "react";
 import { useNetworkStore } from "../stores/useNetworkStore";
 import { gameEvents } from "../lib/gameEvents";

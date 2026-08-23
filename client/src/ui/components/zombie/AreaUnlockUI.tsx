@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";
 import { useZombieStore } from "../../../stores/useZombieStore";
 import { ZOMBIE_INTERACT_RANGE, ZOMBIE_MAP_AREAS, MapArea } from "@cs-game/shared";

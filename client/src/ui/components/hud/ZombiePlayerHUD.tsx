@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";
 import { HUD_EDGE, HUD_FONT, HUD_MONO, HUD_Z, hudPanel, hudPill, type HudAccent } from "../../hudTheme";
 

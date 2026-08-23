@@ -1,5 +1,6 @@
-# CsGame — Gameplay System Documentation
-**Version:** 3.0 | **Date:** 2026-08-14
+# CsGame — Gameplay System Documentation (v3.1 — Offline)
+**Version:** 3.1 Offline | **Date:** 2026-08-23
+> **FULL OFFLINE:** `Training` + `5v5 Offline (Offline5v5Store fixed 1/60)` + `Zombie Shooter (ZombieEngine SpatialGrid 5 + Instanced)` + `L4D Campaign (Director 4 ch SafeRoom START→Rescue FINISH, 42 cap)`. Server `GameRoom`/`BotAgent` tidak dipakai; stubs `useNetworkStore` ada untuk compat.
 
 ## 1. System Architecture
 

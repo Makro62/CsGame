@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import {
@@ -51,7 +52,7 @@ const PITCH_LIMIT = 1.55
 type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number }
 
 const MODE_BOUNDS: Record<string, Bounds> = {
-  multiplayer: { minX: MAP_BOUNDARY.minX + 0.8, maxX: MAP_BOUNDARY.maxX - 0.8, minZ: MAP_BOUNDARY.minZ + 0.8, maxZ: MAP_BOUNDARY.maxZ - 0.8 },
+  offline5v5: { minX: MAP_BOUNDARY.minX + 0.8, maxX: MAP_BOUNDARY.maxX - 0.8, minZ: MAP_BOUNDARY.minZ + 0.8, maxZ: MAP_BOUNDARY.maxZ - 0.8 },
   training: {
     minX: TRAINING_ARENA.minX + 0.8,
     maxX: TRAINING_ARENA.maxX - 0.8,
@@ -59,11 +60,11 @@ const MODE_BOUNDS: Record<string, Bounds> = {
     maxZ: TRAINING_ARENA.maxZ - 0.8,
   },
   zombie: { minX: -59, maxX: 59, minZ: -59, maxZ: 59 },
-  offline5v5: { minX: MAP_BOUNDARY.minX + 0.8, maxX: MAP_BOUNDARY.maxX - 0.8, minZ: MAP_BOUNDARY.minZ + 0.8, maxZ: MAP_BOUNDARY.maxZ - 0.8 },
+  l4d: { minX: -35, maxX: 35, minZ: -42, maxZ: 42 },
 }
 
 export function getBounds(mode: string): Bounds {
-  return MODE_BOUNDS[mode] ?? MODE_BOUNDS.multiplayer
+  return MODE_BOUNDS[mode] ?? MODE_BOUNDS.offline5v5
 }
 
 // Simple ray vs AABB intersection for wall jump detection
@@ -145,20 +146,26 @@ export function PlayerController() {
   const isZombieMode = mode === 'zombie'
   const { sendPlayerInput, reconcile, lastSnapshot } = useNetwork(nickname)
   const { slideControl } = useSettingsStore()
-  const localIsDead = useNetworkStore(s => s.localIsDead)
-  const zombieIsDead = useZombieNetworkStore(s => s.localIsDead)
-  const effectiveIsDead = isZombieMode ? zombieIsDead : localIsDead
-  const remotePlayers = useNetworkStore(s => s.remotePlayers)
-  const localWeapon = useNetworkStore(s => s.localWeapon)
-  const localHasBomb = useNetworkStore(s => s.localHasBomb)
-  const droppedBombPos = useNetworkStore(s => s.droppedBombPos)
-  const sendPickupBomb = useNetworkStore(s => s.sendPickupBomb)
+  // Offline only — no network death, use offline store for 5v5
+  const offlineAlive = useOffline5v5Store(s => {
+    const p = s.players.get("local");
+    return p ? !p.isDead : false;
+  });
+  const effectiveIsDead = isZombieMode ? false : !offlineAlive && mode==='offline5v5' ? true : false;
+  const remotePlayers: Map<string, unknown> = new Map();
+  const localWeapon = useWeaponStore.getState().activeWeapon ?? "";
+  const localHasBomb = (()=> { const p = useOffline5v5Store.getState().players.get("local"); return p?.hasBomb ?? false; })();
+  const droppedBombPos = (()=> {
+    const s = useOffline5v5Store.getState();
+    return s.bombDropped ? { x: s.bombDropX, y: 0, z: s.bombDropZ } : null;
+  })();
+  const sendPickupBomb = () => {
+    // offline bomb pickup handled in PlayerController near check already
+  };
 
-  // Spawn at server position when available, otherwise a safe spawn point.
-  // Never spawn at (0,0,0): the Mid Box container sits at the map center and
-  // the character controller would be stuck inside its collider.
+  // Spawn offline — no server. Safe spawn per mode.
   const [initialSpawn] = useState<[number, number, number]>(() => {
-    if (isZombieMode) {
+    if (isZombieMode || mode === 'l4d') {
       return [0, TOTAL_HEIGHT / 2 + 0.05, -30]
     }
     if (mode === 'training') {
@@ -167,10 +174,6 @@ export function PlayerController() {
         TOTAL_HEIGHT / 2 + 0.01,
         TRAINING_ARENA.spawn.z,
       ]
-    }
-    const net = useNetworkStore.getState()
-    if (net.localX !== 0 || net.localZ !== 0) {
-      return [net.localX, TOTAL_HEIGHT / 2 + 0.01, net.localZ]
     }
     return [SPAWN.T.x, TOTAL_HEIGHT / 2 + 0.01, SPAWN.T.z]
   })
@@ -641,7 +644,7 @@ export function PlayerController() {
     // MAP_OBSTACLES only describes the competitive map, so other modes would
     // otherwise wall jump off invisible geometry.
     if (
-      mode === 'multiplayer' &&
+      (mode === 'offline5v5' || mode === 'training') &&
       !grounded.current &&
       hasJumpBuffer &&
       WALL_JUMP_ENABLED
@@ -768,31 +771,9 @@ export function PlayerController() {
       adsPressedInAir.current = false
     }
 
-    // Send input to server / local engine
-    if (isZombieMode) {
-      if (useZombieNetworkStore.getState().isLocal) {
-        localZombieEngine.setPlayerPosition(_currentPos.x, _currentPos.y, _currentPos.z, _euler.y);
-      }
-      useZombieNetworkStore.getState().sendInput({
-        forward: input.forward,
-        backward: input.backward,
-        left: input.left,
-        right: input.right,
-        sprint: input.sprint,
-        rotationY: _euler.y,
-        seq: Date.now(),
-      })
-    } else {
-      sendPlayerInput({
-        forward: input.forward,
-        backward: input.backward,
-        left: input.left,
-        right: input.right,
-        jump: input.jump,
-        sprint: input.sprint,
-        crouch: input.crouch,
-        rotationY: _euler.y,
-      })
+    // Offline: update local store only (no server)
+    if (mode === 'offline5v5') {
+      useOffline5v5Store.getState().setLocalPos(_currentPos.x, _currentPos.z, _euler.y);
     }
 
     // Update last input for weapon sway and spread

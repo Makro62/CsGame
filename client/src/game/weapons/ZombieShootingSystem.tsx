@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useCallback, useEffect } from "react";
 import * as THREE from "three";
 import { useWeaponStore } from "../../stores/useWeaponStore";

@@ -1,4 +1,6 @@
-# 🔫 Desain Senjata, Recoil Pattern & Sistem Peluru (v2.1)
+# 🔫 Desain Senjata, Recoil Pattern & Sistem Peluru (v2.2 — Offline)
+
+> **OFFLINE BUILD 2026-08-23:** `ShootingSystem.tsx` offline: `isZombieArcade()` = `zombie|l4d`, `getArcadeAim()` via `useAimStore` (bukan `zombieAim` global), spread `getSpreadRadius` via `useGameStore.lastInput` (arcade juga set), `zombieEngine.handleShoot(THREE.Vector3)` & `L4DStore` cone `0.78` head 18%, `handleMelee 2.5m cone 0.55 65 dmg`, no `sendShoot/sendMelee` network. `WeaponModel.tsx` PMREM refCount, `ReloadSystem` offline.
 
 Senjata menggunakan sistem **Hitscan** (sinar lurus instan) untuk respons 0-latency ala CS:GO. Semua validasi hit terjadi di server Colyseus. Model 3D menggunakan gaya **Krunker.io blocky/voxel** — semua geometry dari box/cylinder sederhana.
 

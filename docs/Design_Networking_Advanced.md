@@ -1,4 +1,6 @@
-# 🌐 Desain Jaringan, Anti-Cheat, Reconnect & Network Monitor (v2.0)
+# 🌐 Desain Jaringan, Anti-Cheat, Reconnect & Network Monitor (v2.0 — LEGACY OFFLINE STUB)
+
+> **⚠️ LEGACY — BUILD OFFLINE 2026-08-23:** Jaringan online **dihapus**. File ini dipertahankan sebagai referensi arsitektur lama. `client/src/stores/useNetworkStore.ts`, `useZombieNetworkStore.ts`, `hooks/useNetwork.ts`, `game/network/ServerPredictionManager.ts`, `config/network.ts`, `components/ReconnectOverlay/ServerBrowser/VoteKick`, `server/rooms/*` adalah **stub offline** (no-op) atau tidak dirender (`App.tsx` hanya `/training /offline5v5 /zombie /l4d`). Semua tick sekarang fixed `1/60` di `client` (ZombieEngine, L4DDirector, Offline5v5Store). Jika baca dokumen ini, anggap `colyseus` = legacy.
 
 Dokumen ini mendefinisikan strategi mengatasi latensi, batasan WebSocket, validasi anti-cheat, rekonsiliasi fisika, **reconnection flow**, **network quality monitor**, dan **bandwidth budget**.
 

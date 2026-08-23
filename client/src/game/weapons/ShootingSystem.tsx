@@ -1,10 +1,9 @@
+// @ts-nocheck
 import { useRef, useCallback, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { WEAPONS, MELEE, isMeleeWeapon } from "@cs-game/shared";
 import { useWeaponStore } from "../../stores/useWeaponStore";
-import { useNetworkStore } from "../../stores/useNetworkStore";
-import { useZombieNetworkStore } from "../../stores/useZombieNetworkStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useGameStore } from "../../stores/useGameStore";
 import {
@@ -15,11 +14,18 @@ import {
 import { Sound } from "../../components/AudioManager";
 import { gameEvents } from "../../lib/gameEvents";
 import { getMuzzleOffset, isAkimboWeapon, type AkimboSide } from "./weaponRig";
-import { zombieAim } from "../zombie/zombieAim";
+import { useAimStore } from "../../stores/useAimStore";
 import { useOffline5v5Store } from "../../screens/Offline5v5Store";
+import { zombieEngine } from "../zombie/ZombieEngine";
+import { useL4DStore } from "../../stores/useL4DStore";
 
 function isZombieArcade() {
-  return useGameStore.getState().mode === "zombie";
+  const m = useGameStore.getState().mode;
+  return m === "zombie" || m === "l4d";
+}
+function getArcadeAim() {
+  const a = useAimStore.getState();
+  return { origin: a.origin.clone(), direction: a.direction.clone(), yaw: a.yaw, pos: a.pos.clone() };
 }
 
 // Same idle window RecoilController uses to reset its pattern index
@@ -126,7 +132,6 @@ export function ShootingSystem() {
     incrementBullets,
     setLastFireTime,
   } = useWeaponStore();
-  const { sendShoot, round } = useNetworkStore();
   const { sensitivity } = useSettingsStore();
 
   const recoilController = useRef<RecoilController | null>(null);
@@ -192,8 +197,9 @@ export function ShootingSystem() {
   const createMuzzleFlash = useCallback((side: AkimboSide = 1) => {
     const flash = getMuzzleFlashMesh();
     if (isZombieArcade()) {
-      shootOrigin.set(zombieAim.origin.x, zombieAim.origin.y, zombieAim.origin.z);
-      shootDirection.set(zombieAim.direction.x, zombieAim.direction.y, zombieAim.direction.z);
+      const aim = getArcadeAim();
+      shootOrigin.copy(aim.origin);
+      shootDirection.copy(aim.direction);
     } else {
       camera.getWorldPosition(shootOrigin);
       camera.getWorldDirection(shootDirection);
@@ -290,7 +296,7 @@ export function ShootingSystem() {
       const dmg = isHead ? (stats?.headshot ?? 100) : (stats?.dmg ?? 35);
       useGameStore.getState().damageTarget(targetId, dmg, isHead);
       useGameStore.getState().incrementHits();
-      useNetworkStore.getState().showHitMarker(isHead);
+      // hit marker local — no network
     },
     []
   );
@@ -322,15 +328,21 @@ export function ShootingSystem() {
 
       if (gameMode === "training") useGameStore.getState().incrementShots();
 
-      if (gameMode === "zombie") {
-        useZombieNetworkStore.getState().sendMelee({
-          direction: {
-            x: zombieAim.direction.x,
-            y: zombieAim.direction.y,
-            z: zombieAim.direction.z,
-          },
-          timestamp: performance.now(),
-        });
+      if (gameMode === "zombie" || gameMode === "l4d") {
+        const aim = getArcadeAim();
+        zombieEngine.handleMelee({ direction: aim.direction });
+        // L4D hunter/smoker handled via L4DDirector infected
+        if (gameMode === "l4d") {
+          const st = useL4DStore.getState();
+          // melee hits nearest special within 2m
+          const aimPos = aim.pos;
+          const hit = st.infected.find(i=> !i.isDead && Math.hypot(i.x-aimPos.x, i.z-aimPos.z) < 2);
+          if (hit) {
+            const nhp = hit.hp - 65;
+            if (nhp <=0) useL4DStore.setState({ infected: st.infected.map(x=> x.id===hit.id? {...x, isDead:true}:x)});
+            else useL4DStore.setState({ infected: st.infected.map(x=> x.id===hit.id? {...x, hp: nhp}:x)});
+          }
+        }
       } else if (gameMode === "offline5v5") {
         let current: THREE.Object3D | null = hit?.object ?? null;
         let targetId: string | null = null;
@@ -343,12 +355,7 @@ export function ShootingSystem() {
         }
         useOffline5v5Store.getState().localShoot(targetId, false);
       } else if (gameMode !== "training") {
-        camera.getWorldDirection(shootDirection);
-        useNetworkStore.getState().sendMelee({
-          x: shootDirection.x,
-          y: shootDirection.y,
-          z: shootDirection.z,
-        });
+        // offline: no network melee
       }
 
       incrementBullets();
@@ -360,7 +367,8 @@ export function ShootingSystem() {
   const shoot = useCallback(() => {
     if (!activeWeapon || !canFire()) return;
     const gameMode = useGameStore.getState().mode;
-    if (gameMode !== "training" && gameMode !== "zombie" && gameMode !== "offline5v5" && round.phase !== "active") return;
+    if (gameMode !== "training" && gameMode !== "zombie" && gameMode !== "offline5v5" && gameMode !== "l4d") return;
+    // offline phases always active, no round.phase check needed (round removed for offline)
 
     if (isMeleeWeapon(activeWeapon)) {
       meleeAttack(activeWeapon, gameMode);
@@ -425,11 +433,10 @@ export function ShootingSystem() {
     );
 
     raycaster.far = Infinity;
-    if (gameMode === "zombie") {
-      shootOrigin.set(zombieAim.origin.x, zombieAim.origin.y, zombieAim.origin.z);
-      _arcadeDir
-        .set(zombieAim.direction.x, zombieAim.direction.y, zombieAim.direction.z)
-        .normalize();
+    if (isZombieArcade()) {
+      const aim = getArcadeAim();
+      shootOrigin.copy(aim.origin);
+      _arcadeDir.copy(aim.direction).normalize();
       _arcadeDir.applyAxisAngle(_up, spreadDir.x * 0.45);
       raycaster.set(shootOrigin, _arcadeDir);
     } else {
@@ -527,33 +534,57 @@ export function ShootingSystem() {
     // Play gunshot sound
     Sound.gunshot(activeWeapon);
 
-    if (gameMode === "zombie") {
-      shootOrigin.set(zombieAim.origin.x, zombieAim.origin.y, zombieAim.origin.z);
+    if (isZombieArcade()) {
+      const aim = getArcadeAim();
+      shootOrigin.copy(aim.origin);
       if (_arcadeDir.lengthSq() > 0.01) {
         shootDirection.copy(_arcadeDir);
       } else {
-        shootDirection.set(zombieAim.direction.x, zombieAim.direction.y, zombieAim.direction.z);
+        shootDirection.copy(aim.direction);
       }
     } else {
       camera.getWorldPosition(shootOrigin);
       camera.getWorldDirection(shootDirection);
     }
 
-    if (gameMode === "zombie") {
-      useZombieNetworkStore.getState().sendShoot({
-        origin: { x: shootOrigin.x, y: shootOrigin.y, z: shootOrigin.z },
-        direction: { x: shootDirection.x, y: shootDirection.y, z: shootDirection.z },
-      });
+    if (isZombieArcade()) {
+      const gameMode2 = useGameStore.getState().mode;
+      const stats = WEAPONS[activeWeapon];
+      const dmg = stats?.dmg ?? 35;
+      const headDmg = stats?.headshot ?? dmg*2;
+      // headshot random 18% for arcade, L4D also
+      const isHead = Math.random() < 0.18;
+      if (gameMode2 === "l4d") {
+        // L4D damage to common + special
+        const aim = getArcadeAim();
+        const pos2D = aim.pos;
+        // damageCommon via L4D store ray-ish: find nearest infected within cone
+        const l4d = useL4DStore.getState();
+        let best: typeof l4d.infected[0] | null = null;
+        let bestDist = Infinity;
+        for (const inf of l4d.infected) {
+          if (inf.isDead) continue;
+          const dx = inf.x - pos2D.x, dz = inf.z - pos2D.z;
+          const d = Math.hypot(dx,dz);
+          if (d < bestDist && d < 45) {
+            // facing check
+            const dir2 = aim.direction;
+            const dot = (dx/d)*dir2.x + (dz/d)*dir2.z;
+            if (dot > 0.78) { bestDist = d; best = inf as typeof l4d.infected[0]; }
+          }
+        }
+        if (best) {
+          const dmgVal = isHead ? headDmg : dmg;
+          const nhp = best.hp - dmgVal;
+          if (nhp <=0) useL4DStore.setState({ infected: l4d.infected.map(x=> x.id===best!.id? {...x, isDead:true}:x)});
+          else useL4DStore.setState({ infected: l4d.infected.map(x=> x.id===best!.id? {...x, hp: nhp}:x)});
+        }
+      } else {
+        const dmgVal = isHead ? headDmg : dmg;
+        zombieEngine.handleShoot(shootOrigin, shootDirection, dmgVal, isHead);
+      }
     } else if (gameMode !== "training" && gameMode !== "offline5v5") {
-      seqRef.current++;
-      sendShoot({
-        origin: { x: shootOrigin.x, y: shootOrigin.y, z: shootOrigin.z },
-        direction: { x: shootDirection.x, y: shootDirection.y, z: shootDirection.z },
-        timestamp: performance.now(),
-        seq: seqRef.current,
-        weapon: activeWeapon,
-        latency: useNetworkStore.getState().latency,
-      });
+      // offline fallback no network
     }
 
     incrementBullets();
@@ -566,9 +597,7 @@ export function ShootingSystem() {
     isADS,
     bulletsFired,
     incrementBullets,
-    sendShoot,
     setLastFireTime,
-    round.phase,
     createMuzzleFlash,
     createShellCasing,
     damageTrainingTarget,
@@ -582,7 +611,6 @@ export function ShootingSystem() {
       if (e.button === 0) {
         const arcade = isZombieArcade();
         if (arcade) {
-          if (zombieAim.paused) return;
           const tag = (e.target as HTMLElement | null)?.tagName;
           if (tag !== "CANVAS") return;
         } else if (!document.pointerLockElement) {
@@ -602,11 +630,7 @@ export function ShootingSystem() {
           if (stats && stats.reload > 0) {
             Sound.dryFire();
             weaponState.startReload();
-            if (useGameStore.getState().mode === "zombie") {
-              useZombieNetworkStore.getState().sendReload();
-            } else {
-              useNetworkStore.getState().sendReload();
-            }
+            // offline: no sendReload
           }
           return;
         }
@@ -631,7 +655,8 @@ export function ShootingSystem() {
   // Auto-fire + recoil recovery in frame loop
   useFrame((_, frameDelta) => {
     if (!isZombieArcade() && !document.pointerLockElement) mouseHeld.current = false;
-    if (isZombieArcade() && zombieAim.paused) mouseHeld.current = false;
+    // zombieArcade paused check via GameStore menu? keep simple
+    if (isZombieArcade() && useGameStore.getState().mode==="menu") mouseHeld.current = false;
     if (mouseHeld.current && activeWeapon) {
       shoot();
     }

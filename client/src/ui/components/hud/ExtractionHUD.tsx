@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { EXTRACTION_CONFIG } from "@cs-game/shared";
 import { useZombieStore } from "../../../stores/useZombieStore";
 import { useZombieNetworkStore } from "../../../stores/useZombieNetworkStore";

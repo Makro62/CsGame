@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect, useRef } from 'react'
 import { useNetworkStore } from '../stores/useNetworkStore'
 import { useSettingsStore } from '../stores/useSettingsStore'

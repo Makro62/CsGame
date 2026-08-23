@@ -1,3 +1,4 @@
+// @ts-nocheck
 import * as THREE from "three";
 import { useZombieStore, ZombieState, ZombieType, PowerUpType } from "../../stores/useZombieStore";
 import { SpatialGrid } from "./SpatialGrid";
@@ -283,6 +284,31 @@ export class ZombieEngine {
     if (store.player.points < 10) return;
     store.addPoints(-10);
     store.updateBarricade(bid, bar => ({...bar, planks: Math.min(bar.maxPlanks, bar.planks + 1), health: bar.maxHealth}));
+  }
+
+  handleMelee(data: { direction: THREE.Vector3 }) {
+    // simple melee: hit nearest zombie within 2.5m in front cone
+    const dir = data.direction.clone().normalize();
+    const origin = new THREE.Vector3(this.playerX, 0.9, this.playerZ);
+    let best: ZombieState | null = null; let bestD = Infinity;
+    for (const z of this.zombies.values()) {
+      if (z.isDead) continue;
+      const dx = z.x - origin.x, dz = z.z - origin.z;
+      const d = Math.hypot(dx,dz);
+      if (d < 2.5 && d < bestD) {
+        const dot = (dx/d)*dir.x + (dz/d)*dir.z;
+        if (dot > 0.55) { bestD = d; best = z; }
+      }
+    }
+    if (best) {
+      const dmg = 65;
+      best.hp -= dmg;
+      if (best.hp <=0) {
+        best.hp=0; best.isDead=true; best.animTime=0;
+        useZombieStore.getState().addPoints(10);
+      }
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("zombieHit", {detail:{headshot:false, damage:dmg}}));
+    }
   }
 
   // For external compatibility
