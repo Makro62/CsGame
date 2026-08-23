@@ -1,13 +1,10 @@
-import { CSSProperties, useState } from "react";
+import { CSSProperties, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useGameStore } from "../stores/useGameStore";
 import { useNetworkStore } from "../stores/useNetworkStore";
 import { ServerBrowser } from "../components/ServerBrowser";
 import { MAPS } from "../game/map/MapRegistry";
 import { AnimatedLogo } from "../ui/components/menu/AnimatedLogo";
-import { NewsTicker } from "../ui/components/menu/NewsTicker";
-import { OnlineStats } from "../ui/components/menu/OnlineStats";
-import { ToastContainer } from "../ui/components/menu/Toast";
 import { GlassPanel } from "../ui/components/shared/GlassPanel";
 import { Badge } from "../ui/components/shared/Badge";
 import { HUD_MONO } from "../ui/hudTheme";
@@ -24,6 +21,7 @@ interface ModeCard {
   accent: string;
   accentSoft: string;
   features: string[];
+  controls: string[];
   action: string;
   variant: "success" | "warning" | "danger" | "info";
 }
@@ -33,27 +31,25 @@ const MODES: ModeCard[] = [
     id: "training",
     glyph: "◎",
     title: "TRAINING RANGE",
-    tagline: "Latihan aim & kontrol recoil tanpa lawan",
-    players: "SOLO • OFFLINE",
+    tagline: "Latihan aim dan recoil tanpa lawan.",
+    players: "SOLO · OFFLINE",
     accent: "#22c55e",
     accentSoft: "rgba(34,197,94,",
-    features: [
-      "Target dummy & bot aim trainer",
-      "Recoil wall 25 m",
-      "Marker jarak 5-30 m",
-    ],
+    features: ["Dummy, recoil wall, dan marker jarak", "Tidak butuh server"],
+    controls: ["WASD gerak", "LMB tembak", "R reload", "1–3 ganti senjata"],
     action: "MULAI LATIHAN",
     variant: "success",
   },
   {
     id: "offline5v5",
-    glyph: "🤖",
-    title: "5V5 OFFLINE vs BOT",
-    tagline: "Bomb defusal local, lawan 9 bot AI",
-    players: "SOLO • OFFLINE • NO SERVER",
+    glyph: "◎",
+    title: "5V5 OFFLINE",
+    tagline: "Bomb defusal lokal lawan 9 bot.",
+    players: "SOLO · OFFLINE",
     accent: "#f59e0b",
     accentSoft: "rgba(245,158,11,",
-    features: ["Buy menu & ekonomi CS", "Bot AI beli senjata & tanam bom", "Full 15 ronde bomb defusal"],
+    features: ["Ekonomi, buy menu, plant / defuse", "Map: Container Yard"],
+    controls: ["WASD gerak", "LMB tembak", "B buy menu", "E plant / defuse"],
     action: "MULAI OFFLINE",
     variant: "warning",
   },
@@ -61,11 +57,12 @@ const MODES: ModeCard[] = [
     id: "zombie",
     glyph: "☣",
     title: "ZOMBIE SURVIVAL",
-    tagline: "Wave survival third-person di Outpost Z-7",
-    players: "1-4 PEMAIN • CO-OP",
+    tagline: "Wave survival arcade di Outpost Z-7.",
+    players: "1–4 PEMAIN",
     accent: "#dc2626",
     accentSoft: "rgba(220,38,38,",
-    features: ["Zombie makin tebal tiap wave", "Shop senjata & Pack-a-Punch", "Heal setelah wave / Med Station"],
+    features: ["Shop senjata & Pack-a-Punch", "Med station & extraction"],
+    controls: ["WASD gerak", "LMB tembak", "F interaksi", "B shop"],
     action: "MASUK OUTBREAK",
     variant: "danger",
   },
@@ -73,28 +70,25 @@ const MODES: ModeCard[] = [
     id: "match",
     glyph: "⚔",
     title: "COMPETITIVE 5V5",
-    tagline: "Bomb defusal online dengan buy economy",
-    players: "5V5 • ONLINE",
+    tagline: "Bomb defusal online dengan lag compensation.",
+    players: "5V5 · ONLINE",
     accent: "#3b82f6",
     accentSoft: "rgba(59,130,246,",
-    features: ["Plant / defuse 15 ronde", "Buy menu & ekonomi", "Overtime 7-7"],
-    action: "QUICK JOIN 5V5",
+    features: ["15 ronde plant / defuse", "Buy economy & overtime"],
+    controls: ["WASD gerak", "LMB tembak", "B buy menu", "E plant / defuse"],
+    action: "QUICK JOIN",
     variant: "info",
   },
 ];
 
 const KEYFRAMES = `
 @keyframes menuRise {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@keyframes menuGlow {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
-@keyframes gridOverlay {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes glowBreathe {
+  0% { opacity: 0.12; transform: scale(1); }
+  100% { opacity: 0.24; transform: scale(1.12); }
 }
 `;
 
@@ -107,7 +101,16 @@ export function MainMenu() {
   const connect = useNetworkStore((s) => s.connect);
   const joinRoomById = useNetworkStore((s) => s.joinRoomById);
 
-  const activeMode = MODES.find((m) => m.id === selected) ?? MODES[2];
+  const activeMode = MODES.find((m) => m.id === selected) ?? MODES[3];
+  const availableMaps = selected === "offline5v5"
+    ? MAPS.filter((m) => m.id === "container_yard")
+    : MAPS;
+
+  useEffect(() => {
+    if (selected === "offline5v5" && currentMap !== "container_yard") {
+      setCurrentMap("container_yard");
+    }
+  }, [selected, currentMap, setCurrentMap]);
 
   const handleStart5v5 = (teamChoice: TeamChoice) => {
     setShowMatchLobby(false);
@@ -124,6 +127,7 @@ export function MainMenu() {
       return;
     }
     if (selected === "offline5v5") {
+      setCurrentMap("container_yard");
       setMode("offline5v5");
       setLocation("/offline5v5");
       return;
@@ -146,26 +150,18 @@ export function MainMenu() {
   return (
     <div style={styles.root}>
       <style>{KEYFRAMES}</style>
-      <ToastContainer />
-
-      {/* Grid overlay */}
+      <div style={{ ...styles.ambientGlow, top: "-18vw", left: "-12vw", background: "#1d4ed8" }} />
+      <div style={{ ...styles.ambientGlow, bottom: "-22vw", right: "-12vw", background: "#7c2d12", animationDelay: "2s" }} />
       <div style={styles.gridOverlay} />
 
       <div style={styles.container}>
-        {/* Header */}
         <header style={styles.header}>
-          <div style={styles.headerLeft}>
-            <div style={styles.logoRow}>
-              <AnimatedLogo size={40} />
-              <h1 style={styles.title}>CS WEB FPS</h1>
-              <Badge variant="info" size="sm">v3.0</Badge>
-            </div>
-            <p style={styles.subtitle}>BROWSER TACTICAL SHOOTER</p>
+          <div style={styles.logoRow}>
+            <AnimatedLogo size={36} />
+            <h1 style={styles.title}>CS WEB FPS</h1>
           </div>
-
           <div style={styles.headerRight}>
-            <OnlineStats />
-            <div style={styles.nickGroup}>
+            <label style={styles.nickGroup}>
               <span style={styles.nickLabel}>NICKNAME</span>
               <input
                 type="text"
@@ -173,183 +169,139 @@ export function MainMenu() {
                 onChange={(e) => setNickname(e.target.value)}
                 maxLength={16}
                 style={styles.nickInput}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(59,130,246,0.65)";
-                  e.currentTarget.style.boxShadow = "0 0 14px rgba(59,130,246,0.25)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
               />
-            </div>
+            </label>
           </div>
         </header>
 
-        {/* News Ticker */}
-        <NewsTicker />
-
-        {/* Mode cards */}
-        <section style={styles.modeGrid}>
-          {MODES.map((mode, i) => {
-            const isActive = selected === mode.id;
-            return (
-              <button
-                key={mode.id}
-                onClick={() => setSelected(mode.id)}
-                onDoubleClick={launchSelected}
-                style={{
-                  ...styles.modeCard,
-                  background: isActive
-                    ? `linear-gradient(155deg, ${mode.accentSoft}0.20) 0%, rgba(15,22,42,0.92) 62%)`
-                    : "rgba(255,255,255,0.045)",
-                  border: isActive
-                    ? `1px solid ${mode.accentSoft}0.75)`
-                    : "1px solid rgba(255,255,255,0.10)",
-                  boxShadow: isActive ? `0 14px 34px ${mode.accentSoft}0.22)` : "none",
-                  transform: isActive ? "translateY(-3px)" : "none",
-                  animation: `menuRise 0.45s ease ${0.05 * i}s both`,
-                }}
-                onMouseEnter={(e) => {
-                  if (isActive) return;
-                  e.currentTarget.style.transform = "translateY(-3px)";
-                  e.currentTarget.style.borderColor = `${mode.accentSoft}0.45)`;
-                }}
-                onMouseLeave={(e) => {
-                  if (isActive) return;
-                  e.currentTarget.style.transform = "none";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
-                }}
-              >
-                <div style={styles.cardTop}>
-                  <span
+        <div style={styles.layout}>
+          <section style={styles.modesCol}>
+            <h2 style={styles.sectionTitle}>Pilih Mode</h2>
+            <div style={styles.modeGrid}>
+              {MODES.map((mode) => {
+                const isActive = selected === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => setSelected(mode.id)}
+                    onDoubleClick={launchSelected}
                     style={{
-                      ...styles.cardIcon,
-                      color: mode.accent,
-                      background: `${mode.accentSoft}0.14)`,
-                      border: `1px solid ${mode.accentSoft}0.35)`,
+                      ...styles.modeCard,
+                      background: isActive
+                        ? `linear-gradient(155deg, ${mode.accentSoft}0.2) 0%, rgba(15,22,42,0.96) 70%)`
+                        : "linear-gradient(180deg, #101a2e 0%, #0b1220 100%)",
+                      borderColor: isActive ? `${mode.accentSoft}0.85)` : "rgba(255,255,255,0.1)",
+                      boxShadow: isActive ? `0 10px 28px -8px ${mode.accentSoft}0.4)` : "none",
                     }}
                   >
-                    {mode.glyph}
-                  </span>
-                  {isActive && (
-                    <span style={{ ...styles.selectedBadge, color: mode.accent, animation: "menuGlow 2s ease-in-out infinite" }}>
-                      ● SELECTED
-                    </span>
-                  )}
-                </div>
-
-                <h2 style={{ ...styles.cardTitle, color: isActive ? "white" : "#dbe4f0" }}>
-                  {mode.title}
-                </h2>
-                <p style={styles.cardTagline}>{mode.tagline}</p>
-
-                <ul style={styles.cardFeatures}>
-                  {mode.features.map((f) => (
-                    <li key={f} style={styles.cardFeature}>
-                      <span style={{ color: mode.accent }}>›</span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                <Badge variant={mode.variant} size="sm">{mode.players}</Badge>
-              </button>
-            );
-          })}
-        </section>
-
-        {/* Launch panel */}
-        <GlassPanel
-          style={{
-            ...styles.launchPanel,
-            animation: "menuRise 0.5s ease 0.15s both",
-          }}
-        >
-          <div style={styles.launchLeft}>
-            <p style={styles.launchLabel}>SIAP DIMAINKAN</p>
-            <p style={{ ...styles.launchTitle, color: activeMode.accent }}>
-              {activeMode.title}
-            </p>
-
-            {(selected === "match" || selected === "offline5v5") && (
-              <div style={{ marginTop: 14 }}>
-                <p style={styles.launchLabel}>PILIH MAP</p>
-                <div style={styles.mapRow}>
-                  {MAPS.map((m) => {
-                    const active = currentMap === m.id;
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => setCurrentMap(m.id)}
-                        title={m.description}
+                    <div style={styles.cardTop}>
+                      <span
                         style={{
-                          ...styles.mapBtn,
-                          color: active ? "#c4b5fd" : "#9aa7bd",
-                          background: active ? "rgba(139,92,246,0.22)" : "rgba(255,255,255,0.05)",
-                          border: active
-                            ? "1px solid rgba(139,92,246,0.7)"
-                            : "1px solid rgba(255,255,255,0.12)",
+                          ...styles.cardIcon,
+                          color: mode.accent,
+                          background: `${mode.accentSoft}0.14)`,
+                          border: `1px solid ${mode.accentSoft}0.35)`,
                         }}
                       >
-                        {m.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+                        {mode.glyph}
+                      </span>
+                      <Badge variant={mode.variant} size="sm">{mode.players}</Badge>
+                    </div>
+                    <h3 style={{ ...styles.cardTitle, color: isActive ? "#fff" : "#dbe4f0" }}>
+                      {mode.title}
+                    </h3>
+                    <p style={styles.cardTagline}>{mode.tagline}</p>
+                    <ul style={styles.cardFeatures}>
+                      {mode.features.map((feature) => (
+                        <li key={feature} style={styles.cardFeature}>
+                          <span style={{ color: mode.accent }}>›</span>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
-          <div style={styles.launchRight}>
-            {selected === "match" && (
-              <button
-                onClick={() => setShowBrowser(true)}
-                style={styles.serverBrowserBtn}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(139,92,246,0.26)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(139,92,246,0.14)";
-                }}
-              >
-                SERVER BROWSER
-              </button>
-            )}
-
-            <button
-              onClick={launchSelected}
+          <aside style={styles.detailCol}>
+            <h2 style={styles.sectionTitle}>Siap Dimainkan</h2>
+            <GlassPanel
               style={{
-                ...styles.launchBtn,
-                background: `linear-gradient(135deg, ${activeMode.accent} 0%, ${activeMode.accentSoft}0.7) 100%)`,
-                boxShadow: `0 12px 30px ${activeMode.accentSoft}0.35)`,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = `0 16px 38px ${activeMode.accentSoft}0.5)`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "none";
-                e.currentTarget.style.boxShadow = `0 12px 30px ${activeMode.accentSoft}0.35)`;
+                ...styles.detailPanel,
+                borderTop: `3px solid ${activeMode.accent}`,
               }}
             >
-              {activeMode.action}
-            </button>
-          </div>
-        </GlassPanel>
+              <p style={{ ...styles.detailTitle, color: activeMode.accent }}>{activeMode.title}</p>
+              <p style={styles.detailCopy}>{activeMode.tagline}</p>
+              <ul style={styles.detailList}>
+                {activeMode.features.map((feature) => (
+                  <li key={feature}>{feature}</li>
+                ))}
+              </ul>
+              <p style={styles.detailLabel}>Kontrol</p>
+              <div style={styles.controlRow}>
+                {activeMode.controls.map((hint) => (
+                  <span key={hint} style={styles.controlChip}>{hint}</span>
+                ))}
+              </div>
 
-        {/* Controls footer */}
+              {(selected === "match" || selected === "offline5v5") && (
+                <div>
+                  <p style={styles.detailLabel}>Map</p>
+                  <div style={styles.mapRow}>
+                    {availableMaps.map((map) => {
+                      const active = currentMap === map.id;
+                      return (
+                        <button
+                          key={map.id}
+                          onClick={() => setCurrentMap(map.id)}
+                          style={{
+                            ...styles.mapBtn,
+                            color: active ? "#fff" : "#94a3b8",
+                            background: active ? `${activeMode.accentSoft}0.22)` : "rgba(13,20,36,0.6)",
+                            borderColor: active ? activeMode.accent : "rgba(255,255,255,0.12)",
+                          }}
+                        >
+                          {map.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div style={styles.launchRow}>
+                {selected === "match" && (
+                  <button onClick={() => setShowBrowser(true)} style={styles.secondaryBtn}>
+                    SERVER BROWSER
+                  </button>
+                )}
+                <button
+                  onClick={launchSelected}
+                  style={{
+                    ...styles.launchBtn,
+                    background: `linear-gradient(135deg, ${activeMode.accent} 0%, ${activeMode.accentSoft}0.8) 100%)`,
+                    boxShadow: `0 10px 24px ${activeMode.accentSoft}0.32)`,
+                  }}
+                >
+                  {activeMode.action}
+                </button>
+              </div>
+            </GlassPanel>
+          </aside>
+        </div>
+
         <footer style={styles.footer}>
-          <span style={styles.keyHint}><b style={styles.key}>WASD</b> Gerak</span>
-          <span style={styles.keyHint}><b style={styles.key}>MOUSE</b> Arah</span>
-          <span style={styles.keyHint}><b style={styles.key}>LMB</b> Tembak</span>
-          <span style={styles.keyHint}><b style={styles.key}>R</b> Reload</span>
-          <span style={styles.keyHint}><b style={styles.key}>SHIFT</b> Sprint</span>
-          <span style={styles.keyHint}><b style={styles.key}>CTRL</b> Jongkok</span>
-          <span style={styles.keyHint}><b style={styles.key}>SPACE</b> Lompat</span>
-          <span style={styles.keyHint}><b style={styles.key}>B</b> Buy Menu</span>
-          <span style={styles.keyHint}><b style={styles.key}>G</b> Granat</span>
-          <span style={styles.keyHint}><b style={styles.key}>X</b> Ganti Granat</span>
+          <div style={styles.keyHintsRow}>
+            <span style={styles.keyHint}><b style={styles.key}>WASD</b> Gerak</span>
+            <span style={styles.keyHint}><b style={styles.key}>MOUSE</b> Arah</span>
+            <span style={styles.keyHint}><b style={styles.key}>LMB</b> Tembak</span>
+            <span style={styles.keyHint}><b style={styles.key}>R</b> Reload</span>
+            <span style={styles.keyHint}><b style={styles.key}>B</b> Buy</span>
+            <span style={styles.keyHint}><b style={styles.key}>ESC</b> Menu</span>
+          </div>
         </footer>
       </div>
 
@@ -376,32 +328,43 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     height: "100%",
     overflowY: "auto",
-    background:
-      "radial-gradient(900px 520px at 18% 8%, rgba(59,130,246,0.16), transparent 60%)," +
-      "radial-gradient(760px 460px at 84% 82%, rgba(139,92,246,0.14), transparent 62%)," +
-      "linear-gradient(160deg, #0b1020 0%, #111a33 48%, #0c1428 100%)",
+    background: "#070b14",
     fontFamily: HUD_MONO,
-    color: "white",
+    color: "#dbe7ff",
+    position: "relative",
+  },
+  ambientGlow: {
+    position: "fixed",
+    width: "55vw",
+    height: "55vw",
+    borderRadius: "50%",
+    filter: "blur(100px)",
+    opacity: 0.16,
+    pointerEvents: "none",
+    zIndex: 0,
+    animation: "glowBreathe 9s ease-in-out infinite alternate",
   },
   gridOverlay: {
     position: "fixed",
     inset: 0,
     pointerEvents: "none",
     backgroundImage:
-      "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px)," +
-      "linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)",
-    backgroundSize: "56px 56px",
-    maskImage: "radial-gradient(circle at 50% 40%, black 30%, transparent 78%)",
-    WebkitMaskImage: "radial-gradient(circle at 50% 40%, black 30%, transparent 78%)",
+      "linear-gradient(rgba(56,189,248,0.04) 1px, transparent 1px)," +
+      "linear-gradient(90deg, rgba(56,189,248,0.04) 1px, transparent 1px)",
+    backgroundSize: "48px 48px",
+    maskImage: "radial-gradient(ellipse 90% 70% at 50% 18%, #000 28%, transparent 100%)",
+    WebkitMaskImage: "radial-gradient(ellipse 90% 70% at 50% 18%, #000 28%, transparent 100%)",
+    zIndex: 1,
   },
   container: {
     position: "relative",
-    maxWidth: 1080,
+    zIndex: 2,
+    maxWidth: 1120,
     margin: "0 auto",
     padding: "28px 24px 32px",
     display: "flex",
     flexDirection: "column",
-    gap: 20,
+    gap: 28,
     minHeight: "100%",
     boxSizing: "border-box",
   },
@@ -409,14 +372,8 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 20,
-    flexWrap: "wrap",
-    animation: "menuRise 0.4s ease both",
-  },
-  headerLeft: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
+    gap: 16,
+    animation: "menuRise 0.35s ease both",
   },
   logoRow: {
     display: "flex",
@@ -424,62 +381,84 @@ const styles: Record<string, CSSProperties> = {
     gap: 12,
   },
   title: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: 700,
-    letterSpacing: "0.28em",
+    letterSpacing: "0.18em",
     margin: 0,
-    textShadow: "0 0 24px rgba(59,130,246,0.45)",
     fontFamily: "'Chakra Petch', sans-serif",
-  },
-  subtitle: {
-    margin: 0,
-    fontSize: 11,
-    letterSpacing: "0.42em",
-    color: "var(--color-text-muted)",
+    color: "#fff",
   },
   headerRight: {
     display: "flex",
     alignItems: "center",
-    gap: 16,
-    flexWrap: "wrap",
+    gap: 12,
   },
   nickGroup: {
     display: "flex",
-    alignItems: "center",
-    gap: 10,
+    flexDirection: "column",
+    gap: 4,
   },
   nickLabel: {
-    fontSize: 10,
-    letterSpacing: "0.15em",
-    color: "var(--color-text-muted)",
+    fontSize: 9,
+    letterSpacing: "0.22em",
+    color: "#7d8cab",
   },
   nickInput: {
-    padding: "9px 14px",
-    fontSize: 13,
+    background: "rgba(13,20,36,0.85)",
+    border: "1px solid rgba(44,64,102,0.8)",
+    borderRadius: 4,
+    color: "#fff",
     fontFamily: HUD_MONO,
-    letterSpacing: "0.05em",
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 8,
-    color: "white",
-    width: 180,
+    fontWeight: 600,
+    fontSize: 13,
+    padding: "8px 12px",
+    width: 168,
     outline: "none",
-    transition: "border-color 0.15s, box-shadow 0.15s",
+  },
+  layout: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.4fr) minmax(280px, 0.9fr)",
+    gap: 20,
+    alignItems: "stretch",
+    flex: 1,
+  },
+  modesCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    minHeight: 0,
+  },
+  detailCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    minHeight: 0,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 700,
+    letterSpacing: "0.12em",
+    color: "#fff",
+    margin: 0,
+    fontFamily: "'Chakra Petch', sans-serif",
   },
   modeGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: 14,
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+    flex: 1,
   },
   modeCard: {
-    position: "relative",
+    borderRadius: 8,
+    border: "1px solid",
+    padding: 16,
     textAlign: "left",
-    padding: "20px 20px 18px",
-    borderRadius: 14,
     cursor: "pointer",
-    fontFamily: HUD_MONO,
-    color: "white",
-    transition: "transform 0.18s, box-shadow 0.18s, border-color 0.18s, background 0.18s",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    minHeight: 168,
+    transition: "border-color 0.2s, box-shadow 0.2s",
   },
   cardTop: {
     display: "flex",
@@ -487,63 +466,91 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "space-between",
   },
   cardIcon: {
-    fontSize: 20,
-    width: 40,
-    height: 40,
+    width: 34,
+    height: 34,
     display: "grid",
     placeItems: "center",
-    borderRadius: 10,
-  },
-  selectedBadge: {
-    fontSize: 9,
-    letterSpacing: "0.15em",
+    borderRadius: 6,
+    fontSize: 16,
+    fontWeight: 700,
   },
   cardTitle: {
     fontSize: 15,
-    letterSpacing: "0.12em",
-    margin: "14px 0 6px",
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    margin: 0,
+    fontFamily: "'Chakra Petch', sans-serif",
   },
   cardTagline: {
-    fontSize: 11,
-    lineHeight: 1.5,
-    color: "var(--color-text-muted)",
-    margin: "0 0 12px",
+    fontSize: 12,
+    color: "#94a3b8",
+    margin: 0,
+    lineHeight: 1.45,
   },
   cardFeatures: {
     listStyle: "none",
     padding: 0,
-    margin: "0 0 14px",
+    margin: "auto 0 0",
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
   },
   cardFeature: {
     fontSize: 11,
-    color: "#8494ad",
-    padding: "2px 0",
+    color: "#94a3b8",
     display: "flex",
-    gap: 8,
+    alignItems: "center",
+    gap: 6,
   },
-  launchPanel: {
-    borderRadius: 14,
+  detailPanel: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
     padding: 20,
+    background: "linear-gradient(180deg, rgba(14,23,40,0.94) 0%, rgba(11,17,32,0.96) 100%)",
+    borderRadius: 8,
+  },
+  detailTitle: {
+    fontSize: 20,
+    fontWeight: 700,
+    letterSpacing: "0.1em",
+    margin: 0,
+    fontFamily: "'Chakra Petch', sans-serif",
+  },
+  detailCopy: {
+    margin: 0,
+    color: "#94a3b8",
+    fontSize: 13,
+    lineHeight: 1.5,
+  },
+  detailList: {
+    margin: 0,
+    paddingLeft: 16,
+    color: "#cbd5e1",
+    fontSize: 13,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  detailLabel: {
+    margin: "4px 0 0",
+    fontSize: 10,
+    letterSpacing: "0.18em",
+    color: "#7d8cab",
+  },
+  controlRow: {
     display: "flex",
     flexWrap: "wrap",
-    gap: 20,
-    alignItems: "flex-end",
-    justifyContent: "space-between",
+    gap: 6,
   },
-  launchLeft: {
-    minWidth: 240,
-  },
-  launchLabel: {
-    margin: 0,
-    fontSize: 10,
-    letterSpacing: "0.2em",
-    color: "var(--color-text-muted)",
-  },
-  launchTitle: {
-    margin: "6px 0 0",
-    fontSize: 18,
-    letterSpacing: "0.12em",
-    fontWeight: 700,
+  controlChip: {
+    fontSize: 11,
+    color: "#cbd5e1",
+    border: "1px solid rgba(255,255,255,0.1)",
+    background: "rgba(13,20,36,0.7)",
+    borderRadius: 4,
+    padding: "5px 8px",
   },
   mapRow: {
     display: "flex",
@@ -551,67 +558,66 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
   },
   mapBtn: {
-    padding: "8px 14px",
-    fontSize: 11,
-    fontFamily: HUD_MONO,
-    letterSpacing: "0.08em",
-    borderRadius: 8,
-    cursor: "pointer",
-    transition: "all 0.15s",
-  },
-  launchRight: {
-    display: "flex",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  serverBrowserBtn: {
-    padding: "14px 20px",
+    padding: "8px 12px",
     fontSize: 12,
     fontFamily: HUD_MONO,
+    fontWeight: 600,
+    borderRadius: 4,
+    cursor: "pointer",
+    border: "1px solid",
+  },
+  launchRow: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    marginTop: "auto",
+  },
+  secondaryBtn: {
+    border: "1px solid rgba(56,189,248,0.4)",
+    background: "rgba(13,20,36,0.8)",
+    color: "#38bdf8",
+    fontFamily: "'Chakra Petch', sans-serif",
+    fontSize: 12,
     fontWeight: 700,
     letterSpacing: "0.12em",
-    borderRadius: 10,
+    padding: "12px 16px",
+    borderRadius: 6,
     cursor: "pointer",
-    color: "#c4b5fd",
-    background: "rgba(139,92,246,0.14)",
-    border: "1px solid rgba(139,92,246,0.45)",
-    transition: "all 0.18s",
   },
   launchBtn: {
-    padding: "14px 30px",
-    fontSize: 14,
-    fontFamily: HUD_MONO,
-    fontWeight: 700,
-    letterSpacing: "0.18em",
-    borderRadius: 10,
-    cursor: "pointer",
-    color: "white",
     border: "none",
-    transition: "transform 0.18s, box-shadow 0.18s",
+    color: "#07101f",
+    fontFamily: "'Chakra Petch', sans-serif",
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: "0.14em",
+    padding: "12px 22px",
+    borderRadius: 6,
+    cursor: "pointer",
+    flex: 1,
+    minWidth: 160,
   },
   footer: {
-    marginTop: "auto",
+    paddingTop: 8,
+  },
+  keyHintsRow: {
     display: "flex",
+    gap: 8,
     flexWrap: "wrap",
-    gap: "6px 16px",
-    fontSize: 10,
-    letterSpacing: "0.04em",
-    color: "var(--color-text-muted)",
-    borderTop: "1px solid rgba(255,255,255,0.07)",
-    paddingTop: 12,
   },
   keyHint: {
+    fontSize: 11,
+    color: "#7d8cab",
     display: "flex",
     alignItems: "center",
     gap: 6,
   },
   key: {
-    color: "var(--color-accent-cyan)",
-    fontWeight: 700,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(10,16,29,0.8)",
+    color: "#38bdf8",
+    background: "#0a101d",
+    border: "1px solid rgba(56,189,248,0.3)",
     padding: "2px 6px",
-    fontSize: 9,
     borderRadius: 3,
+    fontSize: 10,
   },
 };

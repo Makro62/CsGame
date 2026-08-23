@@ -16,6 +16,7 @@ import { Sound } from "../../components/AudioManager";
 import { gameEvents } from "../../lib/gameEvents";
 import { getMuzzleOffset, isAkimboWeapon, type AkimboSide } from "./weaponRig";
 import { zombieAim } from "../zombie/zombieAim";
+import { useOffline5v5Store } from "../../screens/Offline5v5Store";
 
 function isZombieArcade() {
   return useGameStore.getState().mode === "zombie";
@@ -330,6 +331,17 @@ export function ShootingSystem() {
           },
           timestamp: performance.now(),
         });
+      } else if (gameMode === "offline5v5") {
+        let current: THREE.Object3D | null = hit?.object ?? null;
+        let targetId: string | null = null;
+        while (current) {
+          if (current.userData?.playerId) {
+            targetId = current.userData.playerId as string;
+            break;
+          }
+          current = current.parent;
+        }
+        useOffline5v5Store.getState().localShoot(targetId, false);
       } else if (gameMode !== "training") {
         camera.getWorldDirection(shootDirection);
         useNetworkStore.getState().sendMelee({
@@ -348,7 +360,7 @@ export function ShootingSystem() {
   const shoot = useCallback(() => {
     if (!activeWeapon || !canFire()) return;
     const gameMode = useGameStore.getState().mode;
-    if (gameMode !== "training" && gameMode !== "zombie" && round.phase !== "active") return;
+    if (gameMode !== "training" && gameMode !== "zombie" && gameMode !== "offline5v5" && round.phase !== "active") return;
 
     if (isMeleeWeapon(activeWeapon)) {
       meleeAttack(activeWeapon, gameMode);
@@ -479,6 +491,26 @@ export function ShootingSystem() {
         useGameStore.getState().incrementShots();
         damageTrainingTarget(hit.object, activeWeapon);
       }
+
+      if (gameMode === "offline5v5") {
+        let current: THREE.Object3D | null = hit.object;
+        let targetId: string | null = null;
+        let isHead = false;
+        while (current) {
+          if (current.userData?.playerId) {
+            targetId = current.userData.playerId as string;
+            isHead = !!current.userData.isHead;
+            break;
+          }
+          current = current.parent;
+        }
+        useOffline5v5Store.getState().localShoot(targetId, isHead);
+        if (targetId) {
+          useNetworkStore.getState().showHitMarker(isHead);
+        }
+      }
+    } else if (gameMode === "offline5v5") {
+      useOffline5v5Store.getState().localShoot(null, false);
     } else if (gameMode === "training") {
       useGameStore.getState().incrementShots();
     }
@@ -512,7 +544,7 @@ export function ShootingSystem() {
         origin: { x: shootOrigin.x, y: shootOrigin.y, z: shootOrigin.z },
         direction: { x: shootDirection.x, y: shootDirection.y, z: shootDirection.z },
       });
-    } else if (gameMode !== "training") {
+    } else if (gameMode !== "training" && gameMode !== "offline5v5") {
       seqRef.current++;
       sendShoot({
         origin: { x: shootOrigin.x, y: shootOrigin.y, z: shootOrigin.z },
@@ -597,7 +629,7 @@ export function ShootingSystem() {
   }, [shoot]);
 
   // Auto-fire + recoil recovery in frame loop
-  useFrame(() => {
+  useFrame((_, frameDelta) => {
     if (!isZombieArcade() && !document.pointerLockElement) mouseHeld.current = false;
     if (isZombieArcade() && zombieAim.paused) mouseHeld.current = false;
     if (mouseHeld.current && activeWeapon) {
@@ -618,7 +650,7 @@ export function ShootingSystem() {
     if (isZombieArcade()) return;
 
     // Update recoil controller recovery with ADS-aware damping for a cleaner feel
-    const { offsetX, offsetY } = controller.update(1 / 60);
+    const { offsetX, offsetY } = controller.update(Math.min(frameDelta, 0.05));
     const recoilScale = isADS ? 0.55 : 1;
     updateRecoil(
       offsetX * sensitivity * recoilScale,

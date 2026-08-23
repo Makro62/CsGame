@@ -21,6 +21,7 @@ const outlineMaterial = new THREE.MeshBasicMaterial({
 });
 
 function RemotePlayer({
+  playerId,
   x,
   y,
   z,
@@ -35,6 +36,7 @@ function RemotePlayer({
   isSprinting,
   isCrouching,
 }: {
+  playerId: string;
   x: number;
   y: number;
   z: number;
@@ -116,7 +118,27 @@ function RemotePlayer({
   const hpColor = hp > 60 ? "#4ade80" : hp > 25 ? "#fbbf24" : "#ef4444";
 
   return (
-    <group ref={groupRef}>
+    <group
+      ref={groupRef}
+      userData={{ playerId }}
+      name={`remote-${playerId}`}
+    >
+      <mesh
+        position={[0, 1.45, 0]}
+        visible={false}
+        userData={{ playerId, isHead: true }}
+      >
+        <boxGeometry args={[0.4, 0.4, 0.4]} />
+        <meshBasicMaterial />
+      </mesh>
+      <mesh
+        position={[0, 0.8, 0]}
+        visible={false}
+        userData={{ playerId, isHead: false }}
+      >
+        <boxGeometry args={[0.55, 1.6, 0.4]} />
+        <meshBasicMaterial />
+      </mesh>
       {/* Minecraft Character Model */}
       <MinecraftCharacter
         team={team}
@@ -236,6 +258,7 @@ export function RemotePlayers() {
       {Array.from(remotePlayers.entries()).map(([id, player]) => (
         <RemotePlayer
           key={id}
+          playerId={id}
           x={player.x}
           y={player.y}
           z={player.z}

@@ -7,6 +7,8 @@ import {
 } from "@cs-game/shared";
 import { Sound } from "../components/AudioManager";
 import { useNetworkStore } from "./useNetworkStore";
+import { useOffline5v5Store } from "../screens/Offline5v5Store";
+import { useGameStore } from "./useGameStore";
 
 export type WeaponKey = keyof typeof WEAPONS;
 
@@ -62,7 +64,6 @@ interface WeaponState {
   switchToSlot: (slot: 1 | 2 | 3 | 4) => void;
   syncLoadout: (loadout: Loadout) => void;
   cycleGrenadeType: () => void;
-  setGrenadeType: (type: "he" | "smoke" | "flash") => void;
   startReload: () => void;
   cancelReload: () => void;
   finishReload: () => void;
@@ -82,11 +83,13 @@ interface WeaponState {
   canFire: () => boolean;
 }
 
-export type GrenadeType = "he" | "smoke" | "flash";
+type GrenadeType = "he" | "smoke" | "flash";
 
 const GRENADE_CYCLE: GrenadeType[] = ["he", "smoke", "flash"];
 
 let switchTimeoutId: ReturnType<typeof setTimeout> | null = null;
+const WEAPON_DRAW_SECONDS = 0.25;
+const WEAPON_DRAW_MS = WEAPON_DRAW_SECONDS * 1000;
 
 function clearSwitchTimeout() {
   if (switchTimeoutId) {
@@ -144,13 +147,6 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     get().equipWeapon(nextType as WeaponKey);
   },
 
-  setGrenadeType: (type: GrenadeType) => {
-    set({ grenadeType: type });
-    if (get().activeWeapon === "he" || get().activeWeapon === "smoke" || get().activeWeapon === "flash") {
-      get().equipWeapon(type as WeaponKey);
-    }
-  },
-
   equipWeapon: (weapon: WeaponKey, options?: EquipOptions) => {
     const stats = WEAPONS[weapon];
     const melee = isMeleeWeapon(weapon);
@@ -187,7 +183,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       recoilAim: { yaw: 0, pitch: 0 },
       lastFireTime: 0,
       isSwitching: true,
-      switchTimer: 0.15,
+      switchTimer: WEAPON_DRAW_SECONDS,
       bulletsFired: 0,
       lastFireTimestamp: 0,
     }));
@@ -199,7 +195,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     switchTimeoutId = setTimeout(() => {
       set({ isSwitching: false, switchTimer: 0 });
       switchTimeoutId = null;
-    }, 150);
+    }, WEAPON_DRAW_MS);
   },
 
   switchToSlot: (slot: 1 | 2 | 3 | 4) => {
@@ -251,7 +247,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       recoilAim: { yaw: 0, pitch: 0 },
       lastFireTime: 0,
       isSwitching: true,
-      switchTimer: 0.15,
+      switchTimer: WEAPON_DRAW_SECONDS,
       bulletsFired: 0,
       lastFireTimestamp: 0,
     }));
@@ -259,14 +255,17 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     Sound.cancelReload();
     Sound.deploy(target);
 
-    // Send to server
-    useNetworkStore.getState().sendSwitchWeapon(slot);
+    if (useGameStore.getState().mode === "offline5v5") {
+      useOffline5v5Store.getState().localSwitchWeapon(slot);
+    } else {
+      useNetworkStore.getState().sendSwitchWeapon(slot);
+    }
 
     clearSwitchTimeout();
     switchTimeoutId = setTimeout(() => {
       set({ isSwitching: false, switchTimer: 0 });
       switchTimeoutId = null;
-    }, 150);
+    }, WEAPON_DRAW_MS);
   },
 
   /** Mirror the slots the server says we own, without touching what's in hand. */

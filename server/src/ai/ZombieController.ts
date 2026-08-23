@@ -154,6 +154,13 @@ export class ZombieController {
       } else {
         path = cached!.path
       }
+      // Advance through the cached path instead of steering forever toward
+      // its first (start) node.
+      while (path.length > 1) {
+        const reached = path[0]
+        if (Math.hypot(reached.x - zombie.x, reached.z - zombie.z) > 0.6) break
+        path.shift()
+      }
       const nextWaypoint = path[0] ?? { x: target.x, z: target.z }
 
       const dx = nextWaypoint.x - zombie.x
@@ -203,7 +210,7 @@ export class ZombieController {
 
       // Exploder AI: Move close then prime and detonate
       if (zombie.type === 'exploder') {
-        zombie.rotationY = Math.atan2(dx, dz)
+        zombie.rotationY = Math.atan2(targetDx, targetDz)
 
         if (targetDist <= 4.0) {
           zombie.isAttacking = true // priming
@@ -275,11 +282,11 @@ export class ZombieController {
     // Leap attack: bosses can jump at players from distance
     if (dist > 3 && dist < 10 && zombie.attackCooldown <= 0 && attackPattern === 0) {
       // Leap toward player
-      const leapSpeed = zombie.speed * 2.5
       const nx = dx / dist
       const nz = dz / dist
-      zombie.x += nx * leapSpeed * dt * 3
-      zombie.z += nz * leapSpeed * dt * 3
+      const leapStep = Math.min(Math.max(0, dist - 1.5), zombie.speed * dt * 4)
+      zombie.x += nx * leapStep
+      zombie.z += nz * leapStep
       zombie.isAttacking = true
       zombie.attackCooldown = 2.5
     }

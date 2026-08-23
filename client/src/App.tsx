@@ -127,7 +127,7 @@ function MultiplayerMode() {
       {buyMenuOpen && round.phase === 'buy' && (
         <BuyMenu onClose={closeBuyMenu} />
       )}
-      <ClickToPlayOverlay onLock={noop} />
+      <ClickToPlayOverlay onLock={noop} suppressed={buyMenuOpen} />
       <ReconnectOverlay />
     </div>
   )

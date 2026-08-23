@@ -50,8 +50,12 @@ function useStudioEnvironment() {
 export function WeaponModel() {
   const groupRef = useRef<THREE.Group>(null)
   const recoilGroupRef = useRef<THREE.Group>(null)
-  const { activeWeapon, recoilOffset, isReloading, isSwitching, isADS, dualWield, hasPackAPunch } =
-    useWeaponStore()
+  const activeWeapon = useWeaponStore((s) => s.activeWeapon)
+  const isReloading = useWeaponStore((s) => s.isReloading)
+  const isSwitching = useWeaponStore((s) => s.isSwitching)
+  const isADS = useWeaponStore((s) => s.isADS)
+  const dualWield = useWeaponStore((s) => s.dualWield)
+  const hasPackAPunch = useWeaponStore((s) => s.hasPackAPunch)
 
   useStudioEnvironment()
 
@@ -64,6 +68,7 @@ export function WeaponModel() {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
+      if (!document.pointerLockElement) return
       mouseDelta.current.x += e.movementX
       mouseDelta.current.y += e.movementY
     }
@@ -102,18 +107,29 @@ export function WeaponModel() {
     if (isSwitching) {
       weaponAnimator.play('draw')
     }
-  }, [isSwitching])
+  }, [isSwitching, activeWeapon])
+
+  useEffect(() => {
+    const handleGrenadeThrown = ({ throwerId }: GameEvents['nadeThrown']) => {
+      if (throwerId === 'local') weaponAnimator.play('grenade_throw')
+    }
+    gameEvents.on('nadeThrown', handleGrenadeThrown)
+    return () => gameEvents.off('nadeThrown', handleGrenadeThrown)
+  }, [])
 
   useFrame(({ camera }, dt) => {
     if (!groupRef.current || !recoilGroupRef.current || !activeWeapon) return
 
     // Frame-synced movement check
     const input = useGameStore.getState().lastInput
-    if (input) {
-      const moving = input.forward || input.backward || input.left || input.right
-      isMoving.current = moving
-      moveIntensity.current = input.sprint ? 1.5 : moving ? 1.0 : 0
-    }
+    const moving = !!input && (input.forward || input.backward || input.left || input.right)
+    const targetMoveIntensity = moving ? (input?.sprint ? 1.5 : 1) : 0
+    isMoving.current = moving
+    moveIntensity.current = THREE.MathUtils.lerp(
+      moveIntensity.current,
+      targetMoveIntensity,
+      1 - Math.exp(-10 * dt)
+    )
 
     weaponAnimator.update(dt)
     weaponAnimator.updateBob(dt, moveIntensity.current * 5, moveIntensity.current > 1, isMoving.current)
@@ -121,10 +137,12 @@ export function WeaponModel() {
 
     // Update sway and decay mouse delta
     weaponAnimator.updateSway(dt, mouseDelta.current.x, mouseDelta.current.y)
-    mouseDelta.current.x = THREE.MathUtils.lerp(mouseDelta.current.x, 0, dt * 15)
-    mouseDelta.current.y = THREE.MathUtils.lerp(mouseDelta.current.y, 0, dt * 15)
+    const mouseDecay = 1 - Math.exp(-15 * dt)
+    mouseDelta.current.x = THREE.MathUtils.lerp(mouseDelta.current.x, 0, mouseDecay)
+    mouseDelta.current.y = THREE.MathUtils.lerp(mouseDelta.current.y, 0, mouseDecay)
 
-    if (recoilOffset.y > 0) {
+    const recoilOffset = useWeaponStore.getState().recoilOffset
+    if (recoilOffset.x * recoilOffset.x + recoilOffset.y * recoilOffset.y > 0.000001) {
       weaponAnimator.addKick(recoilOffset.x, recoilOffset.y, 0)
     }
 
@@ -133,7 +151,7 @@ export function WeaponModel() {
     const swingY = isKnife ? swingProgress.current * 0.15 : 0
 
     if (swingProgress.current > 0) {
-      swingProgress.current *= 0.85
+      swingProgress.current *= Math.exp(-9.75 * dt)
       if (swingProgress.current < 0.01) swingProgress.current = 0
     }
 
@@ -141,7 +159,7 @@ export function WeaponModel() {
     adsProgress.current = THREE.MathUtils.lerp(
       adsProgress.current,
       isADS && !isReloading && !isSwitching ? 1 : 0,
-      dt * 14
+      1 - Math.exp(-14 * dt)
     )
     const adsFactor = adsProgress.current
 

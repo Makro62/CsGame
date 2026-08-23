@@ -9,6 +9,10 @@ import {
   type BuyFailReason,
 } from "@cs-game/shared";
 import { gameEvents } from "../lib/gameEvents";
+import { useGameStore } from "../stores/useGameStore";
+import { useOffline5v5Store } from "../screens/Offline5v5Store";
+import { useWeaponStore } from "../stores/useWeaponStore";
+import { useMenuPointerLock } from "../hooks/useMenuPointerLock";
 
 interface BuyItem {
   id: string;
@@ -90,9 +94,32 @@ const BUY_CATALOG: BuyItem[] = [
   gearItem("grenadeFlash", "utility", "D"),
 ];
 
+function purchase(itemId: string) {
+  if (useGameStore.getState().mode === "offline5v5") {
+    const ok = useOffline5v5Store.getState().localBuy(itemId);
+    if (ok) {
+      const me = useOffline5v5Store.getState().players.get("local");
+      if (me) {
+        useWeaponStore.getState().syncLoadout({
+          primary: me.primaryWeapon,
+          secondary: me.secondaryWeapon,
+          knife: me.knifeSlot,
+        });
+        useWeaponStore.getState().equipWeapon(me.currentWeapon as never);
+      }
+    }
+    return ok;
+  }
+  useNetworkStore.getState().sendBuy(itemId);
+  return true;
+}
+
 export function BuyMenu({ onClose }: { onClose: () => void }) {
+  // Do not auto-lock from effect cleanup: React StrictMode can run cleanup
+  // during its mount probe and re-lock the cursor while this menu is visible.
+  useMenuPointerLock(false);
+
   const {
-    sendBuy,
     round,
     localMoney,
     localTeam,
@@ -108,16 +135,6 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
     localGrenadeFlash,
   } = useNetworkStore();
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
-
-  // The game holds pointer lock, so the cursor cannot reach these buttons
-  // until we release it. Re-lock when the menu closes.
-  useEffect(() => {
-    if (document.pointerLockElement) document.exitPointerLock();
-    return () => {
-      const canvas = document.querySelector("canvas");
-      canvas?.requestPointerLock();
-    };
-  }, []);
 
   useEffect(() => {
     const onResult = ({
@@ -191,7 +208,7 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
       setFeedback({ text: FAIL_MESSAGES.no_money, ok: false });
       return;
     }
-    sendBuy(item.id);
+    purchase(item.id);
   };
 
   const isAllowed = (item: BuyItem) => !item.team || item.team === localTeam;
@@ -225,7 +242,7 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
           setFeedback({ text: FAIL_MESSAGES.no_money, ok: false });
           return;
         }
-        state.sendBuy(item.id);
+        purchase(item.id);
       }
     };
     window.addEventListener("keydown", onKeyDown);

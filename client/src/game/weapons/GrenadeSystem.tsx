@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { GRENADE } from "@cs-game/shared";
@@ -13,8 +13,8 @@ const _dir = new THREE.Vector3();
 const _pos = new THREE.Vector3();
 const _origin = new THREE.Vector3();
 const _velocity = new THREE.Vector3();
-const _simPos = new THREE.Vector3();
-const _simVel = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3();
 
 interface ThrownGrenade {
   id: string;
@@ -136,7 +136,7 @@ export function GrenadeSystem() {
           ),
           detonated: false,
           detonateTime: 0,
-          fuseEndTime: now + 1800, // 1.8s fuse timer
+          fuseEndTime: now + GRENADE.fuse * 1000,
         },
       ]);
     };
@@ -193,7 +193,13 @@ export function GrenadeSystem() {
 
         camera.getWorldDirection(_dir);
         camera.getWorldPosition(_pos);
-        _origin.copy(_pos).addScaledVector(_dir, GRENADE.startPosOffset);
+        _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+        _up.set(0, 1, 0).applyQuaternion(camera.quaternion);
+        _origin
+          .copy(_pos)
+          .addScaledVector(_dir, GRENADE.startPosOffset)
+          .addScaledVector(_right, 0.16)
+          .addScaledVector(_up, -0.12);
         _velocity.copy(_dir).multiplyScalar(GRENADE.throwSpeed * power);
         _velocity.y += GRENADE.throwUpSpeed;
 
@@ -271,23 +277,28 @@ export function GrenadeSystem() {
           }
 
           changed = true;
-          // Physics arc
-          g.velocity.y -= 9.81 * dt;
-          g.position.addScaledVector(g.velocity, dt);
+          // Fixed-size substeps keep fast throws and bounces stable when a
+          // rendered frame is late.
+          const frameDt = Math.min(dt, 0.05);
+          const steps = Math.max(1, Math.ceil(frameDt / (1 / 120)));
+          const stepDt = frameDt / steps;
+          for (let step = 0; step < steps; step++) {
+            g.velocity.y -= 9.81 * stepDt;
+            g.position.addScaledVector(g.velocity, stepDt);
+            g.rotation.x += g.rotSpeed.x * stepDt;
+            g.rotation.y += g.rotSpeed.y * stepDt;
+            g.rotation.z += g.rotSpeed.z * stepDt;
 
-          // Tumble rotation
-          g.rotation.x += g.rotSpeed.x * dt;
-          g.rotation.y += g.rotSpeed.y * dt;
-          g.rotation.z += g.rotSpeed.z * dt;
-
-          // Ground bounce
-          if (g.position.y <= 0.15) {
-            g.position.y = 0.15;
-            g.velocity.y = -g.velocity.y * GRENADE.bounce;
-            g.velocity.x *= GRENADE.bounceXZ;
-            g.velocity.z *= GRENADE.bounceXZ;
-            g.rotSpeed.multiplyScalar(0.7);
-            if (g.velocity.length() < 0.4) g.velocity.set(0, 0, 0);
+            if (g.position.y <= 0.15) {
+              g.position.y = 0.15;
+              if (g.velocity.y < 0) {
+                g.velocity.y = -g.velocity.y * GRENADE.bounce;
+                g.velocity.x *= GRENADE.bounceXZ;
+                g.velocity.z *= GRENADE.bounceXZ;
+                g.rotSpeed.multiplyScalar(0.7);
+              }
+              if (g.velocity.lengthSq() < 0.16) g.velocity.set(0, 0, 0);
+            }
           }
           return g;
         })
@@ -301,7 +312,7 @@ export function GrenadeSystem() {
 
   return (
     <group>
-      {chargingState && <PreviewArc power={charge.current} />}
+      {chargingState && <PreviewArc powerRef={charge} />}
       {grenades.map((g) => (
         <GrenadeMesh key={g.id} grenade={g} />
       ))}
@@ -320,42 +331,68 @@ export function GrenadeSystem() {
   );
 }
 
-function PreviewArc({ power }: { power: number }) {
+const PREVIEW_POINT_COUNT = 60;
+
+function PreviewArc({ powerRef }: { powerRef: MutableRefObject<number> }) {
   const { camera } = useThree();
-  const points = useMemo(() => {
-    camera.getWorldDirection(_dir);
-    camera.getWorldPosition(_pos);
-    _origin.copy(_pos).addScaledVector(_dir, GRENADE.startPosOffset);
-    const speed = 0.4 + power * 0.6;
-    _velocity.copy(_dir).multiplyScalar(GRENADE.throwSpeed * speed);
-    _velocity.y += GRENADE.throwUpSpeed;
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const attribute = new THREE.BufferAttribute(
+      new Float32Array(PREVIEW_POINT_COUNT * 3),
+      3
+    );
+    attribute.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute("position", attribute);
+    return geo;
+  }, []);
+  const vectors = useRef({
+    direction: new THREE.Vector3(),
+    origin: new THREE.Vector3(),
+    velocity: new THREE.Vector3(),
+    position: new THREE.Vector3(),
+    right: new THREE.Vector3(),
+    up: new THREE.Vector3(),
+  });
 
-    _simPos.copy(_origin);
-    _simVel.copy(_velocity);
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
-    const pts: THREE.Vector3[] = [];
-    const dt = 0.03;
-    for (let t = 0; t < 1.8; t += dt) {
-      _simVel.y -= 9.81 * dt;
-      _simPos.addScaledVector(_simVel, dt);
-      if (_simPos.y <= 0.15) {
-        _simPos.y = 0.15;
-        _simVel.y = -_simVel.y * GRENADE.bounce;
-        _simVel.x *= GRENADE.bounceXZ;
-        _simVel.z *= GRENADE.bounceXZ;
+  useFrame(() => {
+    const v = vectors.current;
+    camera.getWorldDirection(v.direction);
+    camera.getWorldPosition(v.origin);
+    v.right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+    v.up.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    v.origin
+      .addScaledVector(v.direction, GRENADE.startPosOffset)
+      .addScaledVector(v.right, 0.16)
+      .addScaledVector(v.up, -0.12);
+
+    const power = 0.4 + powerRef.current * 0.6;
+    v.velocity.copy(v.direction).multiplyScalar(GRENADE.throwSpeed * power);
+    v.velocity.y += GRENADE.throwUpSpeed;
+    v.position.copy(v.origin);
+
+    const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
+    const stepDt = 0.03;
+    for (let i = 0; i < PREVIEW_POINT_COUNT; i++) {
+      v.velocity.y -= 9.81 * stepDt;
+      v.position.addScaledVector(v.velocity, stepDt);
+      if (v.position.y <= 0.15) {
+        v.position.y = 0.15;
+        if (v.velocity.y < 0) {
+          v.velocity.y = -v.velocity.y * GRENADE.bounce;
+          v.velocity.x *= GRENADE.bounceXZ;
+          v.velocity.z *= GRENADE.bounceXZ;
+        }
       }
-      pts.push(_simPos.clone());
+      positions.setXYZ(i, v.position.x, v.position.y, v.position.z);
     }
-    return pts;
-  }, [camera, power]);
-
-  const lineGeo = useMemo(() => {
-    return new THREE.BufferGeometry().setFromPoints(points);
-  }, [points]);
+    positions.needsUpdate = true;
+  });
 
   return (
     <points>
-      <primitive object={lineGeo} attach="geometry" />
+      <primitive object={geometry} attach="geometry" />
       <pointsMaterial
         color="#ffd54a"
         size={0.09}

@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { RigidBody, CuboidCollider } from "@react-three/rapier";
 import { Html } from "@react-three/drei";
 import { StaticBox, StaticCylinder, FloorZone } from "./MapHelpers";
+import { BOMB_SITES, BUY_ZONE, MAP_BOUNDARY } from "@cs-game/shared";
 
 // ============================================================================
 // Color Constants & Material Palette
@@ -275,37 +276,31 @@ function CTSpawnArea() {
 
 function PerimeterWalls() {
   const wallHeight = 7.2;
+  const { minX, maxX, minZ, maxZ } = MAP_BOUNDARY;
 
   return (
     <group name="perimeter_walls">
-      {/* North wall */}
       <StaticBox
-        position={[0, wallHeight / 2, -20.25]}
-        size={[60, wallHeight, 0.5]}
+        position={[0, wallHeight / 2, minZ - 1.25]}
+        size={[maxX - minX + 2, wallHeight, 0.5]}
         color={COLORS.concrete}
         materialType="concrete"
       />
-
-      {/* South wall */}
       <StaticBox
-        position={[0, wallHeight / 2, 20.25]}
-        size={[60, wallHeight, 0.5]}
+        position={[0, wallHeight / 2, maxZ + 1.25]}
+        size={[maxX - minX + 2, wallHeight, 0.5]}
         color={COLORS.concrete}
         materialType="concrete"
       />
-
-      {/* West wall */}
       <StaticBox
-        position={[-30.25, wallHeight / 2, 0]}
-        size={[0.5, wallHeight, 40]}
+        position={[minX - 1.25, wallHeight / 2, 0]}
+        size={[0.5, wallHeight, maxZ - minZ + 2]}
         color={COLORS.concrete}
         materialType="concrete"
       />
-
-      {/* East wall */}
       <StaticBox
-        position={[30.25, wallHeight / 2, 0]}
-        size={[0.5, wallHeight, 40]}
+        position={[maxX + 1.25, wallHeight / 2, 0]}
+        size={[0.5, wallHeight, maxZ - minZ + 2]}
         color={COLORS.concrete}
         materialType="concrete"
       />
@@ -318,42 +313,36 @@ function PerimeterWalls() {
 // ============================================================================
 
 function FloorZones() {
+  const siteASize = BOMB_SITES.A.radius * 2;
+  const siteBSize = BOMB_SITES.B.radius * 2;
   return (
     <group name="floor_zones">
-      {/* Buy Zone T: red tint */}
       <FloorZone
-        position={[-25, 0.02, 0]}
-        size={[10, 16]}
+        position={[BUY_ZONE.T.x, 0.02, BUY_ZONE.T.z]}
+        size={[BUY_ZONE.T.radius, BUY_ZONE.T.radius * 1.6]}
         color={COLORS.red}
         opacity={0.2}
       />
-
-      {/* Buy Zone CT: blue tint */}
       <FloorZone
-        position={[25, 0.02, 0]}
-        size={[10, 16]}
+        position={[BUY_ZONE.CT.x, 0.02, BUY_ZONE.CT.z]}
+        size={[BUY_ZONE.CT.radius, BUY_ZONE.CT.radius * 1.6]}
         color={COLORS.blue}
         opacity={0.2}
       />
-
-      {/* Site A: red/orange plant zone at [15, 0.02, -15] with radius 6m */}
       <FloorZone
-        position={[15, 0.02, -15]}
-        size={[12, 12]}
+        position={[BOMB_SITES.A.x, 0.02, BOMB_SITES.A.z]}
+        size={[siteASize, siteASize]}
         color="#dc2626"
         opacity={0.25}
       />
-
-      {/* Site B: blue plant zone at [12, 0.02, 15] with radius 6m */}
       <FloorZone
-        position={[12, 0.02, 15]}
-        size={[12, 12]}
+        position={[BOMB_SITES.B.x, 0.02, BOMB_SITES.B.z]}
+        size={[siteBSize, siteBSize]}
         color="#2563eb"
         opacity={0.25}
       />
 
-      {/* 3D Stencil Letter A on Site A */}
-      <Html position={[15, 0.05, -15]} center rotation={[-Math.PI / 2, 0, 0]}>
+      <Html position={[BOMB_SITES.A.x, 0.05, BOMB_SITES.A.z]} center rotation={[-Math.PI / 2, 0, 0]}>
         <div
           style={{
             fontSize: "48px",
@@ -369,8 +358,7 @@ function FloorZones() {
         </div>
       </Html>
 
-      {/* 3D Stencil Letter B on Site B */}
-      <Html position={[12, 0.05, 15]} center rotation={[-Math.PI / 2, 0, 0]}>
+      <Html position={[BOMB_SITES.B.x, 0.05, BOMB_SITES.B.z]} center rotation={[-Math.PI / 2, 0, 0]}>
         <div
           style={{
             fontSize: "48px",

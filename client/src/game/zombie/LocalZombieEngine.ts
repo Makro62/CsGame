@@ -482,6 +482,11 @@ export class LocalZombieEngine {
           sepZ += odz * push;
         }
       });
+      const separationLength = Math.hypot(sepX, sepZ);
+      if (separationLength > 1) {
+        sepX /= separationLength;
+        sepZ /= separationLength;
+      }
       zombie.x += sepX * 1.2 * dt;
       zombie.z += sepZ * 1.2 * dt;
 

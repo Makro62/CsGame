@@ -17,7 +17,7 @@ export function useNetwork(nickname: string) {
 
   useEffect(() => {
     const gameMode = useGameStore.getState().mode;
-    if (gameMode === "training" || gameMode === "zombie") return; // Training is offline-only, Zombie has its own room
+    if (gameMode === "training" || gameMode === "zombie" || gameMode === "offline5v5") return;
     const serverMode = useGameStore.getState().serverMode;
     connect(nickname, serverMode);
     return () => {

@@ -8,7 +8,8 @@ import {
 } from '@react-three/rapier'
 import * as THREE from 'three'
 import { KinematicCharacterController } from '@dimforge/rapier3d-compat'
-import { PHYSICS, SPAWN, MAP_OBSTACLES, WEAPONS } from '@cs-game/shared'
+import { PHYSICS, SPAWN, MAP_OBSTACLES, MAP_BOUNDARY, WEAPONS } from '@cs-game/shared'
+import { spawnCameraYaw } from '../offline/offlineCombat'
 import { TRAINING_ARENA } from '../training/TrainingArena'
 import { updateAudioListener } from '../../components/AudioManager'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
@@ -20,6 +21,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useWeaponStore, type WeaponKey } from '../../stores/useWeaponStore'
 import { useKillCamStore } from '../../stores/useKillCamStore'
 import { localZombieEngine } from '../zombie/LocalZombieEngine'
+import { useOffline5v5Store } from '../../screens/Offline5v5Store'
 
 const EYE_HEIGHT_STAND = 0.8
 const EYE_HEIGHT_CROUCH = 0.4
@@ -49,7 +51,7 @@ const PITCH_LIMIT = 1.55
 type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number }
 
 const MODE_BOUNDS: Record<string, Bounds> = {
-  multiplayer: { minX: -29.2, maxX: 29.2, minZ: -19.2, maxZ: 19.2 },
+  multiplayer: { minX: MAP_BOUNDARY.minX + 0.8, maxX: MAP_BOUNDARY.maxX - 0.8, minZ: MAP_BOUNDARY.minZ + 0.8, maxZ: MAP_BOUNDARY.maxZ - 0.8 },
   training: {
     minX: TRAINING_ARENA.minX + 0.8,
     maxX: TRAINING_ARENA.maxX - 0.8,
@@ -57,6 +59,7 @@ const MODE_BOUNDS: Record<string, Bounds> = {
     maxZ: TRAINING_ARENA.maxZ - 0.8,
   },
   zombie: { minX: -59, maxX: 59, minZ: -59, maxZ: 59 },
+  offline5v5: { minX: MAP_BOUNDARY.minX + 0.8, maxX: MAP_BOUNDARY.maxX - 0.8, minZ: MAP_BOUNDARY.minZ + 0.8, maxZ: MAP_BOUNDARY.maxZ - 0.8 },
 }
 
 export function getBounds(mode: string): Bounds {
@@ -393,11 +396,17 @@ export function PlayerController() {
         _currentPos.z
       )
 
+      if (mode === 'offline5v5' || mode === 'multiplayer') {
+        const team = useNetworkStore.getState().localTeam === 'CT' ? 'CT' : 'T'
+        lookYaw.current = spawnCameraYaw(team)
+        applyLook()
+      }
+
       // Draw whatever the server says we are holding. Training and zombie pick
       // their own loadout, so don't stomp it.
       if (!weaponEquipped.current) {
         weaponEquipped.current = true
-        if (mode === 'multiplayer') {
+        if (mode === 'multiplayer' || mode === 'offline5v5') {
           const serverWeapon = useNetworkStore.getState().localWeapon
           if (serverWeapon && serverWeapon in WEAPONS) {
             useWeaponStore.getState().equipWeapon(serverWeapon as WeaponKey)
@@ -412,7 +421,7 @@ export function PlayerController() {
       ? useZombieNetworkStore.getState().lastSnapshot
       : lastSnapshot
 
-    if (activeSnapshot) {
+    if (activeSnapshot && mode !== 'offline5v5' && mode !== 'training') {
       const reconciled = reconcile(
         { x: _currentPos.x, y: _currentPos.y, z: _currentPos.z },
         {
@@ -861,6 +870,10 @@ export function PlayerController() {
       if (Math.sqrt(dx * dx + dz * dz) < 2) {
         sendPickupBomb()
       }
+    }
+
+    if (mode === 'offline5v5') {
+      useOffline5v5Store.getState().setLocalPos(_currentPos.x, _currentPos.z, lookYaw.current)
     }
   })
 

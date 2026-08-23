@@ -90,7 +90,9 @@ export function HUDLayout() {
     }
   }, [ping])
 
+  const isOffline = mode === 'offline5v5'
   const isMultiplayer = mode === 'multiplayer' && connected
+  const isCompetitive = isMultiplayer || isOffline
 
   // Kill feed data
   const killFeedEvents = useNetworkStore(s => s.killFeed).map(k => ({
@@ -102,10 +104,10 @@ export function HUDLayout() {
     teamKill: false,
   }))
 
-  if (!isMultiplayer && mode !== 'training') return null
+  if (!isCompetitive && mode !== 'training') return null
 
-  const displayHp = isMultiplayer ? localHp : 100
-  const displayArmor = isMultiplayer ? localArmor : 0
+  const displayHp = isCompetitive ? localHp : 100
+  const displayArmor = isCompetitive ? localArmor : 0
 
   const isDefusal = round.gameMode === 'bomb_defusal'
   const isFfa = round.gameMode === 'ffa' || round.gameMode === 'gun_game'
@@ -142,7 +144,7 @@ export function HUDLayout() {
   return (
     <>
       {/* Top bar - Score & Round info */}
-      {isMultiplayer && (
+      {isCompetitive && (
         <div className="fixed top-0 left-0 right-0 flex justify-center items-center gap-4 px-6 py-3 z-[100] pointer-events-none">
           {/* Score panels */}
           <ScorePanel
@@ -182,7 +184,7 @@ export function HUDLayout() {
       )}
 
       {/* Bomb status */}
-      {isMultiplayer && (
+      {isCompetitive && (
         <BombIndicator
           hasBomb={localHasBomb}
           bombPlanted={round.bombPlanted}
@@ -236,9 +238,9 @@ export function HUDLayout() {
           <HealthBar
             hp={displayHp}
             armor={displayArmor}
-            hasHelmet={isMultiplayer && localHelmet}
+            hasHelmet={isCompetitive && localHelmet}
           />
-          {isMultiplayer && isDefusal && (
+          {isCompetitive && isDefusal && (
             <MoneyDisplay
               amount={localMoney}
               maxAmount={16000}
@@ -254,7 +256,7 @@ export function HUDLayout() {
             <AmmoCounter
               current={currentAmmo}
               max={maxAmmo}
-              reserve={isMultiplayer ? localReserveAmmo : (infiniteAmmo ? Infinity : 90)}
+              reserve={isCompetitive ? localReserveAmmo : (infiniteAmmo ? Infinity : 90)}
               isReloading={isReloading}
               isSwitching={isSwitching}
               weaponName={activeWeapon}
@@ -264,7 +266,7 @@ export function HUDLayout() {
       </div>
 
       {/* Kill feed - top right */}
-      {isMultiplayer && (
+      {isCompetitive && (
         <div className="fixed top-20 right-4 z-[100] pointer-events-none">
           <KillFeed events={killFeedEvents} />
         </div>

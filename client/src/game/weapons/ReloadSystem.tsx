@@ -4,6 +4,7 @@ import { useWeaponStore } from "../../stores/useWeaponStore";
 import { useNetworkStore } from "../../stores/useNetworkStore";
 import { useZombieNetworkStore } from "../../stores/useZombieNetworkStore";
 import { useGameStore } from "../../stores/useGameStore";
+import { useOffline5v5Store } from "../../screens/Offline5v5Store";
 import { Sound } from "../../components/AudioManager";
 
 const RELOAD_CANCEL_WINDOW = 0.5; // Up to 50% of reload time can be cancelled by user
@@ -25,8 +26,11 @@ export function ReloadSystem() {
 
   /** Reload must reach the room we are actually playing in. */
   const requestReload = () => {
-    if (useGameStore.getState().mode === "zombie") {
+    const mode = useGameStore.getState().mode;
+    if (mode === "zombie") {
       useZombieNetworkStore.getState().sendReload();
+    } else if (mode === "offline5v5") {
+      useOffline5v5Store.getState().localReload();
     } else {
       sendReload();
     }

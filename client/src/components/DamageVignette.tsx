@@ -5,6 +5,8 @@ export function DamageVignette() {
   const [flash, setFlash] = useState(false);
   const room = useNetworkStore((s) => s.room);
   const sessionId = useNetworkStore((s) => s.sessionId);
+  const localHp = useNetworkStore((s) => s.localHp);
+  const prevHp = useRef(localHp);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -26,7 +28,11 @@ export function DamageVignette() {
     room.onMessage("damage", handler);
   }, [room, sessionId]);
 
-  // Zombie mode runs in its own room, which reports damage as a window event.
+  // Offline 5v5 reports damage as HP drops on the mirrored network store.
+  useEffect(() => {
+    if (localHp < prevHp.current) setFlash(true);
+    prevHp.current = localHp;
+  }, [localHp]);
   useEffect(() => {
     const handleZombieDamage = () => {
       if (mountedRef.current) setFlash(true);

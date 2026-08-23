@@ -155,6 +155,11 @@ const ARMOR_MAT = new THREE.MeshStandardMaterial({ color: "#1a1a1a", roughness: 
 const BOSS_AURA_MAT = new THREE.MeshBasicMaterial({ color: "#ff0000", transparent: true, opacity: 0.18, side: THREE.DoubleSide });
 const EXPLODER_PRIMED_MAT = new THREE.MeshStandardMaterial({ color: "#e0c83a", roughness: 0.85, metalness: 0.08, emissive: "#ff6600", emissiveIntensity: 2.5 });
 
+function dampAngle(current: number, target: number, lambda: number, delta: number): number {
+  const wrappedDelta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + wrappedDelta * (1 - Math.exp(-lambda * delta));
+}
+
 interface AnimatedZombieProps {
   zombie: ZombieState;
 }
@@ -166,6 +171,10 @@ function AnimatedZombie({ zombie }: AnimatedZombieProps) {
   const leftLegRef = useRef<THREE.Mesh>(null);
   const rightLegRef = useRef<THREE.Mesh>(null);
   const timeRef = useRef(Math.random() * Math.PI * 2);
+  const initializedRef = useRef(false);
+  const smoothedSpeedRef = useRef(0);
+  const previousVisualRef = useRef(new THREE.Vector3());
+  const targetPositionRef = useRef(new THREE.Vector3());
 
   const isBoss = zombie.type === "boss";
   const isTank = zombie.type === "tank";
@@ -176,14 +185,48 @@ function AnimatedZombie({ zombie }: AnimatedZombieProps) {
   useFrame((_, delta) => {
     if (!groupRef.current) return;
 
-    timeRef.current += delta * (zombie.speed || 2.5);
+    const group = groupRef.current;
+    const targetX = zombie.x;
+    const targetY = zombie.y;
+    const targetZ = zombie.z;
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      group.position.set(targetX, targetY, targetZ);
+      group.rotation.y = zombie.rotationY;
+      previousVisualRef.current.copy(group.position);
+    } else {
+      const distanceSq =
+        (targetX - group.position.x) ** 2 +
+        (targetY - group.position.y) ** 2 +
+        (targetZ - group.position.z) ** 2;
+      if (distanceSq > 144) {
+        group.position.set(targetX, targetY, targetZ);
+      } else {
+        const positionBlend = 1 - Math.exp(-12 * delta);
+        targetPositionRef.current.set(targetX, targetY, targetZ);
+        group.position.lerp(targetPositionRef.current, positionBlend);
+      }
+      group.rotation.y = dampAngle(group.rotation.y, zombie.rotationY, 14, delta);
+    }
 
-    groupRef.current.position.set(zombie.x, zombie.y, zombie.z);
-    groupRef.current.rotation.y = zombie.rotationY;
+    const visualDistance = group.position.distanceTo(previousVisualRef.current);
+    const visualSpeed = delta > 0 ? visualDistance / delta : 0;
+    smoothedSpeedRef.current = THREE.MathUtils.lerp(
+      smoothedSpeedRef.current,
+      visualSpeed,
+      1 - Math.exp(-10 * delta)
+    );
+    previousVisualRef.current.copy(group.position);
+    const motion = THREE.MathUtils.clamp(
+      smoothedSpeedRef.current / Math.max(zombie.speed || 2.5, 0.1),
+      0,
+      1
+    );
+    timeRef.current += delta * THREE.MathUtils.lerp(1.2, zombie.speed || 2.5, motion);
 
     const speedMult = isBoss ? 0.6 : isTank ? 0.7 : zombie.type === "runner" ? 1.35 : 1.0;
-    const swing = Math.sin(timeRef.current * 4 * speedMult) * (zombie.type === "runner" ? 0.55 : 0.4);
-    const legSwing = Math.sin(timeRef.current * 4 * speedMult) * 0.3;
+    const swing = Math.sin(timeRef.current * 4 * speedMult) * (zombie.type === "runner" ? 0.55 : 0.4) * motion;
+    const legSwing = Math.sin(timeRef.current * 4 * speedMult) * 0.3 * motion;
 
     if (isExploder && zombie.isAttacking) {
       const pulse = 1.0 + Math.sin(timeRef.current * 14) * 0.18;

@@ -23,12 +23,21 @@ export function useWeaponSwitch() {
       if (isTyping()) return
 
       if (e.code === 'KeyB') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
         setBuyMenuOpen(o => !o)
         return
       }
 
       // The buy menu owns the number keys while it is open.
-      if (buyMenuOpenRef.current) return
+      if (buyMenuOpenRef.current) {
+        if (e.code === 'Escape') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setBuyMenuOpen(false)
+        }
+        return
+      }
 
       if (e.code === 'Digit1' || e.code === 'Numpad1') {
         useWeaponStore.getState().switchToSlot(1)

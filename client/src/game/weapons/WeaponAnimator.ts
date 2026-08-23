@@ -8,6 +8,8 @@
 
 import * as THREE from 'three'
 
+const ZERO_VECTOR = new THREE.Vector3()
+
 // ─── Animation Keyframe ─────────────────────────────────────────
 interface Keyframe {
   time: number // 0-1 normalized
@@ -102,6 +104,19 @@ export class WeaponAnimator {
       loop: false,
     })
 
+    // Grenade release: hand pushes forward, then settles without snapping.
+    this.addClip({
+      name: 'grenade_throw',
+      keyframes: [
+        { time: 0, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
+        { time: 0.25, position: new THREE.Vector3(0, 0.035, -0.1), rotation: new THREE.Euler(-0.3, 0.08, 0.06) },
+        { time: 0.6, position: new THREE.Vector3(0.015, -0.06, 0.08), rotation: new THREE.Euler(0.18, -0.06, -0.05) },
+        { time: 1, position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Euler(0, 0, 0) },
+      ],
+      duration: 0.32,
+      loop: false,
+    })
+
     // Holster animation (lower down)
     this.addClip({
       name: 'holster',
@@ -175,18 +190,23 @@ export class WeaponAnimator {
 
   // ─── Procedural Bob ───────────────────────────────────────
   updateBob(dt: number, speed: number, isSprinting: boolean, isGrounded: boolean) {
+    const blend = 1 - Math.exp(-8 * dt)
     if (isGrounded && speed > 0.5) {
       const bobSpeed = isSprinting ? 13 : 7.5
       this.bobPhase += dt * bobSpeed
       this.bobIntensity = THREE.MathUtils.lerp(
         this.bobIntensity,
         isSprinting ? 1.0 : 0.5,
-        dt * 8
+        blend
       )
     } else {
       // Subtle idle breathing motion
       this.bobPhase += dt * 2.0
-      this.bobIntensity = THREE.MathUtils.lerp(this.bobIntensity, 0.12, dt * 4)
+      this.bobIntensity = THREE.MathUtils.lerp(
+        this.bobIntensity,
+        0.12,
+        1 - Math.exp(-4 * dt)
+      )
     }
 
     const bobX = Math.sin(this.bobPhase) * 0.0025 * this.bobIntensity
@@ -222,10 +242,11 @@ export class WeaponAnimator {
   }
 
   updateKick(dt: number) {
-    this.kickOffset.lerp(new THREE.Vector3(), dt * 14)
-    this.kickRotation.x = THREE.MathUtils.lerp(this.kickRotation.x, 0, dt * 14)
-    this.kickRotation.y = THREE.MathUtils.lerp(this.kickRotation.y, 0, dt * 14)
-    this.kickRotation.z = THREE.MathUtils.lerp(this.kickRotation.z, 0, dt * 14)
+    const blend = 1 - Math.exp(-14 * dt)
+    this.kickOffset.lerp(ZERO_VECTOR, blend)
+    this.kickRotation.x = THREE.MathUtils.lerp(this.kickRotation.x, 0, blend)
+    this.kickRotation.y = THREE.MathUtils.lerp(this.kickRotation.y, 0, blend)
+    this.kickRotation.z = THREE.MathUtils.lerp(this.kickRotation.z, 0, blend)
   }
 
   // ─── Update ──────────────────────────────────────────────

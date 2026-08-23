@@ -1,149 +1,47 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { PowerUpState, PowerUpType } from "@cs-game/shared";
+import { PowerUpType } from "../../stores/useZombieStore";
 
-// ============================================================================
-// PowerUp Colors & Shapes
-// ============================================================================
-
-const POWER_UP_VISUALS: Record<PowerUpType, { color: string; emissive: string; shape: "box" | "sphere" | "octahedron" }> = {
-  max_ammo: { color: "#22c55e", emissive: "#22c55e", shape: "box" },
-  nuke: { color: "#ff4444", emissive: "#ff0000", shape: "octahedron" },
-  insta_kill: { color: "#a855f7", emissive: "#9333ea", shape: "sphere" },
-  double_points: { color: "#ffd700", emissive: "#ffaa00", shape: "box" },
-  carpenter: { color: "#f97316", emissive: "#ea580c", shape: "box" },
-  fire_sale: { color: "#06b6d4", emissive: "#0891b2", shape: "sphere" },
+const COLORS: Record<PowerUpType, string> = {
+  max_ammo: "#FFD700", insta_kill: "#FF0000", double_points: "#00FF00",
+  nuke: "#FFA500", speed_cola: "#00CED1", juggernog: "#FF1493",
 };
 
-// ============================================================================
-// Single PowerUp Mesh
-// ============================================================================
-
-interface PowerUpMeshProps {
-  type: PowerUpType;
-}
-
-function PowerUpMesh({ type }: PowerUpMeshProps) {
-  const visual = POWER_UP_VISUALS[type];
-  const groupRef = useRef<THREE.Group>(null);
-  const timeRef = useRef(Math.random() * Math.PI * 2);
-
-  const material = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: visual.color,
-        emissive: visual.emissive,
-        emissiveIntensity: 1.5,
-        roughness: 0.3,
-        metalness: 0.5,
-        transparent: true,
-        opacity: 0.9,
-      }),
-    [visual.color, visual.emissive]
-  );
-
-  const geometry = useMemo(() => {
-    switch (visual.shape) {
-      case "sphere":
-        return new THREE.SphereGeometry(0.4, 16, 16);
-      case "octahedron":
-        return new THREE.OctahedronGeometry(0.4, 0);
-      case "box":
-      default:
-        return new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    }
-  }, [visual.shape]);
-
-  const ringGeo = useMemo(() => new THREE.RingGeometry(0.3, 0.5, 32), []);
-  const ringMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: visual.color,
-        emissive: visual.emissive,
-        emissiveIntensity: 2,
-        transparent: true,
-        opacity: 0.5,
-        side: THREE.DoubleSide,
-      }),
-    [visual.color, visual.emissive]
-  );
-
-  useEffect(() => {
-    return () => {
-      geometry.dispose();
-      material.dispose();
-      ringGeo.dispose();
-      ringMat.dispose();
-    };
-  }, []);
-
-  useFrame((_, delta) => {
-    if (!groupRef.current) return;
-    timeRef.current += delta * 2;
-    groupRef.current.rotation.y += delta * 1.5;
-    groupRef.current.position.y = 0.5 + Math.sin(timeRef.current) * 0.2;
+export function PowerUpRenderer({ type, x, z }: { id: string; type: PowerUpType; x: number; z: number }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  useFrame((state) => {
+    if (!meshRef.current) return;
+    const t = state.clock.elapsedTime;
+    meshRef.current.position.y = 0.5 + Math.sin(t*3)*0.2;
+    meshRef.current.rotation.y = t*2;
   });
-
   return (
-    <group ref={groupRef}>
-      <mesh geometry={geometry} material={material} />
-      {/* Glow ring */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]} geometry={ringGeo} material={ringMat} />
+    <group position={[x, 0, z]}>
+      <mesh ref={meshRef}>
+        <octahedronGeometry args={[0.3, 0]} />
+        <meshStandardMaterial color={COLORS[type]} emissive={COLORS[type]} emissiveIntensity={0.5} transparent opacity={0.9} />
+      </mesh>
+      <pointLight color={COLORS[type]} intensity={2} distance={5} />
+      <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.05, 0]}>
+        <ringGeometry args={[0.4, 0.6, 32]} />
+        <meshBasicMaterial color={COLORS[type]} transparent opacity={0.3} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   );
 }
 
-// ============================================================================
-// Main PowerUp Renderer
-// ============================================================================
+// Batch renderer for all powerUps from store
+import { useZombieStore } from "../../stores/useZombieStore";
 
-interface PowerUpRendererProps {
-  powerUps: PowerUpState[];
-  onPickup: (id: string) => void;
-  playerPosition?: { x: number; z: number };
-}
-
-export function PowerUpRenderer({ powerUps, onPickup, playerPosition }: PowerUpRendererProps) {
-  const groupRef = useRef<THREE.Group>(null);
-  // Each power-up is claimed once; without this the request fires every frame
-  // until the server state catches up, flooding the room with messages.
-  const claimed = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const live = new Set(powerUps.map((p) => p.id));
-    claimed.current.forEach((id) => {
-      if (!live.has(id)) claimed.current.delete(id);
-    });
-  }, [powerUps]);
-
-  useFrame(() => {
-    if (!playerPosition || !groupRef.current) return;
-
-    // Check proximity for pickup
-    groupRef.current.children.forEach((child) => {
-      const pos = child.position;
-      const dx = pos.x - playerPosition.x;
-      const dz = pos.z - playerPosition.z;
-      if (Math.sqrt(dx * dx + dz * dz) < 2) {
-        const id = (child as any).userData?.id;
-        if (id && !claimed.current.has(id)) {
-          claimed.current.add(id);
-          onPickup(id);
-        }
-      }
-    });
-  });
-
+export function PowerUpBatch({ onCollect }: { onCollect?: (id: string) => void }) {
+  const powerUps = useZombieStore(s => s.powerUps);
+  // auto collect when player near (handled in ZombieEngine via proximity, but also click)
   return (
-    <group ref={groupRef}>
-      {powerUps.map((powerUp) => (
-        <group
-          key={powerUp.id}
-          position={[powerUp.x, powerUp.y, powerUp.z]}
-          userData={{ id: powerUp.id }}
-        >
-          <PowerUpMesh type={powerUp.type} />
+    <group>
+      {powerUps.map(p => (
+        <group key={p.id} position={[p.x, 0, p.z]} onClick={() => onCollect?.(p.id)}>
+          <PowerUpRenderer id={p.id} type={p.type} x={0} z={0} />
         </group>
       ))}
     </group>
