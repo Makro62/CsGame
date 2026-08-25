@@ -313,13 +313,21 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     if (!activeWeapon) return;
     const stats = WEAPONS[activeWeapon];
 
-    set((state) => ({
-      currentAmmo: stats.mag,
-      primaryAmmo: isPrimaryWeapon(activeWeapon) ? stats.mag : state.primaryAmmo,
-      secondaryAmmo: isSecondaryWeapon(activeWeapon) ? stats.mag : state.secondaryAmmo,
-      isReloading: false,
-      reloadStartTime: null,
-    }));
+    set((state) => {
+      // Deduct from reserve when finite (offline economy). Training uses
+      // infiniteAmmo so reserve stays untouched there.
+      const needed = stats.mag - state.currentAmmo;
+      const load = Math.min(needed, Math.max(0, state.reserveAmmo));
+      const newAmmo = state.currentAmmo + load;
+      return {
+        currentAmmo: newAmmo,
+        primaryAmmo: isPrimaryWeapon(activeWeapon) ? newAmmo : state.primaryAmmo,
+        secondaryAmmo: isSecondaryWeapon(activeWeapon) ? newAmmo : state.secondaryAmmo,
+        reserveAmmo: state.infiniteAmmo ? state.reserveAmmo : Math.max(0, state.reserveAmmo - load),
+        isReloading: false,
+        reloadStartTime: null,
+      };
+    });
   },
 
   setADS: (ads: boolean) => {

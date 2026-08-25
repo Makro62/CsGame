@@ -1,10 +1,10 @@
-import { Schema, MapSchema, defineTypes } from '@colyseus/schema'
+// OFFLINE BUILD v4.1 — plain TS types only (Colyseus Schema removed)
 
 // ─── Player State ───────────────────────────────────────────────
 // NOTE: @colyseus/schema 2.0.37 fails to encode fields declared as JS
 // class fields (e.g. `x: number = 0`). All fields must be initialized
 // in the constructor instead.
-export class PlayerState extends Schema {
+export class PlayerState {
   x: number
   y: number
   z: number
@@ -63,7 +63,6 @@ export class PlayerState extends Schema {
   reviveTargetId: string
 
   constructor() {
-    super()
     this.x = 0
     this.y = 0
     this.z = 0
@@ -123,89 +122,25 @@ export class PlayerState extends Schema {
   }
 }
 
-defineTypes(PlayerState, {
-  x: 'number',
-  y: 'number',
-  z: 'number',
-  rotationY: 'number',
-  hp: 'number',
-  isDead: 'boolean',
-  team: 'string',
-  nickname: 'string',
-  money: 'number',
-  kills: 'number',
-  deaths: 'number',
-  lastProcessedSeq: 'number',
-  hasBomb: 'boolean',
-  isReloading: 'boolean',
-  isSprinting: 'boolean',
-  isCrouching: 'boolean',
-  isSliding: 'boolean',
-  isAirborne: 'boolean',
-  currentWeapon: 'string',
-  primaryWeapon: 'string',
-  secondaryWeapon: 'string',
-  knifeSlot: 'string',
-  armor: 'number',
-  hasHelmet: 'boolean',
-  hasDefuseKit: 'boolean',
-  grenadeHE: 'number',
-  grenadeSmoke: 'number',
-  grenadeFlash: 'number',
-  ammo: 'number',
-  reserveAmmo: 'number',
-  primaryAmmo: 'number',
-  primaryReserveAmmo: 'number',
-  secondaryAmmo: 'number',
-  secondaryReserveAmmo: 'number',
-  isPlanting: 'boolean',
-  isDefusing: 'boolean',
-  plantProgress: 'number',
-  defuseProgress: 'number',
-  isReady: 'boolean',
-  reconnectExpiresAt: 'number',
-  isBot: 'boolean',
-  botDifficulty: 'number',
-  hasJuggernog: 'boolean',
-  hasSpeedCola: 'boolean',
-  hasDoubleTap: 'boolean',
-  hasQuickRevive: 'boolean',
-  selfReviveUsed: 'boolean',
-  hasPackAPunch: 'boolean',
-  dualWield: 'boolean',
-  isUsingMysteryBox: 'boolean',
-  isDowned: 'boolean',
-  downedTimer: 'number',
-  downedBy: 'string',
-  isReviving: 'boolean',
-  reviveProgress: 'number',
-  reviveTargetId: 'string',
-})
 
 // ─── Game State ─────────────────────────────────────────────────
-export class SmokeState extends Schema {
+export class SmokeState {
   x: number
   z: number
   timeLeft: number
 
   constructor() {
-    super()
     this.x = 0
     this.z = 0
     this.timeLeft = 15
   }
 }
 
-defineTypes(SmokeState, {
-  x: 'number',
-  z: 'number',
-  timeLeft: 'number',
-})
 
 // ─── Zombie State ───────────────────────────────────────────────
 export type ZombieType = 'walker' | 'runner' | 'tank' | 'spitter' | 'boss' | 'exploder'
 
-export class ZombieState extends Schema {
+export class ZombieState {
   id: string
   type: ZombieType
   x: number
@@ -221,7 +156,6 @@ export class ZombieState extends Schema {
   attackCooldown: number
 
   constructor() {
-    super()
     this.id = ''
     this.type = 'walker'
     this.x = 0
@@ -238,24 +172,9 @@ export class ZombieState extends Schema {
   }
 }
 
-defineTypes(ZombieState, {
-  id: 'string',
-  type: 'string',
-  x: 'number',
-  y: 'number',
-  z: 'number',
-  hp: 'number',
-  maxHp: 'number',
-  speed: 'number',
-  rotationY: 'number',
-  targetId: 'string',
-  isDead: 'boolean',
-  isAttacking: 'boolean',
-  attackCooldown: 'number',
-})
 
 // ─── Barricade State ───────────────────────────────────────────
-export class BarricadeState extends Schema {
+export class BarricadeState {
   id: string
   x: number
   y: number
@@ -266,7 +185,6 @@ export class BarricadeState extends Schema {
   hp: number
 
   constructor() {
-    super()
     this.id = ''
     this.x = 0
     this.y = 0
@@ -278,19 +196,9 @@ export class BarricadeState extends Schema {
   }
 }
 
-defineTypes(BarricadeState, {
-  id: 'string',
-  x: 'number',
-  y: 'number',
-  z: 'number',
-  rotationY: 'number',
-  boards: 'number',
-  maxBoards: 'number',
-  hp: 'number',
-})
 
 // ─── PowerUp State ──────────────────────────────────────────────
-export class PowerUpState extends Schema {
+export class PowerUpState {
   id: string
   type: PowerUpType
   x: number
@@ -299,7 +207,6 @@ export class PowerUpState extends Schema {
   timeLeft: number
 
   constructor() {
-    super()
     this.id = ''
     this.type = 'max_ammo'
     this.x = 0
@@ -309,20 +216,12 @@ export class PowerUpState extends Schema {
   }
 }
 
-defineTypes(PowerUpState, {
-  id: 'string',
-  type: 'string',
-  x: 'number',
-  y: 'number',
-  z: 'number',
-  timeLeft: 'number',
-})
 
 export type WaveState = 'waiting' | 'buy_phase' | 'spawning' | 'active' | 'wave_clear' | 'inter_wave'
 
 export type RoundPhase = 'buy' | 'active' | 'roundEnd' | 'matchEnd' | 'waiting'
 
-export class GameState extends Schema {
+export class GameState {
   phase: RoundPhase
   roundTimeLeft: number
   teamRedScore: number
@@ -331,7 +230,7 @@ export class GameState extends Schema {
   bombPlanted: boolean
   bombTimeLeft: number
   bombSite: string
-  players: MapSchema<PlayerState>
+  players: Record<string, PlayerState>
   maxRounds: number
   winScore: number
   buyPhaseTimeLeft: number
@@ -343,8 +242,8 @@ export class GameState extends Schema {
   lossStreakCT: number
   readyCount: number
   gameMode: string
-  playerScores: MapSchema<number>
-  smokes: MapSchema<SmokeState>
+  playerScores: Record<string, number>
+  smokes: Record<string, SmokeState>
   kothZoneX: number
   kothZoneZ: number
   kothZoneRadius: number
@@ -353,26 +252,25 @@ export class GameState extends Schema {
   kothScoreT: number
   kothScoreCT: number
   // Zombie survival fields
-  zombies: MapSchema<ZombieState>
+  zombies: Record<string, ZombieState>
   currentWave: number
   zombiesRemaining: number
   waveState: WaveState
   interWaveTimer: number
-  points: MapSchema<number>
-  powerUps: MapSchema<PowerUpState>
+  points: Record<string, number>
+  powerUps: Record<string, PowerUpState>
   activePowerUp: string
   powerUpTimer: number
   mysteryBoxWeapon: string
   mysteryBoxActive: boolean
-  unlockedAreas: MapSchema<number>
-  barricades: MapSchema<BarricadeState>
+  unlockedAreas: Record<string, number>
+  barricades: Record<string, BarricadeState>
   extractionActive: boolean
   extractionTimer: number
   extractionAvailable: boolean
   evacSuccess: boolean
 
   constructor() {
-    super()
     this.phase = 'waiting'
     this.roundTimeLeft = 0
     this.teamRedScore = 0
@@ -381,7 +279,7 @@ export class GameState extends Schema {
     this.bombPlanted = false
     this.bombTimeLeft = 0
     this.bombSite = ''
-    this.players = new MapSchema<PlayerState>()
+    this.players = {}
     this.maxRounds = 15
     this.winScore = 8
     this.buyPhaseTimeLeft = 0
@@ -393,9 +291,9 @@ export class GameState extends Schema {
     this.lossStreakCT = 0
     this.readyCount = 0
     this.gameMode = 'bomb_defusal'
-    this.playerScores = new MapSchema<number>()
+    this.playerScores = {}
     // Smoke grenades (authoritative, synced to late joiners)
-    this.smokes = new MapSchema<SmokeState>()
+    this.smokes = {}
     // KOTH zone position
     this.kothZoneX = 0
     this.kothZoneZ = 0
@@ -405,19 +303,19 @@ export class GameState extends Schema {
     this.kothScoreT = 0
     this.kothScoreCT = 0
     // Zombie survival
-    this.zombies = new MapSchema<ZombieState>()
+    this.zombies = {}
     this.currentWave = 0
     this.zombiesRemaining = 0
     this.waveState = 'waiting'
     this.interWaveTimer = 0
-    this.points = new MapSchema<number>()
-    this.powerUps = new MapSchema<PowerUpState>()
+    this.points = {}
+    this.powerUps = {}
     this.activePowerUp = ""
     this.powerUpTimer = 0
     this.mysteryBoxWeapon = ""
     this.mysteryBoxActive = false
-    this.unlockedAreas = new MapSchema<number>()
-    this.barricades = new MapSchema<BarricadeState>()
+    this.unlockedAreas = {}
+    this.barricades = {}
     this.extractionActive = false
     this.extractionTimer = 0
     this.extractionAvailable = false
@@ -425,55 +323,6 @@ export class GameState extends Schema {
   }
 }
 
-defineTypes(GameState, {
-  phase: 'string',
-  roundTimeLeft: 'number',
-  teamRedScore: 'number',
-  teamBlueScore: 'number',
-  roundNumber: 'number',
-  bombPlanted: 'boolean',
-  bombTimeLeft: 'number',
-  bombSite: 'string',
-  players: { map: PlayerState },
-  maxRounds: 'number',
-  winScore: 'number',
-  buyPhaseTimeLeft: 'number',
-  roundEndTimer: 'number',
-  isHalfTime: 'boolean',
-  isOvertime: 'boolean',
-  isSuddenDeath: 'boolean',
-  lossStreakT: 'number',
-  lossStreakCT: 'number',
-  readyCount: 'number',
-  gameMode: 'string',
-  playerScores: { map: 'number' },
-  smokes: { map: SmokeState },
-  kothZoneX: 'number',
-  kothZoneZ: 'number',
-  kothZoneRadius: 'number',
-  kothCapturingTeam: 'string',
-  kothCaptureProgress: 'number',
-  kothScoreT: 'number',
-  kothScoreCT: 'number',
-  // Zombie survival
-  zombies: { map: ZombieState },
-  currentWave: 'number',
-  zombiesRemaining: 'number',
-  waveState: 'string',
-  interWaveTimer: 'number',
-  points: { map: 'number' },
-  powerUps: { map: PowerUpState },
-  activePowerUp: 'string',
-  powerUpTimer: 'number',
-  mysteryBoxWeapon: 'string',
-  mysteryBoxActive: 'boolean',
-  unlockedAreas: { map: 'number' },
-  barricades: { map: BarricadeState },
-  extractionActive: 'boolean',
-  extractionTimer: 'number',
-  extractionAvailable: 'boolean',
-  evacSuccess: 'boolean',
-})
 
 // ─── Interfaces ─────────────────────────────────────────────────
 export interface ClientInput {
@@ -552,7 +401,7 @@ export const PHYSICS = {
   jumpVelocity: 5.0,
   gravity: 9.81,
   strafeMultiplier: 1.20,
-  slideBoost: 1.45,
+  slideBoost: 1.35,
   slideDuration: 0.6,
   maxVelocity: 12.0,
   maxStrafeTurnDeg: 30,
@@ -688,11 +537,11 @@ export const WEAPONS = {
     dmg: 53,
     headshot: 100,
     fireRate: 1 / 0.3,
-    mag: 14,
+    mag: 7,
     reload: 2.2,
     price: 700,
     team: 'both',
-    reserveAmmo: 70,
+    reserveAmmo: 35,
     dualWieldable: true,
   },
   glock: {

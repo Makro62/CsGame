@@ -2,10 +2,11 @@
 import { useEffect, useRef } from "react";
 import { WEAPONS } from "@cs-game/shared";
 import { useWeaponStore } from "../../stores/useWeaponStore";
-import { useNetworkStore } from "../../stores/useNetworkStore";
-import { useZombieNetworkStore } from "../../stores/useZombieNetworkStore";
+// offline: no network
+
 import { useGameStore } from "../../stores/useGameStore";
 import { useOffline5v5Store } from "../../screens/Offline5v5Store";
+import { useZombieStore } from "../../stores/useZombieStore";
 import { Sound } from "../../components/AudioManager";
 
 const RELOAD_CANCEL_WINDOW = 0.5; // Up to 50% of reload time can be cancelled by user
@@ -20,20 +21,16 @@ export function ReloadSystem() {
     cancelReload,
     finishReload,
   } = useWeaponStore();
-  const { sendReload } = useNetworkStore();
+  // offline — no sendReload
 
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reloadStartTime = useRef<number>(0);
 
-  /** Reload must reach the room we are actually playing in. */
+  /** Offline: only 5v5 keeps ammo in its own store. */
   const requestReload = () => {
     const mode = useGameStore.getState().mode;
-    if (mode === "zombie") {
-      useZombieNetworkStore.getState().sendReload();
-    } else if (mode === "offline5v5") {
+    if (mode === "offline5v5") {
       useOffline5v5Store.getState().localReload();
-    } else {
-      sendReload();
     }
   };
 
@@ -51,7 +48,7 @@ export function ReloadSystem() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeWeapon, isReloading, currentAmmo, maxAmmo, startReload, sendReload]);
+  }, [activeWeapon, isReloading, currentAmmo, maxAmmo, startReload]);
 
   // Handle reload timer and audio sequence
   useEffect(() => {
@@ -67,10 +64,10 @@ export function ReloadSystem() {
       // Trigger audio sequence
       Sound.reloadSequence(activeWeapon, stats.reload);
 
-      // Speed Cola halves the server's reload, so the local timer follows suit.
+      // Speed Cola halves reload duration when active in zombie store
       const speedMultiplier =
         useGameStore.getState().mode === "zombie" &&
-        useZombieNetworkStore.getState().hasSpeedCola
+        useZombieStore.getState().player.activePowerUps.has("speed_cola")
           ? 0.5
           : 1;
 
@@ -121,7 +118,7 @@ export function ReloadSystem() {
         requestReload();
       }
     }
-  }, [activeWeapon, currentAmmo, maxAmmo, isReloading, startReload, sendReload]);
+  }, [activeWeapon, currentAmmo, maxAmmo, isReloading, startReload]);
 
   return null;
 }

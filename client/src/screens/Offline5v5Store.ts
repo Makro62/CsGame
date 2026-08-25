@@ -1067,8 +1067,9 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
 
     const tScore = s.teamRedScore + (winner === "T" ? 1 : 0);
     const ctScore = s.teamBlueScore + (winner === "CT" ? 1 : 0);
-    const target = s.maxRounds / 2;
-    if (tScore >= target || ctScore >= target) {
+    // Win score 8 per GDD (first-to-8 of 15 rounds)
+    const WIN_SCORE = Math.ceil(s.maxRounds / 2);
+    if (tScore >= WIN_SCORE || ctScore >= WIN_SCORE) {
       set({ phase: "matchEnd", teamRedScore: tScore, teamBlueScore: ctScore });
       return;
     }

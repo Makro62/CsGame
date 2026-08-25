@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { AntiCheatSystem } from "../server/src/rooms/AntiCheatSystem";
+import { AntiCheatSystem } from "../server_legacy/src/rooms/AntiCheatSystem";
 import { PlayerState, PHYSICS } from "@cs-game/shared";
 
 function makePlayer(x = 0, z = 0): PlayerState {

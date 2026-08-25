@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BombController } from '../server/src/rooms/BombController';
+import { BombController } from '../server_legacy/src/rooms/BombController';
 
 describe('BombController', () => {
   const bomb = new BombController();

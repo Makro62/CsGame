@@ -14,14 +14,9 @@ import { spawnCameraYaw } from '../offline/offlineCombat'
 import { TRAINING_ARENA } from '../training/TrainingArena'
 import { updateAudioListener } from '../../components/AudioManager'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
-import { useNetwork } from '../../hooks/useNetwork'
 import { useGameStore } from '../../stores/useGameStore'
-import { useNetworkStore } from '../../stores/useNetworkStore'
-import { useZombieNetworkStore } from '../../stores/useZombieNetworkStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useWeaponStore, type WeaponKey } from '../../stores/useWeaponStore'
-import { useKillCamStore } from '../../stores/useKillCamStore'
-import { localZombieEngine } from '../zombie/LocalZombieEngine'
 import { useOffline5v5Store } from '../../screens/Offline5v5Store'
 
 const EYE_HEIGHT_STAND = 0.8
@@ -67,7 +62,7 @@ export function getBounds(mode: string): Bounds {
   return MODE_BOUNDS[mode] ?? MODE_BOUNDS.offline5v5
 }
 
-// Simple ray vs AABB intersection for wall jump detection
+// Ray vs AABB slab test for wall jump detection (fixed: inv = 1/d, not d/len)
 function rayVsAABB(
   origin: { x: number; y: number; z: number },
   target: { x: number; y: number; z: number },
@@ -77,35 +72,36 @@ function rayVsAABB(
   const dy = target.y - origin.y
   const dz = target.z - origin.z
   const len = Math.sqrt(dx * dx + dy * dy + dz * dz)
-  if (len === 0) return false
-  const invDx = dx / len
-  const invDy = dy / len
-  const invDz = dz / len
+  if (len < 1e-6) return false
+  const invDx = dx !== 0 ? 1 / dx : Infinity
+  const invDy = dy !== 0 ? 1 / dy : Infinity
+  const invDz = dz !== 0 ? 1 / dz : Infinity
 
   let tmin = -Infinity
   let tmax = Infinity
 
-  if (invDx !== 0) {
-    const t1 = (box.minX - origin.x) / invDx
-    const t2 = (box.maxX - origin.x) / invDx
+  if (dx !== 0) {
+    const t1 = (box.minX - origin.x) * invDx
+    const t2 = (box.maxX - origin.x) * invDx
     tmin = Math.max(tmin, Math.min(t1, t2))
     tmax = Math.min(tmax, Math.max(t1, t2))
   } else if (origin.x < box.minX || origin.x > box.maxX) return false
 
-  if (invDy !== 0) {
-    const t1 = (box.minY - origin.y) / invDy
-    const t2 = (box.maxY - origin.y) / invDy
+  if (dy !== 0) {
+    const t1 = (box.minY - origin.y) * invDy
+    const t2 = (box.maxY - origin.y) * invDy
     tmin = Math.max(tmin, Math.min(t1, t2))
     tmax = Math.min(tmax, Math.max(t1, t2))
   } else if (origin.y < box.minY || origin.y > box.maxY) return false
 
-  if (invDz !== 0) {
-    const t1 = (box.minZ - origin.z) / invDz
-    const t2 = (box.maxZ - origin.z) / invDz
+  if (dz !== 0) {
+    const t1 = (box.minZ - origin.z) * invDz
+    const t2 = (box.maxZ - origin.z) * invDz
     tmin = Math.max(tmin, Math.min(t1, t2))
     tmax = Math.min(tmax, Math.max(t1, t2))
   } else if (origin.z < box.minZ || origin.z > box.maxZ) return false
 
+  // Hit inside [0, len] along the ray
   return tmax >= tmin && tmax >= 0 && tmin <= len
 }
 
@@ -141,27 +137,24 @@ export function PlayerController() {
   const { camera } = useThree()
   const { world } = useRapier()
   const { getInput, getCrouchReleasedAt } = usePlayerInput()
-  const nickname = useGameStore(s => s.nickname)
   const mode = useGameStore(s => s.mode)
   const isZombieMode = mode === 'zombie'
-  const { sendPlayerInput, reconcile, lastSnapshot } = useNetwork(nickname)
   const { slideControl } = useSettingsStore()
-  // Offline only — no network death, use offline store for 5v5
+  // Offline only — death from offline5v5 local store; spectator skipped (bots visible)
   const offlineAlive = useOffline5v5Store(s => {
     const p = s.players.get("local");
     return p ? !p.isDead : false;
   });
-  const effectiveIsDead = isZombieMode ? false : !offlineAlive && mode==='offline5v5' ? true : false;
-  const remotePlayers: Map<string, unknown> = new Map();
-  const localWeapon = useWeaponStore.getState().activeWeapon ?? "";
-  const localHasBomb = (()=> { const p = useOffline5v5Store.getState().players.get("local"); return p?.hasBomb ?? false; })();
-  const droppedBombPos = (()=> {
-    const s = useOffline5v5Store.getState();
-    return s.bombDropped ? { x: s.bombDropX, y: 0, z: s.bombDropZ } : null;
-  })();
-  const sendPickupBomb = () => {
-    // offline bomb pickup handled in PlayerController near check already
-  };
+  const effectiveIsDead = mode === 'offline5v5' ? !offlineAlive : false
+  // Offline bomb state from local store
+  const localHasBomb = useOffline5v5Store(s => {
+    const p = s.players.get("local");
+    return p?.hasBomb ?? false;
+  })
+  const droppedBombPos = useOffline5v5Store(s =>
+    s.bombDropped ? { x: s.bombDropX, y: 0, z: s.bombDropZ } : null
+  )
+  const sendPickupBomb = () => {}
 
   // Spawn offline — no server. Safe spawn per mode.
   const [initialSpawn] = useState<[number, number, number]>(() => {
@@ -209,20 +202,6 @@ export function PlayerController() {
 
   // Wall Jump
   const lastWallJumpTime = useRef(0)
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!localIsDead) return
-      const k = parseInt(e.key, 10)
-      if (!isNaN(k) && k >= 1 && k <= 9) {
-        const playerArray = Array.from(remotePlayers.keys())
-        const idx = Math.min(k - 1, Math.max(0, playerArray.length - 1))
-        useGameStore.getState().setSpectatorTargetIndex(idx)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [localIsDead, remotePlayers])
 
   // ADS: hold right mouse button (with guards for reload, switch, and weapon)
   useEffect(() => {
@@ -298,15 +277,7 @@ export function PlayerController() {
     }
   }, [applyLook])
 
-  // Re-equip when server changes our weapon (buy confirmation / round reset).
-  // Zombie mode has its own room and drives the weapon from its own store.
-  useEffect(() => {
-    if (mode !== 'multiplayer') return
-    const active = useWeaponStore.getState().activeWeapon
-    if (localWeapon && active !== localWeapon) {
-      useWeaponStore.getState().equipWeapon(localWeapon as WeaponKey)
-    }
-  }, [localWeapon, mode])
+  // Offline — weapon equip handled by mode screens; no server sync needed.
 
   useFrame(() => {
     if (!controllerRef.current) {
@@ -322,39 +293,11 @@ export function PlayerController() {
     lastFrameTime.current = now
 
     if (effectiveIsDead) {
-      // Kill cam replay
-      const killCam = useKillCamStore.getState()
-      if (killCam.isReplaying) {
-        const frame = killCam.getReplayFrame(now)
-        if (frame) {
-          camera.position.set(frame.x, frame.y + EYE_HEIGHT_STAND, frame.z)
-          _lookTarget.set(
-            frame.x - Math.sin(frame.rotationY),
-            frame.y + EYE_HEIGHT_STAND,
-            frame.z - Math.cos(frame.rotationY)
-          )
-          camera.lookAt(_lookTarget)
-          return
-        }
-        // Kill cam finished, fall through to spectator
-      }
-
-      // Normal spectator mode
-      const playerArray = Array.from(remotePlayers.values())
-      if (playerArray.length > 0) {
-        const targetIdx = useGameStore.getState().spectatorTargetIndex
-        const safeIdx = Math.max(0, Math.min(targetIdx, playerArray.length - 1))
-        const target = playerArray[safeIdx]
-        if (target) {
-          _currentPos.set(target.x, target.y + EYE_HEIGHT_STAND, target.z)
-          camera.position.lerp(_currentPos, 0.1)
-          _lookTarget.set(
-            target.x - Math.sin(target.rotationY),
-            target.y + EYE_HEIGHT_STAND,
-            target.z - Math.cos(target.rotationY)
-          )
-          camera.lookAt(_lookTarget)
-        }
+      // Offline death cam: freeze at death spot (no network killcam/spectator).
+      const rbDead = rigidBodyRef.current
+      if (rbDead) {
+        const pos = rbDead.translation()
+        camera.position.set(pos.x, pos.y + 1.6, pos.z)
       }
       return
     }
@@ -399,43 +342,18 @@ export function PlayerController() {
         _currentPos.z
       )
 
-      if (mode === 'offline5v5' || mode === 'multiplayer') {
-        const team = useNetworkStore.getState().localTeam === 'CT' ? 'CT' : 'T'
+      if (mode === 'offline5v5') {
+        const team = useOffline5v5Store.getState().players.get("local")?.team ?? 'T'
         lookYaw.current = spawnCameraYaw(team)
         applyLook()
       }
-
-      // Draw whatever the server says we are holding. Training and zombie pick
-      // their own loadout, so don't stomp it.
-      if (!weaponEquipped.current) {
-        weaponEquipped.current = true
-        if (mode === 'multiplayer' || mode === 'offline5v5') {
-          const serverWeapon = useNetworkStore.getState().localWeapon
-          if (serverWeapon && serverWeapon in WEAPONS) {
-            useWeaponStore.getState().equipWeapon(serverWeapon as WeaponKey)
-          }
-        }
-      }
+      // Weapon already equipped by mode screen (Offline5v5Mode/TrainingRange)
+      weaponEquipped.current = true
       return
     }
 
-    // Server reconciliation
-    const activeSnapshot = isZombieMode
-      ? useZombieNetworkStore.getState().lastSnapshot
-      : lastSnapshot
-
-    if (activeSnapshot && mode !== 'offline5v5' && mode !== 'training') {
-      const reconciled = reconcile(
-        { x: _currentPos.x, y: _currentPos.y, z: _currentPos.z },
-        {
-          x: activeSnapshot.x,
-          y: activeSnapshot.y,
-          z: activeSnapshot.z,
-          lastProcessedSeq: activeSnapshot.lastProcessedSeq,
-        }
-      )
-      _currentPos.set(reconciled.x, reconciled.y, reconciled.z)
-    }
+    // Offline — no server reconciliation needed
+    void isZombieMode
 
     // Calculate movement direction from quaternion yaw (matching server logic)
     // Extract yaw from quaternion to avoid Euler gimbal lock issues
@@ -476,21 +394,13 @@ export function PlayerController() {
       targetSpeed *= 1.1
     }
 
-    // Apply slide speed
+    // Apply slide speed — single lerp per Physics Bible §4.1 (7.5 → end linear)
     if (slideState.current.active) {
       const slideElapsed = (now - slideState.current.startTime) / 1000
       const slideProgress = Math.min(slideElapsed / SLIDE_DURATION, 1)
       const slideControlFactor = slideControl / 10
-      const slideEndSpeed = THREE.MathUtils.lerp(
-        SPRINT_SPEED,
-        2 + slideControlFactor * 3,
-        slideProgress
-      )
-      targetSpeed = THREE.MathUtils.lerp(
-        SPRINT_SPEED,
-        slideEndSpeed,
-        slideProgress
-      )
+      const slideEndSpeed = 2 + slideControlFactor * 3
+      targetSpeed = THREE.MathUtils.lerp(SPRINT_SPEED, slideEndSpeed, slideProgress)
     }
 
     // Calculate desired velocity XZ with smoother acceleration / deceleration
@@ -512,13 +422,13 @@ export function PlayerController() {
     }
     velocityXZ.copy(moveVelocityRef.current)
 
-    // Apply friction
+    // Apply friction — always when grounded (Physics Bible Table 4.2); air = 0
     let friction: number = PHYSICS.friction.walk
     if (input.sprint) friction = PHYSICS.friction.sprint
     if (slideState.current.active) friction = PHYSICS.friction.slide
     if (!grounded.current) friction = PHYSICS.friction.air
 
-    if (friction > 0 && grounded.current && direction.lengthSq() < 0.001) {
+    if (friction > 0 && grounded.current) {
       const frictionFactor = Math.max(0, 1 - friction * dt)
       velocityXZ.multiplyScalar(frictionFactor)
       moveVelocityRef.current.multiplyScalar(frictionFactor)
@@ -674,9 +584,9 @@ export function PlayerController() {
             const hasStamina = spendJumpStamina()
             if (hasStamina) {
               velocityY.current = WALL_JUMP_BOOST
-              // Push away from wall
-              velocityXZ.x += dir.x * WALL_JUMP_HORIZONTAL
-              velocityXZ.y += dir.z * WALL_JUMP_HORIZONTAL
+              // Push AWAY from wall — ray dir points toward wall, invert it
+              velocityXZ.x -= dir.x * WALL_JUMP_HORIZONTAL
+              velocityXZ.y -= dir.z * WALL_JUMP_HORIZONTAL
               // Clamp to max velocity
               const spd = velocityXZ.length()
               if (spd > MAX_VELOCITY) velocityXZ.normalize().multiplyScalar(MAX_VELOCITY)
@@ -803,7 +713,7 @@ export function PlayerController() {
       : EYE_HEIGHT_STAND
     const targetCameraY = _currentPos.y + targetEyeHeight
 
-    // Smooth camera height transition
+    // Smooth camera height transition — dt-based (frame-rate independent)
     const bobOffset =
       grounded.current && speed > 0.5 && !slideState.current.active
         ? Math.sin(headBob.current) * (input.sprint ? 0.045 : 0.03)
@@ -811,13 +721,13 @@ export function PlayerController() {
     camera.position.y = THREE.MathUtils.lerp(
       camera.position.y,
       targetCameraY + bobOffset,
-      0.18
+      1 - Math.exp(-12 * dt)
     )
 
-    // Smooth FOV transition (ADS: 60, Sprint: 80, Normal: 75)
+    // Smooth FOV transition (ADS: 60, Sprint: 80, Normal: 75) — dt-based
     const targetFov = input.ads ? 60 : input.sprint ? 80 : 75
     if (camera instanceof THREE.PerspectiveCamera) {
-      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 0.1)
+      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-10 * dt))
       camera.updateProjectionMatrix()
     }
 

@@ -4,8 +4,7 @@
   "type": "module",
   "workspaces": [
     "shared",
-    "client",
-    "server"
+    "client"
   ],
   "scripts": {
     "postinstall": "npm run build --workspace=shared",

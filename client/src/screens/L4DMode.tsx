@@ -1,16 +1,13 @@
-// @ts-nocheck
 import { useEffect, useRef, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
 import { ZombieArcadeController } from "../game/player/ZombieArcadeController";
 import { ZombieShootingSystem } from "../game/weapons/ZombieShootingSystem";
-import { DownedOverlay } from "../components/DownedOverlay";
 import { useL4DStore } from "../stores/useL4DStore";
 import { L4DDirector } from "../game/l4d/L4DDirector";
 import { L4DCampaignMap } from "../game/l4d/L4DCampaignMap";
 import { useGameStore } from "../stores/useGameStore";
-import { useZombieStore } from "../stores/useZombieStore";
-import * as THREE from "three";
+import { useAimStore } from "../stores/useAimStore";
 
 function L4DInfectedRenderer() {
   const infected = useL4DStore(s=> s.infected);
@@ -83,6 +80,9 @@ export function L4DMode() {
   const isGameOver = useL4DStore(s=> s.isGameOver);
   const isVictory = useL4DStore(s=> s.isVictory);
   const panicLevel = useL4DStore(s=> s.panicLevel);
+  const chapterProgress = useL4DStore(s=> s.chapterProgress);
+  const crescendoActive = useL4DStore(s=> s.crescendoActive);
+  const rescueVehicleArrived = useL4DStore(s=> s.rescueVehicleArrived);
 
   useEffect(()=> {
     directorRef.current = new L4DDirector();
@@ -93,24 +93,35 @@ export function L4DMode() {
     return ()=> { directorRef.current = null; };
   }, [chapter]);
 
-  // Main director + survivor bot follow loop
+  // Main director + survivor bot follow loop (fixed timestep)
   useEffect(()=>{
-    let raf:number; let last = performance.now();
+    let raf:number; let last = performance.now(); let acc = 0;
+    const FIXED = 1/60;
     const loop = ()=>{
       const now = performance.now();
-      const dt = Math.min((now - last)/1000, 0.05);
+      const frameDt = Math.min((now - last)/1000, 0.1);
       last = now;
+      acc += frameDt;
+      let steps = 0;
+      while (acc >= FIXED && steps < 4) {
+        this_tick(FIXED);
+        acc -= FIXED; steps++;
+      }
+      raf = requestAnimationFrame(loop);
+    };
 
-      // Update survivor 0 (player) from __zombieAim pos
-      const aim = (window as unknown as Record<string, unknown>).__zombieAim as { pos?: THREE.Vector3 } | undefined;
-      const playerPos = aim?.pos ?? new THREE.Vector3(0,0,-36);
+    const this_tick = (dt: number) => {
+      const now = performance.now();
+
+      // Update survivor 0 (player) from aim store
+      const aim = useAimStore.getState();
       useL4DStore.setState(s=>{
         const next = [...s.survivors];
-        next[0] = { ...next[0], x: playerPos.x, z: playerPos.z };
+        next[0] = { ...next[0], x: aim.pos.x, z: aim.pos.z };
         return { survivors: next };
       });
 
-      // Bots follow player with offset
+      // Bots follow player with offset + shoot nearest
       const st = useL4DStore.getState();
       const p = st.survivors[0];
       for (let i=1;i<st.survivors.length;i++) {
@@ -124,104 +135,96 @@ export function L4DMode() {
           const nz = bot.z + (dz/d)* 3.4 * dt;
           useL4DStore.getState().updateSurvivor(bot.id, s=> ({...s, x: nx, z: nz}));
         }
-        // bot shoots nearest infected
-        const nearest = st.infected.filter(inf=>!inf.isDead).sort((a,b)=> Math.hypot(a.x-bot.x,a.z-bot.z) - Math.hypot(b.x-bot.x,b.z-bot.z))[0];
-        if (nearest && Math.hypot(nearest.x-bot.x, nearest.z-bot.z) < 18 && Math.random()<0.08) {
+        // bot shoots nearest infected within 18m
+        let nearest: typeof st.infected[0] | null = null;
+        let nd = Infinity;
+        for (const inf of st.infected) {
+          if (inf.isDead) continue;
+          const dd = Math.hypot(inf.x-bot.x, inf.z-bot.z);
+          if (dd < nd) { nd = dd; nearest = inf; }
+        }
+        if (nearest && nd < 18 && Math.random()<0.08) {
           const dmg = 22 + Math.random()*14;
-          nearest.hp -= dmg;
-          if (nearest.hp<=0) {
-            useL4DStore.setState(s=> ({ infected: s.infected.map(x=> x.id===nearest.id? {...x, isDead:true}: x)}));
-          }
+          const nhp = nearest.hp - dmg;
+          useL4DStore.setState(s=> ({ infected: s.infected.map(x=> x.id===nearest!.id ? (nhp<=0? {...x, isDead:true, hp:0} : {...x, hp:nhp}) : x)}));
         }
       }
 
-      // Director
+      // Director pacing + spawns
       directorRef.current?.setSurvivorPositions(useL4DStore.getState().survivors.filter(s=>!s.isDead).map(s=> ({x:s.x, z:s.z})));
       directorRef.current?.update(dt);
 
-      // Update infected attack damage to survivors
+      // Infected attack damage to nearby survivors
       const survivorsNow = useL4DStore.getState().survivors;
-      let dmgDone = false;
-      for (const inf of useL4DStore.getState().infected.filter(i=>!i.isDead && i.isAttacking)) {
-        // find closest survivor within 2
+      for (const inf of useL4DStore.getState().infected) {
+        if (inf.isDead || !inf.isAttacking) continue;
         for (const sv of survivorsNow) {
-          if (sv.isDead) continue;
-          if (Math.hypot(inf.x - sv.x, inf.z - sv.z) < 2.0) {
+          if (sv.isDead || sv.isDowned) continue;
+          if (Math.hypot(inf.x - sv.x, inf.z - sv.z) < 2.0 && Math.random()<0.10) {
             const dmg = inf.type==="tank"? 28 : inf.type==="witch"? 35 : inf.type==="hunter"? 18 : 10;
-            if (Math.random()<0.10) {
-              useL4DStore.getState().updateSurvivor(sv.id, s=>{
-                const nhp = Math.max(0, s.hp - dmg);
-                if (nhp<=0) return {...s, hp:0, isDowned:false, isDead:true};
-                if (nhp<20) return {...s, hp: nhp, isDowned:true};
-                return {...s, hp: nhp};
-              });
-              dmgDone = true;
-            }
+            useL4DStore.getState().updateSurvivor(sv.id, s=>{
+              const nhp = Math.max(0, s.hp - dmg);
+              if (nhp<=0) return {...s, hp:0, isDowned:false, isDead:true};
+              if (nhp<20) return {...s, hp: nhp, isDowned:true};
+              return {...s, hp: nhp};
+            });
           }
         }
       }
 
-      // Chapter progress along START -36 to FINALE +36
-      const prog = Math.max(0, Math.min(1, (p.z + 36) / 72));
+      // Chapter progress along START -36 to FINALE +36*scale (use current map lenScale via chapter)
+      const scale = st.chapter===1?1:st.chapter===2?1.15:st.chapter===3?1.35:1.5;
+      const finishZ = 36*scale;
+      const prog = Math.max(0, Math.min(1, (aim.pos.z + 36*scale) / (finishZ + 36*scale)));
       useL4DStore.setState({ chapterProgress: prog });
-      // Auto transition safeRoom -> traverse when player leaves safe room
-      if (st.chapterState==="safeRoom" && p.z > -28) {
+
+      const st2 = useL4DStore.getState();
+      // safeRoom -> traverse when leaving start zone
+      if (st2.chapterState==="safeRoom" && p.z > -28) {
         useL4DStore.setState({ chapterState: "traverse" });
       }
-      // Check if all survivors reached rescue
-      const finals = survivorsNow.filter(s=>!s.isDead);
-      const atRescue = finals.filter(s=> Math.hypot(s.x - 0, s.z - 36) < 8).length;
-      if (st.chapterState==="traverse" && atRescue===finals.length && finals.length>0) {
+      // all alive at rescue?
+      const finals = st2.survivors.filter(s=>!s.isDead);
+      const atRescue = finals.filter(s=> Math.hypot(s.x - 0, s.z - finishZ) < 8).length;
+      if (st2.chapterState==="traverse" && finals.length>0 && atRescue===finals.length) {
         useL4DStore.setState({ chapterState: "finale", finaleState: "call_rescue", finaleTimer: 4 });
       }
-      // Finale timer
-      if (st.chapterState==="finale") {
-        if (st.finaleState==="call_rescue") {
-          const nt = st.finaleTimer - dt;
+      // Finale timers
+      if (st2.chapterState==="finale") {
+        if (st2.finaleState==="call_rescue") {
+          const nt = st2.finaleTimer - dt;
           if (nt<=0) {
             useL4DStore.setState({ finaleState: "holdout", finaleTimer: 40, rescueVehicleArrived: false });
             directorRef.current?.crescendo();
-          } else {
-            useL4DStore.setState({ finaleTimer: nt });
-          }
-        } else if (st.finaleState==="holdout") {
-          const nt = st.finaleTimer - dt;
-          if (nt<=20 && !st.rescueVehicleArrived) {
-            useL4DStore.setState({ rescueVehicleArrived: true });
-          }
-          if (nt<=0) {
-            useL4DStore.setState({ finaleState: "escape", finaleTimer: 10 });
-          } else {
-            useL4DStore.setState({ finaleTimer: nt });
-          }
-        } else if (st.finaleState==="escape") {
-          const nt = st.finaleTimer - dt;
-          // need all alive survivors inside rescue circle before timer ends
-          if (atRescue===finals.length) {
-            // victory for this chapter
-            if (st.chapter < 4) {
-              useL4DStore.getState().resetCampaign((st.chapter+1) as typeof st.chapter);
-              useL4DStore.setState({ chapter: (st.chapter+1) as typeof st.chapter, chapterState: "safeRoom" });
+          } else useL4DStore.setState({ finaleTimer: nt });
+        } else if (st2.finaleState==="holdout") {
+          const nt = st2.finaleTimer - dt;
+          if (nt<=20 && !st2.rescueVehicleArrived) useL4DStore.setState({ rescueVehicleArrived: true });
+          if (nt<=0) useL4DStore.setState({ finaleState: "escape", finaleTimer: 10 });
+          else useL4DStore.setState({ finaleTimer: nt });
+        } else if (st2.finaleState==="escape") {
+          const nt = st2.finaleTimer - dt;
+          if (atRescue===finals.length && finals.length>0) {
+            // escape success → next chapter or victory
+            if (st2.chapter < 4) {
+              const nextChapter = (st2.chapter+1) as typeof st2.chapter;
+              useL4DStore.getState().resetCampaign(nextChapter);
               directorRef.current?.init();
             } else {
               useL4DStore.setState({ isVictory:true, finaleState: "completed" });
             }
-          }
-          if (nt<=0) {
+          } else if (nt<=0) {
             useL4DStore.setState({ isGameOver:true });
           } else {
             useL4DStore.setState({ finaleTimer: nt });
           }
         }
       }
-      // Game over if all survivors dead/down
-      const alive = survivorsNow.filter(s=>!s.isDead).length;
-      if (alive===0 && !useL4DStore.getState().isGameOver) {
-        useL4DStore.setState({ isGameOver:true });
-      }
-
-      raf = requestAnimationFrame(loop);
+      // Game over when everyone dead
+      const alive = useL4DStore.getState().survivors.filter(s=>!s.isDead).length;
+      if (alive===0 && !useL4DStore.getState().isGameOver) useL4DStore.setState({ isGameOver:true });
     };
+
     raf = requestAnimationFrame(loop);
     return ()=> cancelAnimationFrame(raf);
   }, []);
@@ -255,9 +258,9 @@ export function L4DMode() {
         <div className="text-lg font-bold">L4D CAMPAIGN {chapter}/4</div>
         <div className="text-xs opacity-80">{subtitle}</div>
         <div className="text-xs">Director {Math.round(directorIntensity)}% • Panic {Math.round(panicLevel)}% {hordeActive && <span className="text-red-400 animate-pulse">HORDE {Math.ceil(hordeTimer)}s</span>}</div>
-        <div className="text-xs">Progress {(useL4DStore.getState().chapterProgress*100).toFixed(0)}% START→FINISH</div>
+        <div className="text-xs">Progress {Math.round(chapterProgress*100)}% START→FINISH</div>
         <div className="text-xs opacity-70">Infected: {infected.filter(i=>!i.isDead).length} • Survivors Alive: {aliveCount}/4</div>
-        {chapterState==="finale" && <div className="text-sm text-yellow-300">Finale {finaleState} {finaleTimer>0 ? Math.ceil(finaleTimer)+"s" : ""} {useL4DStore.getState().rescueVehicleArrived && "— VEHICLE ARRIVED!"}</div>}
+        {chapterState==="finale" && <div className="text-sm text-yellow-300">Finale {finaleState} {finaleTimer>0 ? Math.ceil(finaleTimer)+"s" : ""} {rescueVehicleArrived && "— VEHICLE ARRIVED!"}</div>}
       </div>
       <div className="absolute top-3 right-3 flex gap-2">
         <button onClick={handleBack} className="px-4 py-2 bg-slate-800 text-white rounded border border-white/20 hover:bg-slate-700">MENU</button>
@@ -282,7 +285,7 @@ export function L4DMode() {
       {hordeActive && <div className="absolute inset-0 pointer-events-none border-4 border-red-600/40 animate-pulse" />}
 
       {/* Crescendo hint */}
-      {useL4DStore(s=> s.crescendoActive) && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-700 text-white px-6 py-3 rounded font-bold animate-bounce">CRESCENDO — HOLD THE LINE!</div>}
+      {crescendoActive && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-700 text-white px-6 py-3 rounded font-bold animate-bounce">CRESCENDO — HOLD THE LINE!</div>}
 
       {/* Game Over / Victory */}
       {(isGameOver || isVictory) && (
@@ -296,8 +299,12 @@ export function L4DMode() {
         </div>
       )}
 
-      {/* Player hit flash (reuse) */}
-      <DownedOverlay />
+      {/* Player hit flash */}
+      {survivors[0].isDowned && (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <div className="bg-red-900/80 text-white px-8 py-4 rounded font-bold text-xl">DOWNED — Hold [F] (500 pts) or wait for bot</div>
+        </div>
+      )}
     </div>
   );
 }

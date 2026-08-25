@@ -12,7 +12,6 @@ import { MoneyDisplay } from './MoneyDisplay'
 import { BombIndicator } from './BombIndicator'
 import { NetworkMonitor } from './NetworkMonitor'
 import { SpectatorHUD } from './SpectatorHUD'
-import { KillCamOverlay } from './KillCamOverlay'
 import { ChatBox } from './ChatBox'
 import RadioCommand from '../../../components/RadioCommand'
 import { GlassPanel } from '../shared/GlassPanel'
@@ -305,7 +304,6 @@ export function HUDLayout() {
         <>
           <RadioCommand />
           <SpectatorHUD />
-          <KillCamOverlay />
           <ChatBox />
         </>
       )}

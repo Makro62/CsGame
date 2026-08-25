@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EconomySystem } from '../server/src/rooms/EconomySystem';
+import { EconomySystem } from '../server_legacy/src/rooms/EconomySystem';
 
 describe('EconomySystem', () => {
   const economy = new EconomySystem();

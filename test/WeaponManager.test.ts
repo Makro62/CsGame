@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { WeaponManager } from '../server/src/rooms/WeaponManager';
+import { WeaponManager } from '../server_legacy/src/rooms/WeaponManager';
 
 describe('WeaponManager', () => {
   const manager = new WeaponManager();

@@ -32,6 +32,7 @@ interface ZombieGameState {
   zombies: ZombieState[]; powerUps: PowerUpState[]; barricades: BarricadeState[];
   player: PlayerState;
   extractionActive: boolean; extractionTimer: number; extractionAvailable: boolean;
+  evacSuccess: boolean;
 
   // legacy compat for old docs/components expecting these
   points: number;
@@ -71,6 +72,7 @@ export const useZombieStore = create<ZombieGameState>((set, get) => ({
   currentWave: 0, waveState: "waiting", zombiesRemaining: 0, totalZombiesInWave: 0,
   interWaveTimer: 0, zombies: [], powerUps: [], barricades: [],
   player: INITIAL_PLAYER, extractionActive: false, extractionTimer: 0, extractionAvailable: false,
+  evacSuccess: false,
   points: 500, activePowerUp: null, powerUpTimer: 0,
 
   setWaveState: (waveState) => set({ waveState }),
@@ -103,6 +105,6 @@ export const useZombieStore = create<ZombieGameState>((set, get) => ({
   setDownedState: (isDowned, downedTimer) => set((s) => ({ player: { ...s.player, isDowned, downedTimer } })),
   setHealProgress: () => {},
   setReviveProgress: (reviveProgress) => set((s) => ({ player: { ...s.player, reviveProgress } })),
-  resetGame: () => set({ currentWave:0, waveState:"waiting", zombies:[], powerUps:[], barricades:[], player: {...INITIAL_PLAYER, activePowerUps: new Map()}, extractionActive:false, extractionAvailable:false, points: 500, activePowerUp: null, powerUpTimer: 0 }),
-  resetMatch: () => set({ currentWave:0, waveState:"waiting", zombies:[], powerUps:[], barricades:[], player: {...INITIAL_PLAYER, activePowerUps: new Map()}, extractionActive:false, extractionAvailable:false, points: 500, activePowerUp: null, powerUpTimer: 0, zombiesRemaining: 0, totalZombiesInWave: 0, interWaveTimer: 0 }),
+  resetGame: () => set({ currentWave:0, waveState:"waiting", zombies:[], powerUps:[], barricades:[], player: {...INITIAL_PLAYER, activePowerUps: new Map()}, extractionActive:false, extractionAvailable:false, evacSuccess:false, points: 500, activePowerUp: null, powerUpTimer: 0 }),
+  resetMatch: () => set({ currentWave:0, waveState:"waiting", zombies:[], powerUps:[], barricades:[], player: {...INITIAL_PLAYER, activePowerUps: new Map()}, extractionActive:false, extractionAvailable:false, evacSuccess:false, points: 500, activePowerUp: null, powerUpTimer: 0, zombiesRemaining: 0, totalZombiesInWave: 0, interWaveTimer: 0 }),
 }));
