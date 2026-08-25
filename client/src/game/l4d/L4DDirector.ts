@@ -140,7 +140,14 @@ export class L4DDirector {
     const base = this.survivorPositions[0] ?? { x:0, z:0 };
     const ang = Math.random()*Math.PI*2;
     const r = minR + Math.random()*(maxR-minR);
-    return { x: base.x + Math.cos(ang)*r, z: base.z + Math.sin(ang)*r };
+    const ch = useL4DStore.getState().chapter;
+    const scale = ch===1?1:ch===2?1.15:ch===3?1.35:1.5;
+    const halfLen = 36 * scale;
+    const halfW = 22;
+    return {
+      x: Math.max(-halfW, Math.min(halfW, base.x + Math.cos(ang)*r)),
+      z: Math.max(-halfLen, Math.min(halfLen, base.z + Math.sin(ang)*r)),
+    };
   }
 
   private updateInfected(dt: number) {

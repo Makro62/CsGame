@@ -34,6 +34,8 @@ interface WeaponState {
   knifeSlot: WeaponKey;
   currentAmmo: number;
   maxAmmo: number;
+  /** Reserve pool for the active weapon (finite in offline economy). */
+  reserveAmmo: number;
   primaryAmmo: number;
   primaryMaxAmmo: number;
   primaryReserve: number;
@@ -108,6 +110,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   knifeSlot: "knife",
   currentAmmo: 0,
   maxAmmo: 0,
+  reserveAmmo: 0,
   primaryAmmo: 0,
   primaryMaxAmmo: 0,
   primaryReserve: 0,
@@ -173,6 +176,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       knifeSlot: melee ? weapon : state.knifeSlot,
       currentAmmo: ammoCount,
       maxAmmo: melee ? 0 : stats.mag,
+      reserveAmmo: melee || isGrenade ? 0 : (options?.reserveAmmo ?? stats.reserveAmmo),
       primaryAmmo: isPrimaryWeapon(weapon) ? ammoCount : state.primaryAmmo,
       secondaryAmmo: isSecondaryWeapon(weapon) ? ammoCount : state.secondaryAmmo,
       primaryMaxAmmo: isPrimaryWeapon(weapon) ? stats.mag : state.primaryMaxAmmo,

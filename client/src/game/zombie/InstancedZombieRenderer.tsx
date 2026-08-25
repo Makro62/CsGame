@@ -1,7 +1,8 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useZombieStore, ZombieType } from "../../stores/useZombieStore";
+import { ZombieType } from "../../stores/useZombieStore";
+import { zombieEngine } from "./ZombieEngine";
 
 const COLORS: Record<ZombieType, number> = {
   walker: 0x5a7a28, runner: 0xc45c18, tank: 0x3d5a5a,
@@ -11,13 +12,30 @@ const MAX = 100;
 
 export function InstancedZombieRenderer() {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const zombies = useZombieStore(s => s.zombies);
+  const prevCountRef = useRef(0);
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const color = useMemo(() => new THREE.Color(), []);
+
+  // Pre-build color array — only rebuilt when new zombie type appears
+  const colorArray = useMemo(() => {
+    const arr = new Float32Array(MAX * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < MAX; i++) {
+      c.setHex(COLORS.walker);
+      arr[i * 3] = c.r;
+      arr[i * 3 + 1] = c.g;
+      arr[i * 3 + 2] = c.b;
+    }
+    return arr;
+  }, []);
+
+  const coloredRef = useRef(new Set<number>());
 
   useFrame(() => {
     if (!meshRef.current) return;
+    // Read directly from engine — NO Zustand re-render
+    const zombies = zombieEngine.getZombies();
     let i = 0;
+    const newColored = new Set<number>();
     for (const z of zombies) {
       if (i >= MAX || z.isDead) continue;
       const s = z.type === "tank" ? 1.4 : z.type === "boss" ? 2.0 : 1.0;
@@ -26,14 +44,34 @@ export function InstancedZombieRenderer() {
       dummy.scale.set(s, s, s);
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
-      color.setHex(COLORS[z.type]);
-      meshRef.current.setColorAt(i, color);
+      newColored.add(i);
+
+      if (!coloredRef.current.has(i)) {
+        const c = new THREE.Color(COLORS[z.type]);
+        colorArray[i * 3] = c.r;
+        colorArray[i * 3 + 1] = c.g;
+        colorArray[i * 3 + 2] = c.b;
+      }
       i++;
     }
+    coloredRef.current = newColored;
     meshRef.current.count = i;
     meshRef.current.instanceMatrix.needsUpdate = true;
-    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+    if (i !== prevCountRef.current && meshRef.current.instanceColor) {
+      meshRef.current.instanceColor.needsUpdate = true;
+    }
+    prevCountRef.current = i;
   });
+
+  useEffect(() => {
+    if (!meshRef.current) return;
+    const c = new THREE.Color();
+    for (let i = 0; i < MAX; i++) {
+      c.setHex(COLORS.walker);
+      meshRef.current.setColorAt(i, c);
+    }
+    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+  }, []);
 
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, MAX]}>

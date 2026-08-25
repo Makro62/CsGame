@@ -889,6 +889,11 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     if (ws) {
       if (ws.price > me.money) return false;
       if (ws.team !== "both" && ws.team !== me.team) return false;
+      if (item === "ak47" || item === "m4a1" || item === "awp" || item === "mp5") {
+        if (me.primaryWeapon === item) return false;
+      } else if (item === "deagle" || item === "glock" || item === "tec9" || item === "autopistol") {
+        if (me.secondaryWeapon === item) return false;
+      }
       const newMe = { ...me, money: me.money - ws.price };
       if (item === "ak47" || item === "m4a1" || item === "awp" || item === "mp5") {
         newMe.primaryWeapon = item;

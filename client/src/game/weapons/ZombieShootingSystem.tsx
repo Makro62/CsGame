@@ -1,6 +1,6 @@
 // Arcade shooting for Zombie Shooter + L4D — offline only
 // Uses useAimStore (single source) instead of window globals.
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { WEAPONS } from "@cs-game/shared";
 import { useWeaponStore } from "../../stores/useWeaponStore";
 import { useAimStore } from "../../stores/useAimStore";
@@ -9,7 +9,12 @@ import { zombieEngine } from "../zombie/ZombieEngine";
 import { useL4DStore } from "../../stores/useL4DStore";
 import { Sound } from "../../components/AudioManager";
 
+const MELEE_WEAPONS = new Set(["knife", "combatknife"]);
+const GRENADE_WEAPONS = new Set(["he", "smoke", "flash"]);
+
 export function ZombieShootingSystem({ engineRef }: { engineRef?: React.RefObject<typeof zombieEngine | null> }) {
+  const heldRef = useRef(false);
+
   const shoot = useCallback(() => {
     const ws = useWeaponStore.getState();
     const weapon = ws.activeWeapon;
@@ -29,7 +34,6 @@ export function ZombieShootingSystem({ engineRef }: { engineRef?: React.RefObjec
 
     const mode = useGameStore.getState().mode;
     if (mode === "l4d") {
-      // L4D: damage nearest infected in facing cone
       const l4d = useL4DStore.getState();
       const pos = aim.pos;
       let best: (typeof l4d.infected)[0] | null = null;
@@ -55,6 +59,7 @@ export function ZombieShootingSystem({ engineRef }: { engineRef?: React.RefObjec
     }
   }, [engineRef]);
 
+  // Single mouse handler + RAF auto-fire loop — merged from two separate effects
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
@@ -62,11 +67,16 @@ export function ZombieShootingSystem({ engineRef }: { engineRef?: React.RefObjec
       if (mode !== "zombie" && mode !== "l4d") return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag !== "CANVAS") return;
+
+      heldRef.current = true;
+
+      // Dry fire → auto reload on empty (one-shot on click, not in loop)
       const ws = useWeaponStore.getState();
-      // auto reload on empty
+      const weapon = ws.activeWeapon;
       if (
-        ws.activeWeapon &&
-        !["knife", "combatknife", "he", "smoke", "flash"].includes(ws.activeWeapon) &&
+        weapon &&
+        !MELEE_WEAPONS.has(weapon) &&
+        !GRENADE_WEAPONS.has(weapon) &&
         ws.currentAmmo === 0 && !ws.isReloading && !ws.isSwitching
       ) {
         Sound.dryFire();
@@ -75,21 +85,18 @@ export function ZombieShootingSystem({ engineRef }: { engineRef?: React.RefObjec
       }
       shoot();
     };
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
-  }, [shoot]);
+    const onUp = (e: MouseEvent) => {
+      if (e.button === 0) heldRef.current = false;
+    };
 
-  // Auto fire while held
-  useEffect(() => {
-    let held = false;
+    // Auto-fire RAF loop — fires every frame while held, canFire() gates rate
     let raf = 0;
     const loop = () => {
-      if (held) shoot();
+      if (heldRef.current) shoot();
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    const onDown = (e: MouseEvent) => { if (e.button === 0) held = true; };
-    const onUp = (e: MouseEvent) => { if (e.button === 0) held = false; };
+
     window.addEventListener("mousedown", onDown);
     window.addEventListener("mouseup", onUp);
     return () => {

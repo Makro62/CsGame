@@ -71,14 +71,14 @@ export function GrenadeSystem() {
       // Apply splash damage in training mode
       const gameMode = useGameStore.getState().mode;
       if (gameMode === "training") {
-        // Broadcast targetDamaged to training bots within 6m
+        // Broadcast targetDamaged to training bots within 4m
         const targets = useGameStore.getState().targets;
         Object.values(targets).forEach((target) => {
           const dist = Math.sqrt(
             (target.x - g.position.x) ** 2 + (target.z - g.position.z) ** 2
           );
-          if (dist <= 6) {
-            const dmg = Math.round(85 * (1 - dist / 6));
+          if (dist <= 4) {
+            const dmg = Math.round(80 * (1 - dist / 4));
             useGameStore.getState().damageTarget(target.id, dmg, false);
           }
         });

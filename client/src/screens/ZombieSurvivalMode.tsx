@@ -116,34 +116,75 @@ export function ZombieSurvivalMode() {
 
   // Hold F: repair barricade near / revive self when downed (500 pts)
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
+    let raf = 0;
+    let holding = false;
+    let progress = 0;
+    const REPAIR_TIME = 2.0; // seconds to hold for barricade repair
+    const REVIVE_TIME = 3.0; // seconds to hold for self-revive
+    let mode: "idle" | "repair" | "revive" = "idle";
+    let targetId = "";
+
+    const tick = () => {
+      if (!holding) return;
+      const st = useZombieStore.getState();
+      const dt = 1 / 60;
+
+      if (mode === "revive") {
+        if (!st.player.isDowned || st.player.points < 500) {
+          mode = "idle"; progress = 0;
+          useZombieStore.getState().setPlayer(p => ({ ...p, reviveProgress: 0 }));
+          return;
+        }
+        progress += dt / REVIVE_TIME;
+        useZombieStore.getState().setPlayer(p => ({ ...p, reviveProgress: Math.min(1, progress) }));
+        if (progress >= 1) {
+          useZombieStore.getState().addPoints(-500);
+          useZombieStore.getState().setPlayer(p => ({ ...p, isDowned: false, downedTimer: 0, hp: p.maxHp, reviveProgress: 0 }));
+          mode = "idle"; progress = 0;
+        }
+      } else if (mode === "repair") {
+        const aim = useAimStore.getState().pos;
+        const b = useZombieStore.getState().barricades.find(b => b.id === targetId);
+        if (!b || Math.hypot(b.x - aim.x, b.z - aim.z) > 2.5 || b.planks >= b.maxPlanks) {
+          mode = "idle"; progress = 0;
+          return;
+        }
+        progress += dt / REPAIR_TIME;
+        if (progress >= 1) {
+          zombieEngine.repairBarricade(targetId);
+          mode = "idle"; progress = 0;
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== "KeyF") return;
+      if (e.code !== "KeyF" || holding) return;
+      holding = true;
+      progress = 0;
       const st = useZombieStore.getState();
       const aim = useAimStore.getState().pos;
 
-      if (!st.player.isDowned) {
-        // repair nearest barricade < 2.5m
+      if (st.player.isDowned) {
+        if (st.player.points < 500) return;
+        mode = "revive";
+      } else {
+        // Find nearest repairable barricade
         for (const b of st.barricades) {
-          if (Math.hypot(b.x - aim.x, b.z - aim.z) < 2.5) { zombieEngine.repairBarricade(b.id); break; }
+          if (Math.hypot(b.x - aim.x, b.z - aim.z) < 2.5 && b.planks < b.maxPlanks) {
+            targetId = b.id;
+            mode = "repair";
+            break;
+          }
         }
-        return;
       }
-      if (st.player.points < 500 || interval) return;
-      let progress = 0;
-      interval = setInterval(() => {
-        progress += 0.05;
-        useZombieStore.getState().setPlayer(pl => ({ ...pl, reviveProgress: Math.min(1, progress) }));
-        if (progress >= 1 && interval) {
-          clearInterval(interval); interval = null;
-          useZombieStore.getState().addPoints(-500);
-          useZombieStore.getState().setPlayer(pl => ({ ...pl, isDowned:false, downedTimer:0, hp:pl.maxHp, reviveProgress:0 }));
-        }
-      }, 50);
+      if (mode !== "idle") raf = requestAnimationFrame(tick);
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code !== "KeyF" && e.code !== "KeyR") return;
-      if (interval) { clearInterval(interval); interval = null; }
+      if (e.code !== "KeyF") return;
+      holding = false;
+      cancelAnimationFrame(raf);
+      mode = "idle"; progress = 0;
       useZombieStore.getState().setPlayer(p => ({ ...p, reviveProgress: 0 }));
     };
     window.addEventListener("keydown", onKeyDown);
@@ -151,7 +192,7 @@ export function ZombieSurvivalMode() {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
-      if (interval) clearInterval(interval);
+      cancelAnimationFrame(raf);
     };
   }, []);
 

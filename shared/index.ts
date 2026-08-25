@@ -861,15 +861,15 @@ export const GRENADE = {
 } as const
 
 // ─── Zombie Survival Constants ──────────────────────────────────
-export type PowerUpType = "max_ammo" | "nuke" | "insta_kill" | "double_points" | "carpenter" | "fire_sale";
+export type PowerUpType = "max_ammo" | "nuke" | "insta_kill" | "double_points" | "speed_cola" | "juggernog";
 
 export const POWER_UPS: Record<PowerUpType, { duration: number; description: string }> = {
   max_ammo: { duration: 0, description: "Full ammo for all players" },
   nuke: { duration: 0, description: "Kill all zombies on screen" },
   insta_kill: { duration: 30, description: "One-hit kills for 30s" },
   double_points: { duration: 30, description: "2x points for 30s" },
-  carpenter: { duration: 0, description: "Repair all barricades" },
-  fire_sale: { duration: 30, description: "Mystery box costs 10 points" },
+  speed_cola: { duration: 30, description: "Faster reload for 30s" },
+  juggernog: { duration: 30, description: "50% damage reduction for 30s" },
 };
 
 export const POWER_UP_DROP_CHANCE = 0.15; // 15% chance per kill
