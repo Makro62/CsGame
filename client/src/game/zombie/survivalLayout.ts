@@ -27,25 +27,36 @@ function barrel(cx: number, cz: number, half = 0.42): SurvivalObstacle {
   return { minX: cx - half, maxX: cx + half, minZ: cz - half, maxZ: cz + half, kind: "barrel" };
 }
 
-/** U-bunker at a corner, opening toward the courtyard. */
-function uBunker(innerX: number, innerZ: number): SurvivalObstacle[] {
-  const signX = Math.sign(innerX) || 1;
-  const signZ = Math.sign(innerZ) || 1;
+/** U-bunker centered at (cx, cz), opening toward the courtyard origin. */
+function uBunker(cx: number, cz: number, size = 6): SurvivalObstacle[] {
   const t = 0.7;
-  const outerX = innerX + signX * 6;
-  const outerZ = innerZ + signZ * 6;
-  const x0 = Math.min(innerX, outerX);
-  const x1 = Math.max(innerX, outerX);
-  const z0 = Math.min(innerZ, outerZ);
-  const z1 = Math.max(innerZ, outerZ);
-  const midX = (x0 + x1) / 2;
-  const midZ = (z0 + z1) / 2;
-  return [
-    wall(x0, x0 + t, z0, z1),
-    wall(x1 - t, x1, z0, midZ + signZ * 0.4),
-    wall(x0, x1, z0, z0 + t),
-    wall(x0, midX + signX * 0.4, z1 - t, z1),
-  ];
+  const h = size / 2;
+  const x0 = cx - h;
+  const x1 = cx + h;
+  const z0 = cz - h;
+  const z1 = cz + h;
+  const midX = cx;
+  const midZ = cz;
+  const walls: SurvivalObstacle[] = [];
+  if (cx < 0) walls.push(wall(x0, x0 + t, z0, z1));
+  else walls.push(wall(x1 - t, x1, z0, z1));
+  if (cz < 0) walls.push(wall(x0, x1, z0, z0 + t));
+  else walls.push(wall(x0, x1, z1 - t, z1));
+  if (cx < 0) {
+    if (cz < 0) walls.push(wall(x1 - t, x1, z0, midZ));
+    else walls.push(wall(x1 - t, x1, midZ, z1));
+  } else {
+    if (cz < 0) walls.push(wall(x0, x0 + t, z0, midZ));
+    else walls.push(wall(x0, x0 + t, midZ, z1));
+  }
+  if (cz < 0) {
+    if (cx < 0) walls.push(wall(x0, midX, z1 - t, z1));
+    else walls.push(wall(midX, x1, z1 - t, z1));
+  } else {
+    if (cx < 0) walls.push(wall(x0, midX, z0, z0 + t));
+    else walls.push(wall(midX, x1, z0, z0 + t));
+  }
+  return walls;
 }
 
 export const SURVIVAL_OBSTACLES: SurvivalObstacle[] = [
@@ -59,10 +70,10 @@ export const SURVIVAL_OBSTACLES: SurvivalObstacle[] = [
   wall(22.4, 23.2, -22.4, -3.2),
   wall(22.4, 23.2, 3.2, 22.4),
   // Corner bunkers
-  ...uBunker(-13.2, -13.2),
-  ...uBunker(13.2, -13.2),
-  ...uBunker(-13.2, 13.2),
-  ...uBunker(13.2, 13.2),
+  ...uBunker(-16.2, -16.2),
+  ...uBunker(16.2, -16.2),
+  ...uBunker(-16.2, 16.2),
+  ...uBunker(16.2, 16.2),
   // Courtyard cover — symmetric, center kept open for kiting
   crate(-7.2, -7.2, 0.75),
   crate(-8.6, -7.2, 0.55),

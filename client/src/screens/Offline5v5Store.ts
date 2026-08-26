@@ -1,5 +1,6 @@
-// @ts-nocheck
 import { create } from "zustand";
+import { Sound } from "../components/AudioManager";
+import { useGameStore } from "../stores/useGameStore";
 import {
   WEAPONS,
   SPAWN,
@@ -527,9 +528,57 @@ function botThink(
       bot.botAmmoInMag--;
       bot.ammo = bot.botAmmoInMag;
       bot.botLastShootTime = now;
+
+      // ── Bot Gunshot Audio & Tracer VFX ──
+      try {
+        Sound.gunshot(bot.currentWeapon);
+      } catch {}
+
+      // Calculate gun barrel starting position
+      const barrelDist = 0.55;
+      const startX = bot.x + Math.sin(bot.rotationY) * barrelDist + Math.cos(bot.rotationY) * 0.2;
+      const startY = 1.15;
+      const startZ = bot.z + Math.cos(bot.rotationY) * barrelDist - Math.sin(bot.rotationY) * 0.2;
+
+      let endX = tgt.x;
+      let endY = shot.headshot ? 1.55 : 1.05;
+      let endZ = tgt.z;
+
+      if (!shot.hit) {
+        // Missed shot: bullet flies slightly past target
+        endX += (Math.random() - 0.5) * 2.2;
+        endY += (Math.random() - 0.5) * 1.5;
+        endZ += (Math.random() - 0.5) * 2.2;
+      }
+
+      useGameStore.getState().setTracerEvent({
+        start: { x: startX, y: startY, z: startZ },
+        end: { x: endX, y: endY, z: endZ },
+        color: bot.team === "CT" ? "#60a5fa" : "#f87171",
+      });
+
       if (shot.hit) {
         const dmg = shot.headshot ? ws.headshot : ws.dmg;
         tgt.hp = Math.max(0, tgt.hp - dmg);
+
+        if (tgt.id === "local") {
+          // Local player was hit by an enemy bot!
+          try {
+            Sound.playerHurt();
+          } catch {}
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("playerHitFeedback", {
+                detail: { shooterX: bot.x, shooterZ: bot.z, damage: dmg },
+              })
+            );
+          }
+        } else {
+          try {
+            Sound.fleshHit();
+          } catch {}
+        }
+
         if (tgt.hp <= 0) {
           tgt.isDead = true;
           bot.kills++;

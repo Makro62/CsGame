@@ -1,10 +1,9 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Physics } from "@react-three/rapier";
 import { zombieEngine } from "../game/zombie/ZombieEngine";
 import { ZombieArcadeController } from "../game/player/ZombieArcadeController";
 import { InstancedZombieRenderer } from "../game/zombie/InstancedZombieRenderer";
-import { PowerUpRenderer } from "../game/zombie/PowerUpRenderer";
+import { PowerUpField } from "../game/zombie/PowerUpRenderer";
 import { LootRenderer } from "../game/zombie/LootRenderer";
 import { SurvivalArena } from "../game/zombie/SurvivalArena";
 import { SurvivalShop } from "../game/zombie/SurvivalShop";
@@ -22,7 +21,6 @@ import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
 export function ZombieSurvivalMode() {
   const waveState = useZombieStore(s => s.waveState);
   const currentWave = useZombieStore(s => s.currentWave);
-  const powerUps = useZombieStore(s => s.powerUps);
   const player = useZombieStore(s => s.player);
   const zombiesRemaining = useZombieStore(s => s.zombiesRemaining);
   const interWaveTimer = useZombieStore(s => s.interWaveTimer);
@@ -32,6 +30,8 @@ export function ZombieSurvivalMode() {
   const activeWeapon = useWeaponStore(s => s.activeWeapon);
   const { buyMenuOpen, closeBuyMenu, toggleBuyMenu } = useWeaponSwitch();
   const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  pausedRef.current = paused;
 
   const startLoadout = useCallback(() => {
     const ws = useWeaponStore.getState();
@@ -52,6 +52,7 @@ export function ZombieSurvivalMode() {
     let raf = 0; let last = performance.now(); let acc = 0;
     const FIXED = 1 / 60;
     const tick = (dt: number) => {
+      if (pausedRef.current) return;
       const aim = useAimStore.getState().pos;
       const st0 = useZombieStore.getState();
 
@@ -101,49 +102,30 @@ export function ZombieSurvivalMode() {
   }, []);
 
   const handleBackToMenu = useCallback(() => {
-    if (document.pointerLockElement) document.exitPointerLock();
     setPaused(false);
     useGameStore.getState().setMode("menu");
   }, []);
   const handleRestart = useCallback(() => {
     setPaused(false);
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.requestPointerLock();
     useZombieStore.getState().resetGame(true);
     zombieEngine.init();
     startLoadout();
     closeBuyMenu();
   }, [startLoadout, closeBuyMenu]);
 
-  const resume = useCallback(() => {
-    setPaused(false);
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.requestPointerLock();
-  }, []);
+  const resume = useCallback(() => setPaused(false), []);
 
   const betweenWaves = waveState === "buy_phase" || waveState === "wave_clear";
 
   useEffect(() => {
-    const onPointerLockChange = () => {
-      const locked = !!document.pointerLockElement;
-      if (!locked && !buyMenuOpen) setPaused(true);
-    };
-    document.addEventListener("pointerlockchange", onPointerLockChange);
-    return () => document.removeEventListener("pointerlockchange", onPointerLockChange);
-  }, [buyMenuOpen]);
-
-  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Escape") {
-        if (buyMenuOpen) { closeBuyMenu(); return; }
-        if (paused) resume();
-        else if (document.pointerLockElement) document.exitPointerLock();
-        return;
-      }
+      if (e.code !== "Escape") return;
+      if (buyMenuOpen) { closeBuyMenu(); return; }
+      setPaused(p => !p);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused, buyMenuOpen, closeBuyMenu, resume]);
+  }, [buyMenuOpen, closeBuyMenu]);
 
   return (
     <div className="w-full h-screen bg-black relative" style={{ cursor: "crosshair" }}>
@@ -164,15 +146,11 @@ export function ZombieSurvivalMode() {
           shadow-camera-top={40}
           shadow-camera-bottom={-40}
         />
-        <Physics gravity={[0, -9.81, 0]}>
-          <SurvivalArena />
-          <ZombieArcadeController />
-          <InstancedZombieRenderer />
-          {powerUps.map(p => (
-            <PowerUpRenderer key={p.id} id={p.id} type={p.type} x={p.x} z={p.z} />
-          ))}
-          <LootRenderer />
-        </Physics>
+        <SurvivalArena />
+        <ZombieArcadeController />
+        <InstancedZombieRenderer />
+        <PowerUpField />
+        <LootRenderer />
         <ShootingSystem />
         <ReloadSystem />
         <TracerManager />
@@ -196,7 +174,7 @@ export function ZombieSurvivalMode() {
       </div>
 
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-xs font-mono bg-black/70 px-4 py-2 rounded">
-        WASD gerak • Mouse aim • Klik tembak • Shift lari • R reload • 1-3 senjata • B shop antar wave
+        WASD gerak • Mouse aim • Klik tembak • Shift lari • R reload • 1-3 senjata • B shop antar wave • ESC pause
       </div>
 
       {waveState === "game_over" && (
@@ -206,6 +184,16 @@ export function ZombieSurvivalMode() {
           <div className="flex gap-2 justify-center">
             <button onClick={handleRestart} className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700">RESTART</button>
             <button onClick={handleBackToMenu} className="px-6 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-600">MENU</button>
+          </div>
+        </div>
+      )}
+
+      {paused && (
+        <div className="absolute inset-0 z-30 bg-black/70 flex flex-col items-center justify-center gap-3">
+          <div className="text-white text-4xl font-bold">PAUSE</div>
+          <div className="flex gap-3">
+            <button onClick={resume} className="px-6 py-3 bg-lime-700 text-white rounded hover:bg-lime-600">LANJUT</button>
+            <button onClick={handleBackToMenu} className="px-6 py-3 bg-slate-700 text-white rounded hover:bg-slate-600">MENU</button>
           </div>
         </div>
       )}

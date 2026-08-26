@@ -24,8 +24,7 @@ function isZombieArcade() {
   return useGameStore.getState().mode === "zombie";
 }
 function getArcadeAim() {
-  const a = useAimStore.getState();
-  return { origin: a.origin.clone(), direction: a.direction.clone(), yaw: a.yaw, pos: a.pos.clone() };
+  return useAimStore.getState();
 }
 
 function shotIgnored(obj: THREE.Object3D) {
@@ -54,7 +53,6 @@ function infectedFrom(obj: THREE.Object3D): { id: string; isHead: boolean } | nu
 const SPRAY_RESET_MS = 260;
 
 const CENTER_SCREEN = new THREE.Vector2(0, 0);
-const _up = new THREE.Vector3(0, 1, 0);
 const _arcadeDir = new THREE.Vector3();
 
 const raycaster = new THREE.Raycaster();
@@ -401,6 +399,37 @@ export function ShootingSystem() {
       return;
     }
 
+    if (isZombieArcade()) {
+      if (activeWeapon === "he" || activeWeapon === "smoke" || activeWeapon === "flash") return;
+      const aim = getArcadeAim();
+      shootOrigin.copy(aim.origin);
+      _arcadeDir.copy(aim.direction).normalize();
+      const stats = WEAPONS[activeWeapon];
+      const hit = zombieEngine.handleShoot(shootOrigin, _arcadeDir, stats?.dmg ?? 35);
+      const wallDist = zombieEngine.wallDistance(shootOrigin, _arcadeDir, 70);
+      if (hit) {
+        _tempVec3.set(hit.x, hit.y, hit.z);
+        gameEvents.emit("hitMarker", { headshot: hit.headshot });
+      } else {
+        _tempVec3.copy(shootOrigin).addScaledVector(_arcadeDir, wallDist);
+      }
+      spawnImpact(_tempVec3);
+      useGameStore.getState().setTracerEvent({
+        start: { x: shootOrigin.x, y: shootOrigin.y, z: shootOrigin.z },
+        end: { x: _tempVec3.x, y: _tempVec3.y, z: _tempVec3.z },
+      });
+      const side: AkimboSide = isAkimboWeapon(activeWeapon, useWeaponStore.getState().dualWield) ? akimboSide.current : 1;
+      akimboSide.current = side === 1 ? -1 : 1;
+      createMuzzleFlash(side);
+      createShellCasing(side);
+      useGameStore.getState().triggerShoot();
+      gameEvents.emit("weaponFired", { weapon: activeWeapon, akimboSide: side });
+      Sound.gunshot(activeWeapon);
+      incrementBullets();
+      setLastFireTime(performance.now());
+      return;
+    }
+
     if (activeWeapon === "he" || activeWeapon === "smoke" || activeWeapon === "flash") {
       camera.getWorldDirection(shootDirection);
       const origin = camera.position.clone().add(shootDirection.clone().multiplyScalar(0.4));
@@ -454,39 +483,11 @@ export function ShootingSystem() {
     );
 
     spreadDir.set(
-      (Math.random() - 0.5) * spread,
-      (Math.random() - 0.5) * spread
+      (Math.random() - 0.5) * spread * (gameMode === "l4d" ? 0.45 : 1),
+      (Math.random() - 0.5) * spread * (gameMode === "l4d" ? 0.45 : 1)
     );
 
     raycaster.far = 90;
-    if (isZombieArcade()) {
-      const aim = getArcadeAim();
-      shootOrigin.copy(aim.origin);
-      _arcadeDir.copy(aim.direction).normalize();
-      _arcadeDir.applyAxisAngle(_up, spreadDir.x * 0.05);
-      const stats = WEAPONS[activeWeapon];
-      const hit = zombieEngine.handleShoot(shootOrigin, _arcadeDir, stats?.dmg ?? 35);
-      const wallDist = zombieEngine.wallDistance(shootOrigin, _arcadeDir, 70);
-      if (hit) {
-        _tempVec3.set(hit.x, hit.y, hit.z);
-      } else {
-        _tempVec3.copy(shootOrigin).addScaledVector(_arcadeDir, wallDist);
-      }
-      spawnImpact(_tempVec3);
-      useGameStore.getState().setTracerEvent({
-        start: { x: shootOrigin.x, y: shootOrigin.y, z: shootOrigin.z },
-        end: { x: _tempVec3.x, y: _tempVec3.y, z: _tempVec3.z },
-      });
-      createMuzzleFlash(side);
-      createShellCasing(side);
-      useGameStore.getState().triggerShoot();
-      gameEvents.emit("weaponFired", { weapon: activeWeapon, akimboSide: side });
-      Sound.gunshot(activeWeapon);
-      incrementBullets();
-      setLastFireTime(performance.now());
-      return;
-    }
-
     raycaster.setFromCamera(spreadDir, camera);
     const intersects = raycaster.intersectObjects(scene.children, true);
     const validHits = intersects.filter((hit) => {
@@ -563,12 +564,28 @@ export function ShootingSystem() {
           const stats = WEAPONS[activeWeapon];
           const dmgVal = inf.isHead ? (stats?.headshot ?? 70) : (stats?.dmg ?? 35);
           useL4DStore.getState().damageInfected(inf.id, dmgVal);
+          gameEvents.emit("hitMarker", { headshot: inf.isHead });
         }
       }
-    } else if (gameMode === "offline5v5") {
-      useOffline5v5Store.getState().localShoot(null, false);
-    } else if (gameMode === "training") {
-      useGameStore.getState().incrementShots();
+    } else {
+      // Missed / open air: spawn tracer along aim direction
+      const startPos = gameMode === "zombie"
+        ? shootOrigin.clone()
+        : camera.getWorldPosition(_tempVec3);
+      _muzzleOffset
+        .copy(getMuzzleOffset(activeWeapon, side, useWeaponStore.getState().dualWield))
+        .applyQuaternion(camera.quaternion);
+      startPos.add(_muzzleOffset);
+      const endPos = camera.position.clone().add(raycaster.ray.direction.clone().multiplyScalar(70));
+      useGameStore.getState().setTracerEvent({
+        start: { x: startPos.x, y: startPos.y, z: startPos.z },
+        end: { x: endPos.x, y: endPos.y, z: endPos.z },
+      });
+      if (gameMode === "offline5v5") {
+        useOffline5v5Store.getState().localShoot(null, false);
+      } else if (gameMode === "training") {
+        useGameStore.getState().incrementShots();
+      }
     }
 
     // Create visual effects

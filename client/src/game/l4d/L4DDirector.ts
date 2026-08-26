@@ -1,5 +1,7 @@
 import { useL4DStore, type L4DInfected, type L4DSurvivor, type SpecialType } from "../../stores/useL4DStore";
 import { SpatialGrid } from "../zombie/SpatialGrid";
+import { pickL4DSpawn, clampL4DInfected } from "./l4dLayout";
+import { hordeSeparationFromIds, L4D_HORDE_SEP } from "../zombie/hordeMovement";
 
 type DirectorPhase = "buildUp" | "sustain" | "relief" | "finale";
 
@@ -135,11 +137,11 @@ export class L4DDirector {
   }
 
   private spawnCommonHorde() {
-    const pos = this.randomSpawnAroundSurvivors(28, 38);
+    const pos = pickL4DSpawn(this.survivorPositions, 12, 22);
     this.spawnCommonAt(pos.x, pos.z);
   }
   private spawnPanicCommon() {
-    const pos = this.randomSpawnAroundSurvivors(22, 32);
+    const pos = pickL4DSpawn(this.survivorPositions, 10, 18);
     this.spawnCommonAt(pos.x, pos.z);
   }
   private spawnCommonAt(x: number, z: number) {
@@ -158,7 +160,7 @@ export class L4DDirector {
     this.spawnSpecialType(t);
   }
   private spawnSpecialType(type: SpecialType) {
-    const pos = this.randomSpawnAroundSurvivors(type === "tank" || type === "witch" ? 18 : 26, 36);
+    const pos = pickL4DSpawn(this.survivorPositions, type === "tank" || type === "witch" ? 14 : 12, type === "tank" || type === "witch" ? 24 : 22);
     const hpMap: Record<SpecialType, number> = { common: 50, hunter: 250, smoker: 200, boomer: 150, tank: 3000, witch: 800 };
     const spd: Record<SpecialType, number> = { common: 3.2, hunter: 4.5, smoker: 3.0, boomer: 2.8, tank: 2.2, witch: 3.8 };
     const inf: L4DInfected = {
@@ -169,20 +171,6 @@ export class L4DDirector {
     useL4DStore.getState().addInfected(inf);
   }
 
-  private randomSpawnAroundSurvivors(minR: number, maxR: number): { x: number; z: number } {
-    const base = this.survivorPositions[0] ?? { x: 0, z: 0 };
-    const ang = Math.random() * Math.PI * 2;
-    const r = minR + Math.random() * (maxR - minR);
-    const ch = useL4DStore.getState().chapter;
-    const scale = ch === 1 ? 1 : ch === 2 ? 1.15 : ch === 3 ? 1.35 : 1.5;
-    const halfLen = 36 * scale;
-    const halfW = 22;
-    return {
-      x: Math.max(-halfW, Math.min(halfW, base.x + Math.cos(ang) * r)),
-      z: Math.max(-halfLen, Math.min(halfLen, base.z + Math.sin(ang) * r)),
-    };
-  }
-
   private updateInfected(dt: number) {
     const st = useL4DStore.getState();
     const survivors = st.survivors.filter(s => !s.isDead);
@@ -191,7 +179,6 @@ export class L4DDirector {
     st.infected.forEach(i => { if (!i.isDead) this.grid.insert(i.id, i.x, i.z); });
     const updated: L4DInfected[] = [];
     let anyChanged = false;
-    const now = Date.now();
     const survivorPatches = new Map<string, Partial<L4DSurvivor>>();
 
     const patchSurvivor = (id: string, patch: Partial<L4DSurvivor>) => {
@@ -207,13 +194,16 @@ export class L4DDirector {
       }
       const dx = best.x - inf.x, dz = best.z - inf.z;
       const dist = Math.hypot(dx, dz);
-      let sepX = 0, sepZ = 0;
-      this.grid.query(inf.x, inf.z, 2).forEach(nid => {
-        if (nid === inf.id) return;
-        const o = st.infected.find(x => x.id === nid); if (!o || o.isDead) return;
-        const ndx = inf.x - o.x, ndz = inf.z - o.z, nd = Math.hypot(ndx, ndz);
-        if (nd < 1.4 && nd > 0) { sepX += (ndx / nd) * (1.4 - nd) * 1.5; sepZ += (ndz / nd) * (1.4 - nd) * 1.5; }
-      });
+      const { x: sepX, z: sepZ } = hordeSeparationFromIds(
+        inf,
+        this.grid.query(inf.x, inf.z, L4D_HORDE_SEP.queryRadius),
+        (id) => {
+          const o = st.infected.find(x => x.id === id);
+          return o && !o.isDead ? o : undefined;
+        },
+        L4D_HORDE_SEP.radius,
+        L4D_HORDE_SEP.strength,
+      );
       let nx = inf.x, nz = inf.z, rot = inf.rotationY;
       let isAttacking = inf.isAttacking;
       let alerted = inf.alerted ?? inf.type !== "witch";
@@ -305,6 +295,9 @@ export class L4DDirector {
         if (dist > 0.1) {
           nx += (dx / dist * spd + sepX) * dt;
           nz += (dz / dist * spd + sepZ) * dt;
+          const clamped = clampL4DInfected(nx, nz);
+          nx = clamped.x;
+          nz = clamped.z;
         }
       }
 
@@ -322,7 +315,6 @@ export class L4DDirector {
         survivors: useL4DStore.getState().survivors.map(s => survivorPatches.has(s.id) ? { ...s, ...survivorPatches.get(s.id) } : s),
       });
     }
-    void now;
   }
 
   crescendo() {

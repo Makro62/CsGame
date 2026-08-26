@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export type ZombieType = "walker"|"runner"|"tank"|"spitter"|"exploder"|"boss";
-type WaveState = "waiting"|"buy_phase"|"wave_active"|"wave_clear"|"game_over"|"extraction";
+type WaveState = "buy_phase"|"wave_active"|"wave_clear"|"game_over";
 export type PowerUpType = "max_ammo"|"insta_kill"|"double_points"|"nuke"|"speed_cola"|"juggernog";
 export type LootKind = "health"|"ammo"|"armor"|"weapon";
 
@@ -21,11 +21,6 @@ interface PowerUpState {
   spawnTime: number; duration: number;
 }
 
-interface BarricadeState {
-  id: string; x: number; z: number; health: number; maxHealth: number;
-  planks: number; maxPlanks: number;
-}
-
 interface PlayerState {
   hp: number; maxHp: number; armor: number; points: number;
   isDowned: boolean; downedTimer: number; reviveProgress: number;
@@ -35,11 +30,9 @@ interface PlayerState {
 interface ZombieGameState {
   currentWave: number; waveState: WaveState;
   zombiesRemaining: number; totalZombiesInWave: number; interWaveTimer: number;
-  powerUps: PowerUpState[]; barricades: BarricadeState[];
+  powerUps: PowerUpState[];
   loot: LootDrop[];
   player: PlayerState;
-  extractionActive: boolean; extractionTimer: number; extractionAvailable: boolean;
-  evacSuccess: boolean;
 
   setWaveState: (s: WaveState) => void;
   setCurrentWave: (w: number) => void;
@@ -47,12 +40,8 @@ interface ZombieGameState {
   setInterWaveTimer: (n: number) => void;
   addPowerUp: (p: PowerUpState) => void; removePowerUp: (id: string) => void;
   addLoot: (p: LootDrop) => void; removeLoot: (id: string) => void;
-  setBarricades: (b: BarricadeState[]) => void;
-  updateBarricade: (id: string, fn: (b: BarricadeState) => BarricadeState) => void;
   setPlayer: (fn: (p: PlayerState) => PlayerState) => void;
   addPoints: (n: number) => void;
-  setExtractionState: (active: boolean, timer: number, available: boolean) => void;
-  /** Reset to initial state. Pass true to also clear wave progress. */
   resetGame: (full?: boolean) => void;
 }
 
@@ -65,9 +54,8 @@ const INITIAL_PLAYER: PlayerState = {
 const INITIAL_STATE = {
   currentWave: 0, waveState: "buy_phase" as WaveState,
   zombiesRemaining: 0, totalZombiesInWave: 0, interWaveTimer: 8,
-  powerUps: [] as PowerUpState[], barricades: [] as BarricadeState[],
+  powerUps: [] as PowerUpState[],
   loot: [] as LootDrop[],
-  extractionActive: false, extractionTimer: 0, extractionAvailable: false, evacSuccess: false,
 };
 
 export const useZombieStore = create<ZombieGameState>((set, get) => ({
@@ -78,19 +66,16 @@ export const useZombieStore = create<ZombieGameState>((set, get) => ({
   setCurrentWave: (currentWave) => set({ currentWave }),
   setZombiesRemaining: (zombiesRemaining) => set({ zombiesRemaining }),
   setInterWaveTimer: (interWaveTimer) => set({ interWaveTimer }),
-  setBarricades: (barricades) => set({ barricades }),
   addPowerUp: (p) => set({ powerUps: [...get().powerUps, p] }),
   removePowerUp: (id) => set({ powerUps: get().powerUps.filter(p => p.id !== id) }),
   addLoot: (p) => set({ loot: [...get().loot, p] }),
   removeLoot: (id) => set({ loot: get().loot.filter(p => p.id !== id) }),
-  updateBarricade: (id, fn) => set({ barricades: get().barricades.map(b => b.id === id ? fn({...b}) : b) }),
   setPlayer: (fn) => set((s) => ({ player: fn({...s.player}) })),
   addPoints: (amount) => {
     const double = get().player.activePowerUps.has("double_points");
     const pts = double ? amount * 2 : amount;
     set(s => ({ player: { ...s.player, points: s.player.points + pts } }));
   },
-  setExtractionState: (active, timer, available) => set({ extractionActive: active, extractionTimer: timer, extractionAvailable: available }),
   resetGame: (full) => set({
     ...INITIAL_STATE,
     player: { ...INITIAL_PLAYER, activePowerUps: new Map() },

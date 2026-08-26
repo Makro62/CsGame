@@ -3,7 +3,9 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { SpecialType } from "../../stores/useL4DStore";
 
+let _zombieFace: THREE.Texture | null = null;
 export function createZombieFaceTexture(): THREE.Texture {
+  if (_zombieFace) return _zombieFace;
   const canvas = document.createElement("canvas");
   canvas.width = 64;
   canvas.height = 64;
@@ -26,6 +28,7 @@ export function createZombieFaceTexture(): THREE.Texture {
   const tex = new THREE.CanvasTexture(canvas);
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;
+  _zombieFace = tex;
   return tex;
 }
 

@@ -1,6 +1,6 @@
-import { WEAPONS } from "@cs-game/shared";
 import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
 import { useZombieStore } from "../../stores/useZombieStore";
+import { refillAllAmmo } from "./ZombieEngine";
 
 const SHOP_WEAPONS: Array<{ id: WeaponKey; cost: number; label: string }> = [
   { id: "mp5", cost: 800, label: "MP5" },
@@ -15,22 +15,6 @@ const SHOP_GEAR = [
   { id: "armor", cost: 500, label: "Armor +50" },
   { id: "medkit", cost: 400, label: "Full Heal" },
 ] as const;
-
-function refillAmmo() {
-  const ws = useWeaponStore.getState();
-  const w = ws.activeWeapon;
-  if (!w) return;
-  const stats = WEAPONS[w];
-  if (!stats) return;
-  useWeaponStore.setState({
-    currentAmmo: stats.mag,
-    reserveAmmo: stats.reserveAmmo,
-    primaryAmmo: ws.primaryWeapon ? WEAPONS[ws.primaryWeapon]?.mag ?? ws.primaryAmmo : ws.primaryAmmo,
-    primaryReserve: ws.primaryWeapon ? WEAPONS[ws.primaryWeapon]?.reserveAmmo ?? ws.primaryReserve : ws.primaryReserve,
-    secondaryAmmo: ws.secondaryWeapon ? WEAPONS[ws.secondaryWeapon]?.mag ?? ws.secondaryAmmo : ws.secondaryAmmo,
-    secondaryReserve: ws.secondaryWeapon ? WEAPONS[ws.secondaryWeapon]?.reserveAmmo ?? ws.secondaryReserve : ws.secondaryReserve,
-  });
-}
 
 export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => void }) {
   const points = useZombieStore(s => s.player.points);
@@ -48,7 +32,7 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
     const st = useZombieStore.getState();
     if (st.player.points < cost) return;
     st.addPoints(-cost);
-    if (id === "ammo") refillAmmo();
+    if (id === "ammo") refillAllAmmo();
     if (id === "armor") st.setPlayer(p => ({ ...p, armor: Math.min(100, p.armor + 50) }));
     if (id === "medkit") st.setPlayer(p => ({ ...p, hp: p.maxHp }));
   };
@@ -144,5 +128,3 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
     </div>
   );
 }
-
-export { refillAmmo };

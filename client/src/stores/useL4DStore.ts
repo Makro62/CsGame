@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { L4D_SAFE_Z } from "../game/l4d/l4dLayout";
 
 type L4DChapter = 1 | 2 | 3 | 4;
 type L4DFinaleState = "idle" | "call_rescue" | "holdout" | "escape" | "completed";
@@ -56,8 +57,8 @@ function mkSurvivors(): L4DSurvivor[] {
   return SURVIVOR_NAMES.map((name, i) => ({
     id: `survivor_${i}`,
     name,
-    x: (i % 2 ? 1.1 : -1.1),
-    z: -34 + Math.floor(i / 2) * 1.2,
+    x: (i % 2 ? 1.0 : -1.0),
+    z: L4D_SAFE_Z + Math.floor(i / 2) * 1.15,
     hp: 100, maxHp: 100,
     isDowned: false, isDead: false, isBot: i !== 0,
     hasPills: false, hasMedkit: i === 0,

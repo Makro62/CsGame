@@ -12,17 +12,19 @@ function isTyping(): boolean {
   )
 }
 
-export function useWeaponSwitch() {
+export function useWeaponSwitch(opts?: { buyMenu?: boolean }) {
   const [buyMenuOpen, setBuyMenuOpen] = useState(false)
-  // Read inside the listeners so they always see the current menu state.
   const buyMenuOpenRef = useRef(false)
   buyMenuOpenRef.current = buyMenuOpen
+  const buyEnabledRef = useRef(true)
+  buyEnabledRef.current = opts?.buyMenu !== false
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (isTyping()) return
 
       if (e.code === 'KeyB') {
+        if (!buyEnabledRef.current) return
         e.preventDefault()
         e.stopImmediatePropagation()
         setBuyMenuOpen(o => !o)

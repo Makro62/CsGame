@@ -7,11 +7,12 @@ interface Tracer {
   id: number;
   start: THREE.Vector3;
   end: THREE.Vector3;
+  color?: string;
   createdAt: number;
 }
 
-const TRACER_DURATION = 0.08;
-const MAX_TRACERS = 24;
+const TRACER_DURATION = 0.18;
+const MAX_TRACERS = 36;
 
 export function TracerManager() {
   const [tracers, setTracers] = useState<Tracer[]>([]);
@@ -34,6 +35,7 @@ export function TracerManager() {
               id: idRef.current,
               start: new THREE.Vector3(start.x, start.y, start.z),
               end: new THREE.Vector3(end.x, end.y, end.z),
+              color: (state.tracerEvent as { color?: string })?.color || "#ffd54a",
               createdAt: now,
             },
           ];
@@ -56,7 +58,7 @@ export function TracerManager() {
       });
     };
 
-    const interval = setInterval(tick, 16);
+    const interval = setInterval(tick, 20);
 
     return () => {
       unsub();
@@ -66,14 +68,14 @@ export function TracerManager() {
   }, []);
 
   return (
-    <group>
+    <group name="tracer_manager">
       {tracers.map((t) => (
         <BulletTracer
           key={t.id}
           start={t.start}
           end={t.end}
           duration={TRACER_DURATION}
-          color="#ffd54a"
+          color={t.color || "#ffd54a"}
         />
       ))}
     </group>

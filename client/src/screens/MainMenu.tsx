@@ -103,9 +103,9 @@ const MODES: ModeCard[] = [
     image: zombieThumb,
     charArt: zombieCharArt,
     iconType: "biohazard",
-    features: ["Kamera isometric, mouse aim", "Wave otomatis, loot & shop senjata"],
+    features: ["Kamera isometric, mouse aim", "Courtyard kiting, bunker sudut, shop antar wave"],
     highlights: [
-      { icon: "biohazard", text: "Horde dari semua arah, arena 4 ruangan" },
+      { icon: "biohazard", text: "Horde masuk dari 4 gerbang, kiting di lapangan" },
       { icon: "ammo", text: "Pickup senjata, HP, ammo + shop antar wave" },
     ],
     controls: [

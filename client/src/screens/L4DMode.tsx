@@ -11,54 +11,34 @@ import { DamageVignette } from "../components/DamageVignette";
 import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
 import { useL4DStore } from "../stores/useL4DStore";
 import { L4DDirector } from "../game/l4d/L4DDirector";
-import { L4DCampaignMap, l4dFinishZ } from "../game/l4d/L4DCampaignMap";
+import { L4DCampaignMap } from "../game/l4d/L4DCampaignMap";
+import { l4dFinishZ, L4D_SAFE_Z, L4D_FINISH_Z, L4D_TRAVERSE_Z, L4D_RESCUE_RADIUS } from "../game/l4d/l4dLayout";
 import { useGameStore } from "../stores/useGameStore";
 import { useWeaponStore } from "../stores/useWeaponStore";
 import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
+import { InfectedFigure } from "../game/zombie/HumanoidFigures";
+import { MinecraftCharacter } from "../game/player/MinecraftCharacter";
 import SettingsMenu from "./SettingsMenu";
 
 function L4DInfectedRenderer() {
   const infected = useL4DStore(s => s.infected);
   return (
     <group>
-      {infected.filter(i => !i.isDead).map(inf => {
-        const isTank = inf.type === "tank", isWitch = inf.type === "witch", isSpecial = inf.type !== "common";
-        const col = isTank ? "#7f1d1d" : isWitch ? "#f5f5f5" : inf.type === "hunter" ? "#3b82f6" : inf.type === "smoker" ? "#22c55e" : inf.type === "boomer" ? "#eab308" : "#4a7a2a";
-        const s = isTank ? 1.5 : isWitch ? 0.9 : isSpecial ? 0.85 : 0.65;
-        const bodyH = isTank ? 0.9 : 0.55;
-        return (
-          <group key={inf.id} position={[inf.x, inf.y, inf.z]} rotation={[0, inf.rotationY, 0]} userData={{ infectedId: inf.id }}>
-            <mesh position={[0, bodyH + 0.35, 0]} castShadow userData={{ infectedId: inf.id, isHead: false }}>
-              <capsuleGeometry args={[s * 0.42, bodyH + 0.15, 4, 8]} />
-              <meshStandardMaterial color={col} emissive={isSpecial ? col : "#000000"} emissiveIntensity={isSpecial ? 0.25 : 0} roughness={0.7} />
-            </mesh>
-            <mesh position={[0, bodyH + 0.35 + s * 0.55, 0]} castShadow userData={{ infectedId: inf.id, isHead: true }}>
-              <sphereGeometry args={[s * 0.26, 8, 8]} />
-              <meshStandardMaterial color={col} roughness={0.6} />
-            </mesh>
-            <mesh position={[-0.08 * s, bodyH + 0.3 + s * 0.55, 0.16 * s]}>
-              <sphereGeometry args={[0.04 * s, 6, 6]} />
-              <meshStandardMaterial color="#ff2222" emissive="#ff2222" emissiveIntensity={isTank ? 2.5 : 1.4} />
-            </mesh>
-            <mesh position={[0.08 * s, bodyH + 0.3 + s * 0.55, 0.16 * s]}>
-              <sphereGeometry args={[0.04 * s, 6, 6]} />
-              <meshStandardMaterial color="#ff2222" emissive="#ff2222" emissiveIntensity={isTank ? 2.5 : 1.4} />
-            </mesh>
-            {inf.type === "boomer" && (
-              <mesh position={[0, bodyH + 0.15, 0.22 * s]}>
-                <sphereGeometry args={[0.28 * s, 8, 8]} />
-                <meshStandardMaterial color="#facc15" transparent opacity={0.85} />
-              </mesh>
-            )}
-            {inf.type === "smoker" && inf.grabTarget && (
-              <mesh position={[0, 1.2, 0.4]}>
-                <cylinderGeometry args={[0.03, 0.03, 1.2, 6]} />
-                <meshStandardMaterial color="#86efac" emissive="#22c55e" emissiveIntensity={0.6} />
-              </mesh>
-            )}
-          </group>
-        );
-      })}
+      {infected.filter(i => !i.isDead).map(inf => (
+        <group
+          key={inf.id}
+          position={[inf.x, inf.y, inf.z]}
+          rotation={[0, inf.rotationY, 0]}
+          userData={{ infectedId: inf.id }}
+        >
+          <InfectedFigure
+            type={inf.type}
+            infectedId={inf.id}
+            attacking={inf.isAttacking}
+            moving={!inf.isAttacking}
+          />
+        </group>
+      ))}
     </group>
   );
 }
@@ -71,22 +51,12 @@ function SurvivorBots() {
         if (idx === 0 || s.isDead) return null;
         return (
           <group key={s.id} position={[s.x, 0, s.z]}>
-            <mesh position={[0, 0.7, 0]} castShadow>
-              <capsuleGeometry args={[0.28, 0.55, 4, 8]} />
-              <meshStandardMaterial color={s.isDowned ? "#dc2626" : "#0ea5e9"} roughness={0.6} />
-            </mesh>
-            <mesh position={[0, 1.32, 0]} castShadow>
-              <sphereGeometry args={[0.2, 8, 8]} />
-              <meshStandardMaterial color="#f0c090" roughness={0.5} />
-            </mesh>
-            <mesh position={[0.28, 0.75, 0.28]} rotation={[0.5, 0, 0]}>
-              <capsuleGeometry args={[0.06, 0.32, 4, 6]} />
-              <meshStandardMaterial color="#f0c090" />
-            </mesh>
-            <mesh position={[0.28, 0.7, 0.55]}>
-              <boxGeometry args={[0.05, 0.05, 0.32]} />
-              <meshStandardMaterial color="#222" metalness={0.7} />
-            </mesh>
+            <MinecraftCharacter
+              team="CT"
+              isDead={s.isDowned}
+              limbSwingSpeed={s.isDowned ? 0 : 6}
+              holdWeapon={!s.isDowned}
+            />
           </group>
         );
       })}
@@ -94,30 +64,39 @@ function SurvivorBots() {
   );
 }
 
-function L4DSimLoop({ directorRef }: { directorRef: React.MutableRefObject<L4DDirector | null> }) {
+function L4DSimLoop({
+  directorRef,
+  pausedRef,
+}: {
+  directorRef: React.MutableRefObject<L4DDirector | null>;
+  pausedRef: React.MutableRefObject<boolean>;
+}) {
   const last = useRef(performance.now());
   const acc = useRef(0);
   const botRevive = useRef(0);
-  const playerRevive = useRef(0);
 
   useFrame(() => {
+    if (pausedRef.current) {
+      last.current = performance.now();
+      return;
+    }
     const now = performance.now();
     acc.current += Math.min((now - last.current) / 1000, 0.1);
     last.current = now;
     const FIXED = 1 / 60;
     let steps = 0;
     while (acc.current >= FIXED && steps < 4) {
-      tick(FIXED, now);
+      tick(FIXED);
       acc.current -= FIXED;
       steps++;
     }
   });
 
-  const tick = (dt: number, now: number) => {
+  const tick = (dt: number) => {
     const st = useL4DStore.getState();
     if (st.isGameOver || st.isVictory) return;
     const p = st.survivors[0];
-    const finishZ = l4dFinishZ(st.chapter);
+    const finishZ = l4dFinishZ();
 
     for (let i = 1; i < st.survivors.length; i++) {
       const bot = st.survivors[i];
@@ -195,14 +174,14 @@ function L4DSimLoop({ directorRef }: { directorRef: React.MutableRefObject<L4DDi
       else useL4DStore.getState().updateSurvivor(player.id, s => ({ ...s, downedTimer: nt }));
     }
 
-    const prog = Math.max(0, Math.min(1, (player.z + 36) / (finishZ + 36)));
+    const prog = Math.max(0, Math.min(1, (player.z - L4D_SAFE_Z) / (L4D_FINISH_Z - L4D_SAFE_Z)));
     useL4DStore.setState({ chapterProgress: prog });
 
-    if (st2.chapterState === "safeRoom" && player.z > -28) {
+    if (st2.chapterState === "safeRoom" && player.z > L4D_TRAVERSE_Z) {
       useL4DStore.setState({ chapterState: "traverse" });
     }
     const finals = st2.survivors.filter(s => !s.isDead);
-    const atRescue = finals.filter(s => Math.hypot(s.x, s.z - finishZ) < 8).length;
+    const atRescue = finals.filter(s => Math.hypot(s.x, s.z - finishZ) < L4D_RESCUE_RADIUS).length;
     if (st2.chapterState === "traverse" && finals.length > 0 && atRescue === finals.length) {
       useL4DStore.setState({ chapterState: "finale", finaleState: "call_rescue", finaleTimer: 4 });
     }
@@ -237,8 +216,6 @@ function L4DSimLoop({ directorRef }: { directorRef: React.MutableRefObject<L4DDi
     }
     const alive = useL4DStore.getState().survivors.filter(s => !s.isDead).length;
     if (alive === 0 && !useL4DStore.getState().isGameOver) useL4DStore.setState({ isGameOver: true });
-    void now;
-    void playerRevive;
   };
 
   return null;
@@ -263,8 +240,10 @@ export function L4DMode() {
   const reserveAmmo = useWeaponStore(s => s.reserveAmmo);
   const activeWeapon = useWeaponStore(s => s.activeWeapon);
   const [session, setSession] = useState(0);
-  const { buyMenuOpen, closeBuyMenu } = useWeaponSwitch();
+  useWeaponSwitch({ buyMenu: false });
   const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  pausedRef.current = paused;
 
   useEffect(() => {
     directorRef.current = new L4DDirector();
@@ -275,7 +254,10 @@ export function L4DMode() {
     ws.setInfiniteAmmo(false);
     ws.syncLoadout({ primary: "ak47", secondary: "glock", knife: "knife" });
     ws.equipWeapon("ak47");
-    return () => { directorRef.current = null; };
+    return () => {
+      directorRef.current?.cleanup();
+      directorRef.current = null;
+    };
   }, [chapter]);
 
   useEffect(() => {
@@ -341,16 +323,15 @@ export function L4DMode() {
   useEffect(() => {
     const onPointerLockChange = () => {
       const locked = !!document.pointerLockElement;
-      if (!locked && !buyMenuOpen && !isGameOver && !isVictory) setPaused(true);
+      if (!locked && !isGameOver && !isVictory) setPaused(true);
     };
     document.addEventListener("pointerlockchange", onPointerLockChange);
     return () => document.removeEventListener("pointerlockchange", onPointerLockChange);
-  }, [buyMenuOpen, isGameOver, isVictory]);
+  }, [isGameOver, isVictory]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Escape") {
-        if (buyMenuOpen) { closeBuyMenu(); return; }
         if (paused) resume();
         else if (document.pointerLockElement) document.exitPointerLock();
         return;
@@ -358,7 +339,7 @@ export function L4DMode() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused, buyMenuOpen, closeBuyMenu, resume]);
+  }, [paused, resume]);
 
   const aliveCount = survivors.filter(s => !s.isDead).length;
   const me = survivors[0];
@@ -367,7 +348,7 @@ export function L4DMode() {
 
   return (
     <div className="w-full h-screen bg-black relative">
-      <Canvas shadows camera={{ fov: 75, position: [0, 1.6, -34] }}>
+      <Canvas shadows camera={{ fov: 75, position: [0, 1.6, L4D_SAFE_Z] }}>
         <color attach="background" args={["#070c09"]} />
         <fog attach="fog" args={["#070c09", 12, 48]} />
         <ambientLight intensity={0.28} />
@@ -383,7 +364,7 @@ export function L4DMode() {
         <ShootingSystem />
         <ReloadSystem />
         <TracerManager />
-        <L4DSimLoop directorRef={directorRef} />
+        <L4DSimLoop directorRef={directorRef} pausedRef={pausedRef} />
       </Canvas>
 
       <div className="absolute top-3 left-3 bg-black/60 border border-white/10 rounded px-3 py-2 text-white font-mono">
@@ -434,47 +415,16 @@ export function L4DMode() {
           </div>
         </div>
       )}
-      <ClickToPlayOverlay onLock={() => {}} suppressed={buyMenuOpen || isGameOver || isVictory || paused} />
+      <ClickToPlayOverlay onLock={() => {}} suppressed={isGameOver || isVictory || paused} />
       <SettingsMenu />
-      {/* Pause Menu */}
       {paused && !isGameOver && !isVictory && (
-        <div
-          style={{
-            position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", zIndex: 90,
-          }}
-        >
-          <div style={{
-            background: "linear-gradient(155deg, rgba(13, 20, 36, 0.96), rgba(8, 12, 22, 0.98))",
-            border: "1.5px solid #10b981", borderRadius: 16, padding: "32px 48px", textAlign: "center",
-            boxShadow: "0 0 35px rgba(16,185,129,0.3), 0 20px 50px rgba(0,0,0,0.8)", minWidth: 300,
-          }}>
-            <div style={{ color: "#10b981", fontSize: 11, fontWeight: 900, letterSpacing: 2.5, marginBottom: 8, fontFamily: "monospace" }}>
-              PAUSED
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: "#f8fafc", marginBottom: 24, fontFamily: "monospace", letterSpacing: "0.08em" }}>
-              LEFT 4 DEAD
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button
-                onClick={resume}
-                style={{ padding: "12px 28px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                RESUME
-              </button>
-              <button
-                onClick={handleRestart}
-                style={{ padding: "12px 28px", background: "rgba(234,179,8,0.2)", color: "#facc15", border: "1px solid #eab308", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                RESTART
-              </button>
-              <button
-                onClick={handleBack}
-                style={{ padding: "12px 28px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                BACK TO MENU
-              </button>
-            </div>
+        <div className="absolute inset-0 z-50 bg-black/75 flex flex-col items-center justify-center gap-4">
+          <div className="text-emerald-400 text-xs font-mono tracking-[0.3em]">PAUSED</div>
+          <div className="text-white text-3xl font-bold font-mono">LEFT 4 DEAD</div>
+          <div className="flex flex-col gap-2 min-w-[240px]">
+            <button onClick={resume} className="px-6 py-3 bg-blue-600 text-white rounded font-mono font-bold hover:bg-blue-500">RESUME</button>
+            <button onClick={handleRestart} className="px-6 py-3 bg-yellow-900/60 text-yellow-300 border border-yellow-600 rounded font-mono font-bold hover:bg-yellow-900">RESTART</button>
+            <button onClick={handleBack} className="px-6 py-3 bg-red-900/50 text-red-200 border border-red-500 rounded font-mono font-bold hover:bg-red-900">BACK TO MENU</button>
           </div>
         </div>
       )}

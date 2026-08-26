@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {
-  ZOMBIE_TYPES, ZOMBIE_POINTS, WAVE_CONFIG, WEAPONS,
+  ZOMBIE_TYPES, ZOMBIE_POINTS, WEAPONS,
   type ZombieType, type PowerUpType,
 } from "@cs-game/shared";
 import { useZombieStore, type ZombieState, type LootKind } from "../../stores/useZombieStore";
@@ -9,15 +9,13 @@ import { SpatialGrid } from "./SpatialGrid";
 import {
   SURVIVAL_BOUNDS, SURVIVAL_SPAWNS, pushOutSurvival, survivalLineOfSight, survivalWallDistance,
 } from "./survivalLayout";
+import { zombieBodyRadius, zombieHeadRadius, zombieVisualScale } from "./zombieVisual";
+import { chaseStep, hordeSeparationFromIds, SURVIVAL_HORDE_SEP } from "./hordeMovement";
+import { pickZombieType, waveCount, waveHpScale, waveInterval, waveSpeedScale } from "./zombieWaves";
 
 // ── Event Bus (replaces window.dispatchEvent) ─────────────────────────────
 export type ZombieEvent =
-  | { type: "barricadeHit"; id: string }
-  | { type: "explosion"; x: number; y: number; z: number }
-  | { type: "zombieHit"; headshot: boolean; damage: number }
-  | { type: "playerDamaged"; source: ZombieType }
-  | { type: "waveClear"; wave: number }
-  | { type: "maxAmmo" };
+  | { type: "zombieHit"; id: string; x: number; y: number; z: number; headshot: boolean; damage: number };
 
 type ZombieEventHandler = (ev: ZombieEvent) => void;
 
@@ -42,20 +40,16 @@ export type ArcadeShotHit = {
 // ── Config derived from shared constants ───────────────────────────────────
 interface ZConfig {
   hp: number; speed: number; damage: number;
-  scale: number; points: number; weight: number;
+  points: number;
 }
 
-const PICK_WEIGHTS: Record<ZombieType, number> = {
-  walker: 50, runner: 25, tank: 10, spitter: 8, exploder: 5, boss: 2,
-};
-
 const ZOMBIE_CFG: Record<ZombieType, ZConfig> = {
-  walker:   { hp: ZOMBIE_TYPES.walker.hp,   speed: ZOMBIE_TYPES.walker.speed,   damage: ZOMBIE_TYPES.walker.damage,   scale: ZOMBIE_TYPES.walker.scale,   points: ZOMBIE_POINTS.walker,   weight: PICK_WEIGHTS.walker },
-  runner:   { hp: ZOMBIE_TYPES.runner.hp,   speed: ZOMBIE_TYPES.runner.speed,   damage: ZOMBIE_TYPES.runner.damage,   scale: ZOMBIE_TYPES.runner.scale,   points: ZOMBIE_POINTS.runner,   weight: PICK_WEIGHTS.runner },
-  tank:     { hp: ZOMBIE_TYPES.tank.hp,     speed: ZOMBIE_TYPES.tank.speed,     damage: ZOMBIE_TYPES.tank.damage,     scale: ZOMBIE_TYPES.tank.scale,     points: ZOMBIE_POINTS.tank,     weight: PICK_WEIGHTS.tank },
-  spitter:  { hp: ZOMBIE_TYPES.spitter.hp,  speed: ZOMBIE_TYPES.spitter.speed,  damage: ZOMBIE_TYPES.spitter.damage,  scale: ZOMBIE_TYPES.spitter.scale,  points: ZOMBIE_POINTS.spitter,  weight: PICK_WEIGHTS.spitter },
-  exploder: { hp: ZOMBIE_TYPES.exploder.hp, speed: ZOMBIE_TYPES.exploder.speed, damage: ZOMBIE_TYPES.exploder.damage, scale: ZOMBIE_TYPES.exploder.scale, points: ZOMBIE_POINTS.exploder, weight: PICK_WEIGHTS.exploder },
-  boss:     { hp: ZOMBIE_TYPES.boss.hp,     speed: ZOMBIE_TYPES.boss.speed,     damage: ZOMBIE_TYPES.boss.damage,     scale: ZOMBIE_TYPES.boss.scale,     points: ZOMBIE_POINTS.boss,     weight: PICK_WEIGHTS.boss },
+  walker:   { hp: ZOMBIE_TYPES.walker.hp,   speed: ZOMBIE_TYPES.walker.speed,   damage: ZOMBIE_TYPES.walker.damage,   points: ZOMBIE_POINTS.walker },
+  runner:   { hp: ZOMBIE_TYPES.runner.hp,   speed: ZOMBIE_TYPES.runner.speed,   damage: ZOMBIE_TYPES.runner.damage,   points: ZOMBIE_POINTS.runner },
+  tank:     { hp: ZOMBIE_TYPES.tank.hp,     speed: ZOMBIE_TYPES.tank.speed,     damage: ZOMBIE_TYPES.tank.damage,     points: ZOMBIE_POINTS.tank },
+  spitter:  { hp: ZOMBIE_TYPES.spitter.hp,  speed: ZOMBIE_TYPES.spitter.speed,  damage: ZOMBIE_TYPES.spitter.damage,  points: ZOMBIE_POINTS.spitter },
+  exploder: { hp: ZOMBIE_TYPES.exploder.hp, speed: ZOMBIE_TYPES.exploder.speed, damage: ZOMBIE_TYPES.exploder.damage, points: ZOMBIE_POINTS.exploder },
+  boss:     { hp: ZOMBIE_TYPES.boss.hp,     speed: ZOMBIE_TYPES.boss.speed,     damage: ZOMBIE_TYPES.boss.damage,     points: ZOMBIE_POINTS.boss },
 };
 
 const MAX_ALIVE = 55;
@@ -65,7 +59,7 @@ const MELEE_CONE = 0.55;
 const MELEE_RANGE = 2.5;
 const MELEE_DMG = 65;
 
-function refillAllAmmo() {
+export function refillAllAmmo() {
   const ws = useWeaponStore.getState();
   const next: Partial<{ currentAmmo: number; reserveAmmo: number; primaryAmmo: number; primaryReserve: number; secondaryAmmo: number; secondaryReserve: number }> = {};
   if (ws.activeWeapon && WEAPONS[ws.activeWeapon]) {
@@ -81,15 +75,6 @@ function refillAllAmmo() {
     next.secondaryReserve = WEAPONS[ws.secondaryWeapon].reserveAmmo;
   }
   useWeaponStore.setState(next);
-}
-
-// ── Wave scaling per doc §3: base 6, +4 per wave ──────────────────────────
-function waveCount(wave: number): number {
-  return WAVE_CONFIG.baseZombieCount + (wave - 1) * WAVE_CONFIG.zombiesPerWave;
-}
-
-function waveInterval(wave: number): number {
-  return Math.max(400, 2000 - wave * 80);
 }
 
 // ── Frame-based acid DOT ───────────────────────────────────────────────────
@@ -112,7 +97,8 @@ export class ZombieEngine {
   private engineId = 0;
   private playerX = 0;
   private playerZ = 0;
-  private difficulty = 1.0;
+  private hpScale = 1;
+  private spdScale = 1;
 
   /** Frame-based acid DOTs — replaces leaking setInterval */
   private acidDots: AcidDot[] = [];
@@ -130,7 +116,8 @@ export class ZombieEngine {
   init() {
     this.cleanup();
     this.engineId = Date.now() + Math.random();
-    this.difficulty = 1.0;
+    this.hpScale = 1;
+    this.spdScale = 1;
     this._aliveCount = 0;
     this.acidDots = [];
   }
@@ -150,6 +137,8 @@ export class ZombieEngine {
     const store = useZombieStore.getState();
     const count = waveCount(wave);
     const interval = waveInterval(wave);
+    this.hpScale = waveHpScale(wave);
+    this.spdScale = waveSpeedScale(wave);
 
     store.setWaveState("wave_active");
     store.setZombiesRemaining(count);
@@ -157,27 +146,9 @@ export class ZombieEngine {
 
     this.spawnQueue = [];
     for (let i = 0; i < count; i++) {
-      this.spawnQueue.push({ type: this.pickZombieType(wave), delay: i * interval });
+      this.spawnQueue.push({ type: pickZombieType(wave), delay: i * interval });
     }
     this.spawnTimer = 0;
-  }
-
-  private pickZombieType(wave: number): ZombieType {
-    const unlock = WAVE_CONFIG.specialUnlock;
-    const chances = WAVE_CONFIG.specialChances;
-    const candidates: ZombieType[] = ["walker"];
-    if (wave >= unlock.runner)   candidates.push("runner");
-    if (wave >= unlock.tank)     candidates.push("tank");
-    if (wave >= unlock.spitter)  candidates.push("spitter");
-    if (wave >= unlock.exploder) candidates.push("exploder");
-    if (wave >= unlock.boss && Math.random() < chances.boss) return "boss";
-
-    // Weighted random from unlocked types
-    let total = 0;
-    for (const t of candidates) total += ZOMBIE_CFG[t].weight;
-    let r = Math.random() * total;
-    for (const t of candidates) { r -= ZOMBIE_CFG[t].weight; if (r <= 0) return t; }
-    return "walker";
   }
 
   update(dt: number) {
@@ -239,57 +210,35 @@ export class ZombieEngine {
     const dist = Math.hypot(dx, dz);
     if (dist < 0.1) return;
 
-    // Separation via spatial grid
-    let sepX = 0, sepZ = 0;
-    this.grid.query(z.x, z.z, 2).forEach(nid => {
-      if (nid === z.id) return;
-      const o = this.zombies.get(nid);
-      if (!o || o.isDead) return;
-      const ndx = z.x - o.x, ndz = z.z - o.z, nd = Math.hypot(ndx, ndz);
-      if (nd < 1.5 && nd > 0) {
-        sepX += (ndx / nd) * (1.5 - nd) * 3;
-        sepZ += (ndz / nd) * (1.5 - nd) * 3;
-      }
-    });
+    const sep = hordeSeparationFromIds(
+      z,
+      this.grid.query(z.x, z.z, SURVIVAL_HORDE_SEP.queryRadius),
+      (id) => {
+        const o = this.zombies.get(id);
+        return o && !o.isDead ? o : undefined;
+      },
+      SURVIVAL_HORDE_SEP.radius,
+      SURVIVAL_HORDE_SEP.strength,
+    );
 
-    // Barricade blocking
-    let blocked = false;
-    for (const b of useZombieStore.getState().barricades) {
-      if (b.planks <= 0) continue;
-      const bd = Math.hypot(b.x - z.x, b.z - z.z);
-      if (bd < 2) {
-        if (z.attackCooldown <= 0) {
-          z.attackCooldown = 1.0;
-          useZombieStore.getState().updateBarricade(b.id, bar => ({
-            ...bar,
-            planks: Math.max(0, bar.planks - 1),
-            health: Math.max(0, bar.health - 20),
-          }));
-          zombieEvents.emit({ type: "barricadeHit", id: b.id });
-        }
-        blocked = true;
-      }
-    }
     z.attackCooldown = Math.max(0, z.attackCooldown - dt);
 
-    // Move toward player with separation
-    if (!blocked) {
-      const spd = cfg.speed * this.difficulty;
-      z.x += ((dx / dist) * spd + sepX) * dt;
-      z.z += ((dz / dist) * spd + sepZ) * dt;
-      const pushed = pushOutSurvival(z.x, z.z, ZOMBIE_RADIUS);
-      z.x = pushed.x;
-      z.z = pushed.z;
-      z.x = THREE.MathUtils.clamp(z.x, SURVIVAL_BOUNDS.minX + 1, SURVIVAL_BOUNDS.maxX - 1);
-      z.z = THREE.MathUtils.clamp(z.z, SURVIVAL_BOUNDS.minZ + 1, SURVIVAL_BOUNDS.maxZ - 1);
-      z.rotationY = Math.atan2(dx, dz);
-    }
+    const spd = cfg.speed * this.spdScale;
+    const next = chaseStep(z, { x: this.playerX, z: this.playerZ }, spd, sep, dt);
+    z.x = next.x;
+    z.z = next.z;
+    const pushed = pushOutSurvival(z.x, z.z, ZOMBIE_RADIUS);
+    z.x = pushed.x;
+    z.z = pushed.z;
+    z.x = THREE.MathUtils.clamp(z.x, SURVIVAL_BOUNDS.minX + 1, SURVIVAL_BOUNDS.maxX - 1);
+    z.z = THREE.MathUtils.clamp(z.z, SURVIVAL_BOUNDS.minZ + 1, SURVIVAL_BOUNDS.maxZ - 1);
+    z.rotationY = next.rotationY;
 
     // Melee attack on player
     if (dist < 1.5 && z.attackCooldown <= 0) {
       z.isAttacking = true;
       z.attackCooldown = 1.0;
-      this.damagePlayer(cfg.damage * this.difficulty, z.type);
+      this.damagePlayer(cfg.damage * this.hpScale);
     } else if (dist >= 1.5) {
       z.isAttacking = false;
     }
@@ -304,9 +253,8 @@ export class ZombieEngine {
 
     // Exploder suicide at close range (50 dmg AoE)
     if (z.type === "exploder" && dist < 2.5) {
-      this.damagePlayer(50 * this.difficulty, "exploder");
+      this.damagePlayer(50 * this.hpScale);
       this.killZombie(z);
-      zombieEvents.emit({ type: "explosion", x: z.x, y: z.y, z: z.z });
     }
   }
 
@@ -322,7 +270,7 @@ export class ZombieEngine {
     if (Math.random() < 0.55) {
       spawn = SURVIVAL_SPAWNS[Math.floor(Math.random() * SURVIVAL_SPAWNS.length)];
     }
-    const hp = cfg.hp * this.difficulty;
+    const hp = cfg.hp * this.hpScale;
     const z: ZombieState = {
       id, type,
       x: spawn.x + (Math.random() - 0.5) * 1.4,
@@ -338,7 +286,7 @@ export class ZombieEngine {
     this._aliveCount++;
   }
 
-  private damagePlayer(amount: number, source: ZombieType) {
+  private damagePlayer(amount: number) {
     const store = useZombieStore.getState();
     const p = store.player;
     if (p.isDowned) return;
@@ -353,7 +301,6 @@ export class ZombieEngine {
     } else {
       store.setPlayer(pl => ({ ...pl, hp: newHp, armor: newArmor }));
     }
-    zombieEvents.emit({ type: "playerDamaged", source });
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("zombieDamageTaken"));
   }
 
@@ -393,7 +340,6 @@ export class ZombieEngine {
     store.setWaveState("buy_phase");
     store.setInterWaveTimer(12);
     store.addPoints(wave * 80);
-    zombieEvents.emit({ type: "waveClear", wave });
   }
 
   private updatePowerUps() {
@@ -428,7 +374,15 @@ export class ZombieEngine {
       if (Math.random() < POWERUP_DROP_CHANCE) this.spawnPowerUp(z.x, z.z);
       this.maybeSpawnLoot(z.x, z.z);
     }
-    zombieEvents.emit({ type: "zombieHit", headshot: hit.headshot, damage: dmg });
+    zombieEvents.emit({
+      type: "zombieHit",
+      id: hit.id,
+      x: hit.x,
+      y: hit.y,
+      z: hit.z,
+      headshot: hit.headshot,
+      damage: dmg,
+    });
     return hit;
   }
 
@@ -453,16 +407,18 @@ export class ZombieEngine {
       const cx = origin.x + d.x * proj;
       const cz = origin.z + d.z * proj;
       const lat = Math.hypot(z.x - cx, z.z - cz);
-      const scale = z.type === "tank" ? 1.25 : z.type === "boss" ? 1.7 : z.type === "runner" ? 0.75 : 1;
-      const bodyR = 0.92 * scale;
+      const scale = zombieVisualScale(z.type);
+      const bodyR = zombieBodyRadius(z.type);
+      const headR = zombieHeadRadius(z.type);
       if (lat > bodyR) continue;
       if (!survivalLineOfSight(origin.x, origin.z, z.x, z.z)) continue;
+      const headshot = lat <= headR;
       hits.push({
         id,
         x: z.x,
-        y: lat < bodyR * 0.38 ? 1.35 * scale : 0.75 * scale,
+        y: headshot ? 1.42 * scale : 0.9 * scale,
         z: z.z,
-        headshot: lat < bodyR * 0.38,
+        headshot,
         dist: proj,
       });
     }
@@ -490,7 +446,15 @@ export class ZombieEngine {
         this.killZombie(best);
         useZombieStore.getState().addPoints(ZOMBIE_CFG[best.type].points + ZOMBIE_POINTS.knifeBonus);
       }
-      zombieEvents.emit({ type: "zombieHit", headshot: false, damage: MELEE_DMG });
+      zombieEvents.emit({
+        type: "zombieHit",
+        id: best.id,
+        x: best.x,
+        y: 1.0,
+        z: best.z,
+        headshot: false,
+        damage: MELEE_DMG,
+      });
     }
   }
 
@@ -530,7 +494,6 @@ export class ZombieEngine {
     const expire = Date.now() + 30000;
     switch (pu.type) {
       case "max_ammo":
-        zombieEvents.emit({ type: "maxAmmo" });
         refillAllAmmo();
         break;
       case "insta_kill": case "double_points": case "speed_cola": case "juggernog":
@@ -563,21 +526,7 @@ export class ZombieEngine {
     }
   }
 
-  repairBarricade(bid: string) {
-    const store = useZombieStore.getState();
-    const b = store.barricades.find(bar => bar.id === bid);
-    if (!b || b.planks >= b.maxPlanks) return;
-    if (store.player.points < 10) return;
-    store.addPoints(-10);
-    store.updateBarricade(bid, bar => ({
-      ...bar,
-      planks: Math.min(bar.maxPlanks, bar.planks + 1),
-      health: bar.maxHealth,
-    }));
-  }
-
   getZombies(): ZombieState[] { return Array.from(this.zombies.values()); }
-  getAliveCount(): number { return this._aliveCount; }
 
   cleanup() {
     this.acidDots = [];

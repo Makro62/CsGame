@@ -259,6 +259,18 @@ export const Sound = {
     playTone(440, 0.2, 0.3 * getEffectiveVolume())
   },
 
+  playerHurt() {
+    const vol = getEffectiveVolume()
+    playNoise(0.08, 0.45 * vol, 900)
+    playTone(180, 0.09, 0.35 * vol, 'sawtooth')
+  },
+
+  fleshHit() {
+    const vol = getEffectiveVolume()
+    playNoise(0.05, 0.3 * vol, 1400)
+    playTone(240, 0.05, 0.2 * vol, 'triangle')
+  },
+
   footstep(type: 'walk' | 'sprint' | 'crouch' = 'walk') {
     const vol = getEffectiveVolume()
     const baseVol = type === 'sprint' ? 0.15 : type === 'crouch' ? 0.05 : 0.1

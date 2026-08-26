@@ -12,6 +12,8 @@ import { KinematicCharacterController } from '@dimforge/rapier3d-compat'
 import { PHYSICS, SPAWN, MAP_OBSTACLES, MAP_BOUNDARY, WEAPONS } from '@cs-game/shared'
 import { spawnCameraYaw } from '../offline/offlineCombat'
 import { TRAINING_ARENA } from '../training/TrainingArena'
+import { SURVIVAL_BOUNDS } from '../zombie/survivalLayout'
+import { L4D_BOUNDS, L4D_SAFE_Z } from '../l4d/l4dLayout'
 import { updateAudioListener } from '../../components/AudioManager'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
 import { useGameStore } from '../../stores/useGameStore'
@@ -55,8 +57,8 @@ const MODE_BOUNDS: Record<string, Bounds> = {
     minZ: TRAINING_ARENA.minZ + 0.8,
     maxZ: TRAINING_ARENA.maxZ - 0.8,
   },
-  zombie: { minX: -26, maxX: 26, minZ: -26, maxZ: 26 },
-  l4d: { minX: -16, maxX: 18, minZ: -48, maxZ: 72 },
+  zombie: { minX: SURVIVAL_BOUNDS.minX, maxX: SURVIVAL_BOUNDS.maxX, minZ: SURVIVAL_BOUNDS.minZ, maxZ: SURVIVAL_BOUNDS.maxZ },
+  l4d: { minX: L4D_BOUNDS.minX, maxX: L4D_BOUNDS.maxX, minZ: L4D_BOUNDS.minZ, maxZ: L4D_BOUNDS.maxZ },
 }
 
 export function getBounds(mode: string): Bounds {
@@ -160,7 +162,7 @@ export function PlayerController() {
   // Spawn offline — no server. Safe spawn per mode.
   const [initialSpawn] = useState<[number, number, number]>(() => {
     if (mode === 'l4d') {
-      return [0, TOTAL_HEIGHT / 2 + 0.05, -34]
+      return [0, TOTAL_HEIGHT / 2 + 0.05, L4D_SAFE_Z]
     }
     if (isZombieMode) {
       return [0, TOTAL_HEIGHT / 2 + 0.05, 0]
@@ -372,7 +374,6 @@ export function PlayerController() {
     }
 
     // Offline — no server reconciliation needed
-    void isZombieMode
 
     // Calculate movement direction from quaternion yaw (matching server logic)
     // Extract yaw from quaternion to avoid Euler gimbal lock issues

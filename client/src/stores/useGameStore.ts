@@ -47,7 +47,7 @@ interface GameState {
   lastInput: PlayerInputState | null
   spectatorTargetIndex: number
   shootEvent: number
-  tracerEvent: { start: { x: number; y: number; z: number }; end: { x: number; y: number; z: number } } | null
+  tracerEvent: { start: { x: number; y: number; z: number }; end: { x: number; y: number; z: number }; color?: string } | null
   // Jump Stamina
   jumpStamina: number
   maxJumpStamina: number
@@ -73,7 +73,7 @@ interface GameState {
   loadBestTime: () => void
   saveBestTime: () => void
   triggerShoot: () => void
-  setTracerEvent: (tracer: { start: { x: number; y: number; z: number }; end: { x: number; y: number; z: number } } | null) => void
+  setTracerEvent: (tracer: { start: { x: number; y: number; z: number }; end: { x: number; y: number; z: number }; color?: string } | null) => void
   // Jump Stamina actions
   useJumpStamina: () => boolean
   regenJumpStamina: (amount: number) => void

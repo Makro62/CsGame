@@ -5,6 +5,9 @@ export const L4D_FINISH_Z = 28;
 export const L4D_HALL_HALF = 2.1;
 export const L4D_BOUNDS = { minX: -10, maxX: 15, minZ: -40, maxZ: 38 } as const;
 
+export const L4D_TRAVERSE_Z = -26;
+export const L4D_RESCUE_RADIUS = 7;
+
 export function l4dFinishZ(_chapter?: number) {
   return L4D_FINISH_Z;
 }
@@ -30,6 +33,25 @@ export const L4D_OPEN_SPAWNS: Array<{ x: number; z: number }> = [
   { x: 6, z: 30 },
   { x: 0, z: 24 },
 ];
+
+export function clampL4DInfected(x: number, z: number): { x: number; z: number } {
+  let nx = x;
+  let nz = z;
+  if (nz < -26.5) nz = -26.5;
+  if (nz > 36) nz = 36;
+  const inSide = nx > 2.0 && nz > 4.2 && nz < 11.8;
+  if (inSide) {
+    nx = Math.max(2.2, Math.min(14.4, nx));
+    nz = Math.max(4.3, Math.min(11.7, nz));
+  } else if ((nz >= -27 && nz <= -12) || (nz >= 0 && nz <= 20)) {
+    nx = Math.max(-1.7, Math.min(1.7, nx));
+  } else if (nz > -12 && nz < 0) {
+    nx = Math.max(-7.1, Math.min(7.1, nx));
+  } else {
+    nx = Math.max(-8.5, Math.min(8.5, nx));
+  }
+  return { x: nx, z: nz };
+}
 
 export function pickL4DSpawn(
   survivors: Array<{ x: number; z: number }>,
