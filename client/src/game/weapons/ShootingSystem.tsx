@@ -18,10 +18,10 @@ import { useAimStore } from "../../stores/useAimStore";
 import { useOffline5v5Store } from "../../screens/Offline5v5Store";
 import { zombieEngine } from "../zombie/ZombieEngine";
 import { useL4DStore } from "../../stores/useL4DStore";
+import { useNetworkStore } from "../../stores/useNetworkStore";
 
 function isZombieArcade() {
-  const m = useGameStore.getState().mode;
-  return m === "zombie" || m === "l4d";
+  return useGameStore.getState().mode === "zombie";
 }
 function getArcadeAim() {
   const a = useAimStore.getState();
@@ -328,21 +328,25 @@ export function ShootingSystem() {
 
       if (gameMode === "training") useGameStore.getState().incrementShots();
 
-      if (gameMode === "zombie" || gameMode === "l4d") {
+      if (gameMode === "zombie") {
         const aim = getArcadeAim();
         zombieEngine.handleMelee({ direction: aim.direction });
-        // L4D hunter/smoker handled via L4DDirector infected
-        if (gameMode === "l4d") {
-          const st = useL4DStore.getState();
-          // melee hits nearest special within 2m
-          const aimPos = aim.pos;
-          const hit = st.infected.find(i=> !i.isDead && Math.hypot(i.x-aimPos.x, i.z-aimPos.z) < 2);
-          if (hit) {
-            const nhp = hit.hp - 65;
-            if (nhp <=0) useL4DStore.setState({ infected: st.infected.map(x=> x.id===hit.id? {...x, isDead:true}:x)});
-            else useL4DStore.setState({ infected: st.infected.map(x=> x.id===hit.id? {...x, hp: nhp}:x)});
+      } else if (gameMode === "l4d") {
+        camera.getWorldDirection(shootDirection);
+        const st = useL4DStore.getState();
+        const origin = camera.position;
+        let bestId: string | null = null;
+        let bestD = 2.4;
+        for (const inf of st.infected) {
+          if (inf.isDead) continue;
+          const dx = inf.x - origin.x, dy = 0.9 - origin.y, dz = inf.z - origin.z;
+          const d = Math.hypot(dx, dy, dz);
+          if (d < bestD) {
+            const dirDot = (dx * shootDirection.x + dz * shootDirection.z) / Math.max(0.01, Math.hypot(dx, dz));
+            if (dirDot > 0.35) { bestD = d; bestId = inf.id; }
           }
         }
+        if (bestId) useL4DStore.getState().damageInfected(bestId, 70);
       } else if (gameMode === "offline5v5") {
         let current: THREE.Object3D | null = hit?.object ?? null;
         let targetId: string | null = null;
@@ -513,7 +517,26 @@ export function ShootingSystem() {
         }
         useOffline5v5Store.getState().localShoot(targetId, isHead);
         if (targetId) {
-          useNetworkStore.getState().showHitMarker(isHead);
+          gameEvents.emit("hitMarker", { headshot: isHead });
+        }
+      }
+
+      if (gameMode === "l4d") {
+        let current: THREE.Object3D | null = hit.object;
+        let infectedId: string | null = null;
+        let isHead = false;
+        while (current) {
+          if (current.userData?.infectedId) {
+            infectedId = current.userData.infectedId as string;
+            isHead = !!current.userData.isHead;
+            break;
+          }
+          current = current.parent;
+        }
+        if (infectedId) {
+          const stats = WEAPONS[activeWeapon];
+          const dmgVal = isHead ? (stats?.headshot ?? 70) : (stats?.dmg ?? 35);
+          useL4DStore.getState().damageInfected(infectedId, dmgVal);
         }
       }
     } else if (gameMode === "offline5v5") {
@@ -542,48 +565,12 @@ export function ShootingSystem() {
       } else {
         shootDirection.copy(aim.direction);
       }
-    } else {
-      camera.getWorldPosition(shootOrigin);
-      camera.getWorldDirection(shootDirection);
-    }
-
-    if (isZombieArcade()) {
-      const gameMode2 = useGameStore.getState().mode;
       const stats = WEAPONS[activeWeapon];
       const dmg = stats?.dmg ?? 35;
-      const headDmg = stats?.headshot ?? dmg*2;
-      // headshot random 18% for arcade, L4D also
+      const headDmg = stats?.headshot ?? dmg * 2;
       const isHead = Math.random() < 0.18;
-      if (gameMode2 === "l4d") {
-        // L4D damage to common + special
-        const aim = getArcadeAim();
-        const pos2D = aim.pos;
-        // damageCommon via L4D store ray-ish: find nearest infected within cone
-        const l4d = useL4DStore.getState();
-        let best: typeof l4d.infected[0] | null = null;
-        let bestDist = Infinity;
-        for (const inf of l4d.infected) {
-          if (inf.isDead) continue;
-          const dx = inf.x - pos2D.x, dz = inf.z - pos2D.z;
-          const d = Math.hypot(dx,dz);
-          if (d < bestDist && d < 45) {
-            // facing check
-            const dir2 = aim.direction;
-            const dot = (dx/d)*dir2.x + (dz/d)*dir2.z;
-            if (dot > 0.78) { bestDist = d; best = inf as typeof l4d.infected[0]; }
-          }
-        }
-        if (best) {
-          const dmgVal = isHead ? headDmg : dmg;
-          const nhp = best.hp - dmgVal;
-          if (nhp <=0) useL4DStore.setState({ infected: l4d.infected.map(x=> x.id===best!.id? {...x, isDead:true}:x)});
-          else useL4DStore.setState({ infected: l4d.infected.map(x=> x.id===best!.id? {...x, hp: nhp}:x)});
-        }
-      } else {
-        const dmgVal = isHead ? headDmg : dmg;
-        zombieEngine.handleShoot(shootOrigin, shootDirection, dmgVal, isHead);
-      }
-    } else if (gameMode !== "training" && gameMode !== "offline5v5") {
+      zombieEngine.handleShoot(shootOrigin, shootDirection, isHead ? headDmg : dmg, isHead);
+    } else if (gameMode !== "training" && gameMode !== "offline5v5" && gameMode !== "l4d") {
       // offline fallback no network
     }
 

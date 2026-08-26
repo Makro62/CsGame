@@ -18,6 +18,7 @@ import { useGameStore } from '../../stores/useGameStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useWeaponStore, type WeaponKey } from '../../stores/useWeaponStore'
 import { useOffline5v5Store } from '../../screens/Offline5v5Store'
+import { useL4DStore } from '../../stores/useL4DStore'
 
 const EYE_HEIGHT_STAND = 0.8
 const EYE_HEIGHT_CROUCH = 0.4
@@ -54,8 +55,8 @@ const MODE_BOUNDS: Record<string, Bounds> = {
     minZ: TRAINING_ARENA.minZ + 0.8,
     maxZ: TRAINING_ARENA.maxZ - 0.8,
   },
-  zombie: { minX: -59, maxX: 59, minZ: -59, maxZ: 59 },
-  l4d: { minX: -35, maxX: 35, minZ: -42, maxZ: 42 },
+  zombie: { minX: -26, maxX: 26, minZ: -26, maxZ: 26 },
+  l4d: { minX: -11, maxX: 11, minZ: -48, maxZ: 62 },
 }
 
 export function getBounds(mode: string): Bounds {
@@ -158,8 +159,11 @@ export function PlayerController() {
 
   // Spawn offline — no server. Safe spawn per mode.
   const [initialSpawn] = useState<[number, number, number]>(() => {
-    if (isZombieMode || mode === 'l4d') {
-      return [0, TOTAL_HEIGHT / 2 + 0.05, -30]
+    if (mode === 'l4d') {
+      return [0, TOTAL_HEIGHT / 2 + 0.05, -34]
+    }
+    if (isZombieMode) {
+      return [0, TOTAL_HEIGHT / 2 + 0.05, 0]
     }
     if (mode === 'training') {
       return [
@@ -257,8 +261,10 @@ export function PlayerController() {
 
     const onMouseMove = (e: MouseEvent) => {
       if (!locked) return
+      const weaponState = useWeaponStore.getState()
+      const adsSensMult = weaponState.isADS ? (weaponState.activeWeapon === 'awp' ? 0.35 : 0.6) : 1.0
       const sens =
-        POINTER_LOCK_SENSITIVITY * useSettingsStore.getState().sensitivity
+        POINTER_LOCK_SENSITIVITY * useSettingsStore.getState().sensitivity * adsSensMult
 
       lookYaw.current -= e.movementX * sens
       lookPitch.current = THREE.MathUtils.clamp(
@@ -325,6 +331,15 @@ export function PlayerController() {
     const pos = rb.translation()
     _currentPos.set(pos.x, pos.y, pos.z)
 
+    if (mode === 'l4d') {
+      const me = useL4DStore.getState().survivors[0]
+      if (me && (me.isDead || me.isDowned || me.pinnedBy)) {
+        camera.position.set(_currentPos.x, _currentPos.y + EYE_HEIGHT_CROUCH, _currentPos.z)
+        applyLook()
+        return
+      }
+    }
+
     // Initialize on first frame: snap to ground level
     if (!initDone.current) {
       initDone.current = true
@@ -345,6 +360,10 @@ export function PlayerController() {
       if (mode === 'offline5v5') {
         const team = useOffline5v5Store.getState().players.get("local")?.team ?? 'T'
         lookYaw.current = spawnCameraYaw(team)
+        applyLook()
+      }
+      if (mode === 'l4d') {
+        lookYaw.current = Math.PI
         applyLook()
       }
       // Weapon already equipped by mode screen (Offline5v5Mode/TrainingRange)
@@ -724,10 +743,18 @@ export function PlayerController() {
       1 - Math.exp(-12 * dt)
     )
 
-    // Smooth FOV transition (ADS: 60, Sprint: 80, Normal: 75) — dt-based
-    const targetFov = input.ads ? 60 : input.sprint ? 80 : 75
+    // Smooth FOV transition: AWP=22 (sniper scope), Rifles=46 (optic zoom), Pistols=54, Sprint=80, Normal=75
+    const weaponState = useWeaponStore.getState()
+    const isAiming = input.ads || weaponState.isADS
+    const targetFov = isAiming
+      ? (weaponState.activeWeapon === 'awp'
+          ? 22
+          : weaponState.activeWeapon === 'ak47' || weaponState.activeWeapon === 'm4a1' || weaponState.activeWeapon === 'mp5'
+          ? 46
+          : 54)
+      : input.sprint ? 80 : 75
     if (camera instanceof THREE.PerspectiveCamera) {
-      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-10 * dt))
+      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-12 * dt))
       camera.updateProjectionMatrix()
     }
 
@@ -761,6 +788,27 @@ export function PlayerController() {
       if (Math.sqrt(dx * dx + dz * dz) < 2) {
         sendPickupBomb()
       }
+    }
+
+    if (mode === 'l4d') {
+      const st = useL4DStore.getState()
+      const me = st.survivors[0]
+      if (me?.grabbedBy) {
+        const smoker = st.infected.find(i => i.id === me.grabbedBy && !i.isDead)
+        if (smoker) {
+          const dx = smoker.x - _currentPos.x
+          const dz = smoker.z - _currentPos.z
+          const d = Math.hypot(dx, dz)
+          if (d > 1.4) {
+            _currentPos.x += (dx / d) * 2.5 * dt
+            _currentPos.z += (dz / d) * 2.5 * dt
+            rb.setNextKinematicTranslation({ x: _currentPos.x, y: _currentPos.y, z: _currentPos.z })
+            camera.position.x = _currentPos.x
+            camera.position.z = _currentPos.z
+          }
+        }
+      }
+      st.updateSurvivor('survivor_0', s => ({ ...s, x: _currentPos.x, z: _currentPos.z }))
     }
 
     if (mode === 'offline5v5') {

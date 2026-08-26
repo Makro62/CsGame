@@ -7,18 +7,15 @@ import { useGameStore } from "../../stores/useGameStore";
 import { useAimStore } from "../../stores/useAimStore";
 import { zombieEngine } from "../zombie/ZombieEngine";
 import { MAP_BOUNDARY, MAP_OBSTACLES } from "@cs-game/shared";
+import { SURVIVAL_BOUNDS, pushOutSurvival } from "../zombie/survivalLayout";
 
-const WALK_SPEED = 4;
-const SPRINT_SPEED = 7;
-const PLAYER_RADIUS = 0.6;
+const WALK_SPEED = 5.4;
+const SPRINT_SPEED = 8.4;
+const PLAYER_RADIUS = 0.55;
 
-// Mode-specific bounds
 const BOUNDS_TRAINING = { minX: -15, maxX: 15, minZ: -15, maxZ: 15 };
-const BOUNDS_ZOMBIE = { minX: -59, maxX: 59, minZ: -59, maxZ: 59 };
-const BOUNDS_L4D = { minX: -35, maxX: 35, minZ: -42, maxZ: 42 };
 const BOUNDS_CONTAINER = { minX: MAP_BOUNDARY.minX + 0.8, maxX: MAP_BOUNDARY.maxX - 0.8, minZ: MAP_BOUNDARY.minZ + 0.8, maxZ: MAP_BOUNDARY.maxZ - 0.8 };
 
-// Reusable temp vectors — zero allocations per frame
 const _tGround = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const _tHit = new THREE.Vector3();
 const _tMove = new THREE.Vector3();
@@ -46,17 +43,22 @@ export function ZombieArcadeController({ engineRef }: { engineRef?: React.RefObj
   const { camera, pointer, raycaster } = useThree();
   const { getInput } = usePlayerInput();
   const mode = useGameStore(s => s.mode);
-  const posRef = useRef(new THREE.Vector3(0, 0, -30));
+  const posRef = useRef(new THREE.Vector3(0, 0, 0));
   const yawRef = useRef(0);
   const yawTargetRef = useRef(0);
   const isDead = useZombieStore(s => s.player.isDowned);
   const activeEngine = engineRef?.current ?? zombieEngine;
 
+  const groupRef = useRef<THREE.Group>(null);
+  const bodyRef = useRef<THREE.Mesh>(null);
+  const headRef = useRef<THREE.Mesh>(null);
+  const armRef = useRef<THREE.Mesh>(null);
+  const weaponRef = useRef<THREE.Mesh>(null);
+
   const getBounds = () => {
-    if (mode === "l4d") return BOUNDS_L4D;
     if (mode === "training") return BOUNDS_TRAINING;
     if (mode === "offline5v5") return BOUNDS_CONTAINER;
-    return BOUNDS_ZOMBIE;
+    return SURVIVAL_BOUNDS;
   };
 
   useFrame((_, dt) => {
@@ -68,7 +70,6 @@ export function ZombieArcadeController({ engineRef }: { engineRef?: React.RefObj
 
     if (isDead) return;
 
-    // ── Aim at mouse on ground plane ──────────────────────────────────────
     raycaster.setFromCamera(pointer, camera);
     if (raycaster.ray.intersectPlane(_tGround, _tHit)) {
       const dx = _tHit.x - posRef.current.x;
@@ -79,9 +80,8 @@ export function ZombieArcadeController({ engineRef }: { engineRef?: React.RefObj
       Math.sin(yawTargetRef.current - yawRef.current),
       Math.cos(yawTargetRef.current - yawRef.current),
     );
-    yawRef.current += deltaYaw * (1 - Math.exp(-14 * dt));
+    yawRef.current += deltaYaw * (1 - Math.exp(-16 * dt));
 
-    // ── Movement ──────────────────────────────────────────────────────────
     _tMove.set(0, 0, 0);
     if (input.forward) _tMove.z -= 1;
     if (input.backward) _tMove.z += 1;
@@ -99,37 +99,66 @@ export function ZombieArcadeController({ engineRef }: { engineRef?: React.RefObj
     posRef.current.x += _tMove.x * speed * dt;
     posRef.current.z += _tMove.z * speed * dt;
 
-    // Clamp to mode bounds
     posRef.current.x = THREE.MathUtils.clamp(posRef.current.x, b.minX, b.maxX);
     posRef.current.z = THREE.MathUtils.clamp(posRef.current.z, b.minZ, b.maxZ);
 
-    // Push out of solid obstacles (only for competitive map with MAP_OBSTACLES)
-    if (mode === "offline5v5" || mode === "training") {
+    if (mode === "zombie") {
+      const pushed = pushOutSurvival(posRef.current.x, posRef.current.z, PLAYER_RADIUS);
+      posRef.current.x = pushed.x;
+      posRef.current.z = pushed.z;
+    } else if (mode === "offline5v5" || mode === "training") {
       const pushed = pushOutOfObstacles(posRef.current.x, posRef.current.z);
       posRef.current.x = pushed.x;
       posRef.current.z = pushed.z;
     }
 
-    // ── Engine sync ───────────────────────────────────────────────────────
     activeEngine.setPlayerPos(posRef.current.x, posRef.current.y, posRef.current.z);
 
-    // ── Camera follow (exponential decay — framerate independent) ─────────
-    const camLag = 1 - Math.exp(-8 * dt);
+    const camLag = 1 - Math.exp(-9 * dt);
     camera.position.x = THREE.MathUtils.lerp(camera.position.x, posRef.current.x, camLag);
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, posRef.current.z + 16, camLag);
-    camera.lookAt(posRef.current.x, 0, posRef.current.z);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, 22, camLag);
+    camera.position.z = THREE.MathUtils.lerp(camera.position.z, posRef.current.z + 11, camLag);
+    camera.lookAt(posRef.current.x, 0.45, posRef.current.z);
 
-    // ── Aim broadcast (zero allocations) ──────────────────────────────────
     const sin = Math.sin(yawRef.current);
     const cos = Math.cos(yawRef.current);
     _tOrigin.set(
       posRef.current.x + sin * 0.55,
-      0.35,
+      0.45,
       posRef.current.z + cos * 0.55,
     );
     _tDir.set(sin, 0, cos);
     useAimStore.getState().setAim(_tOrigin, _tDir, yawRef.current, posRef.current);
+
+    if (groupRef.current) {
+      groupRef.current.position.set(posRef.current.x, 0, posRef.current.z);
+      groupRef.current.rotation.y = yawRef.current;
+      groupRef.current.visible = !isDead;
+    }
   });
 
-  return null;
+  return (
+    <group ref={groupRef}>
+      <mesh ref={bodyRef} position={[0, 0.65, 0]} castShadow>
+        <capsuleGeometry args={[0.3, 0.5, 4, 8]} />
+        <meshStandardMaterial color="#1d4ed8" roughness={0.55} />
+      </mesh>
+      <mesh ref={headRef} position={[0, 1.3, 0]} castShadow>
+        <sphereGeometry args={[0.22, 8, 8]} />
+        <meshStandardMaterial color="#f0c090" roughness={0.5} />
+      </mesh>
+      <mesh ref={armRef} position={[0.35, 0.75, 0.3]} rotation={[0.5, 0, 0]} castShadow>
+        <capsuleGeometry args={[0.08, 0.35, 4, 6]} />
+        <meshStandardMaterial color="#f0c090" roughness={0.5} />
+      </mesh>
+      <mesh ref={weaponRef} position={[0.35, 0.7, 0.6]} castShadow>
+        <boxGeometry args={[0.06, 0.06, 0.4]} />
+        <meshStandardMaterial color="#222" roughness={0.3} metalness={0.7} />
+      </mesh>
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.35, 16]} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.25} />
+      </mesh>
+    </group>
+  );
 }

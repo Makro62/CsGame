@@ -184,6 +184,13 @@ export function WeaponModel() {
 
     recoilGroupRef.current.position.set(posX, posY, posZ)
     recoilGroupRef.current.rotation.set(rotX, rotY, rotZ)
+
+    // Hide weapon model for AWP during ADS so sniper scope is clear
+    if (activeWeapon === 'awp' && adsFactor > 0.35) {
+      groupRef.current.visible = false
+    } else {
+      groupRef.current.visible = true
+    }
   })
 
   if (!activeWeapon) return null

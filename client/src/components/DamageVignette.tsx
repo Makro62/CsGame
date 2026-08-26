@@ -1,39 +1,27 @@
-// @ts-nocheck
 import { useEffect, useRef, useState } from "react";
-import { useNetworkStore } from "../stores/useNetworkStore";
+import { useOffline5v5Store } from "../screens/Offline5v5Store";
+import { useGameStore } from "../stores/useGameStore";
 
 export function DamageVignette() {
   const [flash, setFlash] = useState(false);
-  const room = useNetworkStore((s) => s.room);
-  const sessionId = useNetworkStore((s) => s.sessionId);
-  const localHp = useNetworkStore((s) => s.localHp);
-  const prevHp = useRef(localHp);
   const mountedRef = useRef(true);
+  const gameMode = useGameStore((s) => s.mode);
+  const offlineHp = useOffline5v5Store(s => s.players.get("local")?.hp ?? 100);
+  const prevOfflineHp = useRef(offlineHp);
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
+    return () => { mountedRef.current = false; };
   }, []);
 
+  // Offline 5v5 HP drop
   useEffect(() => {
-    if (!room || !sessionId) return;
+    if (gameMode !== "offline5v5") return;
+    if (offlineHp < prevOfflineHp.current) setFlash(true);
+    prevOfflineHp.current = offlineHp;
+  }, [offlineHp, gameMode]);
 
-    const handler = (data: { victimId: string }) => {
-      if (mountedRef.current && data.victimId === sessionId) {
-        setFlash(true);
-      }
-    };
-
-    room.onMessage("damage", handler);
-  }, [room, sessionId]);
-
-  // Offline 5v5 reports damage as HP drops on the mirrored network store.
-  useEffect(() => {
-    if (localHp < prevHp.current) setFlash(true);
-    prevHp.current = localHp;
-  }, [localHp]);
+  // Zombie damage
   useEffect(() => {
     const handleZombieDamage = () => {
       if (mountedRef.current) setFlash(true);

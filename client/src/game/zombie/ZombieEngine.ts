@@ -1,10 +1,14 @@
 import * as THREE from "three";
 import {
-  ZOMBIE_TYPES, ZOMBIE_POINTS, WAVE_CONFIG, MAP_OBSTACLES, ZOMBIE_MAP_BOUNDARY,
-  type ZombieType, type PowerUpType, type MapObstacle,
+  ZOMBIE_TYPES, ZOMBIE_POINTS, WAVE_CONFIG, WEAPONS,
+  type ZombieType, type PowerUpType,
 } from "@cs-game/shared";
-import { useZombieStore, type ZombieState } from "../../stores/useZombieStore";
+import { useZombieStore, type ZombieState, type LootKind } from "../../stores/useZombieStore";
+import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
 import { SpatialGrid } from "./SpatialGrid";
+import {
+  SURVIVAL_BOUNDS, SURVIVAL_SPAWNS, pushOutSurvival, survivalLineOfSight,
+} from "./survivalLayout";
 
 // ── Event Bus (replaces window.dispatchEvent) ─────────────────────────────
 export type ZombieEvent =
@@ -45,15 +49,33 @@ const ZOMBIE_CFG: Record<ZombieType, ZConfig> = {
   boss:     { hp: ZOMBIE_TYPES.boss.hp,     speed: ZOMBIE_TYPES.boss.speed,     damage: ZOMBIE_TYPES.boss.damage,     scale: ZOMBIE_TYPES.boss.scale,     points: ZOMBIE_POINTS.boss,     weight: PICK_WEIGHTS.boss },
 };
 
-const MAX_ALIVE = 45;
+const MAX_ALIVE = 55;
 const POWERUP_DROP_CHANCE = 0.15;
 const HEADSHOT_MULT = 2;
 const MELEE_CONE = 0.55;
 const MELEE_RANGE = 2.5;
 const MELEE_DMG = 65;
 
+function refillAllAmmo() {
+  const ws = useWeaponStore.getState();
+  const next: Partial<{ currentAmmo: number; reserveAmmo: number; primaryAmmo: number; primaryReserve: number; secondaryAmmo: number; secondaryReserve: number }> = {};
+  if (ws.activeWeapon && WEAPONS[ws.activeWeapon]) {
+    next.currentAmmo = WEAPONS[ws.activeWeapon].mag;
+    next.reserveAmmo = WEAPONS[ws.activeWeapon].reserveAmmo;
+  }
+  if (ws.primaryWeapon && WEAPONS[ws.primaryWeapon]) {
+    next.primaryAmmo = WEAPONS[ws.primaryWeapon].mag;
+    next.primaryReserve = WEAPONS[ws.primaryWeapon].reserveAmmo;
+  }
+  if (ws.secondaryWeapon && WEAPONS[ws.secondaryWeapon]) {
+    next.secondaryAmmo = WEAPONS[ws.secondaryWeapon].mag;
+    next.secondaryReserve = WEAPONS[ws.secondaryWeapon].reserveAmmo;
+  }
+  useWeaponStore.setState(next);
+}
+
 // ── Wave scaling per doc §3: base 6, +4 per wave ──────────────────────────
-export function waveCount(wave: number): number {
+function waveCount(wave: number): number {
   return WAVE_CONFIG.baseZombieCount + (wave - 1) * WAVE_CONFIG.zombiesPerWave;
 }
 
@@ -70,54 +92,7 @@ interface AcidDot {
 }
 
 // ── Obstacle helpers ───────────────────────────────────────────────────────
-const ZOMBIE_RADIUS = 0.6;
-
-function pushOutOfObstacles(x: number, z: number): { x: number; z: number } {
-  let px = x, pz = z;
-  for (const obs of MAP_OBSTACLES) {
-    if (obs.material === "wood") continue; // zombies can break through wood
-    const cx = Math.max(obs.minX, Math.min(px, obs.maxX));
-    const cz = Math.max(obs.minZ, Math.min(pz, obs.maxZ));
-    const dx = px - cx, dz = pz - cz;
-    const dist = Math.hypot(dx, dz);
-    if (dist < ZOMBIE_RADIUS && dist > 0) {
-      const push = ZOMBIE_RADIUS - dist;
-      px += (dx / dist) * push;
-      pz += (dz / dist) * push;
-    }
-  }
-  return { x: px, z: pz };
-}
-
-/** Ray-vs-AABB slab test. Returns true if ray hits the obstacle. */
-function rayHitsAABB(
-  ox: number, oz: number, dx: number, dz: number,
-  obs: MapObstacle, maxDist: number,
-): boolean {
-  const invDx = dx === 0 ? Infinity : 1 / dx;
-  const invDz = dz === 0 ? Infinity : 1 / dz;
-  let t1 = (obs.minX - ox) * invDx;
-  let t2 = (obs.maxX - ox) * invDx;
-  if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
-  let tz1 = (obs.minZ - oz) * invDz;
-  let tz2 = (obs.maxZ - oz) * invDz;
-  if (tz1 > tz2) { const tmp = tz1; tz1 = tz2; tz2 = tmp; }
-  const tEnter = Math.max(t1, tz1);
-  const tExit = Math.min(t2, tz2);
-  return tExit >= 0 && tEnter <= tExit && tEnter <= maxDist;
-}
-
-function hasLineOfSight(ox: number, oz: number, tx: number, tz: number): boolean {
-  const dx = tx - ox, dz = tz - oz;
-  const dist = Math.hypot(dx, dz);
-  if (dist < 0.1) return true;
-  const ndx = dx / dist, ndz = dz / dist;
-  for (const obs of MAP_OBSTACLES) {
-    if (obs.material === "wood") continue;
-    if (rayHitsAABB(ox, oz, ndx, ndz, obs, dist)) return false;
-  }
-  return true;
-}
+const ZOMBIE_RADIUS = 0.55;
 
 // ── Engine ─────────────────────────────────────────────────────────────────
 export class ZombieEngine {
@@ -127,7 +102,7 @@ export class ZombieEngine {
   private spawnTimer = 0;
   private engineId = 0;
   private playerX = 0;
-  private playerZ = -30;
+  private playerZ = 0;
   private difficulty = 1.0;
 
   /** Frame-based acid DOTs — replaces leaking setInterval */
@@ -296,10 +271,11 @@ export class ZombieEngine {
       const spd = cfg.speed * this.difficulty;
       z.x += ((dx / dist) * spd + sepX) * dt;
       z.z += ((dz / dist) * spd + sepZ) * dt;
-      // Push out of solid obstacles (metal/concrete walls)
-      const pushed = pushOutOfObstacles(z.x, z.z);
+      const pushed = pushOutSurvival(z.x, z.z, ZOMBIE_RADIUS);
       z.x = pushed.x;
       z.z = pushed.z;
+      z.x = THREE.MathUtils.clamp(z.x, SURVIVAL_BOUNDS.minX + 1, SURVIVAL_BOUNDS.maxX - 1);
+      z.z = THREE.MathUtils.clamp(z.z, SURVIVAL_BOUNDS.minZ + 1, SURVIVAL_BOUNDS.maxZ - 1);
       z.rotationY = Math.atan2(dx, dz);
     }
 
@@ -331,15 +307,21 @@ export class ZombieEngine {
   private spawnZombie(type: ZombieType) {
     const cfg = ZOMBIE_CFG[type];
     const id = `z_${this.engineId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-    const ang = Math.random() * Math.PI * 2;
-    const r = 40 + Math.random() * 12;
+    let spawn = SURVIVAL_SPAWNS[0];
+    let bestD = -1;
+    for (const s of SURVIVAL_SPAWNS) {
+      const d = Math.hypot(s.x - this.playerX, s.z - this.playerZ);
+      if (d > bestD) { bestD = d; spawn = s; }
+    }
+    if (Math.random() < 0.55) {
+      spawn = SURVIVAL_SPAWNS[Math.floor(Math.random() * SURVIVAL_SPAWNS.length)];
+    }
     const hp = cfg.hp * this.difficulty;
-    const b = ZOMBIE_MAP_BOUNDARY;
     const z: ZombieState = {
       id, type,
-      x: THREE.MathUtils.clamp(this.playerX + Math.cos(ang) * r, b.minX + 2, b.maxX - 2),
+      x: spawn.x + (Math.random() - 0.5) * 1.4,
       y: 0,
-      z: THREE.MathUtils.clamp(this.playerZ + Math.sin(ang) * r, b.minZ + 2, b.maxZ - 2),
+      z: spawn.z + (Math.random() - 0.5) * 1.4,
       rotationY: 0,
       hp, maxHp: hp,
       speed: cfg.speed, damage: cfg.damage,
@@ -366,6 +348,7 @@ export class ZombieEngine {
       store.setPlayer(pl => ({ ...pl, hp: newHp, armor: newArmor }));
     }
     zombieEvents.emit({ type: "playerDamaged", source });
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("zombieDamageTaken"));
   }
 
   // ── Frame-based acid DOT (replaces setInterval) ─────────────────────────
@@ -401,12 +384,9 @@ export class ZombieEngine {
   private onWaveComplete() {
     const store = useZombieStore.getState();
     const wave = store.currentWave;
-    store.setWaveState("wave_clear");
-    store.setInterWaveTimer(WAVE_CONFIG.interWaveTime);
-    store.addPoints(wave * 50);
-    if (wave >= 10 && !store.extractionAvailable) {
-      store.setExtractionState(false, 0, true);
-    }
+    store.setWaveState("buy_phase");
+    store.setInterWaveTimer(12);
+    store.addPoints(wave * 80);
     zombieEvents.emit({ type: "waveClear", wave });
   }
 
@@ -415,6 +395,8 @@ export class ZombieEngine {
     const now = Date.now();
     const expired = store.powerUps.filter(p => now - p.spawnTime > p.duration * 1000);
     expired.forEach(p => store.removePowerUp(p.id));
+    const expiredLoot = store.loot.filter(p => now - p.spawnTime > 25000);
+    expiredLoot.forEach(p => store.removeLoot(p.id));
     const newMap = new Map(store.player.activePowerUps);
     let changed = false;
     newMap.forEach((t, k) => { if (now > t) { newMap.delete(k); changed = true; } });
@@ -437,6 +419,7 @@ export class ZombieEngine {
       const pts = isHeadshot ? cfg.points + ZOMBIE_POINTS.headshotBonus : cfg.points;
       store.addPoints(pts);
       if (Math.random() < POWERUP_DROP_CHANCE) this.spawnPowerUp(z.x, z.z);
+      this.maybeSpawnLoot(z.x, z.z);
     }
     zombieEvents.emit({ type: "zombieHit", headshot: isHeadshot, damage: dmg });
     return true;
@@ -456,7 +439,7 @@ export class ZombieEngine {
       this._tB.copy(d).multiplyScalar(proj);
       this._tB.add(origin);
       if (this._tB.distanceTo(this._tCenter) < 0.6) {
-        if (!hasLineOfSight(origin.x, origin.z, z.x, z.z)) continue;
+        if (!survivalLineOfSight(origin.x, origin.z, z.x, z.z)) continue;
         hits.push({ id, dist: proj });
       }
     }
@@ -488,6 +471,24 @@ export class ZombieEngine {
     }
   }
 
+  private maybeSpawnLoot(x: number, z: number) {
+    const r = Math.random();
+    let kind: LootKind | null = null;
+    let weapon: string | undefined;
+    if (r < 0.12) kind = "health";
+    else if (r < 0.22) kind = "ammo";
+    else if (r < 0.28) kind = "armor";
+    else if (r < 0.34) {
+      kind = "weapon";
+      weapon = ["mp5", "ak47", "deagle", "m4a1"][Math.floor(Math.random() * 4)];
+    }
+    if (!kind) return;
+    useZombieStore.getState().addLoot({
+      id: `loot_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      kind, weapon, x, z, spawnTime: Date.now(),
+    });
+  }
+
   private spawnPowerUp(x: number, z: number) {
     const types: PowerUpType[] = ["max_ammo", "insta_kill", "double_points", "nuke", "speed_cola", "juggernog"];
     const type = types[Math.floor(Math.random() * types.length)];
@@ -507,6 +508,7 @@ export class ZombieEngine {
     switch (pu.type) {
       case "max_ammo":
         zombieEvents.emit({ type: "maxAmmo" });
+        refillAllAmmo();
         break;
       case "insta_kill": case "double_points": case "speed_cola": case "juggernog":
         store.setPlayer(p => {
@@ -519,6 +521,22 @@ export class ZombieEngine {
         for (const z of this.zombies.values()) this.killZombie(z);
         store.addPoints(400);
         break;
+    }
+  }
+
+  collectLoot(lootId: string) {
+    const store = useZombieStore.getState();
+    const item = store.loot.find(p => p.id === lootId);
+    if (!item) return;
+    store.removeLoot(lootId);
+    if (item.kind === "health") {
+      store.setPlayer(p => ({ ...p, hp: Math.min(p.maxHp, p.hp + 40) }));
+    } else if (item.kind === "ammo") {
+      refillAllAmmo();
+    } else if (item.kind === "armor") {
+      store.setPlayer(p => ({ ...p, armor: Math.min(100, p.armor + 50) }));
+    } else if (item.kind === "weapon" && item.weapon) {
+      useWeaponStore.getState().equipWeapon(item.weapon as WeaponKey);
     }
   }
 

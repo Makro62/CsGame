@@ -3,6 +3,7 @@ import { useGameStore } from "../../stores/useGameStore"
 import { HUD_FONT, HUD_MONO, hudPanel } from "../../ui/hudTheme"
 import { Bot, type BotDifficulty, type BotBehavior } from "./Bot"
 import { TRAINING_PANEL_ANCHOR, TRAINING_PANEL_WIDTH } from "./trainingHud"
+import { gameEvents } from "../../lib/gameEvents"
 
 // Bot zone of TrainingArena, kept clear of the firing line
 const SPAWN_RANGE = { x: [-16, 16], z: [-40, -14] }
@@ -22,27 +23,37 @@ export function AimTrainer() {
     }>
   >([])
 
-  // Ensure bots are continuously populated up to botCount
-  useEffect(() => {
-    setActiveBots((prev) => {
-      if (prev.length === botCount) return prev
-      if (prev.length > botCount) return prev.slice(0, botCount)
+  const spawnBots = useCallback((count: number, diff: BotDifficulty) => {
+    const next = []
+    for (let i = 0; i < count; i++) {
+      const id = `bot-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`
+      const x =
+        SPAWN_RANGE.x[0] +
+        Math.random() * (SPAWN_RANGE.x[1] - SPAWN_RANGE.x[0])
+      const z =
+        SPAWN_RANGE.z[0] +
+        Math.random() * (SPAWN_RANGE.z[1] - SPAWN_RANGE.z[0])
+      const behavior = BEHAVIORS[i % BEHAVIORS.length]
+      next.push({ id, x, z, behavior, difficulty: diff })
+    }
+    setActiveBots(next)
+  }, [])
 
-      const next = [...prev]
-      while (next.length < botCount) {
-        const id = `bot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-        const x =
-          SPAWN_RANGE.x[0] +
-          Math.random() * (SPAWN_RANGE.x[1] - SPAWN_RANGE.x[0])
-        const z =
-          SPAWN_RANGE.z[0] +
-          Math.random() * (SPAWN_RANGE.z[1] - SPAWN_RANGE.z[0])
-        const behavior = BEHAVIORS[Math.floor(Math.random() * BEHAVIORS.length)]
-        next.push({ id, x, z, behavior, difficulty: botDifficulty })
-      }
-      return next
-    })
-  }, [botCount, botDifficulty])
+  // Initial and count/difficulty change sync
+  useEffect(() => {
+    spawnBots(botCount, botDifficulty)
+  }, [botCount, botDifficulty, spawnBots])
+
+  // Listen for reset drill event
+  useEffect(() => {
+    const onResetDrill = () => {
+      spawnBots(useGameStore.getState().botCount || 3, (useGameStore.getState().botDifficulty || 2) as BotDifficulty)
+    }
+    gameEvents.on("resetDrill", onResetDrill)
+    return () => {
+      gameEvents.off("resetDrill", onResetDrill)
+    }
+  }, [spawnBots])
 
   const handleBotKill = useCallback(() => {
     // Kill stats are incremented in damageTarget
@@ -62,9 +73,9 @@ export function AimTrainer() {
           position={[bot.x, 0, bot.z]}
           onHit={handleBotHit}
           onKill={handleBotKill}
-          difficulty={botDifficulty}
+          difficulty={bot.difficulty}
           behavior={bot.behavior}
-          respawnTime={2000}
+          respawnTime={1500}
         />
       ))}
     </group>
@@ -79,7 +90,6 @@ export function AimTrainerUI() {
   const stopTimer = useGameStore((s) => s.stopTimer)
   const setTimer = useGameStore((s) => s.setTimer)
   const resetStats = useGameStore((s) => s.resetStats)
-  const resetTargets = useGameStore((s) => s.resetTargets)
   const difficulty = useGameStore((s) => (s.botDifficulty || 2) as BotDifficulty)
   const setDifficulty = useGameStore((s) => s.setBotDifficulty)
   const botCount = useGameStore((s) => s.botCount || 3)
@@ -115,18 +125,20 @@ export function AimTrainerUI() {
     }
   }, [isTimerRunning])
 
-  const handleStart = () => {
-    resetTargets()
+  const handleStart = (e?: React.MouseEvent) => {
+    e?.stopPropagation()
     resetStats()
     setTimer(60)
     startTimer()
+    gameEvents.emit("resetDrill", {})
   }
 
-  const handleReset = () => {
+  const handleReset = (e?: React.MouseEvent) => {
+    e?.stopPropagation()
     stopTimer()
-    resetTargets()
     resetStats()
     setTimer(60)
+    gameEvents.emit("resetDrill", {})
   }
 
   const diffLabels: Record<BotDifficulty, string> = {
@@ -152,7 +164,10 @@ export function AimTrainerUI() {
         color: "white",
         fontFamily: HUD_FONT,
         userSelect: "none",
+        pointerEvents: "auto",
+        zIndex: 150,
       }}
+      onClick={(e) => e.stopPropagation()}
     >
       <div
         style={{
@@ -160,6 +175,7 @@ export function AimTrainerUI() {
           padding: "16px",
           borderRadius: 14,
           width: TRAINING_PANEL_WIDTH,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.65), 0 0 20px rgba(56, 189, 248, 0.2)",
         }}
       >
         {/* Header */}
@@ -213,7 +229,10 @@ export function AimTrainerUI() {
             {([1, 2, 3, 4, 5] as BotDifficulty[]).map((d) => (
               <button
                 key={d}
-                onClick={() => setDifficulty(d)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDifficulty(d)
+                }}
                 style={{
                   flex: 1,
                   padding: "6px 0",
@@ -225,7 +244,7 @@ export function AimTrainerUI() {
                   borderRadius: "6px",
                   cursor: "pointer",
                   boxShadow: difficulty === d ? `0 0 10px ${diffColors[d]}88` : "none",
-                  transition: "all 0.2s",
+                  transition: "all 0.15s",
                 }}
               >
                 {d}
@@ -239,34 +258,40 @@ export function AimTrainerUI() {
           <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "6px", fontWeight: "bold" }}>TARGET DUMMIES / BOTS</div>
           <div style={{ display: "flex", gap: "6px", alignItems: "center", background: "rgba(0,0,0,0.3)", padding: "4px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.06)" }}>
             <button
-              onClick={() => setBotCount(Math.max(1, botCount - 1))}
+              onClick={(e) => {
+                e.stopPropagation()
+                setBotCount(Math.max(1, botCount - 1))
+              }}
               style={{
-                width: "28px",
-                height: "28px",
-                fontSize: "14px",
+                width: "30px",
+                height: "30px",
+                fontSize: "16px",
                 fontWeight: "bold",
-                background: "rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.1)",
                 color: "white",
-                border: "none",
+                border: "1px solid rgba(255,255,255,0.15)",
                 borderRadius: "6px",
                 cursor: "pointer",
               }}
             >
               -
             </button>
-            <div style={{ flex: 1, textAlign: "center", fontSize: "14px", fontWeight: 800, color: "#38bdf8" }}>
+            <div style={{ flex: 1, textAlign: "center", fontSize: "13px", fontWeight: 800, color: "#38bdf8" }}>
               {botCount} ACTIVE
             </div>
             <button
-              onClick={() => setBotCount(Math.min(MAX_BOTS, botCount + 1))}
+              onClick={(e) => {
+                e.stopPropagation()
+                setBotCount(Math.min(MAX_BOTS, botCount + 1))
+              }}
               style={{
-                width: "28px",
-                height: "28px",
-                fontSize: "14px",
+                width: "30px",
+                height: "30px",
+                fontSize: "16px",
                 fontWeight: "bold",
-                background: "rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.1)",
                 color: "white",
-                border: "none",
+                border: "1px solid rgba(255,255,255,0.15)",
                 borderRadius: "6px",
                 cursor: "pointer",
               }}
@@ -327,7 +352,10 @@ export function AimTrainerUI() {
             </button>
           ) : (
             <button
-              onClick={stopTimer}
+              onClick={(e) => {
+                e.stopPropagation()
+                stopTimer()
+              }}
               style={{
                 flex: 1,
                 padding: "10px 0",

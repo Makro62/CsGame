@@ -14,7 +14,8 @@ export type GameEvents = {
   weaponFired: { weapon: string; akimboSide: 1 | -1 }
   buyResult: { item: string; ok: boolean; reason?: BuyFailReason }
   ffVoteStarted: { initiatorId: string; initiatorName: string; team: string }
-  forfeitAccepted: { surrenderedTeam: string; winner: string }
+  resetDrill: Record<string, never> | undefined
+  hitMarker: { headshot: boolean }
 }
 
 export const gameEvents = mitt<GameEvents>()

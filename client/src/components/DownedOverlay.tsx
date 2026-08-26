@@ -12,7 +12,7 @@ export function DownedOverlay() {
           <div className="h-full bg-green-500 transition-all" style={{width: `${player.reviveProgress*100}%`}} />
         </div>
       )}
-      <div className="text-gray-300 mt-4 text-sm">Hold [F] to revive yourself (costs 500 points)</div>
+      <div className="text-gray-300 mt-4 text-sm">Bleedout — game over jika timer habis</div>
     </div>
   );
 }

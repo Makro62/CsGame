@@ -80,6 +80,7 @@ interface MinecraftCharacterProps {
   limbSwingSpeed?: number;
   holdWeapon?: boolean;
   motionRef?: MutableRefObject<{ moving: boolean; sprinting: boolean }>;
+  playerId?: string;
 }
 
 // ============================================================================
@@ -95,6 +96,7 @@ export function MinecraftCharacter({
   limbSwingSpeed = 0,
   holdWeapon = false,
   motionRef,
+  playerId,
 }: MinecraftCharacterProps) {
   const leftArmRef = useRef<THREE.Group>(null);
   const rightArmRef = useRef<THREE.Group>(null);
@@ -157,19 +159,19 @@ export function MinecraftCharacter({
       {/* ── Head ── */}
       <group position={[0, 1.45, 0]}>
         {/* Helmet */}
-        <mesh position={[0, 0.05, 0]} castShadow>
+        <mesh position={[0, 0.05, 0]} castShadow userData={playerId ? { playerId, isHead: true } : undefined}>
           <boxGeometry args={[0.40, 0.40, 0.40]} />
           <meshStandardMaterial map={helmetTexture} opacity={opacity} transparent />
         </mesh>
         {/* Face */}
-        <mesh position={[0, -0.02, 0.211]} castShadow>
+        <mesh position={[0, -0.02, 0.211]} castShadow userData={playerId ? { playerId, isHead: true } : undefined}>
           <planeGeometry args={[0.36, 0.36]} />
           <meshStandardMaterial map={faceTexture} opacity={opacity} transparent />
         </mesh>
       </group>
 
       {/* ── Torso ── */}
-      <mesh position={[0, 0.8, 0]} castShadow>
+      <mesh position={[0, 0.8, 0]} castShadow userData={playerId ? { playerId, isHead: false } : undefined}>
         <boxGeometry args={[0.5, 0.8, 0.3]} />
         <meshStandardMaterial color={shirtColor} emissive={shirtColor} emissiveIntensity={0.15} opacity={opacity} transparent />
       </mesh>

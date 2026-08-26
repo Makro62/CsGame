@@ -12,6 +12,7 @@ import { HitMarker } from "../../components/HitMarker";
 import { ClickToPlayOverlay } from "../../components/ClickToPlayOverlay";
 import { AudioManager } from "../../components/AudioManager";
 import SniperScope from "../../components/SniperScope";
+import { ADSOpticSight } from "../../components/ADSOpticSight";
 import SettingsMenu from "../../screens/SettingsMenu";
 import { AimTrainer, AimTrainerUI } from "./AimTrainer";
 import { RecoilPractice, RecoilPracticeUI } from "./RecoilPractice";
@@ -393,6 +394,7 @@ export function TrainingRange() {
       <FlashEffect />
       <Crosshair />
       <SniperScope />
+      <ADSOpticSight />
       <HitMarker />
       <HUDLayout />
       <AudioManager />

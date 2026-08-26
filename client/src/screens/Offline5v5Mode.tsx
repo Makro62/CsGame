@@ -15,6 +15,7 @@ import { BuyMenu } from "../components/BuyMenu";
 import { DamageVignette } from "../components/DamageVignette";
 import { DeathScreen } from "../components/DeathScreen";
 import SniperScope from "../components/SniperScope";
+import { ADSOpticSight } from "../components/ADSOpticSight";
 import { FlashEffect } from "../components/FlashEffect";
 import { TracerManager } from "../game/effects/TracerManager";
 import { CalloutLabels } from "../game/map/CalloutLabels";
@@ -31,11 +32,21 @@ function RemoteBots() {
   const bots = Array.from(players.values()).filter(p => p.id !== "local");
   return (
     <>
-      {bots.map(bot => (
-        <group key={bot.id} position={[bot.x, 0, bot.z]} rotation={[0, bot.rotationY, 0]}>
-          <MinecraftCharacter team={bot.team as "T"|"CT"} isDead={bot.isDead} holdWeapon />
-        </group>
-      ))}
+      {bots.map(bot => {
+        const moving = bot.botState === "patrol" || bot.botState === "retreat" || bot.botState === "engage";
+        return (
+          <group key={bot.id} position={[bot.x, 0, bot.z]} rotation={[0, bot.rotationY, 0]}>
+            <MinecraftCharacter
+              team={bot.team as "T"|"CT"}
+              isDead={bot.isDead}
+              holdWeapon
+              playerId={bot.id}
+              limbSwingSpeed={moving ? 8 : 0}
+              isSprinting={moving}
+            />
+          </group>
+        );
+      })}
     </>
   );
 }
@@ -67,6 +78,7 @@ export function Offline5v5Mode() {
   const teamRedScore = useOffline5v5Store(s => s.teamRedScore);
   const teamBlueScore = useOffline5v5Store(s => s.teamBlueScore);
   const initMatch = useOffline5v5Store(s => s.initMatch);
+  const me = useOffline5v5Store(s => s.players.get("local"));
   const MapComp = getMapById("container_yard").component;
   const inited = useRef(false);
 
@@ -137,7 +149,51 @@ export function Offline5v5Mode() {
       </div>
 
       <Crosshair />
+      {/* Offline HUD — HP, Armor, Money, Ammo, Weapon, Bomb */}
+      {me && !me.isDead && phase !== "matchEnd" && (
+        <>
+          {/* Bottom-left: HP + Armor */}
+          <div style={{ position:"fixed", bottom:16, left:16, zIndex:40, background:"rgba(15,23,42,0.85)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:10, padding:"10px 16px", color:"#fff", fontFamily:"monospace", fontSize:13, minWidth:140 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+              <span style={{ color: me.hp > 60 ? "#4ade80" : me.hp > 25 ? "#facc15" : "#ef4444", fontWeight:"bold", fontSize:18 }}>{Math.ceil(me.hp)}</span>
+              <span style={{ color:"#94a3b8", fontSize:11 }}>HP</span>
+            </div>
+            {me.armor > 0 && (
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ color:"#60a5fa", fontSize:14 }}>{me.armor}</span>
+                <span style={{ color:"#94a3b8", fontSize:11 }}>{me.hasHelmet ? "Armor+Helmet" : "Armor"}</span>
+              </div>
+            )}
+          </div>
+          {/* Bottom-right: Ammo + Weapon */}
+          <div style={{ position:"fixed", bottom:16, right:16, zIndex:40, background:"rgba(15,23,42,0.85)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:10, padding:"10px 16px", color:"#fff", fontFamily:"monospace", fontSize:13, textAlign:"right", minWidth:140 }}>
+            <div style={{ color:"#e2e8f0", fontSize:12, marginBottom:2, textTransform:"uppercase" }}>{me.currentWeapon}</div>
+            <div><span style={{ color:"#facc15", fontSize:18, fontWeight:"bold" }}>{me.ammo}</span> <span style={{ color:"#94a3b8" }}>/ {me.reserveAmmo}</span></div>
+          </div>
+          {/* Bottom-center: Money */}
+          <div style={{ position:"fixed", bottom:16, left:"50%", transform:"translateX(-50%)", zIndex:40, background:"rgba(15,23,42,0.85)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:10, padding:"6px 14px", color:"#fff", fontFamily:"monospace", fontSize:13 }}>
+            <span style={{ color:"#4ade80", fontWeight:"bold" }}>${me.money}</span>
+          </div>
+          {/* Bomb indicator */}
+          {me.hasBomb && me.team === "T" && (
+            <div style={{ position:"fixed", bottom:50, left:"50%", transform:"translateX(-50%)", zIndex:40, background:"rgba(234,179,8,0.2)", border:"1px solid #eab308", borderRadius:8, padding:"4px 12px", color:"#facc15", fontFamily:"monospace", fontSize:12, fontWeight:"bold" }}>
+              BOMB [E to plant]
+            </div>
+          )}
+          {me.isPlanting && (
+            <div style={{ position:"fixed", top:"40%", left:"50%", transform:"translate(-50%,-50%)", zIndex:50, background:"rgba(234,179,8,0.3)", border:"2px solid #eab308", borderRadius:12, padding:"12px 24px", color:"#facc15", fontFamily:"monospace", fontSize:16, fontWeight:"bold", textAlign:"center" }}>
+              PLANTING BOMB... Hold [E]
+            </div>
+          )}
+          {me.isDefusing && (
+            <div style={{ position:"fixed", top:"40%", left:"50%", transform:"translate(-50%,-50%)", zIndex:50, background:"rgba(96,165,250,0.3)", border:"2px solid #60a5fa", borderRadius:12, padding:"12px 24px", color:"#93c5fd", fontFamily:"monospace", fontSize:16, fontWeight:"bold", textAlign:"center" }}>
+              DEFUSING... Hold [E]
+            </div>
+          )}
+        </>
+      )}
       <SniperScope />
+      <ADSOpticSight />
       <HitMarker />
       <DamageVignette />
       <DeathScreen />

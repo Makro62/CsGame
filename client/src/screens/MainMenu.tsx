@@ -95,7 +95,7 @@ const MODES: ModeCard[] = [
   {
     id: "zombie",
     title: "ZOMBIE SURVIVAL",
-    tagline: "Wave survival arcade di Outpost Z-7.",
+    tagline: "Arena twin-stick horde — gaya Alien Shooter.",
     badge: "SOLO · OFFLINE",
     accent: "#ef4444",
     accentSoft: "rgba(239, 68, 68,",
@@ -103,23 +103,23 @@ const MODES: ModeCard[] = [
     image: zombieThumb,
     charArt: zombieCharArt,
     iconType: "biohazard",
-    features: ["Shop senjata & Pack-a-Punch", "Med station & extraction"],
+    features: ["Kamera isometric, mouse aim", "Wave otomatis, loot & shop senjata"],
     highlights: [
-      { icon: "biohazard", text: "Shop senjata & Pack-a-Punch" },
-      { icon: "med", text: "Med station & extraction" },
+      { icon: "biohazard", text: "Horde dari semua arah, arena 4 ruangan" },
+      { icon: "ammo", text: "Pickup senjata, HP, ammo + shop antar wave" },
     ],
     controls: [
       { key: "WASD", label: "gerak" },
-      { key: "LMB", label: "Tembak" },
-      { key: "F", label: "interaksi" },
+      { key: "Mouse", label: "aim" },
+      { key: "LMB", label: "tembak" },
       { key: "B", label: "shop" },
     ],
-    action: "MASUK OUTBREAK",
+    action: "MASUK ARENA",
   },
   {
     id: "l4d",
     title: "LEFT 4 DEAD – CAMPAIGN",
-    tagline: "4 survivors, Director AI, horde & rescue (mirip L4D).",
+    tagline: "First-person campaign 4 survivor, Director AI, rescue.",
     badge: "SOLO + 3 BOT · OFFLINE",
     accent: "#10b981",
     accentSoft: "rgba(16, 185, 129,",
@@ -128,46 +128,23 @@ const MODES: ModeCard[] = [
     charArt: survivorCharArt,
     iconType: "skull",
     features: [
-      "START SafeRoom - FINALE Rescue (4 chapter)",
-      "Special: Hunter/Smoker/Boomer/Tank/Witch",
-      "Director horde & crescendo",
+      "FPS: Safe Room → Traverse → Finale Rescue",
+      "Special: Hunter pin, Smoker grab, Boomer bile, Tank, Witch",
+      "Director horde, crescendo, 3 bot teammate",
     ],
     highlights: [
-      { icon: "target", text: "START SafeRoom → FINALE Rescue (4 ch)" },
-      { icon: "biohazard", text: "Special: Hunter/Smoker/Boomer/Tank/Witch" },
-      { icon: "shield", text: "Director horde & crescendo events" },
+      { icon: "target", text: "First-person, 4 chapter linear campaign" },
+      { icon: "biohazard", text: "Hunter / Smoker / Boomer / Tank / Witch" },
+      { icon: "shield", text: "Bot revive & rescue vehicle finale" },
     ],
     controls: [
       { key: "WASD", label: "gerak" },
-      { key: "LMB", label: "Tembak" },
-      { key: "F", label: "tolong/revive" },
-      { key: "Tahan", label: "di Rescue" },
+      { key: "LMB", label: "tembak" },
+      { key: "RMB", label: "ADS" },
+      { key: "F", label: "revive" },
     ],
     action: "MULAI CAMPAIGN",
   },
-];
-
-const CODE_STREAM = [
-  "0x004F_SYS_CORE_INIT // OK",
-  "0x008A_SECTOR_OUTPOST_Z7",
-  "0x011C_DIRECTOR_AI_STANDBY",
-  "0x024E_NET_LINK_OFFLINE",
-  "0x039F_RECOIL_TBL_SYNCED",
-  "0x04A1_ASSET_CACHE_VALID",
-  "0x05B2_AUDIO_DSP_LOW_LAT",
-  "0x06C3_SURVIVORS_SLOT_4/4",
-  "0x07D4_PHYSX_COLLISION_OK",
-  "0x08E5_SHADOW_CULL_READY",
-  "0x09F6_BOT_TACTIC_LOADED",
-  "0x0A07_WEAPON_DATA_PARSED",
-  "0x0B18_FRAME_PACING_SYNC",
-  "0x0C29_HUD_VECTOR_MOUNT",
-  "0x0D3A_SECURITY_GATE_OP",
-  "0x0E4B_CONTAINER_YARD_MAP",
-  "0x0F5C_RENDER_PIPELINE_GL",
-  "0x106D_BUFFER_STREAM_LOCK",
-  "0x117E_RAYCAST_AIM_READY",
-  "0x128F_CS_FPS_CORE_V2.6",
 ];
 
 const KEYFRAMES = `
@@ -194,10 +171,6 @@ const KEYFRAMES = `
 @keyframes scanlines {
   0% { background-position: 0 0; }
   100% { background-position: 0 100%; }
-}
-@keyframes dataFlicker {
-  0%, 100% { opacity: 0.18; }
-  50% { opacity: 0.28; }
 }
 `;
 
@@ -267,15 +240,6 @@ export function MainMenu() {
 
       {/* Cyber tactical grid background */}
       <div style={styles.gridOverlay} />
-
-      {/* Left side data stream code watermark */}
-      <div style={styles.dataStreamContainer}>
-        {CODE_STREAM.map((line, idx) => (
-          <div key={idx} style={styles.dataStreamLine}>
-            {line}
-          </div>
-        ))}
-      </div>
 
       {/* Bottom metallic floor grating / neon bar lighting */}
       <div style={styles.floorContainer}>
@@ -613,27 +577,7 @@ const styles: Record<string, CSSProperties> = {
     WebkitMaskImage: "radial-gradient(ellipse 95% 85% at 50% 30%, #000 40%, transparent 100%)",
     zIndex: 1,
   },
-  dataStreamContainer: {
-    position: "fixed",
-    left: "14px",
-    top: "140px",
-    bottom: "60px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "5px",
-    pointerEvents: "none",
-    zIndex: 1,
-    opacity: 0.22,
-    fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace",
-    fontSize: "9px",
-    color: "#38bdf8",
-    letterSpacing: "0.06em",
-    userSelect: "none",
-    animation: "dataFlicker 6s infinite ease-in-out",
-  },
-  dataStreamLine: {
-    whiteSpace: "nowrap",
-  },
+
   floorContainer: {
     position: "fixed",
     bottom: 0,

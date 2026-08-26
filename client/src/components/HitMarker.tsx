@@ -1,12 +1,27 @@
-// @ts-nocheck
-import { useNetworkStore } from "../stores/useNetworkStore";
+import { useEffect, useState } from "react";
+import { gameEvents } from "../lib/gameEvents";
 
 export function HitMarker() {
-  const hitMarker = useNetworkStore((s) => s.hitMarker);
+  const [show, setShow] = useState(false);
+  const [headshot, setHeadshot] = useState(false);
 
-  if (!hitMarker) return null;
+  useEffect(() => {
+    const off = gameEvents.on("hitMarker", (data) => {
+      setHeadshot(data.headshot);
+      setShow(true);
+    });
+    return off;
+  }, []);
 
-  const color = hitMarker.headshot ? "#ef4444" : "white";
+  useEffect(() => {
+    if (!show) return;
+    const t = setTimeout(() => setShow(false), 150);
+    return () => clearTimeout(t);
+  }, [show]);
+
+  if (!show) return null;
+
+  const color = headshot ? "#ef4444" : "white";
 
   return (
     <div

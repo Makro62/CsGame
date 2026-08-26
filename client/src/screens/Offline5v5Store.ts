@@ -736,6 +736,20 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       }
     });
 
+    // ── Local player pick up dropped bomb ──
+    if (bombState.bombDropped) {
+      const local = players.get("local");
+      if (local && !local.isDead && local.team === "T" && !local.hasBomb) {
+        const dx = bombState.bombDropX - local.x;
+        const dz = bombState.bombDropZ - local.z;
+        if (Math.hypot(dx, dz) < 2) {
+          const updated = { ...local, hasBomb: true };
+          players.set("local", updated);
+          bombState.bombDropped = false;
+        }
+      }
+    }
+
     // ── Bomb timer ──
     let bombPlanted = bombState.bombPlanted;
     let bombTimeLeft = bombState.bombTimeLeft;

@@ -1,30 +1,29 @@
-// @ts-nocheck
 import { useEffect, useState } from "react";
-import { useNetworkStore } from "../stores/useNetworkStore";
+import { useOffline5v5Store } from "../screens/Offline5v5Store";
+import { useGameStore } from "../stores/useGameStore";
 
-const RESPAWN_TIME = 4; // Slightly longer than server's 3s to account for latency
+const RESPAWN_TIME = 4;
 
 export function DeathScreen() {
-  const localIsDead = useNetworkStore((s) => s.localIsDead);
-  const connected = useNetworkStore((s) => s.connected);
-  const deathRecap = useNetworkStore((s) => s.deathRecap);
+  const gameMode = useGameStore((s) => s.mode);
+  const offlineIsDead = useOffline5v5Store(s => s.players.get("local")?.isDead ?? false);
   const [countdown, setCountdown] = useState(RESPAWN_TIME);
 
-  useEffect(() => {
-    if (localIsDead) {
-      setCountdown(RESPAWN_TIME);
-    }
-  }, [localIsDead]);
+  const isDead = gameMode === "offline5v5" ? offlineIsDead : false;
 
   useEffect(() => {
-    if (!localIsDead) return;
+    if (isDead) setCountdown(RESPAWN_TIME);
+  }, [isDead]);
+
+  useEffect(() => {
+    if (!isDead) return;
     const interval = setInterval(() => {
       setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
-  }, [localIsDead]);
+  }, [isDead]);
 
-  if (!connected || !localIsDead) return null;
+  if (!isDead) return null;
 
   return (
     <div
@@ -54,50 +53,8 @@ export function DeathScreen() {
       >
         YOU DIED
       </div>
-      
-      {/* Death Recap */}
-      {deathRecap && (
-        <div
-          style={{
-            background: "rgba(0,0,0,0.7)",
-            padding: "16px 24px",
-            borderRadius: "8px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            marginBottom: "24px",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: "14px", color: "#888", marginBottom: "8px" }}>
-            Killed by
-          </div>
-          <div style={{ fontSize: "18px", fontWeight: "bold", color: "#ef4444", marginBottom: "8px" }}>
-            {deathRecap.killerName}
-          </div>
-          <div style={{ fontSize: "14px", color: "#ccc", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-            <span style={{ 
-              background: "rgba(255,255,255,0.1)", 
-              padding: "2px 8px", 
-              borderRadius: "4px",
-              textTransform: "uppercase",
-              fontSize: "12px"
-            }}>
-              {deathRecap.weapon}
-            </span>
-            {deathRecap.headshot && (
-              <span style={{ color: "#fbbf24", fontSize: "12px" }}>
-                HEADSHOT
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-      
-      <div
-        style={{
-          fontSize: "24px",
-          color: "#aaa",
-        }}
-      >
+
+      <div style={{ fontSize: "24px", color: "#aaa" }}>
         Respawn in {countdown}
       </div>
     </div>
