@@ -14,6 +14,7 @@ const GRENADE_WEAPONS = new Set(["he", "smoke", "flash"]);
 
 export function ZombieShootingSystem({ engineRef }: { engineRef?: React.RefObject<typeof zombieEngine | null> }) {
   const heldRef = useRef(false);
+  const rafRef = useRef(0);
 
   const shoot = useCallback(() => {
     const ws = useWeaponStore.getState();
@@ -55,11 +56,11 @@ export function ZombieShootingSystem({ engineRef }: { engineRef?: React.RefObjec
       }
     } else {
       const engine = engineRef?.current ?? zombieEngine;
-      engine.handleShoot(aim.origin.clone(), aim.direction.clone(), dmg, isHead);
+      engine.handleShoot(aim.origin, aim.direction, dmg, isHead);
     }
   }, [engineRef]);
 
-  // Single mouse handler + RAF auto-fire loop — merged from two separate effects
+  // Single mouse handler + gated RAF loop
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
@@ -70,7 +71,7 @@ export function ZombieShootingSystem({ engineRef }: { engineRef?: React.RefObjec
 
       heldRef.current = true;
 
-      // Dry fire → auto reload on empty (one-shot on click, not in loop)
+      // Dry fire → auto reload on empty
       const ws = useWeaponStore.getState();
       const weapon = ws.activeWeapon;
       if (
@@ -89,18 +90,20 @@ export function ZombieShootingSystem({ engineRef }: { engineRef?: React.RefObjec
       if (e.button === 0) heldRef.current = false;
     };
 
-    // Auto-fire RAF loop — fires every frame while held, canFire() gates rate
-    let raf = 0;
+    // RAF loop — only runs while mouse held AND in correct mode
     const loop = () => {
-      if (heldRef.current) shoot();
-      raf = requestAnimationFrame(loop);
+      if (heldRef.current) {
+        const mode = useGameStore.getState().mode;
+        if (mode === "zombie" || mode === "l4d") shoot();
+      }
+      rafRef.current = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
+    rafRef.current = requestAnimationFrame(loop);
 
     window.addEventListener("mousedown", onDown);
     window.addEventListener("mouseup", onUp);
     return () => {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(rafRef.current);
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("mouseup", onUp);
     };

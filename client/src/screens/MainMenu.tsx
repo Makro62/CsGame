@@ -2,90 +2,202 @@ import { CSSProperties, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useGameStore } from "../stores/useGameStore";
 import { MAPS } from "../game/map/MapRegistry";
-import { AnimatedLogo } from "../ui/components/menu/AnimatedLogo";
-import { GlassPanel } from "../ui/components/shared/GlassPanel";
-import { Badge } from "../ui/components/shared/Badge";
-import { HUD_MONO } from "../ui/hudTheme";
 
-type ModeId = "training" | "zombie" | "offline5v5" | "l4d";
+// Mode Assets
+import trainingThumb from "../assets/modes/training_thumb.jpg";
+import offline5v5Thumb from "../assets/modes/offline5v5_thumb.jpg";
+import zombieThumb from "../assets/modes/zombie_thumb.jpg";
+import l4dThumb from "../assets/modes/l4d_thumb.jpg";
+
+import zombieCharArt from "../assets/modes/zombie_char_art.jpg";
+import ctCharArt from "../assets/modes/ct_char_art.jpg";
+import trainingCharArt from "../assets/modes/training_char_art.jpg";
+import survivorCharArt from "../assets/modes/survivor_char_art.jpg";
+
+type ModeId = "training" | "offline5v5" | "zombie" | "l4d";
+
+interface ModeHighlight {
+  icon: "biohazard" | "med" | "target" | "ammo" | "shield";
+  text: string;
+}
+
+interface ModeControl {
+  key: string;
+  label: string;
+}
 
 interface ModeCard {
   id: ModeId;
-  glyph: string;
   title: string;
   tagline: string;
-  players: string;
+  badge: string;
   accent: string;
   accentSoft: string;
+  accentGlow: string;
+  image: string;
+  charArt: string;
+  iconType: "target" | "crosshair" | "biohazard" | "skull";
   features: string[];
-  controls: string[];
+  highlights: ModeHighlight[];
+  controls: ModeControl[];
   action: string;
-  variant: "success" | "warning" | "danger" | "info";
 }
 
 const MODES: ModeCard[] = [
   {
     id: "training",
-    glyph: "◎",
     title: "TRAINING RANGE",
     tagline: "Latihan aim dan recoil tanpa lawan.",
-    players: "SOLO · OFFLINE",
+    badge: "SOLO · OFFLINE",
     accent: "#22c55e",
-    accentSoft: "rgba(34,197,94,",
+    accentSoft: "rgba(34, 197, 94,",
+    accentGlow: "rgba(34, 197, 94, 0.4)",
+    image: trainingThumb,
+    charArt: trainingCharArt,
+    iconType: "target",
     features: ["Dummy, recoil wall, dan marker jarak", "Tidak butuh server"],
-    controls: ["WASD gerak", "LMB tembak", "R reload", "1–3 ganti senjata"],
+    highlights: [
+      { icon: "target", text: "Dummy presisi & recoil spray wall" },
+      { icon: "ammo", text: "Semua senjata CS bebas dicoba" },
+    ],
+    controls: [
+      { key: "WASD", label: "gerak" },
+      { key: "LMB", label: "Tembak" },
+      { key: "R", label: "reload" },
+      { key: "1–3", label: "ganti senjata" },
+    ],
     action: "MULAI LATIHAN",
-    variant: "success",
   },
   {
     id: "offline5v5",
-    glyph: "◎",
     title: "5V5 OFFLINE",
     tagline: "Bomb defusal lokal lawan 9 bot.",
-    players: "SOLO · OFFLINE",
+    badge: "SOLO · OFFLINE",
     accent: "#f59e0b",
-    accentSoft: "rgba(245,158,11,",
+    accentSoft: "rgba(245, 158, 11,",
+    accentGlow: "rgba(245, 158, 11, 0.4)",
+    image: offline5v5Thumb,
+    charArt: ctCharArt,
+    iconType: "crosshair",
     features: ["Ekonomi, buy menu, plant / defuse", "Map: Container Yard"],
-    controls: ["WASD gerak", "LMB tembak", "B buy menu", "E plant / defuse"],
+    highlights: [
+      { icon: "shield", text: "Ekonomi ronde CS & Buy Menu (B)" },
+      { icon: "target", text: "Bomb defusal & 9 bot AI taktis" },
+    ],
+    controls: [
+      { key: "WASD", label: "gerak" },
+      { key: "LMB", label: "Tembak" },
+      { key: "B", label: "buy menu" },
+      { key: "E", label: "plant / defuse" },
+    ],
     action: "MULAI OFFLINE",
-    variant: "warning",
   },
   {
     id: "zombie",
-    glyph: "☣",
     title: "ZOMBIE SURVIVAL",
     tagline: "Wave survival arcade di Outpost Z-7.",
-    players: "SOLO · OFFLINE",
-    accent: "#dc2626",
-    accentSoft: "rgba(220,38,38,",
+    badge: "SOLO · OFFLINE",
+    accent: "#ef4444",
+    accentSoft: "rgba(239, 68, 68,",
+    accentGlow: "rgba(239, 68, 68, 0.45)",
+    image: zombieThumb,
+    charArt: zombieCharArt,
+    iconType: "biohazard",
     features: ["Shop senjata & Pack-a-Punch", "Med station & extraction"],
-    controls: ["WASD gerak", "LMB tembak", "F interaksi", "B shop"],
+    highlights: [
+      { icon: "biohazard", text: "Shop senjata & Pack-a-Punch" },
+      { icon: "med", text: "Med station & extraction" },
+    ],
+    controls: [
+      { key: "WASD", label: "gerak" },
+      { key: "LMB", label: "Tembak" },
+      { key: "F", label: "interaksi" },
+      { key: "B", label: "shop" },
+    ],
     action: "MASUK OUTBREAK",
-    variant: "danger",
   },
   {
     id: "l4d",
-    glyph: "🧟",
-    title: "LEFT 4 DEAD — CAMPAIGN",
+    title: "LEFT 4 DEAD – CAMPAIGN",
     tagline: "4 survivors, Director AI, horde & rescue (mirip L4D).",
-    players: "SOLO + 3 BOT · OFFLINE",
-    accent: "#16a34a",
-    accentSoft: "rgba(22,163,74,",
-    features: ["START SafeRoom → FINALE Rescue (4 chapter)", "Special: Hunter/Smoker/Boomer/Tank/Witch", "Director horde & crescendo"],
-    controls: ["WASD gerak", "LMB tembak", "F tolong/revive", "Tahan di Rescue"],
+    badge: "SOLO + 3 BOT · OFFLINE",
+    accent: "#10b981",
+    accentSoft: "rgba(16, 185, 129,",
+    accentGlow: "rgba(16, 185, 129, 0.4)",
+    image: l4dThumb,
+    charArt: survivorCharArt,
+    iconType: "skull",
+    features: [
+      "START SafeRoom - FINALE Rescue (4 chapter)",
+      "Special: Hunter/Smoker/Boomer/Tank/Witch",
+      "Director horde & crescendo",
+    ],
+    highlights: [
+      { icon: "target", text: "START SafeRoom → FINALE Rescue (4 ch)" },
+      { icon: "biohazard", text: "Special: Hunter/Smoker/Boomer/Tank/Witch" },
+      { icon: "shield", text: "Director horde & crescendo events" },
+    ],
+    controls: [
+      { key: "WASD", label: "gerak" },
+      { key: "LMB", label: "Tembak" },
+      { key: "F", label: "tolong/revive" },
+      { key: "Tahan", label: "di Rescue" },
+    ],
     action: "MULAI CAMPAIGN",
-    variant: "success",
   },
 ];
 
+const CODE_STREAM = [
+  "0x004F_SYS_CORE_INIT // OK",
+  "0x008A_SECTOR_OUTPOST_Z7",
+  "0x011C_DIRECTOR_AI_STANDBY",
+  "0x024E_NET_LINK_OFFLINE",
+  "0x039F_RECOIL_TBL_SYNCED",
+  "0x04A1_ASSET_CACHE_VALID",
+  "0x05B2_AUDIO_DSP_LOW_LAT",
+  "0x06C3_SURVIVORS_SLOT_4/4",
+  "0x07D4_PHYSX_COLLISION_OK",
+  "0x08E5_SHADOW_CULL_READY",
+  "0x09F6_BOT_TACTIC_LOADED",
+  "0x0A07_WEAPON_DATA_PARSED",
+  "0x0B18_FRAME_PACING_SYNC",
+  "0x0C29_HUD_VECTOR_MOUNT",
+  "0x0D3A_SECURITY_GATE_OP",
+  "0x0E4B_CONTAINER_YARD_MAP",
+  "0x0F5C_RENDER_PIPELINE_GL",
+  "0x106D_BUFFER_STREAM_LOCK",
+  "0x117E_RAYCAST_AIM_READY",
+  "0x128F_CS_FPS_CORE_V2.6",
+];
+
 const KEYFRAMES = `
-@keyframes menuRise {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes pulseActiveBorder {
+  0%, 100% {
+    box-shadow: 0 0 16px var(--glow-color), inset 0 0 10px var(--glow-color-subtle);
+  }
+  50% {
+    box-shadow: 0 0 24px var(--glow-color-bright), inset 0 0 14px var(--glow-color-subtle);
+  }
 }
-@keyframes glowBreathe {
-  0% { opacity: 0.12; transform: scale(1); }
-  100% { opacity: 0.24; transform: scale(1.12); }
+@keyframes pulseBtnGlow {
+  0%, 100% {
+    box-shadow: 0 0 18px var(--glow-color), 0 4px 12px rgba(0,0,0,0.6);
+  }
+  50% {
+    box-shadow: 0 0 28px var(--glow-color-bright), 0 6px 16px rgba(0,0,0,0.8);
+  }
+}
+@keyframes crosshairSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes scanlines {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 100%; }
+}
+@keyframes dataFlicker {
+  0%, 100% { opacity: 0.18; }
+  50% { opacity: 0.28; }
 }
 `;
 
@@ -95,9 +207,8 @@ export function MainMenu() {
   const [selected, setSelected] = useState<ModeId>("zombie");
 
   const activeMode = MODES.find((m) => m.id === selected) ?? MODES[2];
-  const availableMaps = selected === "offline5v5"
-    ? MAPS.filter((m) => m.id === "container_yard")
-    : MAPS;
+  const availableMaps =
+    selected === "offline5v5" ? MAPS.filter((m) => m.id === "container_yard") : MAPS;
 
   useEffect(() => {
     if (selected === "offline5v5" && currentMap !== "container_yard") {
@@ -132,152 +243,336 @@ export function MainMenu() {
   return (
     <div style={styles.root}>
       <style>{KEYFRAMES}</style>
-      <div style={{ ...styles.ambientGlow, top: "-18vw", left: "-12vw", background: "#1d4ed8" }} />
-      <div style={{ ...styles.ambientGlow, bottom: "-22vw", right: "-12vw", background: "#7c2d12", animationDelay: "2s" }} />
+
+      {/* Ambient background volumetric glow */}
+      <div
+        style={{
+          ...styles.ambientGlow,
+          top: "-15vw",
+          left: "-10vw",
+          background: "#0284c7",
+          opacity: 0.12,
+        }}
+      />
+      <div
+        style={{
+          ...styles.ambientGlow,
+          bottom: "-18vw",
+          right: "-8vw",
+          background: activeMode.accent,
+          opacity: 0.14,
+          transition: "background 0.5s ease",
+        }}
+      />
+
+      {/* Cyber tactical grid background */}
       <div style={styles.gridOverlay} />
 
+      {/* Left side data stream code watermark */}
+      <div style={styles.dataStreamContainer}>
+        {CODE_STREAM.map((line, idx) => (
+          <div key={idx} style={styles.dataStreamLine}>
+            {line}
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom metallic floor grating / neon bar lighting */}
+      <div style={styles.floorContainer}>
+        <div
+          style={{
+            ...styles.floorLightBeam,
+            background: `linear-gradient(90deg, transparent 0%, rgba(56,189,248,0.2) 20%, rgba(56,189,248,0.85) 50%, rgba(56,189,248,0.2) 80%, transparent 100%)`,
+          }}
+        />
+        <div style={styles.floorGrill} />
+      </div>
+
+      {/* Main container */}
       <div style={styles.container}>
+        {/* Top Header */}
         <header style={styles.header}>
           <div style={styles.logoRow}>
-            <AnimatedLogo size={36} />
+            {/* Custom Crosshair SVG Icon matching the reference */}
+            <div style={styles.logoIconWrap}>
+              <svg width="34" height="34" viewBox="0 0 34 34" fill="none" style={styles.crosshairSvg}>
+                <circle
+                  cx="17"
+                  cy="17"
+                  r="13.5"
+                  stroke="#38bdf8"
+                  strokeWidth="1.8"
+                  strokeDasharray="4 2"
+                />
+                <circle cx="17" cy="17" r="7" stroke="#38bdf8" strokeWidth="1.4" opacity="0.75" />
+                <line x1="17" y1="1" x2="17" y2="7" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                <line x1="17" y1="27" x2="17" y2="33" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                <line x1="1" y1="17" x2="7" y2="17" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                <line x1="27" y1="17" x2="33" y2="17" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                <circle cx="17" cy="17" r="2" fill="#38bdf8" />
+              </svg>
+            </div>
             <h1 style={styles.title}>CS WEB FPS</h1>
           </div>
+
+          {/* Nickname input top right */}
           <div style={styles.headerRight}>
-            <label style={styles.nickGroup}>
+            <div style={styles.nickGroup}>
               <span style={styles.nickLabel}>NICKNAME</span>
               <input
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 maxLength={16}
+                placeholder="Player"
                 style={styles.nickInput}
               />
-            </label>
+            </div>
           </div>
         </header>
 
-        <div style={styles.layout}>
-          <section style={styles.modesCol}>
-            <h2 style={styles.sectionTitle}>Pilih Mode</h2>
-            <div style={styles.modeGrid}>
+        {/* Dashboard 2-Column Content */}
+        <div style={styles.mainLayout}>
+          {/* Left Column: Pilih Mode (2x2 Grid) */}
+          <section style={styles.leftCol}>
+            <h2 style={styles.colTitle}>Pilih Mode</h2>
+            <div style={styles.cardGrid}>
               {MODES.map((mode) => {
                 const isActive = selected === mode.id;
                 return (
-                  <button
+                  <div
                     key={mode.id}
                     onClick={() => setSelected(mode.id)}
                     onDoubleClick={launchSelected}
                     style={{
                       ...styles.modeCard,
-                      background: isActive
-                        ? `linear-gradient(155deg, ${mode.accentSoft}0.2) 0%, rgba(15,22,42,0.96) 70%)`
-                        : "linear-gradient(180deg, #101a2e 0%, #0b1220 100%)",
-                      borderColor: isActive ? `${mode.accentSoft}0.85)` : "rgba(255,255,255,0.1)",
-                      boxShadow: isActive ? `0 10px 28px -8px ${mode.accentSoft}0.4)` : "none",
-                    }}
+                      borderColor: isActive ? mode.accent : "rgba(255, 255, 255, 0.08)",
+                      boxShadow: isActive
+                        ? `0 0 20px ${mode.accentGlow}, inset 0 0 14px ${mode.accentSoft}0.12)`
+                        : "0 4px 16px rgba(0, 0, 0, 0.4)",
+                      "--glow-color": mode.accentGlow,
+                      "--glow-color-bright": `${mode.accentSoft}0.65)`,
+                      "--glow-color-subtle": `${mode.accentSoft}0.12)`,
+                      animation: isActive ? "pulseActiveBorder 3s infinite ease-in-out" : "none",
+                    } as CSSProperties}
                   >
-                    <div style={styles.cardTop}>
-                      <span
+                    {/* Top Row: Icon Badge + Solo Badge */}
+                    <div style={styles.cardTopRow}>
+                      <div
                         style={{
-                          ...styles.cardIcon,
+                          ...styles.cardIconBox,
+                          borderColor: `${mode.accentSoft}0.65)`,
+                          backgroundColor: `${mode.accentSoft}0.15)`,
                           color: mode.accent,
-                          background: `${mode.accentSoft}0.14)`,
-                          border: `1px solid ${mode.accentSoft}0.35)`,
                         }}
                       >
-                        {mode.glyph}
-                      </span>
-                      <Badge variant={mode.variant} size="sm">{mode.players}</Badge>
+                        {mode.iconType === "target" && (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                            <circle cx="12" cy="12" r="10" />
+                            <circle cx="12" cy="12" r="6" />
+                            <circle cx="12" cy="12" r="2" fill="currentColor" />
+                          </svg>
+                        )}
+                        {mode.iconType === "crosshair" && (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                            <circle cx="12" cy="12" r="9" />
+                            <line x1="12" y1="2" x2="12" y2="7" />
+                            <line x1="12" y1="17" x2="12" y2="22" />
+                            <line x1="2" y1="12" x2="7" y2="12" />
+                            <line x1="17" y1="12" x2="22" y2="12" />
+                          </svg>
+                        )}
+                        {mode.iconType === "biohazard" && (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2a4 4 0 00-3.46 2H5.08a2 2 0 00-1.73 1l-2 3.46a2 2 0 000 2l2 3.46a2 2 0 001.73 1h3.46A4 4 0 0012 16a4 4 0 003.46-1.08h3.46a2 2 0 001.73-1l2-3.46a2 2 0 000-2l-2-3.46a2 2 0 00-1.73-1h-3.46A4 4 0 0012 2zm0 2a2 2 0 110 4 2 2 0 010-4zm0 8a2 2 0 110 4 2 2 0 010-4z" />
+                          </svg>
+                        )}
+                        {mode.iconType === "skull" && (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2a8 8 0 00-8 8c0 2.5 1.1 4.7 2.8 6.2.2.2.4.5.4.8v2a2 2 0 002 2h5.6a2 2 0 002-2v-2c0-.3.2-.6.4-.8C18.9 14.7 20 12.5 20 10a8 8 0 00-8-8zm-3 8a2 2 0 110-4 2 2 0 010 4zm6 0a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        )}
+                      </div>
+
+                      <div style={styles.cardPillBadge}>{mode.badge}</div>
                     </div>
-                    <h3 style={{ ...styles.cardTitle, color: isActive ? "#fff" : "#dbe4f0" }}>
-                      {mode.title}
-                    </h3>
-                    <p style={styles.cardTagline}>{mode.tagline}</p>
-                    <ul style={styles.cardFeatures}>
-                      {mode.features.map((feature) => (
-                        <li key={feature} style={styles.cardFeature}>
-                          <span style={{ color: mode.accent }}>›</span>
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  </button>
+
+                    {/* Mode Card Thumbnail Art */}
+                    <div style={styles.cardThumbWrap}>
+                      <img src={mode.image} alt={mode.title} style={styles.cardThumbImg} />
+                      <div style={styles.cardThumbGradient} />
+                    </div>
+
+                    {/* Mode Title & Description */}
+                    <div style={styles.cardTextContent}>
+                      <h3 style={styles.cardTitle}>{mode.title}</h3>
+                      <p style={styles.cardTagline}>{mode.tagline}</p>
+
+                      {/* Bullet features */}
+                      <div style={styles.cardBullets}>
+                        {mode.features.map((feat, fIdx) => (
+                          <div key={fIdx} style={styles.cardBulletItem}>
+                            <span style={styles.bulletArrow}>›</span>
+                            <span>{feat}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>
           </section>
 
-          <aside style={styles.detailCol}>
-            <h2 style={styles.sectionTitle}>Siap Dimainkan</h2>
-            <GlassPanel
+          {/* Right Column: Siap Dimainkan (Mode Preview & Launch Panel) */}
+          <aside style={styles.rightCol}>
+            <h2 style={styles.colTitle}>Siap Dimainkan</h2>
+            <div
               style={{
-                ...styles.detailPanel,
-                borderTop: `3px solid ${activeMode.accent}`,
-              }}
+                ...styles.previewPanel,
+                borderColor: activeMode.accent,
+                boxShadow: `0 0 24px ${activeMode.accentGlow}, inset 0 0 18px ${activeMode.accentSoft}0.1)`,
+                "--glow-color": activeMode.accentGlow,
+                "--glow-color-bright": `${activeMode.accentSoft}0.65)`,
+                "--glow-color-subtle": `${activeMode.accentSoft}0.12)`,
+                animation: "pulseActiveBorder 3s infinite ease-in-out",
+              } as CSSProperties}
             >
-              <p style={{ ...styles.detailTitle, color: activeMode.accent }}>{activeMode.title}</p>
-              <p style={styles.detailCopy}>{activeMode.tagline}</p>
-              <ul style={styles.detailList}>
-                {activeMode.features.map((feature) => (
-                  <li key={feature}>{feature}</li>
-                ))}
-              </ul>
-              <p style={styles.detailLabel}>Kontrol</p>
-              <div style={styles.controlRow}>
-                {activeMode.controls.map((hint) => (
-                  <span key={hint} style={styles.controlChip}>{hint}</span>
-                ))}
+              {/* Background Character Art on the right side */}
+              <div style={styles.charArtWrap}>
+                <img
+                  src={activeMode.charArt}
+                  alt={activeMode.title}
+                  style={styles.charArtImg}
+                />
+                <div style={styles.charArtOverlayGradient} />
               </div>
 
-              {selected === "offline5v5" && (
-                <div>
-                  <p style={styles.detailLabel}>Map</p>
-                  <div style={styles.mapRow}>
-                    {availableMaps.map((map) => {
-                      const active = currentMap === map.id;
-                      return (
-                        <button
-                          key={map.id}
-                          onClick={() => setCurrentMap(map.id)}
-                          style={{
-                            ...styles.mapBtn,
-                            color: active ? "#fff" : "#94a3b8",
-                            background: active ? `${activeMode.accentSoft}0.22)` : "rgba(13,20,36,0.6)",
-                            borderColor: active ? activeMode.accent : "rgba(255,255,255,0.12)",
-                          }}
-                        >
-                          {map.name}
-                        </button>
-                      );
-                    })}
+              {/* Panel Details & Left Info */}
+              <div style={styles.previewContent}>
+                <div style={styles.previewHeader}>
+                  <h3 style={{ ...styles.previewTitle, color: activeMode.accent }}>
+                    {activeMode.title}
+                  </h3>
+                  <p style={styles.previewTagline}>{activeMode.tagline}</p>
+                </div>
+
+                {/* Highlights List with custom icons */}
+                <div style={styles.highlightList}>
+                  {activeMode.highlights.map((item, idx) => (
+                    <div key={idx} style={styles.highlightItem}>
+                      <span style={{ ...styles.highlightIcon, color: activeMode.accent }}>
+                        {item.icon === "biohazard" && "☣"}
+                        {item.icon === "med" && "✚"}
+                        {item.icon === "target" && "◎"}
+                        {item.icon === "ammo" && "⚡"}
+                        {item.icon === "shield" && "🛡"}
+                      </span>
+                      <span style={styles.highlightText}>{item.text}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Map selection if 5v5 mode */}
+                {selected === "offline5v5" && (
+                  <div style={styles.mapSelectContainer}>
+                    <span style={styles.controlsLabel}>MAP</span>
+                    <div style={styles.mapBtnRow}>
+                      {availableMaps.map((map) => {
+                        const isMapActive = currentMap === map.id;
+                        return (
+                          <button
+                            key={map.id}
+                            onClick={() => setCurrentMap(map.id)}
+                            style={{
+                              ...styles.mapSelectBtn,
+                              backgroundColor: isMapActive
+                                ? `${activeMode.accentSoft}0.25)`
+                                : "rgba(10, 16, 28, 0.7)",
+                              borderColor: isMapActive
+                                ? activeMode.accent
+                                : "rgba(255, 255, 255, 0.15)",
+                              color: isMapActive ? "#ffffff" : "#94a3b8",
+                            }}
+                          >
+                            {map.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Controls section */}
+                <div style={styles.controlsSection}>
+                  <div style={styles.controlsLabel}>Kontrol</div>
+                  <div style={styles.controlsChipsRow}>
+                    {activeMode.controls.map((ctrl, cIdx) => (
+                      <div key={cIdx} style={styles.controlChip}>
+                        <span style={styles.chipKey}>{ctrl.key}</span>
+                        <span style={styles.chipLabel}>{ctrl.label}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
 
-              <div style={styles.launchRow}>
-                <button
-                  onClick={launchSelected}
-                  style={{
-                    ...styles.launchBtn,
-                    background: `linear-gradient(135deg, ${activeMode.accent} 0%, ${activeMode.accentSoft}0.8) 100%)`,
-                    boxShadow: `0 10px 24px ${activeMode.accentSoft}0.32)`,
-                  }}
-                >
-                  {activeMode.action}
-                </button>
+                {/* Bottom Launch Button */}
+                <div style={styles.launchBtnWrap}>
+                  <button
+                    onClick={launchSelected}
+                    style={{
+                      ...styles.launchBtn,
+                      background: `linear-gradient(90deg, ${activeMode.accent} 0%, ${activeMode.accentSoft}0.85) 100%)`,
+                      borderColor: "rgba(255, 255, 255, 0.25)",
+                      "--glow-color": activeMode.accentGlow,
+                      "--glow-color-bright": `${activeMode.accentSoft}0.7)`,
+                      animation: "pulseBtnGlow 2.5s infinite ease-in-out",
+                    } as CSSProperties}
+                  >
+                    <span>{activeMode.action}</span>
+                    <span style={styles.launchBtnIcon}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" opacity="0.9" />
+                      </svg>
+                    </span>
+                  </button>
+                </div>
               </div>
-            </GlassPanel>
+            </div>
           </aside>
         </div>
 
+        {/* Bottom Bar: Keybinds Footer */}
         <footer style={styles.footer}>
-          <div style={styles.keyHintsRow}>
-            <span style={styles.keyHint}><b style={styles.key}>WASD</b> Gerak</span>
-            <span style={styles.keyHint}><b style={styles.key}>MOUSE</b> Arah</span>
-            <span style={styles.keyHint}><b style={styles.key}>LMB</b> Tembak</span>
-            <span style={styles.keyHint}><b style={styles.key}>R</b> Reload</span>
-            <span style={styles.keyHint}><b style={styles.key}>B</b> Buy</span>
-            <span style={styles.keyHint}><b style={styles.key}>ESC</b> Menu</span>
+          <div style={styles.footerKeyHints}>
+            <div style={styles.footerHintItem}>
+              <span style={styles.footerKeyBox}>WASD</span>
+              <span style={styles.footerKeyText}>Gerak</span>
+            </div>
+            <div style={styles.footerHintItem}>
+              <span style={styles.footerKeyBox}>MOUSE</span>
+              <span style={styles.footerKeyText}>Arah</span>
+            </div>
+            <div style={styles.footerHintItem}>
+              <span style={styles.footerKeyBox}>LMB</span>
+              <span style={styles.footerKeyText}>Tembak</span>
+            </div>
+            <div style={styles.footerHintItem}>
+              <span style={styles.footerKeyBox}>R</span>
+              <span style={styles.footerKeyText}>Reload</span>
+            </div>
+            <div style={styles.footerHintItem}>
+              <span style={styles.footerKeyBox}>B</span>
+              <span style={styles.footerKeyText}>Buy</span>
+            </div>
+            <div style={styles.footerHintItem}>
+              <span style={styles.footerKeyBox}>ESC</span>
+              <span style={styles.footerKeyText}>Menu</span>
+            </div>
+          </div>
+
+          <div style={styles.footerBuildInfo}>
+            CS WEB FPS // OFFLINE READY // V2.6.4
           </div>
         </footer>
       </div>
@@ -290,43 +585,92 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     height: "100%",
     overflowY: "auto",
-    background: "#070b14",
-    fontFamily: HUD_MONO,
-    color: "#dbe7ff",
+    overflowX: "hidden",
+    background: "#060a12",
+    fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+    color: "#e2e8f0",
     position: "relative",
+    boxSizing: "border-box",
   },
   ambientGlow: {
     position: "fixed",
     width: "55vw",
     height: "55vw",
     borderRadius: "50%",
-    filter: "blur(100px)",
-    opacity: 0.16,
+    filter: "blur(110px)",
     pointerEvents: "none",
     zIndex: 0,
-    animation: "glowBreathe 9s ease-in-out infinite alternate",
   },
   gridOverlay: {
     position: "fixed",
     inset: 0,
     pointerEvents: "none",
     backgroundImage:
-      "linear-gradient(rgba(56,189,248,0.04) 1px, transparent 1px)," +
-      "linear-gradient(90deg, rgba(56,189,248,0.04) 1px, transparent 1px)",
-    backgroundSize: "48px 48px",
-    maskImage: "radial-gradient(ellipse 90% 70% at 50% 18%, #000 28%, transparent 100%)",
-    WebkitMaskImage: "radial-gradient(ellipse 90% 70% at 50% 18%, #000 28%, transparent 100%)",
+      "linear-gradient(rgba(56,189,248,0.035) 1px, transparent 1px)," +
+      "linear-gradient(90deg, rgba(56,189,248,0.035) 1px, transparent 1px)",
+    backgroundSize: "40px 40px",
+    maskImage: "radial-gradient(ellipse 95% 85% at 50% 30%, #000 40%, transparent 100%)",
+    WebkitMaskImage: "radial-gradient(ellipse 95% 85% at 50% 30%, #000 40%, transparent 100%)",
     zIndex: 1,
+  },
+  dataStreamContainer: {
+    position: "fixed",
+    left: "14px",
+    top: "140px",
+    bottom: "60px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "5px",
+    pointerEvents: "none",
+    zIndex: 1,
+    opacity: 0.22,
+    fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace",
+    fontSize: "9px",
+    color: "#38bdf8",
+    letterSpacing: "0.06em",
+    userSelect: "none",
+    animation: "dataFlicker 6s infinite ease-in-out",
+  },
+  dataStreamLine: {
+    whiteSpace: "nowrap",
+  },
+  floorContainer: {
+    position: "fixed",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "55px",
+    pointerEvents: "none",
+    zIndex: 1,
+  },
+  floorLightBeam: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "2px",
+    boxShadow: "0 0 16px rgba(56, 189, 248, 0.7), 0 0 30px rgba(56, 189, 248, 0.3)",
+  },
+  floorGrill: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "53px",
+    backgroundImage:
+      "repeating-linear-gradient(90deg, rgba(56,189,248,0.04) 0px, rgba(56,189,248,0.04) 2px, transparent 2px, transparent 18px)",
+    maskImage: "linear-gradient(to top, #000 20%, transparent 100%)",
+    WebkitMaskImage: "linear-gradient(to top, #000 20%, transparent 100%)",
   },
   container: {
     position: "relative",
     zIndex: 2,
-    maxWidth: 1120,
+    maxWidth: "1140px",
     margin: "0 auto",
-    padding: "28px 24px 32px",
+    padding: "20px 24px 20px",
     display: "flex",
     flexDirection: "column",
-    gap: 28,
+    gap: "16px",
     minHeight: "100%",
     boxSizing: "border-box",
   },
@@ -334,252 +678,409 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 16,
-    animation: "menuRise 0.35s ease both",
+    paddingBottom: "4px",
   },
   logoRow: {
     display: "flex",
     alignItems: "center",
-    gap: 12,
+    gap: "12px",
+  },
+  logoIconWrap: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    filter: "drop-shadow(0 0 8px rgba(56, 189, 248, 0.65))",
+  },
+  crosshairSvg: {
+    display: "block",
   },
   title: {
-    fontSize: 22,
-    fontWeight: 700,
-    letterSpacing: "0.18em",
+    fontSize: "21px",
+    fontWeight: 800,
+    letterSpacing: "0.14em",
     margin: 0,
-    fontFamily: "'Chakra Petch', sans-serif",
-    color: "#fff",
+    fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
+    color: "#ffffff",
+    textShadow: "0 0 12px rgba(56, 189, 248, 0.4)",
   },
   headerRight: {
     display: "flex",
     alignItems: "center",
-    gap: 12,
   },
   nickGroup: {
     display: "flex",
     flexDirection: "column",
-    gap: 4,
+    alignItems: "flex-start",
+    gap: "4px",
   },
   nickLabel: {
-    fontSize: 9,
-    letterSpacing: "0.22em",
-    color: "#7d8cab",
+    fontSize: "10px",
+    letterSpacing: "0.18em",
+    fontWeight: 700,
+    color: "#718096",
+    fontFamily: "'Rajdhani', sans-serif",
   },
   nickInput: {
-    background: "rgba(13,20,36,0.85)",
-    border: "1px solid rgba(44,64,102,0.8)",
-    borderRadius: 4,
-    color: "#fff",
-    fontFamily: HUD_MONO,
+    background: "#0c1322",
+    border: "1px solid #1e293b",
+    borderRadius: "4px",
+    color: "#ffffff",
+    fontFamily: "'JetBrains Mono', monospace",
     fontWeight: 600,
-    fontSize: 13,
-    padding: "8px 12px",
-    width: 168,
+    fontSize: "13px",
+    padding: "6px 12px",
+    width: "140px",
     outline: "none",
+    boxShadow: "inset 0 1px 3px rgba(0,0,0,0.5)",
+    transition: "border-color 0.2s, box-shadow 0.2s",
   },
-  layout: {
+  mainLayout: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.4fr) minmax(280px, 0.9fr)",
-    gap: 20,
+    gridTemplateColumns: "minmax(0, 1.42fr) minmax(320px, 0.98fr)",
+    gap: "20px",
     alignItems: "stretch",
     flex: 1,
   },
-  modesCol: {
+  leftCol: {
     display: "flex",
     flexDirection: "column",
-    gap: 12,
-    minHeight: 0,
+    gap: "10px",
   },
-  detailCol: {
+  rightCol: {
     display: "flex",
     flexDirection: "column",
-    gap: 12,
-    minHeight: 0,
+    gap: "10px",
   },
-  sectionTitle: {
-    fontSize: 18,
+  colTitle: {
+    fontSize: "17px",
     fontWeight: 700,
-    letterSpacing: "0.12em",
-    color: "#fff",
+    letterSpacing: "0.06em",
+    color: "#ffffff",
     margin: 0,
-    fontFamily: "'Chakra Petch', sans-serif",
+    fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
   },
-  modeGrid: {
+  cardGrid: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
-    gap: 12,
+    gap: "14px",
     flex: 1,
   },
   modeCard: {
-    borderRadius: 8,
+    borderRadius: "8px",
     border: "1px solid",
-    padding: 16,
+    backgroundColor: "#0a0f1c",
+    backgroundImage: "linear-gradient(170deg, #0d1526 0%, #070c18 100%)",
+    padding: "12px",
     textAlign: "left",
     cursor: "pointer",
     display: "flex",
     flexDirection: "column",
-    gap: 8,
-    minHeight: 168,
-    transition: "border-color 0.2s, box-shadow 0.2s",
+    gap: "8px",
+    transition: "all 0.22s ease-in-out",
+    userSelect: "none",
+    position: "relative",
+    overflow: "hidden",
   },
-  cardTop: {
+  cardTopRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  cardIcon: {
-    width: 34,
-    height: 34,
+  cardIconBox: {
+    width: "28px",
+    height: "28px",
     display: "grid",
     placeItems: "center",
-    borderRadius: 6,
-    fontSize: 16,
-    fontWeight: 700,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    margin: 0,
-    fontFamily: "'Chakra Petch', sans-serif",
-  },
-  cardTagline: {
-    fontSize: 12,
-    color: "#94a3b8",
-    margin: 0,
-    lineHeight: 1.45,
-  },
-  cardFeatures: {
-    listStyle: "none",
-    padding: 0,
-    margin: "auto 0 0",
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  cardFeature: {
-    fontSize: 11,
-    color: "#94a3b8",
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-  },
-  detailPanel: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-    padding: 20,
-    background: "linear-gradient(180deg, rgba(14,23,40,0.94) 0%, rgba(11,17,32,0.96) 100%)",
-    borderRadius: 8,
-  },
-  detailTitle: {
-    fontSize: 20,
-    fontWeight: 700,
-    letterSpacing: "0.1em",
-    margin: 0,
-    fontFamily: "'Chakra Petch', sans-serif",
-  },
-  detailCopy: {
-    margin: 0,
-    color: "#94a3b8",
-    fontSize: 13,
-    lineHeight: 1.5,
-  },
-  detailList: {
-    margin: 0,
-    paddingLeft: 16,
-    color: "#cbd5e1",
-    fontSize: 13,
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  detailLabel: {
-    margin: "4px 0 0",
-    fontSize: 10,
-    letterSpacing: "0.18em",
-    color: "#7d8cab",
-  },
-  controlRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  controlChip: {
-    fontSize: 11,
-    color: "#cbd5e1",
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(13,20,36,0.7)",
-    borderRadius: 4,
-    padding: "5px 8px",
-  },
-  mapRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  mapBtn: {
-    padding: "8px 12px",
-    fontSize: 12,
-    fontFamily: HUD_MONO,
-    fontWeight: 600,
-    borderRadius: 4,
-    cursor: "pointer",
+    borderRadius: "5px",
     border: "1px solid",
   },
-  launchRow: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    marginTop: "auto",
-  },
-  secondaryBtn: {
-    border: "1px solid rgba(56,189,248,0.4)",
-    background: "rgba(13,20,36,0.8)",
-    color: "#38bdf8",
-    fontFamily: "'Chakra Petch', sans-serif",
-    fontSize: 12,
+  cardPillBadge: {
+    fontSize: "9.5px",
     fontWeight: 700,
-    letterSpacing: "0.12em",
-    padding: "12px 16px",
-    borderRadius: 6,
-    cursor: "pointer",
+    letterSpacing: "0.08em",
+    color: "#cbd5e1",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    background: "rgba(10, 16, 28, 0.65)",
+    padding: "2px 8px",
+    borderRadius: "10px",
+    fontFamily: "'Rajdhani', sans-serif",
   },
-  launchBtn: {
-    border: "none",
-    color: "#07101f",
-    fontFamily: "'Chakra Petch', sans-serif",
-    fontSize: 13,
-    fontWeight: 700,
-    letterSpacing: "0.14em",
-    padding: "12px 22px",
-    borderRadius: 6,
-    cursor: "pointer",
-    flex: 1,
-    minWidth: 160,
+  cardThumbWrap: {
+    width: "100%",
+    height: "82px",
+    borderRadius: "5px",
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#050811",
   },
-  footer: {
-    paddingTop: 8,
+  cardThumbImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
   },
-  keyHintsRow: {
+  cardThumbGradient: {
+    position: "absolute",
+    inset: 0,
+    background: "linear-gradient(to top, rgba(7,12,24,0.75) 0%, transparent 65%)",
+    pointerEvents: "none",
+  },
+  cardTextContent: {
     display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
+    flexDirection: "column",
+    gap: "4px",
   },
-  keyHint: {
-    fontSize: 11,
-    color: "#7d8cab",
+  cardTitle: {
+    fontSize: "13.5px",
+    fontWeight: 800,
+    letterSpacing: "0.06em",
+    margin: 0,
+    color: "#ffffff",
+    fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
+  },
+  cardTagline: {
+    fontSize: "11px",
+    color: "#94a3b8",
+    margin: 0,
+    lineHeight: 1.35,
+  },
+  cardBullets: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px",
+    marginTop: "4px",
+  },
+  cardBulletItem: {
+    fontSize: "10.5px",
+    color: "#718096",
     display: "flex",
     alignItems: "center",
-    gap: 6,
+    gap: "5px",
+    lineHeight: 1.3,
   },
-  key: {
+  bulletArrow: {
+    color: "#64748b",
+    fontWeight: 700,
+    fontSize: "12px",
+  },
+  previewPanel: {
+    flex: 1,
+    borderRadius: "10px",
+    border: "1.5px solid",
+    backgroundColor: "rgba(9, 14, 26, 0.94)",
+    backgroundImage: "linear-gradient(165deg, rgba(13, 21, 38, 0.96) 0%, rgba(7, 11, 20, 0.98) 100%)",
+    padding: "20px 22px",
+    display: "flex",
+    flexDirection: "column",
+    position: "relative",
+    overflow: "hidden",
+    minHeight: "380px",
+    transition: "border-color 0.3s, box-shadow 0.3s",
+  },
+  charArtWrap: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: "60px",
+    width: "60%",
+    pointerEvents: "none",
+    zIndex: 1,
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  charArtImg: {
+    height: "100%",
+    width: "auto",
+    maxWidth: "100%",
+    objectFit: "contain",
+    objectPosition: "right center",
+    opacity: 0.9,
+    filter: "contrast(1.05) drop-shadow(0 0 20px rgba(0,0,0,0.8))",
+  },
+  charArtOverlayGradient: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "linear-gradient(to right, rgba(9, 14, 26, 1) 0%, rgba(9, 14, 26, 0.6) 35%, transparent 75%)," +
+      "linear-gradient(to top, rgba(9, 14, 26, 0.9) 0%, transparent 40%)",
+    pointerEvents: "none",
+  },
+  previewContent: {
+    position: "relative",
+    zIndex: 2,
+    display: "flex",
+    flexDirection: "column",
+    gap: "14px",
+    height: "100%",
+  },
+  previewHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "3px",
+  },
+  previewTitle: {
+    fontSize: "19px",
+    fontWeight: 800,
+    letterSpacing: "0.08em",
+    margin: 0,
+    fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
+    textShadow: "0 0 10px rgba(0,0,0,0.5)",
+  },
+  previewTagline: {
+    fontSize: "12px",
+    color: "#cbd5e1",
+    margin: 0,
+  },
+  highlightList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+  },
+  highlightItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontSize: "12px",
+    color: "#e2e8f0",
+    fontWeight: 500,
+  },
+  highlightIcon: {
+    fontSize: "14px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "18px",
+  },
+  highlightText: {
+    textShadow: "0 1px 3px rgba(0,0,0,0.8)",
+  },
+  mapSelectContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    marginTop: "2px",
+  },
+  mapBtnRow: {
+    display: "flex",
+    gap: "6px",
+  },
+  mapSelectBtn: {
+    padding: "6px 12px",
+    borderRadius: "4px",
+    fontSize: "11px",
+    fontWeight: 700,
+    fontFamily: "'Rajdhani', sans-serif",
+    cursor: "pointer",
+    border: "1px solid",
+    transition: "all 0.2s ease",
+  },
+  controlsSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    marginTop: "2px",
+  },
+  controlsLabel: {
+    fontSize: "10.5px",
+    fontWeight: 700,
+    letterSpacing: "0.12em",
+    color: "#718096",
+    fontFamily: "'Rajdhani', sans-serif",
+    textTransform: "uppercase",
+  },
+  controlsChipsRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "6px",
+  },
+  controlChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+    padding: "4px 8px",
+    borderRadius: "4px",
+    backgroundColor: "rgba(10, 16, 30, 0.75)",
+    border: "1px solid rgba(255, 255, 255, 0.12)",
+    backdropFilter: "blur(4px)",
+  },
+  chipKey: {
     color: "#38bdf8",
-    background: "#0a101d",
-    border: "1px solid rgba(56,189,248,0.3)",
+    fontWeight: 700,
+    fontSize: "10.5px",
+    fontFamily: "'JetBrains Mono', monospace",
+  },
+  chipLabel: {
+    color: "#cbd5e1",
+    fontSize: "11px",
+    fontWeight: 500,
+  },
+  launchBtnWrap: {
+    marginTop: "auto",
+    paddingTop: "16px",
+  },
+  launchBtn: {
+    width: "100%",
+    padding: "13px 20px",
+    borderRadius: "6px",
+    border: "1px solid",
+    color: "#ffffff",
+    fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
+    fontSize: "15px",
+    fontWeight: 800,
+    letterSpacing: "0.16em",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "10px",
+    transition: "all 0.2s ease",
+    textShadow: "0 1px 4px rgba(0,0,0,0.6)",
+    boxSizing: "border-box",
+  },
+  launchBtnIcon: {
+    display: "inline-flex",
+    alignItems: "center",
+    opacity: 0.9,
+  },
+  footer: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: "4px",
+    flexWrap: "wrap",
+    gap: "12px",
+  },
+  footerKeyHints: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  footerHintItem: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+  },
+  footerKeyBox: {
+    fontSize: "10px",
+    fontWeight: 700,
+    color: "#38bdf8",
+    backgroundColor: "#0a1324",
+    border: "1px solid rgba(56, 189, 248, 0.4)",
     padding: "2px 6px",
-    borderRadius: 3,
-    fontSize: 10,
+    borderRadius: "3px",
+    fontFamily: "'JetBrains Mono', monospace",
+  },
+  footerKeyText: {
+    fontSize: "11px",
+    color: "#94a3b8",
+    fontWeight: 500,
+  },
+  footerBuildInfo: {
+    fontSize: "10px",
+    color: "#475569",
+    fontFamily: "'JetBrains Mono', monospace",
+    letterSpacing: "0.08em",
   },
 };

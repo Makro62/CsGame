@@ -6,6 +6,7 @@ import { ZombieArcadeController } from "../game/player/ZombieArcadeController";
 import { InstancedZombieRenderer } from "../game/zombie/InstancedZombieRenderer";
 import { PowerUpRenderer } from "../game/zombie/PowerUpRenderer";
 import { Barricade } from "../game/zombie/Barricade";
+import { BARRICADE_CONFIG } from "@cs-game/shared";
 import { DownedOverlay } from "../components/DownedOverlay";
 import { ZombieShootingSystem } from "../game/weapons/ZombieShootingSystem";
 import { useZombieStore } from "../stores/useZombieStore";
@@ -13,14 +14,7 @@ import { useGameStore } from "../stores/useGameStore";
 import { useAimStore } from "../stores/useAimStore";
 
 // START SafeHouse (0,-30) → FINISH Rescue (0,30) — per docs/Zombie_Shooter_System_v1.md §2
-const BARRICADES = [
-  { id: "b_start", x: 0, z: -25 },
-  { id: "b1", x: -5, z: -10 },
-  { id: "b2", x: 5, z: -10 },
-  { id: "b3", x: -10, z: 0 },
-  { id: "b4", x: 10, z: 0 },
-  { id: "b_finish", x: 0, z: 25 },
-];
+const BARRICADES = BARRICADE_CONFIG.locations.map(loc => ({ id: loc.id, x: loc.x, z: loc.z }));
 
 const FINISH_Z = 30;
 const START_Z = -30;

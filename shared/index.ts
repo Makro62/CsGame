@@ -1049,17 +1049,6 @@ export const WAVE_CONFIG = {
   firstWaveDelay: 20,     // seconds before first wave starts (initial buy phase)
   hpMultiplierPerWave: 0.28,
   speedBonusPerWave: 0.03,
-  // Spawn points (match ZOMBIE_SPAWN.spawnPoints — inside arena boundaries)
-  spawnPoints: [
-    { x: 15, z: -20 },
-    { x: -15, z: -20 },
-    { x: 22, z: -10 },
-    { x: -22, z: -10 },
-    { x: 0, z: 0 },
-    { x: 18, z: 15 },
-    { x: -18, z: 15 },
-    { x: 0, z: 30 },
-  ],
   // Active spawn points per wave range
   activeSpawns: [
     { maxWave: 2, count: 1 },
@@ -1130,12 +1119,12 @@ export const BARRICADE_CONFIG = {
   pointsPerRepair: 10,
   hitsPerBoard: 2,
   locations: [
-    { id: 'barricade_1', x: -15, y: 0, z: -35, rot: 0 },
-    { id: 'barricade_2', x: 15, y: 0, z: -35, rot: 0 },
-    { id: 'barricade_3', x: 0, y: 0, z: -10, rot: 0 },
-    { id: 'barricade_4', x: 10, y: 0, z: 0, rot: 1.57 },
-    { id: 'barricade_5', x: -10, y: 0, z: 0, rot: 1.57 },
-    { id: 'barricade_6', x: -25, y: 0, z: 18, rot: 0 },
+    { id: 'b_start', x: 0, y: 0, z: -25, rot: 0 },
+    { id: 'b1', x: -5, y: 0, z: -10, rot: 0 },
+    { id: 'b2', x: 5, y: 0, z: -10, rot: 0 },
+    { id: 'b3', x: -10, y: 0, z: 0, rot: 1.57 },
+    { id: 'b4', x: 10, y: 0, z: 0, rot: 1.57 },
+    { id: 'b_finish', x: 0, y: 0, z: 25, rot: 0 },
   ],
 } as const;
 

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {
-  ZOMBIE_TYPES, ZOMBIE_POINTS, WAVE_CONFIG, MAP_OBSTACLES,
+  ZOMBIE_TYPES, ZOMBIE_POINTS, WAVE_CONFIG, MAP_OBSTACLES, ZOMBIE_MAP_BOUNDARY,
   type ZombieType, type PowerUpType, type MapObstacle,
 } from "@cs-game/shared";
 import { useZombieStore, type ZombieState } from "../../stores/useZombieStore";
@@ -156,6 +156,13 @@ export class ZombieEngine {
 
   setPlayerPos(x: number, _y: number, z: number) {
     this.playerX = x; this.playerZ = z;
+  }
+
+  /** Mark zombie dead and decrement alive counter. Call from any kill site. */
+  private killZombie(z: ZombieState) {
+    if (z.isDead) return;
+    z.hp = 0; z.isDead = true; z.animTime = 0;
+    this._aliveCount = Math.max(0, this._aliveCount - 1);
   }
 
   startWave(wave: number) {
@@ -316,8 +323,7 @@ export class ZombieEngine {
     // Exploder suicide at close range (50 dmg AoE)
     if (z.type === "exploder" && dist < 2.5) {
       this.damagePlayer(50 * this.difficulty, "exploder");
-      z.hp = 0; z.isDead = true; z.animTime = 0;
-      this._aliveCount = Math.max(0, this._aliveCount - 1);
+      this.killZombie(z);
       zombieEvents.emit({ type: "explosion", x: z.x, y: z.y, z: z.z });
     }
   }
@@ -328,11 +334,12 @@ export class ZombieEngine {
     const ang = Math.random() * Math.PI * 2;
     const r = 40 + Math.random() * 12;
     const hp = cfg.hp * this.difficulty;
+    const b = ZOMBIE_MAP_BOUNDARY;
     const z: ZombieState = {
       id, type,
-      x: THREE.MathUtils.clamp(this.playerX + Math.cos(ang) * r, -58, 58),
+      x: THREE.MathUtils.clamp(this.playerX + Math.cos(ang) * r, b.minX + 2, b.maxX - 2),
       y: 0,
-      z: THREE.MathUtils.clamp(this.playerZ + Math.sin(ang) * r, -58, 58),
+      z: THREE.MathUtils.clamp(this.playerZ + Math.sin(ang) * r, b.minZ + 2, b.maxZ - 2),
       rotationY: 0,
       hp, maxHp: hp,
       speed: cfg.speed, damage: cfg.damage,
@@ -391,19 +398,6 @@ export class ZombieEngine {
     this.acidDots = remaining;
   }
 
-  // ── Bleedout timer tick — called by mode screen each frame ──────────────
-  tickDowned(dtMs: number) {
-    const st = useZombieStore.getState();
-    if (!st.player.isDowned) return;
-    const nt = st.player.downedTimer - dtMs / 1000;
-    if (nt <= 0) {
-      useZombieStore.getState().setPlayer(p => ({ ...p, isDowned: false, downedTimer: 0 }));
-      useZombieStore.getState().setWaveState("game_over");
-    } else {
-      useZombieStore.getState().setPlayer(p => ({ ...p, downedTimer: nt }));
-    }
-  }
-
   private onWaveComplete() {
     const store = useZombieStore.getState();
     const wave = store.currentWave;
@@ -439,8 +433,7 @@ export class ZombieEngine {
     if (store.player.activePowerUps.has("insta_kill")) dmg = z.hp;
     z.hp -= dmg;
     if (z.hp <= 0) {
-      z.hp = 0; z.isDead = true; z.animTime = 0;
-      this._aliveCount = Math.max(0, this._aliveCount - 1);
+      this.killZombie(z);
       const pts = isHeadshot ? cfg.points + ZOMBIE_POINTS.headshotBonus : cfg.points;
       store.addPoints(pts);
       if (Math.random() < POWERUP_DROP_CHANCE) this.spawnPowerUp(z.x, z.z);
@@ -488,8 +481,7 @@ export class ZombieEngine {
     if (best) {
       best.hp -= MELEE_DMG;
       if (best.hp <= 0) {
-        best.hp = 0; best.isDead = true; best.animTime = 0;
-        this._aliveCount = Math.max(0, this._aliveCount - 1);
+        this.killZombie(best);
         useZombieStore.getState().addPoints(ZOMBIE_CFG[best.type].points + ZOMBIE_POINTS.knifeBonus);
       }
       zombieEvents.emit({ type: "zombieHit", headshot: false, damage: MELEE_DMG });
@@ -524,10 +516,7 @@ export class ZombieEngine {
         });
         break;
       case "nuke":
-        for (const z of this.zombies.values()) {
-          if (!z.isDead) { z.hp = 0; z.isDead = true; z.animTime = 0; }
-        }
-        this._aliveCount = 0;
+        for (const z of this.zombies.values()) this.killZombie(z);
         store.addPoints(400);
         break;
     }

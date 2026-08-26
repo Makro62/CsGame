@@ -14,28 +14,15 @@ export function InstancedZombieRenderer() {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const prevCountRef = useRef(0);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const tempColor = useMemo(() => new THREE.Color(), []);
 
-  // Pre-build color array — only rebuilt when new zombie type appears
-  const colorArray = useMemo(() => {
-    const arr = new Float32Array(MAX * 3);
-    const c = new THREE.Color();
-    for (let i = 0; i < MAX; i++) {
-      c.setHex(COLORS.walker);
-      arr[i * 3] = c.r;
-      arr[i * 3 + 1] = c.g;
-      arr[i * 3 + 2] = c.b;
-    }
-    return arr;
-  }, []);
-
-  const coloredRef = useRef(new Set<number>());
+  // Persistent colored tracking — reused across frames (no new Set per frame)
+  const coloredBits = useRef(new Uint8Array(MAX)); // 0 = uncolored, 1 = colored
 
   useFrame(() => {
     if (!meshRef.current) return;
-    // Read directly from engine — NO Zustand re-render
     const zombies = zombieEngine.getZombies();
     let i = 0;
-    const newColored = new Set<number>();
     for (const z of zombies) {
       if (i >= MAX || z.isDead) continue;
       const s = z.type === "tank" ? 1.4 : z.type === "boss" ? 2.0 : 1.0;
@@ -44,17 +31,19 @@ export function InstancedZombieRenderer() {
       dummy.scale.set(s, s, s);
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
-      newColored.add(i);
 
-      if (!coloredRef.current.has(i)) {
-        const c = new THREE.Color(COLORS[z.type]);
-        colorArray[i * 3] = c.r;
-        colorArray[i * 3 + 1] = c.g;
-        colorArray[i * 3 + 2] = c.b;
+      // Set color only on first render for this slot
+      if (!coloredBits.current[i]) {
+        tempColor.setHex(COLORS[z.type]);
+        meshRef.current.setColorAt(i, tempColor);
+        coloredBits.current[i] = 1;
       }
       i++;
     }
-    coloredRef.current = newColored;
+    // Clear leftover slots from previous frame
+    for (let j = i; j < prevCountRef.current && j < MAX; j++) {
+      coloredBits.current[j] = 0;
+    }
     meshRef.current.count = i;
     meshRef.current.instanceMatrix.needsUpdate = true;
     if (i !== prevCountRef.current && meshRef.current.instanceColor) {
@@ -63,15 +52,15 @@ export function InstancedZombieRenderer() {
     prevCountRef.current = i;
   });
 
+  // Initialize all instance colors once
   useEffect(() => {
     if (!meshRef.current) return;
-    const c = new THREE.Color();
+    tempColor.setHex(COLORS.walker);
     for (let i = 0; i < MAX; i++) {
-      c.setHex(COLORS.walker);
-      meshRef.current.setColorAt(i, c);
+      meshRef.current.setColorAt(i, tempColor);
     }
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-  }, []);
+  }, [tempColor]);
 
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, MAX]}>
