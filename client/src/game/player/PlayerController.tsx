@@ -56,7 +56,7 @@ const MODE_BOUNDS: Record<string, Bounds> = {
     maxZ: TRAINING_ARENA.maxZ - 0.8,
   },
   zombie: { minX: -26, maxX: 26, minZ: -26, maxZ: 26 },
-  l4d: { minX: -11, maxX: 11, minZ: -48, maxZ: 62 },
+  l4d: { minX: -16, maxX: 18, minZ: -48, maxZ: 72 },
 }
 
 export function getBounds(mode: string): Bounds {

@@ -18,6 +18,7 @@ export type BoxProps = {
   rotation?: [number, number, number];
   receiveShadow?: boolean;
   castShadow?: boolean;
+  skipShot?: boolean;
 };
 
 export function StaticBox({
@@ -28,12 +29,13 @@ export function StaticBox({
   rotation = [0, 0, 0],
   receiveShadow = true,
   castShadow = true,
+  skipShot = false,
 }: BoxProps) {
   const preset = MATERIAL_PRESETS[materialType];
 
   return (
     <RigidBody type="fixed" position={position} rotation={rotation} colliders={false}>
-      <mesh receiveShadow={receiveShadow} castShadow={castShadow}>
+      <mesh receiveShadow={receiveShadow} castShadow={castShadow} userData={{ skipShot }}>
         <boxGeometry args={size} />
         <meshStandardMaterial
           color={color}

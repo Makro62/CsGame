@@ -124,7 +124,7 @@ export function ZombieArcadeController({ engineRef }: { engineRef?: React.RefObj
     const cos = Math.cos(yawRef.current);
     _tOrigin.set(
       posRef.current.x + sin * 0.55,
-      0.45,
+      0.9,
       posRef.current.z + cos * 0.55,
     );
     _tDir.set(sin, 0, cos);

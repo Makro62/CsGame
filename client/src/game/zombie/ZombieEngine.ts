@@ -7,7 +7,7 @@ import { useZombieStore, type ZombieState, type LootKind } from "../../stores/us
 import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
 import { SpatialGrid } from "./SpatialGrid";
 import {
-  SURVIVAL_BOUNDS, SURVIVAL_SPAWNS, pushOutSurvival, survivalLineOfSight,
+  SURVIVAL_BOUNDS, SURVIVAL_SPAWNS, pushOutSurvival, survivalLineOfSight, survivalWallDistance,
 } from "./survivalLayout";
 
 // ── Event Bus (replaces window.dispatchEvent) ─────────────────────────────
@@ -29,6 +29,15 @@ class ZombieEventBus {
 }
 
 export const zombieEvents = new ZombieEventBus();
+
+export type ArcadeShotHit = {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  headshot: boolean;
+  dist: number;
+};
 
 // ── Config derived from shared constants ───────────────────────────────────
 interface ZConfig {
@@ -113,9 +122,6 @@ export class ZombieEngine {
 
   /** Reusable temp vectors — avoids GC pressure from `new THREE.Vector3()` per frame */
   private readonly _tDir = new THREE.Vector3();
-  private readonly _tCenter = new THREE.Vector3();
-  private readonly _tA = new THREE.Vector3();
-  private readonly _tB = new THREE.Vector3();
   private readonly _tMeleeOrigin = new THREE.Vector3();
   private readonly _tMeleeDir = new THREE.Vector3();
 
@@ -404,44 +410,61 @@ export class ZombieEngine {
   }
 
   // ── Shooting ────────────────────────────────────────────────────────────
-  handleShoot(origin: THREE.Vector3, dir: THREE.Vector3, weaponDmg: number, isHeadshot: boolean) {
-    const hits = this.raycastZombies(origin, dir, 100);
-    if (hits.length === 0) return false;
-    const z = this.zombies.get(hits[0].id);
-    if (!z || z.isDead) return false;
+  handleShoot(origin: THREE.Vector3, dir: THREE.Vector3, weaponDmg: number): ArcadeShotHit | null {
+    const hits = this.raycastZombies(origin, dir, 80);
+    if (hits.length === 0) return null;
+    const hit = hits[0];
+    const z = this.zombies.get(hit.id);
+    if (!z || z.isDead) return null;
     const cfg = ZOMBIE_CFG[z.type];
-    let dmg = weaponDmg * (isHeadshot ? HEADSHOT_MULT : 1);
+    let dmg = weaponDmg * (hit.headshot ? HEADSHOT_MULT : 1);
     const store = useZombieStore.getState();
     if (store.player.activePowerUps.has("insta_kill")) dmg = z.hp;
     z.hp -= dmg;
     if (z.hp <= 0) {
       this.killZombie(z);
-      const pts = isHeadshot ? cfg.points + ZOMBIE_POINTS.headshotBonus : cfg.points;
+      const pts = hit.headshot ? cfg.points + ZOMBIE_POINTS.headshotBonus : cfg.points;
       store.addPoints(pts);
       if (Math.random() < POWERUP_DROP_CHANCE) this.spawnPowerUp(z.x, z.z);
       this.maybeSpawnLoot(z.x, z.z);
     }
-    zombieEvents.emit({ type: "zombieHit", headshot: isHeadshot, damage: dmg });
-    return true;
+    zombieEvents.emit({ type: "zombieHit", headshot: hit.headshot, damage: dmg });
+    return hit;
   }
 
-  private raycastZombies(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number) {
-    const hits: Array<{ id: string; dist: number }> = [];
-    const d = this._tDir.copy(dir).normalize();
+  wallDistance(origin: THREE.Vector3, dir: THREE.Vector3, maxDist = 70): number {
+    return survivalWallDistance(origin.x, origin.z, dir.x, dir.z, maxDist);
+  }
+
+  private raycastZombies(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number): ArcadeShotHit[] {
+    const hits: ArcadeShotHit[] = [];
+    const d = this._tDir.set(dir.x, 0, dir.z);
+    if (d.lengthSq() < 1e-8) return hits;
+    d.normalize();
     const candidates = this.grid.query(origin.x, origin.z, maxDist);
     const ids = candidates.size > 0 ? Array.from(candidates) : Array.from(this.zombies.keys());
     for (const id of ids) {
       const z = this.zombies.get(id);
       if (!z || z.isDead) continue;
-      this._tCenter.set(z.x, z.y + 0.9, z.z);
-      const proj = this._tA.copy(this._tCenter).sub(origin).dot(d);
-      if (proj < 0 || proj > maxDist) continue;
-      this._tB.copy(d).multiplyScalar(proj);
-      this._tB.add(origin);
-      if (this._tB.distanceTo(this._tCenter) < 0.6) {
-        if (!survivalLineOfSight(origin.x, origin.z, z.x, z.z)) continue;
-        hits.push({ id, dist: proj });
-      }
+      const vx = z.x - origin.x;
+      const vz = z.z - origin.z;
+      const proj = vx * d.x + vz * d.z;
+      if (proj < 0.25 || proj > maxDist) continue;
+      const cx = origin.x + d.x * proj;
+      const cz = origin.z + d.z * proj;
+      const lat = Math.hypot(z.x - cx, z.z - cz);
+      const scale = z.type === "tank" ? 1.25 : z.type === "boss" ? 1.7 : z.type === "runner" ? 0.75 : 1;
+      const bodyR = 0.92 * scale;
+      if (lat > bodyR) continue;
+      if (!survivalLineOfSight(origin.x, origin.z, z.x, z.z)) continue;
+      hits.push({
+        id,
+        x: z.x,
+        y: lat < bodyR * 0.38 ? 1.35 * scale : 0.75 * scale,
+        z: z.z,
+        headshot: lat < bodyR * 0.38,
+        dist: proj,
+      });
     }
     return hits.sort((a, b) => a.dist - b.dist);
   }

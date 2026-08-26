@@ -1,5 +1,5 @@
 // Clean offline 5v5 — fixed dark screen
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useLocation } from "wouter";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
@@ -81,6 +81,7 @@ export function Offline5v5Mode() {
   const me = useOffline5v5Store(s => s.players.get("local"));
   const MapComp = getMapById("container_yard").component;
   const inited = useRef(false);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     if (inited.current) return;
@@ -98,8 +99,50 @@ export function Offline5v5Mode() {
   }, [initMatch, nickname]);
 
   useEffect(() => {
+    const onPointerLockChange = () => {
+      const locked = !!document.pointerLockElement;
+      if (!locked && !buyMenuOpen) {
+        setPaused(true);
+      }
+    };
+    document.addEventListener("pointerlockchange", onPointerLockChange);
+    return () => document.removeEventListener("pointerlockchange", onPointerLockChange);
+  }, [buyMenuOpen]);
+
+  const resume = useCallback(() => {
+    setPaused(false);
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
+  }, []);
+
+  const back = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    setPaused(false);
+    useOffline5v5Store.setState({
+      phase: "buy", roundNumber: 1, teamRedScore: 0, teamBlueScore: 0,
+      bombPlanted: false, bombTimeLeft: 0, bombSite: "", bombDropped: false, bombDropX: 0, bombDropZ: 0,
+      roundTimeLeft: 0, killFeed: [], players: new Map(),
+    });
+    setMode("menu");
+    setLocation("/");
+  }, [setMode, setLocation]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        if (buyMenuOpen) {
+          closeBuyMenu();
+          return;
+        }
+        if (paused) {
+          resume();
+        } else {
+          if (document.pointerLockElement) document.exitPointerLock();
+        }
+        return;
+      }
       if (e.code !== "KeyE") return;
+      if (paused) return;
       const s = useOffline5v5Store.getState();
       const me = s.players.get("local");
       if (!me || me.isDead) return;
@@ -107,16 +150,14 @@ export function Offline5v5Mode() {
       else if (me.team === "CT" && s.bombPlanted) s.localDefuseStart();
     };
     const onUp = (e: KeyboardEvent) => {
-      if (e.code !== "KeyE") return;
+      if (e.code !== "KeyE" || paused) return;
       const s = useOffline5v5Store.getState();
       s.localPlantCancel(); s.localDefuseCancel();
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("keyup", onUp); };
-  }, []);
-
-  const back = useCallback(() => { setMode("menu"); setLocation("/"); }, [setMode, setLocation]);
+  }, [paused, buyMenuOpen, closeBuyMenu, resume]);
   const rematch = useCallback(() => { useOffline5v5Store.getState().initMatch(nickname || "Player", "T"); }, [nickname]);
 
   return (
@@ -199,8 +240,51 @@ export function Offline5v5Mode() {
       <DeathScreen />
       <FlashEffect />
       {buyMenuOpen && phase==="buy" && <BuyMenu onClose={closeBuyMenu} />}
-      <ClickToPlayOverlay onLock={()=>{}} suppressed={buyMenuOpen} />
       <SettingsMenu />
+      {/* Pause Menu — shown when pointer lock exits */}
+      {paused && phase !== "matchEnd" && (
+        <div
+          style={{
+            position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", zIndex: 90,
+          }}
+        >
+          <div style={{
+            background: "linear-gradient(155deg, rgba(13, 20, 36, 0.96), rgba(8, 12, 22, 0.98))",
+            border: "1.5px solid #f59e0b", borderRadius: 16, padding: "32px 48px", textAlign: "center",
+            boxShadow: "0 0 35px rgba(245,158,11,0.3), 0 20px 50px rgba(0,0,0,0.8)", minWidth: 300,
+          }}>
+            <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 900, letterSpacing: 2.5, marginBottom: 8, fontFamily: "monospace" }}>
+              PAUSED
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#f8fafc", marginBottom: 24, fontFamily: "monospace", letterSpacing: "0.08em" }}>
+              5V5 OFFLINE
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                onClick={resume}
+                style={{ padding: "12px 28px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                RESUME
+              </button>
+              <button
+                onClick={rematch}
+                style={{ padding: "12px 28px", background: "rgba(34,197,94,0.2)", color: "#4ade80", border: "1px solid #22c55e", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                REMATCH
+              </button>
+              <button
+                onClick={back}
+                style={{ padding: "12px 28px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                BACK TO MENU
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Click-to-play overlay — only show when NOT paused (first load) */}
+      {!paused && <ClickToPlayOverlay onLock={()=>{}} suppressed={buyMenuOpen} />}
       {phase==="matchEnd" && (
         <div style={{ position:"fixed", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.75)", zIndex:80 }}>
           <div style={{ background:"rgba(15,23,42,0.95)", border:"1px solid #3b82f6", borderRadius:16, padding:"36px 48px", textAlign:"center" }}>

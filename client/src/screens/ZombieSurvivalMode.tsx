@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
 import { zombieEngine } from "../game/zombie/ZombieEngine";
@@ -31,6 +31,7 @@ export function ZombieSurvivalMode() {
   const reserveAmmo = useWeaponStore(s => s.reserveAmmo);
   const activeWeapon = useWeaponStore(s => s.activeWeapon);
   const { buyMenuOpen, closeBuyMenu, toggleBuyMenu } = useWeaponSwitch();
+  const [paused, setPaused] = useState(false);
 
   const startLoadout = useCallback(() => {
     const ws = useWeaponStore.getState();
@@ -99,15 +100,50 @@ export function ZombieSurvivalMode() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const handleBackToMenu = useCallback(() => { useGameStore.getState().setMode("menu"); }, []);
+  const handleBackToMenu = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    setPaused(false);
+    useGameStore.getState().setMode("menu");
+  }, []);
   const handleRestart = useCallback(() => {
+    setPaused(false);
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
     useZombieStore.getState().resetGame(true);
     zombieEngine.init();
     startLoadout();
     closeBuyMenu();
   }, [startLoadout, closeBuyMenu]);
 
+  const resume = useCallback(() => {
+    setPaused(false);
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
+  }, []);
+
   const betweenWaves = waveState === "buy_phase" || waveState === "wave_clear";
+
+  useEffect(() => {
+    const onPointerLockChange = () => {
+      const locked = !!document.pointerLockElement;
+      if (!locked && !buyMenuOpen) setPaused(true);
+    };
+    document.addEventListener("pointerlockchange", onPointerLockChange);
+    return () => document.removeEventListener("pointerlockchange", onPointerLockChange);
+  }, [buyMenuOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        if (buyMenuOpen) { closeBuyMenu(); return; }
+        if (paused) resume();
+        else if (document.pointerLockElement) document.exitPointerLock();
+        return;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paused, buyMenuOpen, closeBuyMenu, resume]);
 
   return (
     <div className="w-full h-screen bg-black relative" style={{ cursor: "crosshair" }}>

@@ -28,12 +28,12 @@ function L4DInfectedRenderer() {
         const bodyH = isTank ? 0.9 : 0.55;
         return (
           <group key={inf.id} position={[inf.x, inf.y, inf.z]} rotation={[0, inf.rotationY, 0]} userData={{ infectedId: inf.id }}>
-            <mesh position={[0, bodyH + 0.3, 0]} castShadow userData={{ infectedId: inf.id, isHead: false }}>
-              <capsuleGeometry args={[s * 0.32, bodyH, 4, 8]} />
+            <mesh position={[0, bodyH + 0.35, 0]} castShadow userData={{ infectedId: inf.id, isHead: false }}>
+              <capsuleGeometry args={[s * 0.42, bodyH + 0.15, 4, 8]} />
               <meshStandardMaterial color={col} emissive={isSpecial ? col : "#000000"} emissiveIntensity={isSpecial ? 0.25 : 0} roughness={0.7} />
             </mesh>
-            <mesh position={[0, bodyH + 0.3 + s * 0.52, 0]} castShadow userData={{ infectedId: inf.id, isHead: true }}>
-              <sphereGeometry args={[s * 0.2, 8, 8]} />
+            <mesh position={[0, bodyH + 0.35 + s * 0.55, 0]} castShadow userData={{ infectedId: inf.id, isHead: true }}>
+              <sphereGeometry args={[s * 0.26, 8, 8]} />
               <meshStandardMaterial color={col} roughness={0.6} />
             </mesh>
             <mesh position={[-0.08 * s, bodyH + 0.3 + s * 0.55, 0.16 * s]}>
@@ -263,7 +263,8 @@ export function L4DMode() {
   const reserveAmmo = useWeaponStore(s => s.reserveAmmo);
   const activeWeapon = useWeaponStore(s => s.activeWeapon);
   const [session, setSession] = useState(0);
-  const { buyMenuOpen } = useWeaponSwitch();
+  const { buyMenuOpen, closeBuyMenu } = useWeaponSwitch();
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     directorRef.current = new L4DDirector();
@@ -314,8 +315,15 @@ export function L4DMode() {
     };
   }, []);
 
-  const handleBack = useCallback(() => useGameStore.getState().setMode("menu"), []);
+  const handleBack = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    setPaused(false);
+    useGameStore.getState().setMode("menu");
+  }, []);
   const handleRestart = useCallback(() => {
+    setPaused(false);
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
     useL4DStore.getState().resetCampaign(1);
     directorRef.current?.init();
     setSession(s => s + 1);
@@ -323,6 +331,34 @@ export function L4DMode() {
     ws.syncLoadout({ primary: "ak47", secondary: "glock", knife: "knife" });
     ws.equipWeapon("ak47");
   }, []);
+
+  const resume = useCallback(() => {
+    setPaused(false);
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
+  }, []);
+
+  useEffect(() => {
+    const onPointerLockChange = () => {
+      const locked = !!document.pointerLockElement;
+      if (!locked && !buyMenuOpen && !isGameOver && !isVictory) setPaused(true);
+    };
+    document.addEventListener("pointerlockchange", onPointerLockChange);
+    return () => document.removeEventListener("pointerlockchange", onPointerLockChange);
+  }, [buyMenuOpen, isGameOver, isVictory]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        if (buyMenuOpen) { closeBuyMenu(); return; }
+        if (paused) resume();
+        else if (document.pointerLockElement) document.exitPointerLock();
+        return;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paused, buyMenuOpen, closeBuyMenu, resume]);
 
   const aliveCount = survivors.filter(s => !s.isDead).length;
   const me = survivors[0];
@@ -334,9 +370,9 @@ export function L4DMode() {
       <Canvas shadows camera={{ fov: 75, position: [0, 1.6, -34] }}>
         <color attach="background" args={["#070c09"]} />
         <fog attach="fog" args={["#070c09", 12, 48]} />
-        <ambientLight intensity={0.18} />
-        <hemisphereLight args={["#243028", "#0a0c08", 0.25]} />
-        <directionalLight position={[6, 14, 4]} intensity={0.35} castShadow />
+        <ambientLight intensity={0.28} />
+        <hemisphereLight args={["#3a4a40", "#0a0c08", 0.35]} />
+        <directionalLight position={[6, 14, 4]} intensity={0.5} castShadow />
         <Physics gravity={[0, -9.81, 0]}>
           <L4DCampaignMap />
           <PlayerController key={`${chapter}-${session}`} />
@@ -398,8 +434,50 @@ export function L4DMode() {
           </div>
         </div>
       )}
-      <ClickToPlayOverlay onLock={() => {}} suppressed={buyMenuOpen || isGameOver || isVictory} />
+      <ClickToPlayOverlay onLock={() => {}} suppressed={buyMenuOpen || isGameOver || isVictory || paused} />
       <SettingsMenu />
+      {/* Pause Menu */}
+      {paused && !isGameOver && !isVictory && (
+        <div
+          style={{
+            position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", zIndex: 90,
+          }}
+        >
+          <div style={{
+            background: "linear-gradient(155deg, rgba(13, 20, 36, 0.96), rgba(8, 12, 22, 0.98))",
+            border: "1.5px solid #10b981", borderRadius: 16, padding: "32px 48px", textAlign: "center",
+            boxShadow: "0 0 35px rgba(16,185,129,0.3), 0 20px 50px rgba(0,0,0,0.8)", minWidth: 300,
+          }}>
+            <div style={{ color: "#10b981", fontSize: 11, fontWeight: 900, letterSpacing: 2.5, marginBottom: 8, fontFamily: "monospace" }}>
+              PAUSED
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#f8fafc", marginBottom: 24, fontFamily: "monospace", letterSpacing: "0.08em" }}>
+              LEFT 4 DEAD
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                onClick={resume}
+                style={{ padding: "12px 28px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                RESUME
+              </button>
+              <button
+                onClick={handleRestart}
+                style={{ padding: "12px 28px", background: "rgba(234,179,8,0.2)", color: "#facc15", border: "1px solid #eab308", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                RESTART
+              </button>
+              <button
+                onClick={handleBack}
+                style={{ padding: "12px 28px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                BACK TO MENU
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

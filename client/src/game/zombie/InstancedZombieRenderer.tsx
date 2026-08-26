@@ -103,7 +103,7 @@ export function InstancedZombieRenderer() {
       // Body position — capsule center at y=0.6
       dummy.position.set(z.x, z.y + 0.6, z.z);
       dummy.rotation.y = z.rotationY;
-      dummy.scale.set(s * 0.45, s * 0.6, s * 0.35);
+      dummy.scale.set(s * 0.5, s * 0.65, s * 0.4);
       dummy.updateMatrix();
       bodyRef.current.setMatrixAt(i, dummy.matrix);
 

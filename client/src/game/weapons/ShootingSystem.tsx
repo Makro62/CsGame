@@ -28,6 +28,28 @@ function getArcadeAim() {
   return { origin: a.origin.clone(), direction: a.direction.clone(), yaw: a.yaw, pos: a.pos.clone() };
 }
 
+function shotIgnored(obj: THREE.Object3D) {
+  let current: THREE.Object3D | null = obj;
+  while (current) {
+    if (current.userData?.skipShot) return true;
+    if (current.name && String(current.name).includes("weapon")) return true;
+    if (current.name === "local-player") return true;
+    current = current.parent;
+  }
+  return false;
+}
+
+function infectedFrom(obj: THREE.Object3D): { id: string; isHead: boolean } | null {
+  let current: THREE.Object3D | null = obj;
+  while (current) {
+    if (current.userData?.infectedId) {
+      return { id: current.userData.infectedId as string, isHead: !!current.userData.isHead };
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
 // Same idle window RecoilController uses to reset its pattern index
 const SPRAY_RESET_MS = 260;
 
@@ -436,26 +458,40 @@ export function ShootingSystem() {
       (Math.random() - 0.5) * spread
     );
 
-    raycaster.far = Infinity;
+    raycaster.far = 90;
     if (isZombieArcade()) {
       const aim = getArcadeAim();
       shootOrigin.copy(aim.origin);
       _arcadeDir.copy(aim.direction).normalize();
-      _arcadeDir.applyAxisAngle(_up, spreadDir.x * 0.45);
-      raycaster.set(shootOrigin, _arcadeDir);
-    } else {
-      raycaster.setFromCamera(spreadDir, camera);
+      _arcadeDir.applyAxisAngle(_up, spreadDir.x * 0.05);
+      const stats = WEAPONS[activeWeapon];
+      const hit = zombieEngine.handleShoot(shootOrigin, _arcadeDir, stats?.dmg ?? 35);
+      const wallDist = zombieEngine.wallDistance(shootOrigin, _arcadeDir, 70);
+      if (hit) {
+        _tempVec3.set(hit.x, hit.y, hit.z);
+      } else {
+        _tempVec3.copy(shootOrigin).addScaledVector(_arcadeDir, wallDist);
+      }
+      spawnImpact(_tempVec3);
+      useGameStore.getState().setTracerEvent({
+        start: { x: shootOrigin.x, y: shootOrigin.y, z: shootOrigin.z },
+        end: { x: _tempVec3.x, y: _tempVec3.y, z: _tempVec3.z },
+      });
+      createMuzzleFlash(side);
+      createShellCasing(side);
+      useGameStore.getState().triggerShoot();
+      gameEvents.emit("weaponFired", { weapon: activeWeapon, akimboSide: side });
+      Sound.gunshot(activeWeapon);
+      incrementBullets();
+      setLastFireTime(performance.now());
+      return;
     }
+
+    raycaster.setFromCamera(spreadDir, camera);
     const intersects = raycaster.intersectObjects(scene.children, true);
     const validHits = intersects.filter((hit) => {
-      if (hit.distance < 0.4) return false;
-      let current: THREE.Object3D | null = hit.object;
-      while (current) {
-        if (current.name && current.name.includes("weapon")) return false;
-        if (current.name === "local-player") return false;
-        current = current.parent;
-      }
-      return true;
+      if (hit.distance < 0.25) return false;
+      return !shotIgnored(hit.object);
     });
 
     if (validHits.length > 0) {
@@ -522,21 +558,11 @@ export function ShootingSystem() {
       }
 
       if (gameMode === "l4d") {
-        let current: THREE.Object3D | null = hit.object;
-        let infectedId: string | null = null;
-        let isHead = false;
-        while (current) {
-          if (current.userData?.infectedId) {
-            infectedId = current.userData.infectedId as string;
-            isHead = !!current.userData.isHead;
-            break;
-          }
-          current = current.parent;
-        }
-        if (infectedId) {
+        const inf = infectedFrom(hit.object);
+        if (inf) {
           const stats = WEAPONS[activeWeapon];
-          const dmgVal = isHead ? (stats?.headshot ?? 70) : (stats?.dmg ?? 35);
-          useL4DStore.getState().damageInfected(infectedId, dmgVal);
+          const dmgVal = inf.isHead ? (stats?.headshot ?? 70) : (stats?.dmg ?? 35);
+          useL4DStore.getState().damageInfected(inf.id, dmgVal);
         }
       }
     } else if (gameMode === "offline5v5") {
@@ -556,23 +582,6 @@ export function ShootingSystem() {
 
     // Play gunshot sound
     Sound.gunshot(activeWeapon);
-
-    if (isZombieArcade()) {
-      const aim = getArcadeAim();
-      shootOrigin.copy(aim.origin);
-      if (_arcadeDir.lengthSq() > 0.01) {
-        shootDirection.copy(_arcadeDir);
-      } else {
-        shootDirection.copy(aim.direction);
-      }
-      const stats = WEAPONS[activeWeapon];
-      const dmg = stats?.dmg ?? 35;
-      const headDmg = stats?.headshot ?? dmg * 2;
-      const isHead = Math.random() < 0.18;
-      zombieEngine.handleShoot(shootOrigin, shootDirection, isHead ? headDmg : dmg, isHead);
-    } else if (gameMode !== "training" && gameMode !== "offline5v5" && gameMode !== "l4d") {
-      // offline fallback no network
-    }
 
     incrementBullets();
     setLastFireTime(performance.now());

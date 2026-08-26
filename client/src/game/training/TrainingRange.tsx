@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
@@ -359,13 +359,13 @@ function TrainingTopNav({
 
 export function TrainingRange() {
   const [trainingMode, setTrainingMode] = useState<"aim" | "recoil">("aim");
-  useWeaponSwitch();
+  const { buyMenuOpen, closeBuyMenu } = useWeaponSwitch();
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     useGameStore.getState().setMode("training");
     const state = useWeaponStore.getState();
     state.setInfiniteAmmo(true);
-    // Training hands out a full loadout so slots 1/2/3 all work offline.
     state.syncLoadout({
       primary: state.primaryWeapon ?? "ak47",
       secondary: state.secondaryWeapon ?? "deagle",
@@ -373,6 +373,46 @@ export function TrainingRange() {
     });
     state.equipWeapon(state.activeWeapon ?? "ak47");
   }, []);
+
+  useEffect(() => {
+    const onPointerLockChange = () => {
+      const locked = !!document.pointerLockElement;
+      if (!locked && !buyMenuOpen) setPaused(true);
+    };
+    document.addEventListener("pointerlockchange", onPointerLockChange);
+    return () => document.removeEventListener("pointerlockchange", onPointerLockChange);
+  }, [buyMenuOpen]);
+
+  const resume = useCallback(() => {
+    setPaused(false);
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
+  }, []);
+
+  const backToMenu = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    setPaused(false);
+    useGameStore.getState().setMode("menu");
+  }, []);
+
+  const handleRestart = useCallback(() => {
+    setPaused(false);
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        if (buyMenuOpen) { closeBuyMenu(); return; }
+        if (paused) resume();
+        else if (document.pointerLockElement) document.exitPointerLock();
+        return;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paused, buyMenuOpen, closeBuyMenu, resume]);
 
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", backgroundColor: "#000" }}>
@@ -403,7 +443,49 @@ export function TrainingRange() {
       <QuickArsenalSelector />
       <TrainingTopNav mode={trainingMode} onModeChange={setTrainingMode} />
       <SettingsMenu />
-      <ClickToPlayOverlay onLock={() => {}} />
+      {/* Pause Menu */}
+      {paused && (
+        <div
+          style={{
+            position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", zIndex: 90,
+          }}
+        >
+          <div style={{
+            background: "linear-gradient(155deg, rgba(13, 20, 36, 0.96), rgba(8, 12, 22, 0.98))",
+            border: "1.5px solid #38bdf8", borderRadius: 16, padding: "32px 48px", textAlign: "center",
+            boxShadow: "0 0 35px rgba(56,189,248,0.3), 0 20px 50px rgba(0,0,0,0.8)", minWidth: 300,
+          }}>
+            <div style={{ color: "#38bdf8", fontSize: 11, fontWeight: 900, letterSpacing: 2.5, marginBottom: 8, fontFamily: "monospace" }}>
+              PAUSED
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#f8fafc", marginBottom: 24, fontFamily: "monospace", letterSpacing: "0.08em" }}>
+              TRAINING RANGE
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                onClick={resume}
+                style={{ padding: "12px 28px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                RESUME
+              </button>
+              <button
+                onClick={handleRestart}
+                style={{ padding: "12px 28px", background: "rgba(234,179,8,0.2)", color: "#facc15", border: "1px solid #eab308", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                RESTART
+              </button>
+              <button
+                onClick={backToMenu}
+                style={{ padding: "12px 28px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                BACK TO MENU
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {!paused && <ClickToPlayOverlay onLock={() => {}} />}
     </div>
   );
 }
