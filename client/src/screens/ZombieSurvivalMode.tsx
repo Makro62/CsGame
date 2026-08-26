@@ -233,6 +233,11 @@ export function ZombieSurvivalMode() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: "#cbd5e1" }}>{(activeWeapon ?? "—").toUpperCase()}</span>
+            {player.weaponTiers?.[activeWeapon ?? ""] ? (
+              <span style={{ fontSize: 10, fontWeight: 900, background: "rgba(234, 179, 8, 0.2)", color: "#fde047", padding: "1px 6px", borderRadius: 4, border: "1px solid rgba(234, 179, 8, 0.5)" }}>
+                TIER {player.weaponTiers[activeWeapon ?? ""]} ⚡
+              </span>
+            ) : null}
             <span style={{ fontSize: 16, fontWeight: 900, color: "#38bdf8" }}>{currentAmmo}</span>
             <span style={{ fontSize: 12, color: "#64748b" }}>/ {reserveAmmo || maxAmmo}</span>
           </div>
@@ -242,11 +247,16 @@ export function ZombieSurvivalMode() {
           </div>
         </div>
 
-        {/* Power-up badges */}
-        {player.activePowerUps.size > 0 && (
+        {/* Perks and Power-up badges */}
+        {(player.perks.length > 0 || player.activePowerUps.size > 0) && (
           <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {player.perks.map((pk, idx) => (
+              <span key={`perk-${idx}`} style={{ padding: "2px 8px", background: "rgba(168, 85, 247, 0.2)", border: "1px solid #a855f7", borderRadius: 6, fontSize: 10, color: "#d8b4fe", fontWeight: 800 }}>
+                ★ {pk.toUpperCase()}
+              </span>
+            ))}
             {Array.from(player.activePowerUps.keys()).map((pk, idx) => (
-              <span key={idx} style={{ padding: "2px 8px", background: "rgba(168, 85, 247, 0.2)", border: "1px solid #a855f7", borderRadius: 6, fontSize: 10, color: "#d8b4fe", fontWeight: 800 }}>
+              <span key={`pwr-${idx}`} style={{ padding: "2px 8px", background: "rgba(234, 179, 8, 0.2)", border: "1px solid #eab308", borderRadius: 6, fontSize: 10, color: "#fef08a", fontWeight: 800 }}>
                 ⚡ {pk.toUpperCase()}
               </span>
             ))}

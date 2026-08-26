@@ -50,25 +50,64 @@ function setPart(
 export function InstancedZombieRenderer() {
   const torsoRef = useRef<THREE.InstancedMesh>(null);
   const headRef = useRef<THREE.InstancedMesh>(null);
+  const eyesRef = useRef<THREE.InstancedMesh>(null);
   const armLRef = useRef<THREE.InstancedMesh>(null);
   const armRRef = useRef<THREE.InstancedMesh>(null);
   const legLRef = useRef<THREE.InstancedMesh>(null);
   const legRRef = useRef<THREE.InstancedMesh>(null);
   const bloodGroup = useRef<THREE.Group>(null);
   const tempColor = useMemo(() => new THREE.Color(), []);
+
   const armGeo = useMemo(() => {
     const g = new THREE.BoxGeometry(0.14, 0.62, 0.14);
     g.translate(0, -0.31, 0);
     return g;
   }, []);
+
   const legGeo = useMemo(() => {
     const g = new THREE.BoxGeometry(0.18, 0.62, 0.18);
     g.translate(0, -0.31, 0);
     return g;
   }, []);
+
+  const eyesGeo = useMemo(() => {
+    const g = new THREE.BoxGeometry(0.22, 0.06, 0.04);
+    return g;
+  }, []);
+
   const hitFlash = useRef(new Map<string, number>());
   const bloodParticles = useRef<BloodParticle[]>([]);
   const bloodPool = useRef<THREE.Mesh[]>([]);
+
+  // Pre-initialize instance colors and disable frustum culling to prevent invisible zombies
+  useEffect(() => {
+    const meshes = [
+      torsoRef.current,
+      headRef.current,
+      eyesRef.current,
+      armLRef.current,
+      armRRef.current,
+      legLRef.current,
+      legRRef.current,
+    ];
+    for (const mesh of meshes) {
+      if (mesh) {
+        mesh.frustumCulled = false;
+        if (!mesh.instanceColor) {
+          const colors = new Float32Array(MAX * 3);
+          for (let i = 0; i < MAX * 3; i++) colors[i] = 1;
+          mesh.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+        }
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(m => { m.needsUpdate = true; });
+          } else {
+            mesh.material.needsUpdate = true;
+          }
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const geo = new THREE.SphereGeometry(0.05, 5, 5);
@@ -116,11 +155,12 @@ export function InstancedZombieRenderer() {
   useFrame((_, dt) => {
     const torso = torsoRef.current;
     const head = headRef.current;
+    const eyes = eyesRef.current;
     const armL = armLRef.current;
     const armR = armRRef.current;
     const legL = legLRef.current;
     const legR = legRRef.current;
-    if (!torso || !head || !armL || !armR || !legL || !legR) return;
+    if (!torso || !head || !eyes || !armL || !armR || !legL || !legR) return;
 
     const zombies = zombieEngine.getZombies();
     const now = performance.now();
@@ -134,6 +174,7 @@ export function InstancedZombieRenderer() {
 
       setPart(torso, i, z.x, z.z, yaw, s, 0, 0.86, 0, 0);
       setPart(head, i, z.x, z.z, yaw, s, 0, 1.42, 0, 0);
+      setPart(eyes, i, z.x, z.z, yaw, s, 0, 1.44, 0.165, 0);
       setPart(armL, i, z.x, z.z, yaw, s, -0.32, 1.16, 0, swing);
       setPart(armR, i, z.x, z.z, yaw, s, 0.32, 1.16, 0, -swing);
       setPart(legL, i, z.x, z.z, yaw, s, -0.12, 0.65, 0, z.isAttacking ? 0.05 : -swing);
@@ -144,6 +185,7 @@ export function InstancedZombieRenderer() {
         tempColor.setHex(0xffffff);
         torso.setColorAt(i, tempColor);
         head.setColorAt(i, tempColor);
+        eyes.setColorAt(i, tempColor);
         armL.setColorAt(i, tempColor);
         armR.setColorAt(i, tempColor);
         legL.setColorAt(i, tempColor);
@@ -155,6 +197,8 @@ export function InstancedZombieRenderer() {
         armR.setColorAt(i, tempColor);
         tempColor.setHex(ZOMBIE_SKIN_HEX[z.type]);
         head.setColorAt(i, tempColor);
+        tempColor.setHex(z.type === "boss" ? 0xff0044 : z.type === "tank" ? 0xff4400 : 0xff1111);
+        eyes.setColorAt(i, tempColor);
         tempColor.setHex(ZOMBIE_PANTS_HEX[z.type]);
         legL.setColorAt(i, tempColor);
         legR.setColorAt(i, tempColor);
@@ -162,7 +206,7 @@ export function InstancedZombieRenderer() {
       i++;
     }
 
-    for (const mesh of [torso, head, armL, armR, legL, legR]) {
+    for (const mesh of [torso, head, eyes, armL, armR, legL, legR]) {
       mesh.count = i;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -198,6 +242,9 @@ export function InstancedZombieRenderer() {
       <instancedMesh ref={headRef} args={[undefined, undefined, MAX]} castShadow>
         <boxGeometry args={[0.32, 0.32, 0.32]} />
         <meshStandardMaterial roughness={0.7} />
+      </instancedMesh>
+      <instancedMesh ref={eyesRef} args={[eyesGeo, undefined, MAX]}>
+        <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
       <instancedMesh ref={armLRef} args={[armGeo, undefined, MAX]} castShadow>
         <meshStandardMaterial roughness={0.75} />

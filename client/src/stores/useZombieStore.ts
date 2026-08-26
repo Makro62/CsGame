@@ -25,6 +25,8 @@ interface PlayerState {
   hp: number; maxHp: number; armor: number; points: number;
   isDowned: boolean; downedTimer: number; reviveProgress: number;
   activePowerUps: Map<PowerUpType, number>;
+  weaponTiers: Record<string, number>;
+  perks: string[];
 }
 
 interface ZombieGameState {
@@ -42,6 +44,8 @@ interface ZombieGameState {
   addLoot: (p: LootDrop) => void; removeLoot: (id: string) => void;
   setPlayer: (fn: (p: PlayerState) => PlayerState) => void;
   addPoints: (n: number) => void;
+  upgradeWeaponTier: (weapon: string, cost: number) => boolean;
+  addPerk: (perk: string, cost: number) => boolean;
   resetGame: (full?: boolean) => void;
 }
 
@@ -49,6 +53,8 @@ const INITIAL_PLAYER: PlayerState = {
   hp: 100, maxHp: 100, armor: 0, points: 800,
   isDowned: false, downedTimer: 0, reviveProgress: 0,
   activePowerUps: new Map(),
+  weaponTiers: {},
+  perks: [],
 };
 
 const INITIAL_STATE = {
@@ -72,9 +78,39 @@ export const useZombieStore = create<ZombieGameState>((set, get) => ({
   removeLoot: (id) => set({ loot: get().loot.filter(p => p.id !== id) }),
   setPlayer: (fn) => set((s) => ({ player: fn({...s.player}) })),
   addPoints: (amount) => {
-    const double = get().player.activePowerUps.has("double_points");
+    const double = amount > 0 && get().player.activePowerUps.has("double_points");
     const pts = double ? amount * 2 : amount;
     set(s => ({ player: { ...s.player, points: s.player.points + pts } }));
+  },
+  upgradeWeaponTier: (weapon, cost) => {
+    const currentPoints = get().player.points;
+    if (currentPoints < cost) return false;
+    const currentTier = get().player.weaponTiers[weapon] ?? 0;
+    if (currentTier >= 3) return false;
+    set(s => ({
+      player: {
+        ...s.player,
+        points: s.player.points - cost,
+        weaponTiers: {
+          ...s.player.weaponTiers,
+          [weapon]: currentTier + 1,
+        },
+      },
+    }));
+    return true;
+  },
+  addPerk: (perk, cost) => {
+    const currentPoints = get().player.points;
+    if (currentPoints < cost) return false;
+    if (get().player.perks.includes(perk)) return false;
+    set(s => ({
+      player: {
+        ...s.player,
+        points: s.player.points - cost,
+        perks: [...s.player.perks, perk],
+      },
+    }));
+    return true;
   },
   resetGame: (full) => set({
     ...INITIAL_STATE,

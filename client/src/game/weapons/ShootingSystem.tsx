@@ -17,6 +17,7 @@ import { getMuzzleOffset, isAkimboWeapon, type AkimboSide } from "./weaponRig";
 import { useAimStore } from "../../stores/useAimStore";
 import { useOffline5v5Store } from "../../screens/Offline5v5Store";
 import { zombieEngine } from "../zombie/ZombieEngine";
+import { useZombieStore } from "../../stores/useZombieStore";
 import { useL4DStore } from "../../stores/useL4DStore";
 import { useNetworkStore } from "../../stores/useNetworkStore";
 
@@ -494,7 +495,14 @@ export function ShootingSystem() {
       shootOrigin.copy(aim.origin);
       _arcadeDir.copy(aim.direction).normalize();
       const stats = WEAPONS[activeWeapon];
-      const hit = zombieEngine.handleShoot(shootOrigin, _arcadeDir, stats?.dmg ?? 35);
+      const baseDmg = stats?.dmg ?? 35;
+      const zombiePlayer = useZombieStore.getState().player;
+      const tier = zombiePlayer.weaponTiers?.[activeWeapon] ?? 0;
+      // Tier 1: +75% DMG, Tier 2: +160% DMG, Tier 3: +260% DMG
+      const tierMult = 1 + tier * 0.85;
+      const doubleTapMult = zombiePlayer.perks?.includes("double_tap") ? 1.4 : 1.0;
+      const finalDmg = Math.round(baseDmg * tierMult * doubleTapMult);
+      const hit = zombieEngine.handleShoot(shootOrigin, _arcadeDir, finalDmg);
       const wallDist = zombieEngine.wallDistance(shootOrigin, _arcadeDir, 70);
       if (hit) {
         _tempVec3.set(hit.x, hit.y, hit.z);
