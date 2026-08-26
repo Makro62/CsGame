@@ -324,15 +324,20 @@ export const Sound = {
   },
 }
 
+import { playMusicForMode, updateMusicVolume, stopMusic } from './MusicEngine'
+import { useGameStore } from '../stores/useGameStore'
+
 export function AudioManager() {
   const hitMarker = useNetworkStore((s) => s.hitMarker)
   const killFeed = useNetworkStore((s) => s.killFeed)
+  const mode = useGameStore((s) => s.mode)
   const lastKillLen = useRef(0)
   const lastHitTime = useRef(0)
 
   useEffect(() => {
     function onFirstInteract() {
       ensureUnlocked()
+      playMusicForMode(useGameStore.getState().mode || 'menu')
       window.removeEventListener('pointerdown', onFirstInteract)
       window.removeEventListener('keydown', onFirstInteract)
     }
@@ -343,6 +348,11 @@ export function AudioManager() {
       window.removeEventListener('keydown', onFirstInteract)
     }
   }, [])
+
+  // Switch background music track when game mode changes
+  useEffect(() => {
+    playMusicForMode(mode || 'menu')
+  }, [mode])
 
   // Play hitmarker/headshot sound when we hit someone
   useEffect(() => {

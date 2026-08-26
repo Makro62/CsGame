@@ -1,7 +1,6 @@
-import { CSSProperties, useEffect, useState } from "react";
+import { CSSProperties, useState } from "react";
 import { useLocation } from "wouter";
 import { useGameStore } from "../stores/useGameStore";
-import { MAPS } from "../game/map/MapRegistry";
 
 // Mode Assets
 import trainingThumb from "../assets/modes/training_thumb.jpg";
@@ -66,7 +65,7 @@ const MODES: ModeCard[] = [
       { key: "R", label: "reload" },
       { key: "1–3", label: "ganti senjata" },
     ],
-    action: "MULAI LATIHAN",
+    action: "▶ MULAI LATIHAN AIM [DEPLOY]",
   },
   {
     id: "offline5v5",
@@ -90,7 +89,7 @@ const MODES: ModeCard[] = [
       { key: "B", label: "buy menu" },
       { key: "E", label: "plant / defuse" },
     ],
-    action: "MULAI OFFLINE",
+    action: "▶ MULAI MATCH 5V5 [DEPLOY]",
   },
   {
     id: "zombie",
@@ -114,7 +113,7 @@ const MODES: ModeCard[] = [
       { key: "LMB", label: "tembak" },
       { key: "B", label: "shop" },
     ],
-    action: "MASUK ARENA",
+    action: "▶ SURVIVAL OUTPOST Z-7 [DEPLOY]",
   },
   {
     id: "l4d",
@@ -143,7 +142,7 @@ const MODES: ModeCard[] = [
       { key: "RMB", label: "ADS" },
       { key: "F", label: "revive" },
     ],
-    action: "MULAI CAMPAIGN",
+    action: "▶ MULAI KAMPANYE L4D [DEPLOY]",
   },
 ];
 
@@ -175,19 +174,11 @@ const KEYFRAMES = `
 `;
 
 export function MainMenu() {
-  const { setMode, nickname, setNickname, currentMap, setCurrentMap } = useGameStore();
+  const { setMode, nickname, setNickname, setCurrentMap } = useGameStore();
   const [, setLocation] = useLocation();
   const [selected, setSelected] = useState<ModeId>("zombie");
 
   const activeMode = MODES.find((m) => m.id === selected) ?? MODES[2];
-  const availableMaps =
-    selected === "offline5v5" ? MAPS.filter((m) => m.id === "container_yard") : MAPS;
-
-  useEffect(() => {
-    if (selected === "offline5v5" && currentMap !== "container_yard") {
-      setCurrentMap("container_yard");
-    }
-  }, [selected, currentMap, setCurrentMap]);
 
   const launchSelected = () => {
     if (selected === "training") {
@@ -279,7 +270,7 @@ export function MainMenu() {
             <h1 style={styles.title}>CS WEB FPS</h1>
           </div>
 
-          {/* Nickname input top right */}
+          {/* Nickname input & Settings button top right */}
           <div style={styles.headerRight}>
             <div style={styles.nickGroup}>
               <span style={styles.nickLabel}>NICKNAME</span>
@@ -292,6 +283,37 @@ export function MainMenu() {
                 style={styles.nickInput}
               />
             </div>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('openSettings'))}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95))',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                borderRadius: 8,
+                padding: '8px 16px',
+                color: '#38bdf8',
+                fontSize: 13,
+                fontWeight: 800,
+                letterSpacing: '0.08em',
+                fontFamily: "'Rajdhani', monospace",
+                cursor: 'pointer',
+                boxShadow: '0 0 12px rgba(56, 189, 248, 0.15)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#38bdf8';
+                e.currentTarget.style.boxShadow = '0 0 20px rgba(56, 189, 248, 0.35)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+                e.currentTarget.style.boxShadow = '0 0 12px rgba(56, 189, 248, 0.15)';
+              }}
+            >
+              <span style={{ fontSize: 16 }}>⚙️</span>
+              <span>PENGATURAN</span>
+            </button>
           </div>
         </header>
 
@@ -436,36 +458,6 @@ export function MainMenu() {
                     </div>
                   ))}
                 </div>
-
-                {/* Map selection if 5v5 mode */}
-                {selected === "offline5v5" && (
-                  <div style={styles.mapSelectContainer}>
-                    <span style={styles.controlsLabel}>MAP</span>
-                    <div style={styles.mapBtnRow}>
-                      {availableMaps.map((map) => {
-                        const isMapActive = currentMap === map.id;
-                        return (
-                          <button
-                            key={map.id}
-                            onClick={() => setCurrentMap(map.id)}
-                            style={{
-                              ...styles.mapSelectBtn,
-                              backgroundColor: isMapActive
-                                ? `${activeMode.accentSoft}0.25)`
-                                : "rgba(10, 16, 28, 0.7)",
-                              borderColor: isMapActive
-                                ? activeMode.accent
-                                : "rgba(255, 255, 255, 0.15)",
-                              color: isMapActive ? "#ffffff" : "#94a3b8",
-                            }}
-                          >
-                            {map.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
                 {/* Controls section */}
                 <div style={styles.controlsSection}>

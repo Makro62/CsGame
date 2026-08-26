@@ -724,86 +724,63 @@ function box(id: string, material: ObstacleMaterial, cx: number, cy: number, cz:
   }
 }
 
-// ─── v3.0 3-Lane Container Yard Layout ──────────────────────────
+// ─── Container Yard — 3 open lanes, one floor, no overlapping props ──
+// Visuals in ContainerYard.tsx are drawn from this list (center + size).
 export const MAP_OBSTACLES = [
-  // ═══ MID LANE ═══
-  // Mid Box Center — wallbangable cover in open field
-  box('mid_box', 'wood', 0, 0.6, 0, 1.2, 1.2, 1.2),
+  // Perimeter (just outside MAP_BOUNDARY so the clamp never sits inside a wall)
+  box('wall_north', 'concrete', 0, 4, -19.4, 60, 8, 0.8),
+  box('wall_south', 'concrete', 0, 4, 19.4, 60, 8, 0.8),
+  box('wall_west', 'concrete', -29.4, 4, 0, 0.8, 8, 40),
+  box('wall_east', 'concrete', 29.4, 4, 0, 0.8, 8, 40),
 
-  // Mid Yellow Landmark Container — AWP peeking cover with counter angle
-  box('mid_yellow_container', 'metal', -2.5, 1.2, 3.5, 4.0, 2.4, 2.0),
+  // T spawn flanks + exit peeks — spawn at (-25, 0) stays in the pocket
+  box('t_spawn_n', 'metal', -26.2, 1.3, -8.4, 3.4, 2.6, 4.6),
+  box('t_spawn_s', 'metal', -26.2, 1.3, 8.4, 3.4, 2.6, 4.6),
+  box('t_peek_n', 'metal', -20.6, 1.3, -4.6, 1.6, 2.6, 3.2),
+  box('t_peek_s', 'metal', -20.6, 1.3, 4.6, 1.6, 2.6, 3.2),
 
-  // T-Mid Barrels — solid iron cover for T peeking mid
-  { id: 'mid_barrel_1', material: 'metal', minX: -15.35, maxX: -14.65, minY: 0, maxY: 1.5, minZ: -2.35, maxZ: -1.65 },
-  { id: 'mid_barrel_2', material: 'metal', minX: -15.35, maxX: -14.65, minY: 0, maxY: 1.5, minZ: 1.65, maxZ: 2.35 },
+  // CT spawn flanks + exit peeks
+  box('ct_spawn_n', 'metal', 26.2, 1.3, -8.4, 3.4, 2.6, 4.6),
+  box('ct_spawn_s', 'metal', 26.2, 1.3, 8.4, 3.4, 2.6, 4.6),
+  box('ct_peek_n', 'metal', 20.6, 1.3, -4.6, 1.6, 2.6, 3.2),
+  box('ct_peek_s', 'metal', 20.6, 1.3, 4.6, 1.6, 2.6, 3.2),
 
-  // CT Sniper Window — two solid blocks with 3m gap for CT sniper
-  box('mid_sniper_nest_L', 'metal', 15, 0.6, -2.5, 2.4, 1.2, 1.2),
-  box('mid_sniper_nest_R', 'metal', 15, 0.6, 2.5, 2.4, 1.2, 1.2),
+  // A / Mid divider (gap x=-5..-1 = A connector)
+  box('a_div_w', 'metal', -12.5, 1.3, -7.5, 15, 2.6, 2.2),
+  box('a_div_e', 'metal', 4.5, 1.3, -7.5, 11, 2.6, 2.2),
 
-  // ═══ SITE A (NORTH, z ≈ -15) ═══
-  // Site A Core — main container, bombsite beside it
-  box('site_a_core', 'metal', 15, 1.2, -15, 6.0, 2.4, 2.4),
+  // B / Mid divider (same connector gap)
+  box('b_div_w', 'metal', -12.5, 1.3, 7.5, 15, 2.6, 2.2),
+  box('b_div_e', 'metal', 4.5, 1.3, 7.5, 11, 2.6, 2.2),
 
-  // A-Main Choke — forces T into narrow entry
-  box('a_main_choke', 'metal', -5, 1.2, -15, 2.4, 2.4, 6.0),
+  // Mid staggered walls — hide on the sides, leave a weaving path
+  box('mid_t_n', 'metal', -16, 1.05, 4.3, 5.2, 2.1, 1.7),
+  box('mid_t_s', 'metal', -11.5, 1.05, -4.3, 4.4, 2.1, 1.7),
+  box('mid_kink', 'metal', -1.2, 1.05, 3.1, 2.6, 2.1, 2.4),
+  box('mid_break', 'metal', 0.9, 1.05, 0.85, 2.4, 2.1, 2.1),
+  box('mid_c_s', 'metal', 3.4, 1.05, -4.1, 3.4, 2.1, 1.8),
+  box('mid_ct_n', 'metal', 12, 1.05, 4.3, 4.4, 2.1, 1.7),
+  box('mid_ct_s', 'metal', 16.5, 1.05, -4.3, 5.2, 2.1, 1.7),
+  box('mid_box_t', 'wood', -7.2, 0.65, 1.35, 1.9, 1.3, 1.9),
+  box('mid_box_ct', 'wood', 7.2, 0.65, -1.35, 1.9, 1.3, 1.9),
 
-  // Site A Corridor Cover — breaks long sightlines in A approach
-  box('site_a_corridor_box1', 'metal', 4, 1.2, -13.5, 3.0, 2.4, 1.5),
-  box('site_a_corridor_stack', 'wood', -0.5, 0.6, -16.5, 1.5, 1.2, 1.5),
+  // A long cover against the divider / north wall
+  box('a_long_1', 'metal', -16, 1.05, -12.7, 4.6, 2.1, 1.6),
+  box('a_long_2', 'metal', -6, 1.05, -16.7, 3.6, 2.1, 1.5),
+  box('a_long_3', 'metal', 4, 1.05, -12.7, 4.2, 2.1, 1.6),
+  box('a_ninja', 'wood', 11.2, 0.65, -17.4, 1.6, 1.3, 1.6),
 
-  // L-Choke A ↔ Mid
-  box('a_mid_choke_1', 'metal', 0, 1.2, -8, 2.4, 2.4, 2.4),
-  box('a_mid_choke_2', 'wood', 2.4, 0.6, -8, 2.4, 1.2, 1.2),
+  // Site A cover — plant center (15, -15) stays clear
+  box('site_a_cover', 'metal', 20.2, 1.3, -14.8, 2.6, 2.6, 6.2),
 
-  // A Ninja Corner — stacked wood boxes
-  { id: 'a_ninja_box_1', material: 'wood', minX: 9.4, maxX: 10.6, minY: 0, maxY: 1.2, minZ: -18.6, maxZ: -17.4 },
-  { id: 'a_ninja_box_2', material: 'wood', minX: 9.4, maxX: 10.6, minY: 1.2, maxY: 2.4, minZ: -18.6, maxZ: -17.4 },
+  // B long cover
+  box('b_long_1', 'metal', -16, 1.05, 12.7, 4.6, 2.1, 1.6),
+  box('b_long_2', 'metal', -6, 1.05, 16.7, 3.6, 2.1, 1.5),
+  box('b_long_3', 'metal', 4, 1.05, 12.7, 4.2, 2.1, 1.6),
+  box('b_box', 'wood', 9.6, 0.65, 17.4, 1.6, 1.3, 1.6),
 
-  // A-Connector wood cover
-  box('a_connector_box', 'wood', 5, 0.6, -5.5, 1.2, 1.2, 1.2),
-
-  // ═══ SITE B (SOUTH, z ≈ +15) ═══
-  // B-Stack Bottom — main container pillar
-  box('site_b_bottom', 'metal', 12, 1.2, 15, 6.0, 2.4, 2.4),
-
-  // B-Ramp — stepped solid physics matching visual ramp
-  box('site_b_ramp_1', 'metal', 6.5, 0.4, 15, 1.8, 0.8, 2.4),
-  box('site_b_ramp_2', 'metal', 8.3, 1.2, 15, 1.8, 1.6, 2.4),
-
-  // B-Stack Top — elevated container for high ground
-  box('site_b_top', 'metal', 13.8, 3.6, 15, 2.4, 2.4, 2.4),
-
-  // B-Pillar Cover — iron cylinder for plant cover
-  { id: 'site_b_plant_cover', material: 'metal', minX: 15.65, maxX: 16.35, minY: 0, maxY: 1.5, minZ: 11.65, maxZ: 12.35 },
-
-  // B-Tunnels
-  box('b_tunnel_wall_1', 'metal', -5, 1.2, 12.5, 10.0, 2.4, 0.5),
-  box('b_tunnel_wall_2', 'metal', -5, 1.2, 17.5, 10.0, 2.4, 0.5),
-  box('b_tunnel_roof', 'metal', -5, 2.4, 15, 10.0, 0.3, 5.0),
-
-  // ═══ SPAWN LANDMARKS ═══
-  // T-Spawn Red Base
-  box('t_spawn_container_1', 'metal', -25, 1.2, -5, 3.0, 2.4, 2.0),
-  box('t_spawn_container_2', 'metal', -25, 1.2, 5, 3.0, 2.4, 2.0),
-
-  // CT-Spawn Blue Base
-  box('ct_spawn_container_1', 'metal', 25, 1.2, -5, 3.0, 2.4, 2.0),
-  box('ct_spawn_container_2', 'metal', 25, 1.2, 5, 3.0, 2.4, 2.0),
-
-  // ═══ WALLS (Perimeter Map) ═══
-  { id: 'wall_north', material: 'concrete', minX: -30, maxX: 30, minY: 0, maxY: 7.2, minZ: -20.5, maxZ: -20 },
-  { id: 'wall_south', material: 'concrete', minX: -30, maxX: 30, minY: 0, maxY: 7.2, minZ: 20, maxZ: 20.5 },
-  { id: 'wall_west', material: 'concrete', minX: -30.5, maxX: -30, minY: 0, maxY: 7.2, minZ: -20, maxZ: 20 },
-  { id: 'wall_east', material: 'concrete', minX: 30, maxX: 30.5, minY: 0, maxY: 7.2, minZ: -20, maxZ: 20 },
-
-  // ═══ GRID-ALIGNED DECORATIVE PROPS ═══
-  box('dec_crate_1', 'wood', -4, 0.3, 6, 1.2, 0.6, 1.2),
-  box('dec_crate_2', 'wood', 3, 0.3, -6, 1.2, 0.6, 1.2),
-  box('dec_crate_a_approach', 'wood', 8, 0.3, -12, 1.2, 0.6, 1.2),
-  box('dec_crate_b_ramp', 'wood', 4, 0.3, 13.5, 1.2, 0.6, 1.2),
-  box('dec_bollard_1', 'metal', 12, 0.45, -2, 0.5, 0.9, 0.5),
-  box('dec_bollard_2', 'metal', 14, 0.45, 2, 0.5, 0.9, 0.5),
+  // Site B cover — plant center (12, 15) stays clear
+  box('site_b_cover', 'metal', 20.2, 1.3, 14.8, 2.6, 2.6, 6.2),
 ] as const satisfies readonly MapObstacle[]
 
 export const MAP_BOUNDARY = {
@@ -822,20 +799,15 @@ export interface MapCallout {
 }
 
 export const MAP_CALLOUTS: readonly MapCallout[] = [
-  // Mid lane
   { id: 'mid', label: 'MID', x: 0, z: 0 },
   { id: 't_mid', label: 'T MID', x: -15, z: 0 },
-  { id: 'ct_sniper', label: 'CT SNIPER', x: 15, z: 0 },
-  // Site A
+  { id: 'ct_rot', label: 'CT ROTATE', x: 18, z: 0 },
   { id: 'site_a', label: 'SITE A', x: 15, z: -15 },
-  { id: 'a_main', label: 'A MAIN', x: -5, z: -15 },
-  { id: 'a_connector', label: 'A CONNECTOR', x: 2, z: -8 },
-  { id: 'a_ninja', label: 'A NINJA', x: 10, z: -18 },
-  // Site B
+  { id: 'a_long', label: 'A LONG', x: -8, z: -15 },
+  { id: 'a_connector', label: 'A CONN', x: -3, z: -7.5 },
   { id: 'site_b', label: 'SITE B', x: 12, z: 15 },
-  { id: 'b_tunnel', label: 'B TUNNEL', x: -5, z: 15 },
-  { id: 'b_ramp', label: 'B RAMP', x: 8, z: 15 },
-  // Spawns
+  { id: 'b_long', label: 'B LONG', x: -8, z: 15 },
+  { id: 'b_connector', label: 'B CONN', x: -3, z: 7.5 },
   { id: 't_spawn', label: 'T BASE', x: -25, z: 0 },
   { id: 'ct_spawn', label: 'CT BASE', x: 25, z: 0 },
 ]

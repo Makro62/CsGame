@@ -16,10 +16,15 @@ import {
   distToBombSite,
   fireIntervalMs,
   hasLineOfSight,
-  isInFov,
+  hideBehindCover,
+  laneForBotId,
+  botPath,
   nearestBombSite,
+  nextWaypointIndex,
   resolveBotShot,
   steerAroundObstacles,
+  stepToward,
+  type BotLane,
 } from "../game/offline/offlineCombat";
 
 type BotTacticalState =
@@ -76,6 +81,8 @@ interface LocalPlayer {
   botSpeed: number;
   botViewDist: number;
   plantSite: string;
+  botLane: BotLane;
+  botWp: number;
 }
 
 export type RoundPhase = "waiting" | "buy" | "active" | "roundEnd" | "matchEnd";
@@ -203,7 +210,9 @@ function mkPlayer(id: string, team: "T" | "CT", nickname: string, isBot: boolean
     botHsRate: 0.25,
     botSpeed: 4,
     botViewDist: 25,
-    plantSite: "A",
+    plantSite: laneForBotId(id) === "B" ? "B" : "A",
+    botLane: laneForBotId(id),
+    botWp: 0,
   };
 }
 
@@ -331,17 +340,13 @@ function botThink(
   const hpRatio = bot.hp / 100;
   if (hpRatio < 0.3 && !bot.isPlanting && !bot.isDefusing) {
     bot.botState = "retreat";
-    const spawn = SPAWN[bot.team];
-    const rdx = spawn.x - bot.x;
-    const rdz = spawn.z - bot.z;
-    const rdist = Math.hypot(rdx, rdz);
-    if (rdist > 3) {
-      bot.x += (rdx / rdist) * bot.botSpeed * 0.7 * dt;
-      bot.z += (rdz / rdist) * bot.botSpeed * 0.7 * dt;
-      bot.rotationY = Math.atan2(rdx, rdz);
-      clamp(bot);
-      return patch;
-    }
+    const path = botPath(bot.botLane, bot.team);
+    const back = path[0] ?? SPAWN[bot.team];
+    const moved = stepToward(bot, back, bot.botSpeed * 0.75, dt);
+    bot.x = moved.x;
+    bot.z = moved.z;
+    bot.rotationY = Math.atan2(back.x - bot.x, back.z - bot.z);
+    return patch;
   }
 
   // ── Bomb: pick up / move toward / plant ──
@@ -407,7 +412,7 @@ function botThink(
   players.forEach((o, id) => {
     if (id === bot.id || o.isDead || o.team === bot.team) return;
     const dd = dist(bot, o);
-    if (dd < bot.botViewDist && dd < nearestDist && hasLineOfSight(bot, o) && isInFov(bot, o)) {
+    if (dd < bot.botViewDist && dd < nearestDist && hasLineOfSight(bot, o)) {
       nearestId = id;
       nearestDist = dd;
     }
@@ -426,40 +431,19 @@ function botThink(
       }
     }
 
-    // ── Patrol ──
+    // ── Patrol along a lane (A / mid / B), weaving past cover ──
     bot.botTargetId = null;
     bot.botState = "patrol";
-    let tgtX: number, tgtZ: number;
-    if (bot.hasBomb) {
-      if (bot.plantSite !== "A" && bot.plantSite !== "B") {
-        bot.plantSite = nearestBombSite(bot);
-      }
-      const site = BOMB_SITES[bot.plantSite as "A" | "B"];
-      tgtX = site.x;
-      tgtZ = site.z;
-    } else {
-      const enemySpawn = bot.team === "T" ? SPAWN.CT : SPAWN.T;
-      tgtX = enemySpawn.x;
-      tgtZ = enemySpawn.z;
-    }
-    const dx = tgtX - bot.x;
-    const dz = tgtZ - bot.z;
-    const dd = Math.hypot(dx, dz);
-    if (dd > 3) {
-      const spd = bot.botSpeed * 0.6;
-      const perpX = -dz / dd;
-      const perpZ = dx / dd;
-      const zigzag = Math.sin(now * 0.0015 + bot.id.charCodeAt(4)) * 0.6;
-      const intended = {
-        x: bot.x + (dx / dd) * spd * dt + perpX * zigzag * spd * dt,
-        z: bot.z + (dz / dd) * spd * dt + perpZ * zigzag * spd * dt,
-      };
-      const steered = clampToMap(steerAroundObstacles(bot, intended));
-      bot.x = steered.x;
-      bot.z = steered.z;
-      bot.rotationY = Math.atan2(dx, dz);
-    }
-    clamp(bot);
+    const lane: BotLane = bot.hasBomb
+      ? (bot.plantSite === "B" ? "B" : "A")
+      : bot.botLane;
+    const path = botPath(lane, bot.team);
+    bot.botWp = nextWaypointIndex(bot, path, bot.botWp);
+    const wp = path[bot.botWp] ?? path[path.length - 1];
+    const moved = stepToward(bot, wp, bot.botSpeed * 0.85, dt);
+    bot.x = moved.x;
+    bot.z = moved.z;
+    bot.rotationY = Math.atan2(wp.x - bot.x, wp.z - bot.z);
     return patch;
   }
 
@@ -475,44 +459,32 @@ function botThink(
   const err = (1 - bot.botAccuracy) * (Math.random() - 0.5) * 0.3;
   bot.rotationY = Math.atan2(dx, dz) + err;
 
-  // State-based Strafe timer
+  // Movement: hide behind a wall, then peek-strafe
   bot.botStrafeTimer -= dt;
   if (bot.botStrafeTimer <= 0) {
     bot.botStrafeDir = Math.random() < 0.5 ? 1 : -1;
-    bot.botStrafeDuration = 0.5 + Math.random() * 0.8;
+    bot.botStrafeDuration = 0.45 + Math.random() * 0.7;
     bot.botStrafeTimer = bot.botStrafeDuration;
   }
 
-  // Movement
-  const perpX = -dz / dd;
-  const perpZ = dx / dd;
-  const strafeSpd = bot.botSpeed * 0.45;
-  const rushSpd = bot.botSpeed * 0.7;
-
-  const intended = { x: bot.x, z: bot.z };
-  if (dd > 18) {
-    intended.x += (dx / dd) * rushSpd * dt + perpX * bot.botStrafeDir * strafeSpd * 0.5 * dt;
-    intended.z += (dz / dd) * rushSpd * dt + perpZ * bot.botStrafeDir * strafeSpd * 0.5 * dt;
-  } else if (dd > 8) {
-    intended.x += perpX * bot.botStrafeDir * strafeSpd * dt;
-    intended.z += perpZ * bot.botStrafeDir * strafeSpd * dt;
-    if (dd > 12) {
-      intended.x += (dx / dd) * rushSpd * 0.2 * dt;
-      intended.z += (dz / dd) * rushSpd * 0.2 * dt;
-    } else if (dd < 10) {
-      intended.x -= (dx / dd) * rushSpd * 0.15 * dt;
-      intended.z -= (dz / dd) * rushSpd * 0.15 * dt;
-    }
-  } else if (dd > 4) {
-    intended.x += perpX * bot.botStrafeDir * strafeSpd * 1.2 * dt;
-    intended.z += perpZ * bot.botStrafeDir * strafeSpd * 1.2 * dt;
-  } else {
-    intended.x -= (dx / dd) * rushSpd * 0.5 * dt + perpX * bot.botStrafeDir * strafeSpd * dt;
-    intended.z -= (dz / dd) * rushSpd * 0.5 * dt + perpZ * bot.botStrafeDir * strafeSpd * dt;
-  }
-  const steeredCombat = clampToMap(steerAroundObstacles(bot, intended));
-  bot.x = steeredCombat.x;
-  bot.z = steeredCombat.z;
+  const cover = hideBehindCover(bot, tgt);
+  const perpX = -dz / Math.max(dd, 0.01);
+  const perpZ = dx / Math.max(dd, 0.01);
+  const peek = bot.botStrafeDir > 0;
+  const dest = cover
+    ? peek
+      ? {
+          x: cover.x + (dx / dd) * 1.7 + perpX * bot.botStrafeDir * 1.15,
+          z: cover.z + (dz / dd) * 1.7 + perpZ * bot.botStrafeDir * 1.15,
+        }
+      : cover
+    : {
+        x: bot.x + perpX * bot.botStrafeDir * 2.4,
+        z: bot.z + perpZ * bot.botStrafeDir * 2.4,
+      };
+  const movedCombat = stepToward(bot, dest, bot.botSpeed * (cover && !peek ? 0.95 : 0.7), dt);
+  bot.x = movedCombat.x;
+  bot.z = movedCombat.z;
 
   // Shoot
   const ws = stats(bot.currentWeapon);
@@ -698,8 +670,20 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     // ── Buy phase ──
     if (s.phase === "buy") {
       const t = s.buyPhaseTimeLeft - dt;
+      const players = new Map(s.players);
+      players.forEach((p, id) => {
+        if (!p.isBot || p.isDead) return;
+        const cloned = { ...p };
+        const path = botPath(cloned.botLane, cloned.team);
+        const hold = path[0];
+        const moved = stepToward(cloned, hold, cloned.botSpeed * 0.55, dt);
+        cloned.x = moved.x;
+        cloned.z = moved.z;
+        cloned.rotationY = Math.atan2(hold.x - cloned.x, hold.z - cloned.z);
+        cloned.botState = "hold";
+        players.set(id, cloned);
+      });
       if (t <= 0) {
-        const players = new Map(s.players);
         players.forEach((p, id) => {
           if (p.isBot) {
             const cloned = { ...p };
@@ -709,7 +693,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
         });
         set({ phase: "active", buyPhaseTimeLeft: 0, roundTimeLeft: ROUND.activePhaseDuration, players });
       } else {
-        set({ buyPhaseTimeLeft: t });
+        set({ buyPhaseTimeLeft: t, players });
       }
       return;
     }
@@ -1194,6 +1178,8 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
         defaultLoadout(cloned);
         cloned.botAmmoInMag = cloned.ammo;
         cloned.botState = "idle";
+        cloned.botWp = 0;
+        cloned.botLane = laneForBotId(id);
       } else {
         refillAmmo(cloned);
       }

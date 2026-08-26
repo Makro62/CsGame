@@ -11,7 +11,7 @@ interface Tracer {
   createdAt: number;
 }
 
-const TRACER_DURATION = 0.18;
+const TRACER_DURATION = 0.10;
 const MAX_TRACERS = 36;
 
 export function TracerManager() {

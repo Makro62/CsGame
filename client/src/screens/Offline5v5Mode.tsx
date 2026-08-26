@@ -18,14 +18,14 @@ import SniperScope from "../components/SniperScope";
 import { ADSOpticSight } from "../components/ADSOpticSight";
 import { FlashEffect } from "../components/FlashEffect";
 import { TracerManager } from "../game/effects/TracerManager";
-import { CalloutLabels } from "../game/map/CalloutLabels";
 import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
-import SettingsMenu from "./SettingsMenu";
 import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
 import { useGameStore } from "../stores/useGameStore";
 import { useWeaponStore } from "../stores/useWeaponStore";
 import { useOffline5v5Store } from "./Offline5v5Store";
 import { TacticalBotModel } from "../game/player/TacticalBotModel";
+import { BOMB_SITES } from "@cs-game/shared";
+import { distToBombSite, nearestBombSite } from "../game/offline/offlineCombat";
 
 function RemoteBots() {
   const players = useOffline5v5Store((s) => s.players);
@@ -61,10 +61,11 @@ function RemoteBots() {
   );
 }
 
-function OfflineLoop() {
+function OfflineLoop({ paused }: { paused: boolean }) {
   const last = useRef(performance.now());
   const acc = useRef(0);
   useFrame(() => {
+    if (paused) return;
     const now = performance.now();
     const dt = Math.min((now - last.current) / 1000, 0.1);
     last.current = now;
@@ -88,6 +89,7 @@ export function Offline5v5Mode() {
   const teamRedScore = useOffline5v5Store((s) => s.teamRedScore);
   const teamBlueScore = useOffline5v5Store((s) => s.teamBlueScore);
   const roundTimeLeft = useOffline5v5Store((s) => s.roundTimeLeft);
+  const buyPhaseTimeLeft = useOffline5v5Store((s) => s.buyPhaseTimeLeft);
   const bombPlanted = useOffline5v5Store((s) => s.bombPlanted);
   const bombTimeLeft = useOffline5v5Store((s) => s.bombTimeLeft);
   const bombSite = useOffline5v5Store((s) => s.bombSite);
@@ -157,6 +159,11 @@ export function Offline5v5Mode() {
     setLocation("/");
   }, [setMode, setLocation]);
 
+  const openSettings = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    window.dispatchEvent(new CustomEvent("openSettings"));
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Escape") {
@@ -201,9 +208,7 @@ export function Offline5v5Mode() {
     <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#0a0e14" }}>
       <Canvas shadows camera={{ fov: 75, position: [0, 5, -22] }}>
         <color attach="background" args={["#0e1520"]} />
-        <fog attach="fog" args={["#0e1520", 30, 90]} />
-        <ambientLight intensity={0.55} color="#9ab" />
-        <directionalLight castShadow position={[12, 18, 10]} intensity={1.2} color="#fff" />
+        <fog attach="fog" args={["#0e1520", 48, 110]} />
         <Physics gravity={[0, -9.81, 0]}>
           <MapComp />
           <PlayerController />
@@ -214,8 +219,7 @@ export function Offline5v5Mode() {
         <ReloadSystem />
         <GrenadeSystem />
         <TracerManager />
-        <CalloutLabels />
-        <OfflineLoop />
+        <OfflineLoop paused={paused} />
       </Canvas>
 
       {/* ── 5v5 Tactical Match Top Header ── */}
@@ -241,7 +245,7 @@ export function Offline5v5Mode() {
       >
         {/* T Side Team Status */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: "#ef4444", fontWeight: 900, fontSize: 16 }}>TERRORIST</span>
+          <span style={{ color: "#ef4444", fontWeight: 900, fontSize: 16 }}>T</span>
           <span style={{ color: "#f87171", fontWeight: 900, fontSize: 22, minWidth: 24, textAlign: "center" }}>
             {teamRedScore}
           </span>
@@ -269,7 +273,10 @@ export function Offline5v5Mode() {
             </div>
           ) : (
             <div style={{ color: "#38bdf8", fontWeight: 900, fontSize: 18 }}>
-              {Math.floor(roundTimeLeft / 60)}:{(Math.floor(roundTimeLeft % 60)).toString().padStart(2, "0")}
+              {(() => {
+                const t = phase === "buy" ? buyPhaseTimeLeft : roundTimeLeft;
+                return `${Math.floor(t / 60)}:${Math.floor(t % 60).toString().padStart(2, "0")}`;
+              })()}
             </div>
           )}
           <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1 }}>
@@ -296,24 +303,57 @@ export function Offline5v5Mode() {
           <span style={{ color: "#60a5fa", fontWeight: 900, fontSize: 22, minWidth: 24, textAlign: "center" }}>
             {teamBlueScore}
           </span>
-          <span style={{ color: "#3b82f6", fontWeight: 900, fontSize: 16 }}>COUNTER-T</span>
+          <span style={{ color: "#3b82f6", fontWeight: 900, fontSize: 16 }}>CT</span>
         </div>
+      </div>
 
+      {/* ── Top Right: Standardized Tactical Action Buttons ── */}
+      <div style={{ position: "fixed", top: 14, right: 16, zIndex: 40, display: "flex", gap: 8 }}>
+        <button
+          onClick={openSettings}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95))",
+            border: "1px solid rgba(56, 189, 248, 0.4)",
+            borderRadius: 8,
+            padding: "8px 16px",
+            color: "#38bdf8",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "0.08em",
+            fontFamily: "'Rajdhani', monospace",
+            cursor: "pointer",
+            boxShadow: "0 0 12px rgba(56, 189, 248, 0.15)",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <span>⚙️</span>
+          <span>PENGATURAN</span>
+        </button>
         <button
           onClick={back}
           style={{
-            marginLeft: 8,
-            background: "rgba(239,68,68,0.15)",
-            border: "1px solid #ef4444",
-            color: "#fecaca",
-            borderRadius: 6,
-            padding: "4px 10px",
-            cursor: "pointer",
-            fontSize: 11,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "linear-gradient(135deg, rgba(127, 29, 29, 0.85), rgba(69, 10, 10, 0.95))",
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            borderRadius: 8,
+            padding: "8px 16px",
+            color: "#fca5a5",
+            fontSize: 13,
             fontWeight: 800,
+            letterSpacing: "0.08em",
+            fontFamily: "'Rajdhani', monospace",
+            cursor: "pointer",
+            boxShadow: "0 0 12px rgba(239, 68, 68, 0.15)",
+            transition: "all 0.15s ease",
           }}
         >
-          MENU [ESC]
+          <span>✕</span>
+          <span>MENU</span>
         </button>
       </div>
 
@@ -408,8 +448,8 @@ export function Offline5v5Mode() {
             ${me.money}
           </div>
 
-          {/* Bomb indicator */}
-          {me.hasBomb && me.team === "T" && (
+          {/* Bomb / defuse prompt — only when the action is actually available */}
+          {me.hasBomb && me.team === "T" && !bombPlanted && distToBombSite(me, nearestBombSite(me)) <= BOMB_SITES[nearestBombSite(me)].radius && (
             <div
               style={{
                 position: "fixed",
@@ -425,10 +465,31 @@ export function Offline5v5Mode() {
                 fontFamily: "'Rajdhani', monospace",
                 fontSize: 13,
                 fontWeight: 900,
-                boxShadow: "0 0 16px rgba(234,179,8,0.4)",
               }}
             >
-              💣 C4 BOMB [E to Plant at Site]
+              Tahan E untuk plant
+            </div>
+          )}
+
+          {me.team === "CT" && bombPlanted && !me.isDefusing && distToBombSite(me, (bombSite === "B" ? "B" : "A")) <= BOMB_SITES[bombSite === "B" ? "B" : "A"].radius && (
+            <div
+              style={{
+                position: "fixed",
+                bottom: 56,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 40,
+                background: "rgba(59,130,246,0.25)",
+                border: "1.5px solid #60a5fa",
+                borderRadius: 8,
+                padding: "6px 16px",
+                color: "#93c5fd",
+                fontFamily: "'Rajdhani', monospace",
+                fontSize: 13,
+                fontWeight: 900,
+              }}
+            >
+              Tahan E untuk defuse
             </div>
           )}
 
@@ -491,7 +552,6 @@ export function Offline5v5Mode() {
       <FlashEffect />
 
       {buyMenuOpen && phase === "buy" && <BuyMenu onClose={closeBuyMenu} />}
-      <SettingsMenu />
 
       {/* Pause Menu — shown when pointer lock exits */}
       {paused && phase !== "matchEnd" && (
@@ -529,19 +589,13 @@ export function Offline5v5Mode() {
                 onClick={resume}
                 style={{ padding: "12px 28px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
               >
-                RESUME
-              </button>
-              <button
-                onClick={rematch}
-                style={{ padding: "12px 28px", background: "rgba(34,197,94,0.2)", color: "#4ade80", border: "1px solid #22c55e", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                REMATCH
+                LANJUTKAN
               </button>
               <button
                 onClick={back}
                 style={{ padding: "12px 28px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
               >
-                BACK TO MENU
+                KEMBALI KE MENU
               </button>
             </div>
           </div>
@@ -549,7 +603,30 @@ export function Offline5v5Mode() {
       )}
 
       {/* Click-to-play overlay — only show when NOT paused */}
-      {!paused && <ClickToPlayOverlay onLock={() => {}} suppressed={buyMenuOpen} />}
+      {!paused && phase !== "matchEnd" && <ClickToPlayOverlay onLock={() => {}} suppressed={buyMenuOpen} />}
+
+      {phase === "roundEnd" && !paused && (
+        <div
+          style={{
+            position: "fixed",
+            top: 88,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 45,
+            pointerEvents: "none",
+            background: "rgba(15,23,42,0.9)",
+            border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: 10,
+            padding: "8px 22px",
+            color: "#e2e8f0",
+            fontFamily: "'Rajdhani', monospace",
+            fontWeight: 800,
+            letterSpacing: 1,
+          }}
+        >
+          RONDE SELESAI
+        </div>
+      )}
 
       {/* Match Over Modal */}
       {phase === "matchEnd" && (

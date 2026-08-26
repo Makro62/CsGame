@@ -1,27 +1,10 @@
-import { useEffect, useState } from "react";
 import { useOffline5v5Store } from "../screens/Offline5v5Store";
 import { useGameStore } from "../stores/useGameStore";
-
-const RESPAWN_TIME = 4;
 
 export function DeathScreen() {
   const gameMode = useGameStore((s) => s.mode);
   const offlineIsDead = useOffline5v5Store(s => s.players.get("local")?.isDead ?? false);
-  const [countdown, setCountdown] = useState(RESPAWN_TIME);
-
   const isDead = gameMode === "offline5v5" ? offlineIsDead : false;
-
-  useEffect(() => {
-    if (isDead) setCountdown(RESPAWN_TIME);
-  }, [isDead]);
-
-  useEffect(() => {
-    if (!isDead) return;
-    const interval = setInterval(() => {
-      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isDead]);
 
   if (!isDead) return null;
 
@@ -54,8 +37,8 @@ export function DeathScreen() {
         YOU DIED
       </div>
 
-      <div style={{ fontSize: "24px", color: "#aaa" }}>
-        Respawn in {countdown}
+      <div style={{ fontSize: "20px", color: "#aaa" }}>
+        Menunggu ronde berikutnya
       </div>
     </div>
   );

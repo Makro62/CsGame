@@ -85,6 +85,22 @@ export default function SettingsMenu() {
     useSettingsStore.getState().setMusicVolume(value)
   }
 
+  const handleRestartMatch = () => {
+    setOpen(false)
+    const mode = useGameStore.getState().mode
+    if (mode === 'training') {
+      window.location.href = '/training'
+    } else if (mode === 'offline5v5') {
+      window.location.href = '/offline5v5'
+    } else if (mode === 'zombie') {
+      window.location.href = '/zombie'
+    } else if (mode === 'l4d') {
+      window.location.href = '/l4d'
+    }
+  }
+
+  const isIngame = useGameStore.getState().mode !== 'menu'
+
   if (!open) return null
 
   return (
@@ -133,35 +149,62 @@ export default function SettingsMenu() {
             background: 'rgba(56, 189, 248, 0.05)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 18, color: '#38bdf8' }}>⚙️</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 22, color: '#38bdf8' }}>⚙️</span>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.12em', color: '#ffffff' }}>
-                GAME SETTINGS
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.12em', color: '#ffffff' }}>
+                  PAUSE & PENGATURAN
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#38bdf8',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  {useGameStore.getState().mode === 'training'
+                    ? 'MODE: TRAINING RANGE'
+                    : useGameStore.getState().mode === 'offline5v5'
+                    ? 'MODE: 5V5 OFFLINE'
+                    : useGameStore.getState().mode === 'zombie'
+                    ? 'MODE: ZOMBIE SURVIVAL'
+                    : useGameStore.getState().mode === 'l4d'
+                    ? 'MODE: L4D KAMPANYE'
+                    : 'MENU UTAMA'}
+                </span>
               </div>
-              <div style={{ fontSize: 10, color: '#94a3b8', letterSpacing: '0.05em' }}>
-                CS WEB FPS CONFIGURATION
+              <div style={{ fontSize: 10, color: '#94a3b8', letterSpacing: '0.05em', marginTop: 2 }}>
+                CS WEB FPS • TACTICAL CONFIGURATION
               </div>
             </div>
           </div>
           <button
             onClick={handleResume}
+            title="Tutup Pengaturan (ESC)"
             style={{
               background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
               borderRadius: 6,
               color: '#cbd5e1',
-              width: 30,
-              height: 30,
-              display: 'grid',
-              placeItems: 'center',
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
               cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 'bold',
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: '0.05em',
               transition: 'all 0.15s',
             }}
           >
-            ✕
+            <span>✕</span>
+            <span>TUTUP [ESC]</span>
           </button>
         </div>
 
@@ -395,52 +438,86 @@ export default function SettingsMenu() {
         {/* Footer Actions */}
         <div
           style={{
-            padding: '12px 20px',
+            padding: '14px 20px',
             borderTop: '1px solid rgba(255, 255, 255, 0.08)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             background: 'rgba(10, 16, 28, 0.95)',
             gap: 12,
+            flexWrap: 'wrap',
           }}
         >
           <button
             onClick={handleLeaveToMenu}
             style={{
-              padding: '9px 18px',
+              padding: '10px 18px',
               background: 'rgba(239, 68, 68, 0.15)',
               color: '#f87171',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontWeight: 800,
-              fontSize: 12,
-              letterSpacing: '0.06em',
-              transition: 'all 0.15s',
-            }}
-          >
-            ← KELUAR KE MENU
-          </button>
-          <button
-            onClick={handleResume}
-            style={{
-              flex: 1,
-              maxWidth: 240,
-              padding: '10px 20px',
-              background: 'linear-gradient(90deg, #0284c7 0%, #0369a1 100%)',
-              color: '#ffffff',
-              border: '1px solid rgba(56, 189, 248, 0.5)',
-              boxShadow: '0 0 16px rgba(56, 189, 248, 0.35)',
-              borderRadius: 6,
+              border: '1px solid rgba(239, 68, 68, 0.45)',
+              borderRadius: 8,
               cursor: 'pointer',
               fontWeight: 800,
               fontSize: 13,
-              letterSpacing: '0.1em',
+              letterSpacing: '0.06em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
               transition: 'all 0.15s',
             }}
           >
-            LANJUT MAIN [RESUME]
+            <span>🚪</span>
+            <span>KELUAR KE MENU UTAMA</span>
           </button>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            {isIngame && (
+              <button
+                onClick={handleRestartMatch}
+                style={{
+                  padding: '10px 18px',
+                  background: 'rgba(234, 179, 8, 0.15)',
+                  color: '#facc15',
+                  border: '1px solid rgba(234, 179, 8, 0.45)',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                  fontSize: 13,
+                  letterSpacing: '0.06em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span>🔄</span>
+                <span>ULANGI MATCH</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleResume}
+              style={{
+                padding: '10px 24px',
+                background: 'linear-gradient(90deg, #0284c7 0%, #0369a1 100%)',
+                color: '#ffffff',
+                border: '1px solid rgba(56, 189, 248, 0.6)',
+                boxShadow: '0 0 18px rgba(56, 189, 248, 0.4)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontWeight: 900,
+                fontSize: 13,
+                letterSpacing: '0.08em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.15s',
+              }}
+            >
+              <span>▶</span>
+              <span>LANJUTKAN PERMAINAN [ESC]</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

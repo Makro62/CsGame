@@ -9,7 +9,7 @@ interface TracerProps {
   duration?: number;
 }
 
-export function BulletTracer({ start, end, color = "#ffea60", duration = 0.16 }: TracerProps) {
+export function BulletTracer({ start, end, color = "#ffea60", duration = 0.09 }: TracerProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const opacityRef = useRef(1);
 
@@ -43,20 +43,20 @@ export function BulletTracer({ start, end, color = "#ffea60", duration = 0.16 }:
 
   return (
     <group position={position} quaternion={quaternion}>
-      {/* Outer Bright Tracer Glow Cylinder */}
+      {/* Sleek slim tracer outer streak */}
       <mesh ref={meshRef}>
-        <cylinderGeometry args={[0.045, 0.045, length, 8]} />
+        <cylinderGeometry args={[0.012, 0.012, length, 6]} />
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={1}
+          opacity={0.85}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </mesh>
-      {/* Inner Intense White-Hot Core */}
+      {/* Fine inner core */}
       <mesh>
-        <cylinderGeometry args={[0.018, 0.018, length, 6]} />
+        <cylinderGeometry args={[0.005, 0.005, length, 4]} />
         <meshBasicMaterial
           color="#ffffff"
           transparent

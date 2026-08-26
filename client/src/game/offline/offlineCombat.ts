@@ -5,6 +5,20 @@ interface Point2D {
   z: number;
 }
 
+export type BotLane = "A" | "mid" | "B";
+
+const BODY = 0.45;
+
+function hitsObstacle(p: Point2D, obstacles: readonly MapObstacle[] = MAP_OBSTACLES, pad = BODY): boolean {
+  return obstacles.some(
+    (obs) =>
+      p.x >= obs.minX - pad &&
+      p.x <= obs.maxX + pad &&
+      p.z >= obs.minZ - pad &&
+      p.z <= obs.maxZ + pad,
+  );
+}
+
 export function hasLineOfSight(
   from: Point2D,
   to: Point2D,
@@ -64,20 +78,19 @@ export function steerAroundObstacles(
   intended: Point2D,
   obstacles: readonly MapObstacle[] = MAP_OBSTACLES
 ): Point2D {
-  const next = { x: intended.x, z: intended.z };
-  const blocked = obstacles.some(
-    (obs) => next.x >= obs.minX && next.x <= obs.maxX && next.z >= obs.minZ && next.z <= obs.maxZ
-  );
-  if (!blocked) return next;
+  if (!hitsObstacle(intended, obstacles)) return intended;
 
   const onlyX = { x: intended.x, z: from.z };
-  if (!obstacles.some((obs) => onlyX.x >= obs.minX && onlyX.x <= obs.maxX && onlyX.z >= obs.minZ && onlyX.z <= obs.maxZ)) {
-    return onlyX;
-  }
+  if (!hitsObstacle(onlyX, obstacles)) return onlyX;
   const onlyZ = { x: from.x, z: intended.z };
-  if (!obstacles.some((obs) => onlyZ.x >= obs.minX && onlyZ.x <= obs.maxX && onlyZ.z >= obs.minZ && onlyZ.z <= obs.maxZ)) {
-    return onlyZ;
-  }
+  if (!hitsObstacle(onlyZ, obstacles)) return onlyZ;
+
+  const dx = intended.x - from.x;
+  const dz = intended.z - from.z;
+  const left = { x: from.x - dz, z: from.z + dx };
+  const right = { x: from.x + dz, z: from.z - dx };
+  if (!hitsObstacle(left, obstacles)) return left;
+  if (!hitsObstacle(right, obstacles)) return right;
   return { x: from.x, z: from.z };
 }
 
@@ -86,6 +99,124 @@ export function clampToMap(p: Point2D): Point2D {
     x: Math.max(MAP_BOUNDARY.minX + 1, Math.min(MAP_BOUNDARY.maxX - 1, p.x)),
     z: Math.max(MAP_BOUNDARY.minZ + 1, Math.min(MAP_BOUNDARY.maxZ - 1, p.z)),
   };
+}
+
+export function laneForBotId(id: string): BotLane {
+  const n = Number.parseInt(id.replace(/\D/g, ""), 10);
+  if (!Number.isFinite(n)) return "mid";
+  return n % 3 === 1 ? "A" : n % 3 === 2 ? "B" : "mid";
+}
+
+/** Waypoints weave through cover instead of walking the open axis. */
+export const BOT_PATHS: Record<BotLane, { T: Point2D[]; CT: Point2D[] }> = {
+  A: {
+    T: [
+      { x: -22, z: -2 },
+      { x: -22, z: -14 },
+      { x: -10, z: -14.2 },
+      { x: 2, z: -14.2 },
+      { x: 14, z: -14.5 },
+    ],
+    CT: [
+      { x: 22, z: -3 },
+      { x: 18, z: -12 },
+      { x: 14, z: -14.5 },
+    ],
+  },
+  mid: {
+    T: [
+      { x: -18, z: 0 },
+      { x: -12, z: 2.4 },
+      { x: -4, z: -2.2 },
+      { x: 5, z: 2.2 },
+      { x: 16, z: 0 },
+    ],
+    CT: [
+      { x: 18, z: 0 },
+      { x: 12, z: -2.4 },
+      { x: 4, z: 2.2 },
+      { x: -5, z: -2.2 },
+      { x: -16, z: 0 },
+    ],
+  },
+  B: {
+    T: [
+      { x: -22, z: 2 },
+      { x: -22, z: 14 },
+      { x: -10, z: 14.2 },
+      { x: 2, z: 14.2 },
+      { x: 12, z: 14.5 },
+    ],
+    CT: [
+      { x: 22, z: 3 },
+      { x: 18, z: 12 },
+      { x: 12, z: 14.5 },
+    ],
+  },
+};
+
+export function botPath(lane: BotLane, team: "T" | "CT"): Point2D[] {
+  return BOT_PATHS[lane][team];
+}
+
+export function nextWaypointIndex(pos: Point2D, path: Point2D[], index: number): number {
+  let i = Math.max(0, Math.min(index, path.length - 1));
+  const wp = path[i];
+  if (Math.hypot(wp.x - pos.x, wp.z - pos.z) < 2.2 && i < path.length - 1) i += 1;
+  return i;
+}
+
+export function stepToward(
+  from: Point2D,
+  to: Point2D,
+  speed: number,
+  dt: number,
+): Point2D {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.05) return { x: from.x, z: from.z };
+  const intended = {
+    x: from.x + (dx / dist) * speed * dt,
+    z: from.z + (dz / dist) * speed * dt,
+  };
+  return clampToMap(steerAroundObstacles(from, intended));
+}
+
+/** Stand on the far side of the nearest cover wall from a threat. */
+export function hideBehindCover(
+  self: Point2D,
+  threat: Point2D,
+  obstacles: readonly MapObstacle[] = MAP_OBSTACLES,
+): Point2D | null {
+  let best: Point2D | null = null;
+  let bestScore = Infinity;
+  for (const obs of obstacles) {
+    if (obs.maxY - obs.minY > 6) continue;
+    const cx = (obs.minX + obs.maxX) / 2;
+    const cz = (obs.minZ + obs.maxZ) / 2;
+    const toThreatX = threat.x - cx;
+    const toThreatZ = threat.z - cz;
+    const len = Math.hypot(toThreatX, toThreatZ);
+    if (len < 0.4) continue;
+    const hx = obs.maxX - obs.minX;
+    const hz = obs.maxZ - obs.minZ;
+    const standoff = Math.max(hx, hz) * 0.5 + 1.35;
+    const hide = {
+      x: cx - (toThreatX / len) * standoff,
+      z: cz - (toThreatZ / len) * standoff,
+    };
+    if (hitsObstacle(hide, obstacles, 0.2)) continue;
+    const dSelf = Math.hypot(hide.x - self.x, hide.z - self.z);
+    const dThreat = Math.hypot(hide.x - threat.x, hide.z - threat.z);
+    if (dSelf > 16 || dThreat < 3.5) continue;
+    const score = dSelf + (hasLineOfSight(hide, threat, obstacles) ? 8 : 0);
+    if (score < bestScore) {
+      bestScore = score;
+      best = hide;
+    }
+  }
+  return best;
 }
 
 /** Camera/player yaw (Three.js YXZ, -Z forward) facing a point. */

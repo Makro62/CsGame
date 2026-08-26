@@ -88,32 +88,121 @@ function recycleImpact(mesh: THREE.Mesh) {
   }
 }
 
-// Muzzle flash pool
-const muzzleFlashPool: THREE.Mesh[] = [];
-const MAX_MUZZLE_FLASHES = 5;
+// Procedural Starburst Muzzle Flash Texture
+let _muzzleTexture: THREE.CanvasTexture | null = null;
+function getMuzzleTexture(): THREE.CanvasTexture {
+  if (_muzzleTexture) return _muzzleTexture;
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d")!;
 
-function getMuzzleFlashMesh(): THREE.Mesh {
+  // Smooth transparent clear
+  ctx.clearRect(0, 0, 128, 128);
+
+  // Fiery radial gradient
+  const grad = ctx.createRadialGradient(64, 64, 1, 64, 64, 58);
+  grad.addColorStop(0, "rgba(255, 255, 255, 1)");
+  grad.addColorStop(0.18, "rgba(255, 230, 110, 0.95)");
+  grad.addColorStop(0.42, "rgba(255, 130, 20, 0.7)");
+  grad.addColorStop(0.75, "rgba(255, 50, 0, 0.25)");
+  grad.addColorStop(1, "rgba(255, 0, 0, 0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+
+  // 4 sharp star spikes
+  ctx.fillStyle = "rgba(255, 245, 180, 0.92)";
+  // Horizontal spike
+  ctx.beginPath();
+  ctx.moveTo(64, 59);
+  ctx.lineTo(124, 64);
+  ctx.lineTo(64, 69);
+  ctx.lineTo(4, 64);
+  ctx.closePath();
+  ctx.fill();
+
+  // Vertical spike
+  ctx.beginPath();
+  ctx.moveTo(59, 64);
+  ctx.lineTo(64, 124);
+  ctx.lineTo(69, 64);
+  ctx.lineTo(64, 4);
+  ctx.closePath();
+  ctx.fill();
+
+  // 4 diagonal smaller sparks
+  ctx.fillStyle = "rgba(255, 175, 40, 0.65)";
+  ctx.beginPath();
+  ctx.moveTo(64, 61);
+  ctx.lineTo(104, 24);
+  ctx.lineTo(67, 64);
+  ctx.lineTo(104, 104);
+  ctx.lineTo(64, 67);
+  ctx.lineTo(24, 104);
+  ctx.lineTo(61, 64);
+  ctx.lineTo(24, 24);
+  ctx.closePath();
+  ctx.fill();
+
+  _muzzleTexture = new THREE.CanvasTexture(canvas);
+  _muzzleTexture.generateMipmaps = false;
+  _muzzleTexture.minFilter = THREE.LinearFilter;
+  _muzzleTexture.magFilter = THREE.LinearFilter;
+  return _muzzleTexture;
+}
+
+// Muzzle flash pool
+const muzzleFlashPool: THREE.Object3D[] = [];
+const MAX_MUZZLE_FLASHES = 6;
+
+function getMuzzleFlashMesh(): THREE.Object3D {
   if (muzzleFlashPool.length > 0) {
     return muzzleFlashPool.pop()!;
   }
-  const geo = new THREE.PlaneGeometry(0.15, 0.15);
+  const group = new THREE.Group();
+  const tex = getMuzzleTexture();
   const mat = new THREE.MeshBasicMaterial({
-    color: 0xffaa00,
+    map: tex,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.95,
     side: THREE.DoubleSide,
     blending: THREE.AdditiveBlending,
+    depthWrite: false,
   });
-  return new THREE.Mesh(geo, mat);
+
+  // Cross plane 1
+  const p1 = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), mat);
+  group.add(p1);
+
+  // Cross plane 2 (perpendicular)
+  const p2 = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), mat);
+  p2.rotation.y = Math.PI / 2;
+  group.add(p2);
+
+  // Forward flame burst cone
+  const coneMat = new THREE.MeshBasicMaterial({
+    color: 0xffaa11,
+    transparent: true,
+    opacity: 0.8,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.14, 6), coneMat);
+  cone.rotation.x = -Math.PI / 2;
+  cone.position.z = -0.06;
+  group.add(cone);
+
+  // Instantaneous point light at gun tip
+  const light = new THREE.PointLight(0xffaa33, 2.2, 2.6);
+  group.add(light);
+
+  return group;
 }
 
-function recycleMuzzleFlash(mesh: THREE.Mesh) {
-  mesh.visible = false;
+function recycleMuzzleFlash(obj: THREE.Object3D) {
+  obj.visible = false;
   if (muzzleFlashPool.length < MAX_MUZZLE_FLASHES) {
-    muzzleFlashPool.push(mesh);
-  } else {
-    mesh.geometry.dispose();
-    (mesh.material as THREE.Material).dispose();
+    muzzleFlashPool.push(obj);
   }
 }
 
@@ -161,11 +250,11 @@ export function ShootingSystem() {
   const impactTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const flashTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const casingRafs = useRef<number[]>([]);
-  const liveFx = useRef<Array<{ mesh: THREE.Mesh; recycle: (m: THREE.Mesh) => void }>>([]);
+  const liveFx = useRef<Array<{ mesh: THREE.Object3D; recycle: (m: any) => void }>>([]);
   // Akimbo weapons alternate hands, so every shot flips this.
   const akimboSide = useRef<AkimboSide>(1);
 
-  const dropLiveFx = useCallback((mesh: THREE.Mesh) => {
+  const dropLiveFx = useCallback((mesh: THREE.Object3D) => {
     const idx = liveFx.current.findIndex((fx) => fx.mesh === mesh);
     if (idx < 0) return;
     const { recycle } = liveFx.current[idx];

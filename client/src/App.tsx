@@ -5,6 +5,8 @@ import { TrainingRange } from './game/training/TrainingRange'
 import { ZombieSurvivalMode } from './screens/ZombieSurvivalMode'
 import { Offline5v5Mode } from './screens/Offline5v5Mode'
 import { L4DMode } from './screens/L4DMode'
+import { AudioManager } from './components/AudioManager'
+import SettingsMenu from './screens/SettingsMenu'
 import { useGameStore } from './stores/useGameStore'
 import './index.css'
 
@@ -63,6 +65,8 @@ function GameRoutes() {
 export default function App() {
   return (
     <>
+      <AudioManager />
+      <SettingsMenu />
       <SyncModeToURL />
       <Switch>
         <Route path="/" component={GameRoutes} />

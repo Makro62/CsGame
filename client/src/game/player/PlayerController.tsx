@@ -423,6 +423,9 @@ export function PlayerController() {
       targetSpeed = THREE.MathUtils.lerp(SPRINT_SPEED, slideEndSpeed, slideProgress)
     }
 
+    // 5v5 is CS-like: walk / sprint / crouch / jump only. Parkour stays in training.
+    const csTactical = mode === 'offline5v5'
+
     // Calculate desired velocity XZ with smoother acceleration / deceleration
     const desiredMove = new THREE.Vector2()
     if (direction.lengthSq() > 0.001) {
@@ -431,10 +434,10 @@ export function PlayerController() {
         direction.x * targetSpeed * strafeMult,
         direction.z * targetSpeed * strafeMult
       )
-      const accel = grounded.current ? 10 : 5
+      const accel = grounded.current ? (csTactical ? 16 : 10) : (csTactical ? 3 : 5)
       moveVelocityRef.current.lerp(desiredMove, 1 - Math.exp(-accel * dt))
     } else {
-      const decel = grounded.current ? 14 : 6
+      const decel = grounded.current ? (csTactical ? 18 : 14) : 6
       moveVelocityRef.current.lerp(
         new THREE.Vector2(0, 0),
         1 - Math.exp(-decel * dt)
@@ -460,7 +463,7 @@ export function PlayerController() {
     }
 
     // Air strafing
-    if (!grounded.current && direction.lengthSq() > 0.001) {
+    if (!csTactical && !grounded.current && direction.lengthSq() > 0.001) {
       const velYaw = Math.atan2(velocityXZ.x, velocityXZ.y)
       const camYaw = _euler.y
       let delta = camYaw - velYaw
@@ -478,7 +481,7 @@ export function PlayerController() {
     }
 
     // Curve slide
-    if (slideState.current.active && direction.lengthSq() > 0.001) {
+    if (!csTactical && slideState.current.active && direction.lengthSq() > 0.001) {
       const velYaw = Math.atan2(velocityXZ.x, velocityXZ.y)
       const camYaw = _euler.y
       let rot = camYaw - velYaw
@@ -501,6 +504,7 @@ export function PlayerController() {
 
     // Slide logic
     const canSlide =
+      !csTactical &&
       input.sprint &&
       input.crouch &&
       grounded.current &&
@@ -537,10 +541,10 @@ export function PlayerController() {
 
     if (canJump && hasJumpBuffer) {
       const timeSinceCrouchRelease = now - getCrouchReleasedAt()
-      if (timeSinceCrouchRelease <= 150) {
+      if (!csTactical && timeSinceCrouchRelease <= 150) {
         velocityY.current = JUMP_VELOCITY * MOON_JUMP_MULT
         spendJumpStamina()
-      } else if (slideState.current.active) {
+      } else if (!csTactical && slideState.current.active) {
         velocityXZ.multiplyScalar(SLIDE_BOOST)
         const currentSpeed = velocityXZ.length()
         if (currentSpeed > MAX_VELOCITY) {
@@ -550,15 +554,14 @@ export function PlayerController() {
         slideState.current.active = false
         spendJumpStamina()
       } else {
-        // Perfect Jump Boost
-        velocityY.current = isPerfectJump ? JUMP_VELOCITY * PERFECT_JUMP_BOOST : JUMP_VELOCITY
+        velocityY.current = (!csTactical && isPerfectJump) ? JUMP_VELOCITY * PERFECT_JUMP_BOOST : JUMP_VELOCITY
         spendJumpStamina()
       }
       input.jumpBuffer.length = 0
       coyoteTimeRef.current = 0
       grounded.current = false
       doubleJumpUsed.current = false
-    } else if (!grounded.current && hasJumpBuffer && !doubleJumpUsed.current) {
+    } else if (!csTactical && !grounded.current && hasJumpBuffer && !doubleJumpUsed.current) {
       // Double Jump
       if (PHYSICS.doubleJumpEnabled) {
         const hasStamina = spendJumpStamina()
@@ -574,7 +577,7 @@ export function PlayerController() {
     // MAP_OBSTACLES only describes the competitive map, so other modes would
     // otherwise wall jump off invisible geometry.
     if (
-      (mode === 'offline5v5' || mode === 'training') &&
+      mode === 'training' &&
       !grounded.current &&
       hasJumpBuffer &&
       WALL_JUMP_ENABLED

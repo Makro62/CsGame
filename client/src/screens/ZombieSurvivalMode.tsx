@@ -42,6 +42,7 @@ export function ZombieSurvivalMode() {
   }, []);
 
   useEffect(() => {
+    useGameStore.getState().setMode("zombie");
     zombieEngine.init();
     useZombieStore.getState().resetGame(true);
     startLoadout();
@@ -99,21 +100,33 @@ export function ZombieSurvivalMode() {
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [closeBuyMenu]);
 
   const handleBackToMenu = useCallback(() => {
     setPaused(false);
     useGameStore.getState().setMode("menu");
+    window.location.href = "/";
   }, []);
+
   const handleRestart = useCallback(() => {
     setPaused(false);
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
     useZombieStore.getState().resetGame(true);
     zombieEngine.init();
     startLoadout();
     closeBuyMenu();
   }, [startLoadout, closeBuyMenu]);
 
-  const resume = useCallback(() => setPaused(false), []);
+  const resume = useCallback(() => {
+    setPaused(false);
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
+  }, []);
+
+  const openSettings = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("openSettings"));
+  }, []);
 
   const betweenWaves = waveState === "buy_phase" || waveState === "wave_clear";
 
@@ -121,11 +134,14 @@ export function ZombieSurvivalMode() {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "Escape") return;
       if (buyMenuOpen) { closeBuyMenu(); return; }
-      setPaused(p => !p);
+      if (paused) { resume(); return; }
+      setPaused(true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [buyMenuOpen, closeBuyMenu]);
+  }, [buyMenuOpen, closeBuyMenu, openSettings]);
+
+  const hpPercent = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
 
   return (
     <div className="w-full h-screen bg-black relative" style={{ cursor: "crosshair" }}>
@@ -156,44 +172,272 @@ export function ZombieSurvivalMode() {
         <TracerManager />
       </Canvas>
 
-      <div className="absolute top-4 left-4 text-white font-mono bg-black/65 p-3 rounded border border-lime-700/40">
-        <div className="text-2xl font-bold tracking-wide">WAVE {Math.max(1, currentWave)}</div>
-        <div className="text-xl text-yellow-300">{player.points} pts</div>
-        <div>HP {Math.ceil(player.hp)}/{player.maxHp}{player.armor > 0 && <span className="text-blue-300"> • ARM {player.armor}</span>}</div>
-        <div className="text-sm opacity-80">{(activeWeapon ?? "—").toUpperCase()} {currentAmmo}/{reserveAmmo || maxAmmo}</div>
-        <div className="text-sm opacity-70">Horde {zombiesRemaining}</div>
-        {player.activePowerUps.size > 0 && <div className="text-xs text-purple-300">{Array.from(player.activePowerUps.keys()).join(", ")}</div>}
-        {betweenWaves && <div className="text-xs text-lime-400 mt-1">NEXT WAVE {Math.ceil(interWaveTimer)}s • [B] SHOP</div>}
-      </div>
+      {/* ── Top Left: Glassmorphic Zombie Tactical HUD ── */}
+      <div
+        style={{
+          position: "fixed",
+          top: 16,
+          left: 16,
+          zIndex: 40,
+          background: "linear-gradient(145deg, rgba(13, 20, 16, 0.94), rgba(8, 12, 10, 0.98))",
+          border: "1.5px solid rgba(132, 204, 22, 0.4)",
+          borderRadius: 14,
+          padding: "14px 20px",
+          color: "#fff",
+          fontFamily: "'Rajdhani', monospace",
+          minWidth: 260,
+          boxShadow: "0 8px 30px rgba(0,0,0,0.7), 0 0 20px rgba(132, 204, 22, 0.15)",
+          userSelect: "none",
+        }}
+      >
+        {/* Wave & Points Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 20 }}>☣️</span>
+            <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.08em", color: "#a3e635" }}>
+              WAVE {Math.max(1, currentWave)}
+            </span>
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: "#facc15", textShadow: "0 0 10px rgba(250, 204, 21, 0.4)" }}>
+            {player.points} <span style={{ fontSize: 12, color: "#ca8a04" }}>PTS</span>
+          </div>
+        </div>
 
-      <div className="absolute top-4 right-4 flex gap-2">
-        <button onClick={handleBackToMenu} className="px-4 py-2 bg-slate-800 text-white rounded border border-white/20 hover:bg-slate-700">MENU</button>
+        {/* Health Bar */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 800, marginBottom: 3 }}>
+            <span style={{ color: "#86efac" }}>HEALTH</span>
+            <span style={{ color: hpPercent > 40 ? "#86efac" : "#f87171" }}>{Math.ceil(player.hp)} / {player.maxHp}</span>
+          </div>
+          <div style={{ width: "100%", height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
+            <div
+              style={{
+                width: `${hpPercent}%`,
+                height: "100%",
+                background: hpPercent > 50 ? "linear-gradient(90deg, #22c55e, #4ade80)" : hpPercent > 25 ? "linear-gradient(90deg, #eab308, #facc15)" : "linear-gradient(90deg, #dc2626, #ef4444)",
+                transition: "width 0.2s ease",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Armor Status if active */}
+        {player.armor > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 800, color: "#60a5fa", marginBottom: 8 }}>
+            <span>ARMOR</span>
+            <span>{player.armor} ARM</span>
+          </div>
+        )}
+
+        {/* Ammo & Horde Info */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#cbd5e1" }}>{(activeWeapon ?? "—").toUpperCase()}</span>
+            <span style={{ fontSize: 16, fontWeight: 900, color: "#38bdf8" }}>{currentAmmo}</span>
+            <span style={{ fontSize: 12, color: "#64748b" }}>/ {reserveAmmo || maxAmmo}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>HORDE:</span>
+            <span style={{ fontSize: 15, fontWeight: 900, color: "#ef4444" }}>{zombiesRemaining}</span>
+          </div>
+        </div>
+
+        {/* Power-up badges */}
+        {player.activePowerUps.size > 0 && (
+          <div style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {Array.from(player.activePowerUps.keys()).map((pk, idx) => (
+              <span key={idx} style={{ padding: "2px 8px", background: "rgba(168, 85, 247, 0.2)", border: "1px solid #a855f7", borderRadius: 6, fontSize: 10, color: "#d8b4fe", fontWeight: 800 }}>
+                ⚡ {pk.toUpperCase()}
+              </span>
+            ))}
+          </div>
+        )}
+
         {betweenWaves && (
-          <button onClick={toggleBuyMenu} className="px-4 py-2 bg-lime-800 text-white rounded font-bold hover:bg-lime-700">SHOP [B]</button>
+          <div style={{ marginTop: 10, padding: "6px 12px", background: "rgba(132, 204, 22, 0.15)", border: "1px dashed #84cc16", borderRadius: 8, textAlign: "center", fontSize: 13, fontWeight: 900, color: "#bef264" }}>
+            NEXT WAVE IN {Math.ceil(interWaveTimer)}s • TEKAN [B] UNTUK SHOP
+          </div>
         )}
       </div>
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-xs font-mono bg-black/70 px-4 py-2 rounded">
-        WASD gerak • Mouse aim • Klik tembak • Shift lari • R reload • 1-3 senjata • B shop antar wave • ESC pause
+      {/* ── Top Right: Standardized Tactical Action Buttons ── */}
+      <div style={{ position: "fixed", top: 16, right: 16, zIndex: 40, display: "flex", gap: 8 }}>
+        {betweenWaves && (
+          <button
+            onClick={toggleBuyMenu}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "linear-gradient(135deg, rgba(77, 124, 15, 0.9), rgba(54, 83, 20, 0.95))",
+              border: "1px solid #84cc16",
+              borderRadius: 8,
+              padding: "8px 16px",
+              color: "#f7fee7",
+              fontSize: 13,
+              fontWeight: 900,
+              letterSpacing: "0.08em",
+              fontFamily: "'Rajdhani', monospace",
+              cursor: "pointer",
+              boxShadow: "0 0 16px rgba(132, 204, 22, 0.35)",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <span>🛒</span>
+            <span>ARSENAL [B]</span>
+          </button>
+        )}
+        <button
+          onClick={openSettings}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95))",
+            border: "1px solid rgba(56, 189, 248, 0.4)",
+            borderRadius: 8,
+            padding: "8px 16px",
+            color: "#38bdf8",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "0.08em",
+            fontFamily: "'Rajdhani', monospace",
+            cursor: "pointer",
+            boxShadow: "0 0 12px rgba(56, 189, 248, 0.15)",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <span>⚙️</span>
+          <span>PENGATURAN</span>
+        </button>
+        <button
+          onClick={handleBackToMenu}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "linear-gradient(135deg, rgba(127, 29, 29, 0.85), rgba(69, 10, 10, 0.95))",
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            borderRadius: 8,
+            padding: "8px 16px",
+            color: "#fca5a5",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "0.08em",
+            fontFamily: "'Rajdhani', monospace",
+            cursor: "pointer",
+            boxShadow: "0 0 12px rgba(239, 68, 68, 0.15)",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <span>✕</span>
+          <span>MENU</span>
+        </button>
       </div>
 
-      {waveState === "game_over" && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center bg-black/85 p-6 rounded border border-red-700/50">
-          <div className="text-white text-3xl font-bold mb-2">K.I.A.</div>
-          <div className="text-white/70 mb-4">Wave {currentWave} • {player.points} pts</div>
-          <div className="flex gap-2 justify-center">
-            <button onClick={handleRestart} className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700">RESTART</button>
-            <button onClick={handleBackToMenu} className="px-6 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-600">MENU</button>
-          </div>
-        </div>
-      )}
+      {/* ── Bottom Controls Guide ── */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 40,
+          background: "rgba(8, 12, 18, 0.88)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 10,
+          padding: "6px 20px",
+          color: "#94a3b8",
+          fontSize: 12,
+          fontFamily: "'Rajdhani', monospace",
+          fontWeight: 700,
+          letterSpacing: "0.05em",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
+          userSelect: "none",
+          pointerEvents: "none",
+        }}
+      >
+        WASD Gerak • Mouse Arah Bidik • Klik Kiri Tembak • R Reload • 1-3 Ganti Senjata • B Toko • ESC Menu
+      </div>
 
-      {paused && (
-        <div className="absolute inset-0 z-30 bg-black/70 flex flex-col items-center justify-center gap-3">
-          <div className="text-white text-4xl font-bold">PAUSE</div>
-          <div className="flex gap-3">
-            <button onClick={resume} className="px-6 py-3 bg-lime-700 text-white rounded hover:bg-lime-600">LANJUT</button>
-            <button onClick={handleBackToMenu} className="px-6 py-3 bg-slate-700 text-white rounded hover:bg-slate-600">MENU</button>
+      {/* ── Game Over (K.I.A.) Tactical Modal ── */}
+      {waveState === "game_over" && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.82)",
+            backdropFilter: "blur(6px)",
+            zIndex: 80,
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(160deg, rgba(24, 12, 12, 0.98), rgba(12, 6, 6, 0.99))",
+              border: "1.5px solid #ef4444",
+              borderRadius: 16,
+              padding: "36px 48px",
+              textAlign: "center",
+              boxShadow: "0 0 45px rgba(239, 68, 68, 0.4), 0 20px 50px rgba(0,0,0,0.9)",
+              minWidth: 360,
+              fontFamily: "'Rajdhani', monospace",
+            }}
+          >
+            <div style={{ fontSize: 36, fontWeight: 900, color: "#ef4444", letterSpacing: "0.15em", marginBottom: 6 }}>
+              K.I.A.
+            </div>
+            <div style={{ fontSize: 13, color: "#94a3b8", letterSpacing: "0.08em", marginBottom: 20 }}>
+              OUTPOST Z-7 SURVIVOR ELIMINATED
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: "14px 20px", marginBottom: 24, display: "flex", justifyContent: "space-around" }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>SURVIVED</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: "#f8fafc" }}>WAVE {currentWave}</div>
+              </div>
+              <div style={{ width: 1, background: "rgba(255,255,255,0.1)" }} />
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>FINAL SCORE</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: "#facc15" }}>{player.points} PTS</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <button
+                onClick={handleRestart}
+                style={{
+                  padding: "12px 28px",
+                  background: "linear-gradient(135deg, #dc2626, #991b1b)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                  boxShadow: "0 0 16px rgba(220, 38, 38, 0.4)",
+                }}
+              >
+                COBA LAGI
+              </button>
+              <button
+                onClick={handleBackToMenu}
+                style={{
+                  padding: "12px 28px",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  color: "#cbd5e1",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 900,
+                  letterSpacing: "0.08em",
+                }}
+              >
+                MENU UTAMA
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -201,6 +445,63 @@ export function ZombieSurvivalMode() {
       <SurvivalShop open={buyMenuOpen && betweenWaves} onClose={closeBuyMenu} />
       <DamageVignette />
       <DownedOverlay />
+
+      {/* Pause Menu */}
+      {paused && waveState !== "game_over" && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.75)",
+            backdropFilter: "blur(4px)",
+            zIndex: 90,
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(155deg, rgba(13, 20, 36, 0.96), rgba(8, 12, 22, 0.98))",
+              border: "1.5px solid #84cc16",
+              borderRadius: 16,
+              padding: "32px 48px",
+              textAlign: "center",
+              boxShadow: "0 0 35px rgba(132, 204, 22, 0.3), 0 20px 50px rgba(0,0,0,0.8)",
+              minWidth: 300,
+              fontFamily: "'Rajdhani', monospace",
+            }}
+          >
+            <div style={{ color: "#84cc16", fontSize: 11, fontWeight: 900, letterSpacing: 2.5, marginBottom: 8 }}>
+              PAUSED
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#f8fafc", marginBottom: 24, letterSpacing: "0.08em" }}>
+              ZOMBIE SURVIVAL
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                onClick={resume}
+                style={{ padding: "12px 28px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                LANJUTKAN
+              </button>
+              <button
+                onClick={handleRestart}
+                style={{ padding: "12px 28px", background: "rgba(234,179,8,0.2)", color: "#facc15", border: "1px solid #eab308", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                RESTART
+              </button>
+              <button
+                onClick={handleBackToMenu}
+                style={{ padding: "12px 28px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
+              >
+                KEMBALI KE MENU
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+export default ZombieSurvivalMode;

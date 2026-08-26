@@ -374,9 +374,76 @@ export function L4DMode() {
         <div className="text-xs opacity-70">Infected {infected.filter(i => !i.isDead).length} • Alive {aliveCount}/4</div>
         {chapterState === "finale" && <div className="text-sm text-yellow-300">Finale {finaleState} {finaleTimer > 0 ? `${Math.ceil(finaleTimer)}s` : ""} {rescueVehicleArrived && "— RESCUE!"}</div>}
       </div>
-      <div className="absolute top-3 right-3 flex gap-2">
-        <button onClick={handleBack} className="px-4 py-2 bg-slate-800 text-white rounded border border-white/20 hover:bg-slate-700">MENU</button>
-        <button onClick={handleRestart} className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-600">RESTART</button>
+      <div style={{ position: "fixed", top: 14, right: 16, zIndex: 40, display: "flex", gap: 8 }}>
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent("openSettings"))}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95))",
+            border: "1px solid rgba(56, 189, 248, 0.4)",
+            borderRadius: 8,
+            padding: "8px 16px",
+            color: "#38bdf8",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "0.08em",
+            fontFamily: "'Rajdhani', monospace",
+            cursor: "pointer",
+            boxShadow: "0 0 12px rgba(56, 189, 248, 0.15)",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <span>⚙️</span>
+          <span>PENGATURAN</span>
+        </button>
+        <button
+          onClick={handleRestart}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "linear-gradient(135deg, rgba(202, 138, 4, 0.85), rgba(161, 98, 7, 0.95))",
+            border: "1px solid rgba(234, 179, 8, 0.4)",
+            borderRadius: 8,
+            padding: "8px 16px",
+            color: "#fef08a",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "0.08em",
+            fontFamily: "'Rajdhani', monospace",
+            cursor: "pointer",
+            boxShadow: "0 0 12px rgba(234, 179, 8, 0.15)",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <span>🔄</span>
+          <span>RESTART</span>
+        </button>
+        <button
+          onClick={handleBack}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "linear-gradient(135deg, rgba(127, 29, 29, 0.85), rgba(69, 10, 10, 0.95))",
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            borderRadius: 8,
+            padding: "8px 16px",
+            color: "#fca5a5",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "0.08em",
+            fontFamily: "'Rajdhani', monospace",
+            cursor: "pointer",
+            boxShadow: "0 0 12px rgba(239, 68, 68, 0.15)",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <span>✕</span>
+          <span>MENU</span>
+        </button>
       </div>
 
       <div className="absolute bottom-3 left-3 flex gap-2">
