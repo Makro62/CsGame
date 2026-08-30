@@ -12,21 +12,10 @@ import {
 import { zombieBodyRadius, zombieHeadRadius, zombieVisualScale } from "./zombieVisual";
 import { chaseStep, hordeSeparationFromIds, SURVIVAL_HORDE_SEP } from "./hordeMovement";
 import { pickZombieType, waveCount, waveHpScale, waveDamageScale, waveInterval, waveSpeedScale, isBossWave } from "./zombieWaves";
+import { zombieEvents, type ZombieEvent } from "./ZombieEventBus";
+import { ZombieDOTSystem } from "./ZombieDOTSystem";
 
-// ── Event Bus (replaces window.dispatchEvent) ─────────────────────────────
-export type ZombieEvent =
-  | { type: "zombieHit"; id: string; x: number; y: number; z: number; headshot: boolean; damage: number };
-
-type ZombieEventHandler = (ev: ZombieEvent) => void;
-
-class ZombieEventBus {
-  private handlers: ZombieEventHandler[] = [];
-  on(h: ZombieEventHandler) { this.handlers.push(h); }
-  off(h: ZombieEventHandler) { this.handlers = this.handlers.filter(x => x !== h); }
-  emit(ev: ZombieEvent) { for (const h of this.handlers) h(ev); }
-}
-
-export const zombieEvents = new ZombieEventBus();
+export { zombieEvents, type ZombieEvent };
 
 export type ArcadeShotHit = {
   id: string;
@@ -101,14 +90,6 @@ export function refillHalfReserve() {
   useWeaponStore.setState(next);
 }
 
-// ── Frame-based acid DOT ───────────────────────────────────────────────────
-interface AcidDot {
-  remainingMs: number;
-  dps: number;
-  tickMs: number;
-  lastTickMs: number;
-}
-
 // ── Obstacle helpers ───────────────────────────────────────────────────────
 const ZOMBIE_RADIUS = 0.55;
 
@@ -125,8 +106,8 @@ export class ZombieEngine {
   private dmgScale = 1;
   private spdScale = 1;
 
-  /** Frame-based acid DOTs — replaces leaking setInterval */
-  private acidDots: AcidDot[] = [];
+  /** Frame-based acid DOT system — replaces leaking setInterval */
+  private readonly dotSystem = new ZombieDOTSystem();
 
   /** Tracked alive count — replaces O(N) scan per frame */
   private _aliveCount = 0;
@@ -145,7 +126,7 @@ export class ZombieEngine {
     this.dmgScale = 1;
     this.spdScale = 1;
     this._aliveCount = 0;
-    this.acidDots = [];
+    this.dotSystem.clear();
   }
 
   setPlayerPos(x: number, _y: number, z: number) {
@@ -228,7 +209,7 @@ export class ZombieEngine {
     }
 
     // ── Frame-based acid DOT tick ──────────────────────────────────────────
-    this.tickAcidDots(dtMs);
+    this.tickAcidDots(dt);
 
     // ── Powerup expiry ─────────────────────────────────────────────────────
     this.updatePowerUps();
@@ -340,37 +321,29 @@ export class ZombieEngine {
     } else {
       store.setPlayer(pl => ({ ...pl, hp: newHp, armor: newArmor }));
     }
+    zombieEvents.emit({ type: "playerDamaged", amount: dmg });
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("zombieDamageTaken"));
   }
 
-  // ── Frame-based acid DOT (replaces setInterval) ─────────────────────────
+  // ── Frame-based acid DOT (managed via ZombieDOTSystem) ────────────────────
   private applyAcidDot(durationMs: number, dps: number) {
-    this.acidDots.push({ remainingMs: durationMs, dps, tickMs: 500, lastTickMs: 0 });
+    this.dotSystem.add(dps, durationMs);
   }
 
-  private tickAcidDots(dtMs: number) {
+  private tickAcidDots(dt: number) {
     const store = useZombieStore.getState();
     if (store.player.isDowned) {
-      this.acidDots = [];
+      this.dotSystem.clear();
       return;
     }
-    const remaining: AcidDot[] = [];
-    for (const dot of this.acidDots) {
-      dot.remainingMs -= dtMs;
-      dot.lastTickMs += dtMs;
-      if (dot.lastTickMs >= dot.tickMs) {
-        dot.lastTickMs -= dot.tickMs;
-        const dmg = dot.dps * (dot.tickMs / 1000);
-        const p = useZombieStore.getState().player;
-        if (!p.isDowned) {
-          useZombieStore.getState().setPlayer(pl => ({
-            ...pl, hp: Math.max(0, pl.hp - dmg),
-          }));
-        }
+    this.dotSystem.update(dt, (dmg) => {
+      const p = useZombieStore.getState().player;
+      if (!p.isDowned) {
+        useZombieStore.getState().setPlayer(pl => ({
+          ...pl, hp: Math.max(0, pl.hp - dmg),
+        }));
       }
-      if (dot.remainingMs > 0) remaining.push(dot);
-    }
-    this.acidDots = remaining;
+    });
   }
 
   private onWaveComplete() {
@@ -574,7 +547,7 @@ export class ZombieEngine {
   getZombies(): ZombieState[] { return Array.from(this.zombies.values()); }
 
   cleanup() {
-    this.acidDots = [];
+    this.dotSystem.clear();
     this._aliveCount = 0;
     this.zombies.clear();
     this.spawnQueue = [];

@@ -186,9 +186,16 @@ export function ZombieSurvivalMode() {
     const onUp = (e: KeyboardEvent) => {
       if (e.code === "KeyF") reviveHeld.current = false;
     };
+    const onVisibility = () => {
+      if (document.hidden) {
+        setPaused(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
     return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onUp);
     };
