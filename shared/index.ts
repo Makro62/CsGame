@@ -790,6 +790,14 @@ export const MAP_BOUNDARY = {
   maxZ: 19,
 } as const
 
+// ─── Dust Map Boundary ──────────────────────────────────────────
+export const DUST_MAP_BOUNDARY = {
+  minX: -28,
+  maxX: 28,
+  minZ: -20,
+  maxZ: 20,
+} as const
+
 // ─── Callout Labels (strategic spot names) ───────────────────────
 export interface MapCallout {
   id: string
@@ -810,6 +818,22 @@ export const MAP_CALLOUTS: readonly MapCallout[] = [
   { id: 'b_connector', label: 'B CONN', x: -3, z: 7.5 },
   { id: 't_spawn', label: 'T BASE', x: -25, z: 0 },
   { id: 'ct_spawn', label: 'CT BASE', x: 25, z: 0 },
+]
+
+// ─── Dust Map Callouts ──────────────────────────────────────────
+export const DUST_CALLOUTS: readonly MapCallout[] = [
+  { id: 'dust_mid', label: 'MID', x: 0, z: 0 },
+  { id: 'dust_t_spawn', label: 'T SPAWN', x: -25, z: 0 },
+  { id: 'dust_ct_spawn', label: 'CT SPAWN', x: 25, z: 0 },
+  { id: 'dust_site_a', label: 'SITE A', x: 0, z: -18 },
+  { id: 'dust_a_platform', label: 'A PLATFORM', x: -5, z: -18 },
+  { id: 'dust_a_cover', label: 'A COVER', x: 0, z: -14 },
+  { id: 'dust_site_b', label: 'SITE B', x: 0, z: 18 },
+  { id: 'dust_b_platform', label: 'B PLATFORM', x: 0, z: 18 },
+  { id: 'dust_b_cover', label: 'B COVER', x: 0, z: 14 },
+  { id: 'dust_mid_pillar_n', label: 'PILLAR N', x: -5, z: 0 },
+  { id: 'dust_mid_pillar_s', label: 'PILLAR S', x: 5, z: 0 },
+  { id: 'dust_mid_boxes', label: 'MID BOXES', x: -4, z: 4 },
 ]
 
 // ─── Grenades ───────────────────────────────────────────────────

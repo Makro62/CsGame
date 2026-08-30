@@ -4,7 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.config.js', '**/*.config.ts', 'eslint.config.js'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/*.config.js', '**/*.config.ts', 'eslint.config.js', 'server_legacy/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -16,8 +16,16 @@ export default tseslint.config(
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/ban-ts-comment': 'off',
       'no-unused-vars': 'off',
     },
   },

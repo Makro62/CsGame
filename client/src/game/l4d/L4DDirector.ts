@@ -93,7 +93,7 @@ export class L4DDirector {
       this.triggerHorde();
     }
     if (st.hordeActive) {
-      let t = st.hordeTimer - dt;
+      const t = st.hordeTimer - dt;
       if (t <= 0) {
         useL4DStore.getState().setHorde(false, 0);
         useL4DStore.getState().setPanic(0);

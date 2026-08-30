@@ -9,7 +9,7 @@ import {
 } from '@react-three/rapier'
 import * as THREE from 'three'
 import { KinematicCharacterController } from '@dimforge/rapier3d-compat'
-import { PHYSICS, SPAWN, MAP_OBSTACLES, MAP_BOUNDARY, WEAPONS } from '@cs-game/shared'
+import { PHYSICS, SPAWN, MAP_OBSTACLES, MAP_BOUNDARY, DUST_MAP_BOUNDARY } from '@cs-game/shared'
 import { spawnCameraYaw } from '../offline/offlineCombat'
 import { TRAINING_ARENA } from '../training/TrainingArena'
 import { SURVIVAL_BOUNDS } from '../zombie/survivalLayout'
@@ -18,7 +18,7 @@ import { updateAudioListener } from '../../components/AudioManager'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
 import { useGameStore } from '../../stores/useGameStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
-import { useWeaponStore, type WeaponKey } from '../../stores/useWeaponStore'
+import { useWeaponStore } from '../../stores/useWeaponStore'
 import { useOffline5v5Store } from '../../screens/Offline5v5Store'
 import { useL4DStore } from '../../stores/useL4DStore'
 
@@ -49,8 +49,16 @@ const PITCH_LIMIT = 1.55
 // Values are inset by the capsule radius so the player never clips a wall.
 type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number }
 
+const DUST_BOUNDS: Bounds = {
+  minX: DUST_MAP_BOUNDARY.minX + 0.8,
+  maxX: DUST_MAP_BOUNDARY.maxX - 0.8,
+  minZ: DUST_MAP_BOUNDARY.minZ + 0.8,
+  maxZ: DUST_MAP_BOUNDARY.maxZ - 0.8,
+}
+
 const MODE_BOUNDS: Record<string, Bounds> = {
   offline5v5: { minX: MAP_BOUNDARY.minX + 0.8, maxX: MAP_BOUNDARY.maxX - 0.8, minZ: MAP_BOUNDARY.minZ + 0.8, maxZ: MAP_BOUNDARY.maxZ - 0.8 },
+  offline5v5_dust: DUST_BOUNDS,
   training: {
     minX: TRAINING_ARENA.minX + 0.8,
     maxX: TRAINING_ARENA.maxX - 0.8,
@@ -61,7 +69,8 @@ const MODE_BOUNDS: Record<string, Bounds> = {
   l4d: { minX: L4D_BOUNDS.minX, maxX: L4D_BOUNDS.maxX, minZ: L4D_BOUNDS.minZ, maxZ: L4D_BOUNDS.maxZ },
 }
 
-export function getBounds(mode: string): Bounds {
+export function getBounds(mode: string, mapId?: string): Bounds {
+  if (mode === 'offline5v5' && mapId === 'dust') return MODE_BOUNDS.offline5v5_dust
   return MODE_BOUNDS[mode] ?? MODE_BOUNDS.offline5v5
 }
 
@@ -674,7 +683,8 @@ export function PlayerController() {
     _currentPos.add(result)
 
     // Keep the player inside the playable area of the current mode
-    const bounds = getBounds(mode)
+    const currentMap = useGameStore.getState().currentMap
+    const bounds = getBounds(mode, currentMap)
     _currentPos.x = THREE.MathUtils.clamp(_currentPos.x, bounds.minX, bounds.maxX)
     _currentPos.z = THREE.MathUtils.clamp(_currentPos.z, bounds.minZ, bounds.maxZ)
 

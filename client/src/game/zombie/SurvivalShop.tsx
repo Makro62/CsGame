@@ -60,6 +60,7 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
       ws.syncLoadout({ primary: ws.primaryWeapon ?? "mp5", secondary: id, knife: ws.knifeSlot ?? "knife" });
     }
     ws.equipWeapon(id);
+    st.addPurchasedWeapon(id);
     refillAllAmmo();
     Sound.gunshot(id);
   };

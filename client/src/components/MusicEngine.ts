@@ -365,7 +365,9 @@ function createMenuTrack(ctx: AudioContext, output: GainNode): () => void {
         padOsc1.stop();
         padOsc2.stop();
         trackGain.disconnect();
-      } catch {}
+      } catch {
+        /* ignore audio cleanup */
+      }
     }, 500);
   };
 }
@@ -444,7 +446,9 @@ function createTrainingTrack(ctx: AudioContext, output: GainNode): () => void {
     setTimeout(() => {
       try {
         trackGain.disconnect();
-      } catch {}
+      } catch {
+        /* ignore audio cleanup */
+      }
     }, 500);
   };
 }
@@ -524,7 +528,9 @@ function create5v5TacticalTrack(ctx: AudioContext, output: GainNode): () => void
       try {
         osc.stop();
         trackGain.disconnect();
-      } catch {}
+      } catch {
+        /* ignore audio cleanup */
+      }
     }, 500);
   };
 }
@@ -601,7 +607,9 @@ function createZombieTrack(ctx: AudioContext, output: GainNode): () => void {
       try {
         sub.stop();
         trackGain.disconnect();
-      } catch {}
+      } catch {
+        /* ignore audio cleanup */
+      }
     }, 500);
   };
 }
@@ -669,7 +677,9 @@ function createL4DTrack(ctx: AudioContext, output: GainNode): () => void {
     setTimeout(() => {
       try {
         trackGain.disconnect();
-      } catch {}
+      } catch {
+        /* ignore audio cleanup */
+      }
     }, 500);
   };
 }

@@ -1,7 +1,6 @@
-import * as THREE from "three";
 import { RigidBody, CuboidCollider } from "@react-three/rapier";
 import { BOMB_SITES, BUY_ZONE, MAP_BOUNDARY, MAP_OBSTACLES, type MapObstacle } from "@cs-game/shared";
-import { StaticBox, FloorZone } from "./MapHelpers";
+import { StaticBox, FloorZone, SiteMarker } from "./MapHelpers";
 
 const COLORS = {
   ground: "#1a2332",
@@ -12,32 +11,6 @@ const COLORS = {
   a: "#9a3412",
   mid: "#334155",
 } as const;
-
-const letterCache = new Map<string, THREE.CanvasTexture>();
-
-function siteLetterTexture(letter: string, color: string): THREE.CanvasTexture {
-  const key = `${letter}:${color}`;
-  const hit = letterCache.get(key);
-  if (hit) return hit;
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    ctx.clearRect(0, 0, 128, 128);
-    ctx.font = "bold 92px Impact, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.strokeStyle = "rgba(0,0,0,0.7)";
-    ctx.lineWidth = 8;
-    ctx.strokeText(letter, 64, 70);
-    ctx.fillStyle = color;
-    ctx.fillText(letter, 64, 70);
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  letterCache.set(key, tex);
-  return tex;
-}
 
 function colorFor(obs: MapObstacle): string {
   if (obs.material === "wood") return COLORS.wood;
@@ -59,22 +32,6 @@ function Obstacle({ obs }: { obs: MapObstacle }) {
       color={colorFor(obs)}
       materialType={obs.material === "wood" ? "wood" : obs.material === "concrete" ? "concrete" : "metal"}
     />
-  );
-}
-
-function SiteMarker({ x, z, color, letter }: { x: number; z: number; color: string; letter: string }) {
-  const tex = siteLetterTexture(letter, color);
-  return (
-    <group position={[x, 0.04, z]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[2.4, 2.7, 32]} />
-        <meshBasicMaterial color={color} transparent opacity={0.7} />
-      </mesh>
-      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[2.2, 2.2]} />
-        <meshBasicMaterial map={tex} transparent depthWrite={false} />
-      </mesh>
-    </group>
   );
 }
 

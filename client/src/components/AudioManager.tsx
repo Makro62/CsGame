@@ -331,6 +331,8 @@ export function AudioManager() {
   const hitMarker = useNetworkStore((s) => s.hitMarker)
   const killFeed = useNetworkStore((s) => s.killFeed)
   const mode = useGameStore((s) => s.mode)
+  const masterVolume = useSettingsStore((s) => s.masterVolume)
+  const musicVolume = useSettingsStore((s) => s.musicVolume)
   const lastKillLen = useRef(0)
   const lastHitTime = useRef(0)
 
@@ -346,8 +348,14 @@ export function AudioManager() {
     return () => {
       window.removeEventListener('pointerdown', onFirstInteract)
       window.removeEventListener('keydown', onFirstInteract)
+      stopMusic()
     }
   }, [])
+
+  // Update volume when settings change
+  useEffect(() => {
+    updateMusicVolume()
+  }, [masterVolume, musicVolume])
 
   // Switch background music track when game mode changes
   useEffect(() => {

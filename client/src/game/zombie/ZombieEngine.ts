@@ -523,6 +523,7 @@ export class ZombieEngine {
       store.setPlayer(p => ({ ...p, armor: Math.min(100, p.armor + 50) }));
     } else if (item.kind === "weapon" && item.weapon) {
       useWeaponStore.getState().equipWeapon(item.weapon as WeaponKey);
+      store.addPurchasedWeapon(item.weapon);
     }
   }
 

@@ -88,7 +88,7 @@ export function ADSOpticSight() {
               x: sx,
               y: sy,
               distance: Math.round(dist),
-              hp: (p as any).health || 100,
+              hp: p.hp,
               maxHp: 100,
               label: p.team === "CT" ? "BOT CT" : "BOT T",
             });
@@ -116,72 +116,112 @@ export function ADSOpticSight() {
         userSelect: "none",
       }}
     >
-      {/* Tactical Optical Vignette & Red-Dot for non-AWP weapons */}
+      {/* Tactical Optical Vignette & Reticle for non-AWP weapons */}
       {!isAwp && (
         <>
-          {/* Subtle Outer Scope Lens Blur */}
+          {/* Subtle Depth-of-Field Edge Vignette */}
           <div
             style={{
               position: "absolute",
               inset: 0,
               background:
-                "radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0.7) 100%)",
+                "radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.18) 72%, rgba(0,0,0,0.6) 100%)",
             }}
           />
 
-          {/* Optic Sight Ring & Center Dot */}
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "120px",
-              height: "120px",
-              borderRadius: "50%",
-              border: "1.5px solid rgba(56, 189, 248, 0.4)",
-              boxShadow: "0 0 12px rgba(56, 189, 248, 0.3), inset 0 0 10px rgba(56, 189, 248, 0.15)",
-              display: "grid",
-              placeItems: "center",
-            }}
-          >
-            {/* Illuminated Center Dot */}
+          {/* If Pistol: Clean True Iron Sight Focus with subtle precision red micro-dot */}
+          {activeWeapon === "glock" || activeWeapon === "deagle" || activeWeapon === "tec9" || activeWeapon === "autopistol" ? (
             <div
               style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
                 width: "4px",
                 height: "4px",
                 borderRadius: "50%",
                 backgroundColor: "#ef4444",
-                boxShadow: "0 0 8px #ef4444, 0 0 14px #ef4444",
+                boxShadow: "0 0 6px #ef4444, 0 0 10px rgba(239,68,68,0.8)",
+                pointerEvents: "none",
               }}
             />
-            {/* Outer ticks */}
-            <div style={{ position: "absolute", top: 4, width: 2, height: 8, background: "#38bdf8" }} />
-            <div style={{ position: "absolute", bottom: 4, width: 2, height: 8, background: "#38bdf8" }} />
-            <div style={{ position: "absolute", left: 4, width: 8, height: 2, background: "#38bdf8" }} />
-            <div style={{ position: "absolute", right: 4, width: 8, height: 2, background: "#38bdf8" }} />
-          </div>
+          ) : (
+            /* If Rifle/SMG: Precision Holographic Reflex Optic Reticle */
+            <>
+              <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  width: "140px",
+                  height: "140px",
+                  borderRadius: "50%",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  background: "radial-gradient(circle, rgba(14, 28, 38, 0.15) 0%, rgba(8, 16, 24, 0.35) 90%, transparent 100%)",
+                  boxShadow: "0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(56, 189, 248, 0.08)",
+                  display: "grid",
+                  placeItems: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                {/* Center Precision Holographic Dot */}
+                <div
+                  style={{
+                    width: "3.5px",
+                    height: "3.5px",
+                    borderRadius: "50%",
+                    backgroundColor: "#ff3333",
+                    boxShadow: "0 0 6px #ef4444, 0 0 12px #ff2222, 0 0 20px rgba(239,68,68,0.7)",
+                  }}
+                />
 
-          {/* ADS Mode Tag */}
-          <div
-            style={{
-              position: "absolute",
-              top: "calc(50% + 75px)",
-              left: "50%",
-              transform: "translateX(-50%)",
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: "10px",
-              fontWeight: 800,
-              color: "#38bdf8",
-              letterSpacing: "2px",
-              background: "rgba(0,0,0,0.5)",
-              padding: "2px 8px",
-              borderRadius: "4px",
-              border: "1px solid rgba(56,189,248,0.3)",
-            }}
-          >
-            ADS OPTIC // {activeWeapon?.toUpperCase()}
-          </div>
+                {/* Inner Ring (60px) subtle stadia circle */}
+                <div
+                  style={{
+                    position: "absolute",
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    border: "1px dashed rgba(239, 68, 68, 0.35)",
+                    boxShadow: "0 0 8px rgba(239, 68, 68, 0.15)",
+                  }}
+                />
+
+                {/* Precision Micro Crosshair Ticks */}
+                <div style={{ position: "absolute", top: 12, width: 1, height: 10, background: "rgba(239, 68, 68, 0.75)" }} />
+                <div style={{ position: "absolute", bottom: 12, width: 1, height: 10, background: "rgba(239, 68, 68, 0.75)" }} />
+                <div style={{ position: "absolute", left: 12, width: 10, height: 1, background: "rgba(239, 68, 68, 0.75)" }} />
+                <div style={{ position: "absolute", right: 12, width: 10, height: 1, background: "rgba(239, 68, 68, 0.75)" }} />
+
+                {/* Range Elevation Sub-Ticks */}
+                <div style={{ position: "absolute", bottom: 26, width: 4, height: 1, background: "rgba(239, 68, 68, 0.5)" }} />
+                <div style={{ position: "absolute", bottom: 36, width: 6, height: 1, background: "rgba(239, 68, 68, 0.5)" }} />
+              </div>
+
+              {/* Sleek Tactical Optic HUD Tag at Bottom Corner */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "75px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  fontFamily: "'Rajdhani', monospace",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                  color: "rgba(148, 163, 184, 0.8)",
+                  letterSpacing: "0.15em",
+                  background: "rgba(8, 12, 18, 0.65)",
+                  padding: "2px 10px",
+                  borderRadius: "4px",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(4px)",
+                }}
+              >
+                REFLEX SIGHT • {(activeWeapon ?? "").toUpperCase()} [1.25X]
+              </div>
+            </>
+          )}
         </>
       )}
 

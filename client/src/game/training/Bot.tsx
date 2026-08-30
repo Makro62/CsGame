@@ -95,6 +95,16 @@ export function Bot({
     }
   }, [id, onHit, onKill, position])
 
+  const pickPatrolTarget = useCallback(() => {
+    const angle = Math.random() * Math.PI * 2
+    const dist = 3 + Math.random() * 10
+    targetPos.current.set(
+      spawnPos.current.x + Math.cos(angle) * dist,
+      0,
+      spawnPos.current.z + Math.sin(angle) * dist
+    )
+  }, [])
+
   // Respawn
   useEffect(() => {
     if (botState === "dead") {
@@ -117,17 +127,7 @@ export function Bot({
     return () => {
       if (respawnTimer.current) clearTimeout(respawnTimer.current)
     }
-  }, [botState, id, respawnTime])
-
-  const pickPatrolTarget = useCallback(() => {
-    const angle = Math.random() * Math.PI * 2
-    const dist = 3 + Math.random() * 10
-    targetPos.current.set(
-      spawnPos.current.x + Math.cos(angle) * dist,
-      0,
-      spawnPos.current.z + Math.sin(angle) * dist
-    )
-  }, [])
+  }, [botState, id, respawnTime, pickPatrolTarget])
 
   useEffect(() => {
     pickPatrolTarget()

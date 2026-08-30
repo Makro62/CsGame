@@ -358,7 +358,7 @@ function botThink(
       const bdd = Math.hypot(bdx, bdz);
       if (bdd < 2) {
         bot.hasBomb = true;
-        addPatch({ bombDropped: false });
+        addPatch({ bombDropped: false, bombDropX: 0, bombDropZ: 0 });
       } else {
         // Move toward bomb
         bot.x += (bdx / bdd) * bot.botSpeed * 0.6 * dt;
@@ -504,7 +504,9 @@ function botThink(
       // ── Bot Gunshot Audio & Tracer VFX ──
       try {
         Sound.gunshot(bot.currentWeapon);
-      } catch {}
+      } catch {
+        /* audio error ignored */
+      }
 
       // Calculate gun barrel starting position
       const barrelDist = 0.55;
@@ -537,7 +539,9 @@ function botThink(
           // Local player was hit by an enemy bot!
           try {
             Sound.playerHurt();
-          } catch {}
+          } catch {
+            /* audio error ignored */
+          }
           if (typeof window !== "undefined") {
             window.dispatchEvent(
               new CustomEvent("playerHitFeedback", {
@@ -548,7 +552,9 @@ function botThink(
         } else {
           try {
             Sound.fleshHit();
-          } catch {}
+          } catch {
+            /* audio error ignored */
+          }
         }
 
         if (tgt.hp <= 0) {
@@ -779,6 +785,8 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
           const updated = { ...local, hasBomb: true };
           players.set("local", updated);
           bombState.bombDropped = false;
+          bombState.bombDropX = 0;
+          bombState.bombDropZ = 0;
         }
       }
     }

@@ -48,27 +48,43 @@ export const WEAPON_ROTATIONS: Record<string, [number, number, number]> = {
  * Height of each weapon's sight line above its model origin.
  */
 const SIGHT_HEIGHT: Record<string, number> = {
-  ak47: 0.052,
-  m4a1: 0.052,
-  awp: 0.060,
-  mp5: 0.042,
-  arccaster: 0.048,
-  deagle: 0.058,
-  glock: 0.042,
-  tec9: 0.036,
-  autopistol: 0.042,
+  ak47: 0.082,
+  m4a1: 0.080,
+  awp: 0.075,
+  mp5: 0.070,
+  arccaster: 0.072,
+  deagle: 0.086,
+  glock: 0.080,
+  tec9: 0.078,
+  autopistol: 0.080,
 }
 
 const ADS_DEPTH: Record<string, number> = {
-  ak47: -0.28,
-  m4a1: -0.28,
-  awp: -0.30,
-  mp5: -0.25,
-  arccaster: -0.26,
-  deagle: -0.24,
-  glock: -0.21,
-  tec9: -0.21,
-  autopistol: -0.21,
+  ak47: -0.48,
+  m4a1: -0.50,
+  awp: -0.48,
+  mp5: -0.44,
+  arccaster: -0.44,
+  deagle: -0.48,
+  glock: -0.48,
+  tec9: -0.48,
+  autopistol: -0.48,
+}
+
+/**
+ * Natural tactical ADS rotations.
+ * A slight pitch, yaw, and roll gives the weapon authentic 3D perspective and specular depth.
+ */
+export const ADS_ROTATIONS: Record<string, [number, number, number]> = {
+  ak47: [0.012, -0.015, -0.024],
+  m4a1: [0.010, -0.012, -0.020],
+  mp5: [0.010, -0.012, -0.020],
+  arccaster: [0.008, -0.010, -0.018],
+  deagle: [0.018, -0.016, -0.035],
+  glock: [0.016, -0.014, -0.030],
+  tec9: [0.016, -0.014, -0.030],
+  autopistol: [0.016, -0.014, -0.030],
+  awp: [0, 0, 0],
 }
 
 /** Single-wield ADS positions (derived from sight height). */
@@ -80,7 +96,6 @@ const SINGLE_ADS: Record<string, [number, number, number]> = Object.keys(
 }, {
   knife: WEAPON_POSITIONS.knife,
   combatknife: WEAPON_POSITIONS.combatknife,
-  deagle: [0, -0.058, -0.24],
 })
 
 /** Dual-wield ADS positions (both pistols frame the crosshair). */

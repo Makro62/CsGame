@@ -11,7 +11,7 @@ export function Crosshair() {
   const lastInput = useGameStore((s) => s.lastInput);
   const { crosshairColor, crosshairSize, crosshairStyle } = useSettingsStore();
 
-  if (!activeWeapon || isReloading || isSwitching) return null;
+  if (!activeWeapon || isReloading || isSwitching || isADS) return null;
 
   // Same spread the shooting raycast uses. ShootingSystem offsets the ray by up
   // to spread/2 in NDC, and NDC 1.0 is half the viewport height in pixels.

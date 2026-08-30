@@ -18,23 +18,23 @@ export function AnimatedNumber({
   className = '',
 }: AnimatedNumberProps) {
   const [displayValue, setDisplayValue] = useState(value)
-  const startTimeRef = useRef<number | null>(null)
-  const startValueRef = useRef(value)
+  const currentValRef = useRef(value)
 
   useEffect(() => {
-    startValueRef.current = displayValue
-    startTimeRef.current = Date.now()
+    const startVal = currentValRef.current
+    const startTime = Date.now()
 
     const animationFrame = setInterval(() => {
       const now = Date.now()
-      const elapsed = now - (startTimeRef.current || now)
+      const elapsed = now - startTime
       const progress = Math.min(elapsed / duration, 1)
 
       const newValue =
-        startValueRef.current + (value - startValueRef.current) * progress
-      setDisplayValue(
+        startVal + (value - startVal) * progress
+      const rounded =
         Math.round(newValue * Math.pow(10, decimals)) / Math.pow(10, decimals)
-      )
+      currentValRef.current = rounded
+      setDisplayValue(rounded)
 
       if (progress >= 1) {
         clearInterval(animationFrame)

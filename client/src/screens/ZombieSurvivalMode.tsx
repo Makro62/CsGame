@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState, useRef } from "react";
+import { useLocation } from "wouter";
 import { Canvas } from "@react-three/fiber";
 import { zombieEngine } from "../game/zombie/ZombieEngine";
 import { ZombieArcadeController } from "../game/player/ZombieArcadeController";
@@ -17,21 +18,48 @@ import { useGameStore } from "../stores/useGameStore";
 import { useAimStore } from "../stores/useAimStore";
 import { useWeaponStore } from "../stores/useWeaponStore";
 import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
+import { type WeaponKey } from "../stores/useWeaponStore";
+
+const WEAPON_INFO: Record<string, { label: string; type: string; icon: string; slot: string; dmg: number }> = {
+  glock: { label: "Glock-18", type: "Pistol", icon: "🔫", slot: "2", dmg: 28 },
+  deagle: { label: "Desert Eagle .50", type: "Heavy Pistol", icon: "💥", slot: "2", dmg: 63 },
+  tec9: { label: "Tec-9", type: "Pistol", icon: "🔫", slot: "2", dmg: 29 },
+  mp5: { label: "MP5-SD Tactical", type: "SMG", icon: "⚡", slot: "1", dmg: 32 },
+  ak47: { label: "AK-47 Rifle", type: "Assault Rifle", icon: "🎯", slot: "1", dmg: 48 },
+  m4a1: { label: "M4A1-S Silenced", type: "Assault Rifle", icon: "🎯", slot: "1", dmg: 44 },
+  awp: { label: "AWP Magnum", type: "Sniper Rifle", icon: "🔭", slot: "1", dmg: 145 },
+  knife: { label: "Combat Knife", type: "Melee", icon: "🔪", slot: "3", dmg: 50 },
+  combatknife: { label: "Combat Knife", type: "Melee", icon: "🔪", slot: "3", dmg: 50 },
+};
 
 export function ZombieSurvivalMode() {
   const waveState = useZombieStore(s => s.waveState);
   const currentWave = useZombieStore(s => s.currentWave);
   const player = useZombieStore(s => s.player);
   const zombiesRemaining = useZombieStore(s => s.zombiesRemaining);
+  const totalZombiesInWave = useZombieStore(s => s.totalZombiesInWave);
+  const purchasedWeapons = useZombieStore(s => s.purchasedWeapons || ["mp5", "glock", "knife"]);
   const interWaveTimer = useZombieStore(s => s.interWaveTimer);
   const currentAmmo = useWeaponStore(s => s.currentAmmo);
   const maxAmmo = useWeaponStore(s => s.maxAmmo);
   const reserveAmmo = useWeaponStore(s => s.reserveAmmo);
   const activeWeapon = useWeaponStore(s => s.activeWeapon);
+  const isReloading = useWeaponStore(s => s.isReloading);
   const { buyMenuOpen, closeBuyMenu, toggleBuyMenu } = useWeaponSwitch();
   const [paused, setPaused] = useState(false);
+  const [showWaveAlert, setShowWaveAlert] = useState(false);
+  const prevWaveState = useRef(waveState);
   const pausedRef = useRef(false);
   pausedRef.current = paused;
+
+  useEffect(() => {
+    if (waveState === "wave_active" && prevWaveState.current !== "wave_active") {
+      setShowWaveAlert(true);
+      const timer = setTimeout(() => setShowWaveAlert(false), 4200);
+      return () => clearTimeout(timer);
+    }
+    prevWaveState.current = waveState;
+  }, [waveState]);
 
   const startLoadout = useCallback(() => {
     const ws = useWeaponStore.getState();
@@ -102,20 +130,23 @@ export function ZombieSurvivalMode() {
     return () => cancelAnimationFrame(raf);
   }, [closeBuyMenu]);
 
+  const [, setLocation] = useLocation();
+
   const handleBackToMenu = useCallback(() => {
     setPaused(false);
     useGameStore.getState().setMode("menu");
-    window.location.href = "/";
-  }, []);
+    setLocation("/");
+  }, [setLocation]);
 
   const handleRestart = useCallback(() => {
     setPaused(false);
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.requestPointerLock();
-    useZombieStore.getState().resetGame(true);
+    zombieEngine.cleanup();
     zombieEngine.init();
+    useZombieStore.getState().resetGame(true);
     startLoadout();
     closeBuyMenu();
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.requestPointerLock();
   }, [startLoadout, closeBuyMenu]);
 
   const resume = useCallback(() => {
@@ -139,9 +170,13 @@ export function ZombieSurvivalMode() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [buyMenuOpen, closeBuyMenu, openSettings]);
+  }, [buyMenuOpen, closeBuyMenu, paused, resume]);
 
   const hpPercent = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
+  const totalWaveZombies = Math.max(totalZombiesInWave, zombiesRemaining, 1);
+  const killedZombies = Math.max(0, totalWaveZombies - zombiesRemaining);
+  const waveProgressPercent = Math.min(100, Math.round((killedZombies / totalWaveZombies) * 100));
+  const magPercent = maxAmmo > 0 ? Math.max(0, Math.min(100, (currentAmmo / maxAmmo) * 100)) : 0;
 
   return (
     <div className="w-full h-screen bg-black relative" style={{ cursor: "crosshair" }}>
@@ -343,6 +378,309 @@ export function ZombieSurvivalMode() {
           <span>✕</span>
           <span>MENU</span>
         </button>
+      </div>
+
+      {/* ── Center Screen: Zombie Incoming Threat Alert ── */}
+      {showWaveAlert && waveState === "wave_active" && (
+        <div
+          style={{
+            position: "fixed",
+            top: "20%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 60,
+            pointerEvents: "none",
+            userSelect: "none",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(135deg, rgba(153, 27, 27, 0.96), rgba(69, 10, 10, 0.98))",
+              border: "2px solid #ef4444",
+              borderRadius: 16,
+              padding: "16px 36px",
+              boxShadow: "0 0 50px rgba(239, 68, 68, 0.7), 0 10px 40px rgba(0,0,0,0.9)",
+              fontFamily: "'Rajdhani', monospace",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 900, color: "#fca5a5", letterSpacing: "0.2em", marginBottom: 4 }}>
+              ⚠️ PERINGATAN: HORDE ZOMBIE MENDEKAT!
+            </div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", letterSpacing: "0.1em", textShadow: "0 0 20px rgba(239,68,68,0.8)" }}>
+              GELOMBANG {currentWave} DIMULAI
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#fef08a", marginTop: 4, letterSpacing: "0.08em" }}>
+              ☣️ {totalWaveZombies} ZOMBIE SEDANG MENYERANG • HABISI SEMUANYA UNTUK SELESAIKAN MISI!
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Top Center: Wave Mission Objective & Elimination Tracker ── */}
+      <div
+        style={{
+          position: "fixed",
+          top: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 40,
+          background: "linear-gradient(180deg, rgba(13, 20, 16, 0.96), rgba(8, 12, 10, 0.98))",
+          border: waveState === "wave_active" ? "1.5px solid rgba(239, 68, 68, 0.6)" : "1.5px solid rgba(132, 204, 22, 0.5)",
+          borderRadius: 14,
+          padding: "10px 24px",
+          color: "#fff",
+          fontFamily: "'Rajdhani', monospace",
+          minWidth: 380,
+          boxShadow: waveState === "wave_active"
+            ? "0 8px 30px rgba(0,0,0,0.8), 0 0 25px rgba(239, 68, 68, 0.25)"
+            : "0 8px 30px rgba(0,0,0,0.8), 0 0 20px rgba(132, 204, 22, 0.2)",
+          userSelect: "none",
+          textAlign: "center",
+        }}
+      >
+        {/* Mission Status Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 900, letterSpacing: "0.1em" }}>
+            <span style={{ color: waveState === "wave_active" ? "#ef4444" : "#84cc16", fontSize: 15 }}>
+              {waveState === "wave_active" ? "⚔️ TARGET MISI SURVIVAL" : "🛡️ PERSIAPAN PERTAHANAN"}
+            </span>
+            <span style={{ background: "rgba(255,255,255,0.1)", padding: "1px 8px", borderRadius: 4, color: "#facc15" }}>
+              WAVE {Math.max(1, currentWave)}
+            </span>
+          </div>
+
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8" }}>
+            PROGRES: <span style={{ color: "#a3e635", fontSize: 14 }}>{waveProgressPercent}%</span>
+          </div>
+        </div>
+
+        {/* Dynamic Wave Mission Details */}
+        {waveState === "wave_active" ? (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#cbd5e1" }}>
+                ZOMBIE DIBUNUH: <span style={{ color: "#4ade80", fontSize: 16, fontWeight: 900 }}>{killedZombies}</span>
+                <span style={{ color: "#64748b" }}> / {totalWaveZombies}</span>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: "#ef4444" }}>
+                SISA: <span style={{ fontSize: 18, color: "#f87171" }}>{zombiesRemaining}</span> AKAN DATANG
+              </div>
+            </div>
+
+            {/* Elimination Progress Bar */}
+            <div style={{ width: "100%", height: 8, background: "rgba(255,255,255,0.1)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
+              <div
+                style={{
+                  width: `${waveProgressPercent}%`,
+                  height: "100%",
+                  background: waveProgressPercent >= 80 ? "linear-gradient(90deg, #eab308, #22c55e)" : "linear-gradient(90deg, #dc2626, #f97316)",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: 6, fontSize: 11, fontWeight: 800, color: zombiesRemaining <= 3 ? "#fef08a" : "#94a3b8", letterSpacing: "0.05em" }}>
+              {zombiesRemaining === 0
+                ? "🎉 SEMUA ZOMBIE TELAH DIBUNUH! MISI WAVE SELESAI!"
+                : `🎯 Bunuh ${zombiesRemaining} zombie lagi supaya misi wave ini selesai!`}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 900, color: "#bef264", letterSpacing: "0.08em" }}>
+              ⏳ ZOMBIE BERIKUTNYA DATANG DALAM: <span style={{ fontSize: 18, color: "#facc15" }}>{Math.ceil(interWaveTimer)}</span> DETIK
+            </div>
+            <div style={{ fontSize: 11, color: "#86efac", marginTop: 3 }}>
+              🛒 Tekan [B] untuk buka Toko Arsenal, beli senjata & isi peluru sebelum gelombang datang!
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Right Side: Arsenal Senjata yang Telah Dibeli ── */}
+      <div
+        style={{
+          position: "fixed",
+          top: 68,
+          right: 16,
+          zIndex: 40,
+          background: "linear-gradient(160deg, rgba(13, 20, 16, 0.94), rgba(8, 12, 10, 0.98))",
+          border: "1.5px solid rgba(132, 204, 22, 0.35)",
+          borderRadius: 14,
+          padding: "12px 16px",
+          color: "#fff",
+          fontFamily: "'Rajdhani', monospace",
+          minWidth: 230,
+          boxShadow: "0 8px 30px rgba(0,0,0,0.7), 0 0 16px rgba(132, 204, 22, 0.1)",
+          userSelect: "none",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 14 }}>🔫</span>
+            <span style={{ fontSize: 13, fontWeight: 900, color: "#a3e635", letterSpacing: "0.08em" }}>
+              SENJATA DIBELI ({purchasedWeapons.length})
+            </span>
+          </div>
+          <span style={{ fontSize: 10, color: "#64748b" }}>KLIK / [1-3]</span>
+        </div>
+
+        {/* List of Purchased Weapons */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+          {purchasedWeapons.map((wId) => {
+            const info = WEAPON_INFO[wId] || { label: wId.toUpperCase(), type: "Weapon", icon: "🔫", slot: "1", dmg: 30 };
+            const isActive = activeWeapon === wId;
+            const tier = player.weaponTiers?.[wId] ?? 0;
+
+            return (
+              <div
+                key={wId}
+                onClick={() => {
+                  useWeaponStore.getState().equipWeapon(wId as WeaponKey);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  background: isActive ? "rgba(132, 204, 22, 0.2)" : "rgba(255,255,255,0.04)",
+                  border: isActive ? "1px solid #84cc16" : "1px solid rgba(255,255,255,0.08)",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 15 }}>{info.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: isActive ? "#bef264" : "#f1f5f9", display: "flex", alignItems: "center", gap: 4 }}>
+                      <span>{info.label}</span>
+                      {tier > 0 && (
+                        <span style={{ fontSize: 9, fontWeight: 900, background: "#ca8a04", color: "#fef08a", padding: "0 4px", borderRadius: 3 }}>
+                          T{tier}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#64748b" }}>
+                      {info.type} • DMG {info.dmg}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  {isActive ? (
+                    <span style={{ fontSize: 10, fontWeight: 900, color: "#84cc16", background: "rgba(132, 204, 22, 0.2)", padding: "2px 6px", borderRadius: 4 }}>
+                      AKTIF
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10, color: "#94a3b8", background: "rgba(255,255,255,0.06)", padding: "2px 6px", borderRadius: 4 }}>
+                      [{info.slot}]
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Bottom Right: Tactical Ammo & Reload Status HUD ── */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 20,
+          right: 20,
+          zIndex: 40,
+          background: "linear-gradient(145deg, rgba(13, 20, 16, 0.95), rgba(8, 12, 10, 0.98))",
+          border: isReloading ? "1.5px solid #eab308" : currentAmmo === 0 ? "1.5px solid #ef4444" : "1.5px solid rgba(56, 189, 248, 0.4)",
+          borderRadius: 14,
+          padding: "16px 22px",
+          color: "#fff",
+          fontFamily: "'Rajdhani', monospace",
+          minWidth: 260,
+          boxShadow: isReloading
+            ? "0 8px 30px rgba(0,0,0,0.8), 0 0 25px rgba(234, 179, 8, 0.3)"
+            : currentAmmo === 0
+            ? "0 8px 30px rgba(0,0,0,0.8), 0 0 30px rgba(239, 68, 68, 0.4)"
+            : "0 8px 30px rgba(0,0,0,0.8), 0 0 20px rgba(56, 189, 248, 0.15)",
+          userSelect: "none",
+        }}
+      >
+        {/* Weapon Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 18 }}>{WEAPON_INFO[activeWeapon ?? ""]?.icon || "🔫"}</span>
+            <span style={{ fontSize: 16, fontWeight: 900, color: "#f8fafc", letterSpacing: "0.08em" }}>
+              {WEAPON_INFO[activeWeapon ?? ""]?.label.toUpperCase() || (activeWeapon ?? "—").toUpperCase()}
+            </span>
+          </div>
+
+          {player.weaponTiers?.[activeWeapon ?? ""] ? (
+            <span style={{ fontSize: 11, fontWeight: 900, background: "rgba(234, 179, 8, 0.2)", color: "#fde047", padding: "2px 8px", borderRadius: 6, border: "1px solid rgba(234, 179, 8, 0.5)" }}>
+              TIER {player.weaponTiers[activeWeapon ?? ""]} ⚡
+            </span>
+          ) : (
+            <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
+              {WEAPON_INFO[activeWeapon ?? ""]?.type || "WEAPON"}
+            </span>
+          )}
+        </div>
+
+        {/* Large Caliber Ammo Counter */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, margin: "6px 0" }}>
+          <span
+            style={{
+              fontSize: 42,
+              fontWeight: 900,
+              lineHeight: 1,
+              color: currentAmmo === 0 ? "#ef4444" : currentAmmo <= 5 ? "#f97316" : "#38bdf8",
+              textShadow: currentAmmo === 0 ? "0 0 15px rgba(239,68,68,0.6)" : "0 0 15px rgba(56,189,248,0.4)",
+            }}
+          >
+            {currentAmmo}
+          </span>
+          <span style={{ fontSize: 20, color: "#475569", fontWeight: 800 }}>/</span>
+          <span style={{ fontSize: 22, color: "#94a3b8", fontWeight: 800 }}>
+            {reserveAmmo}
+          </span>
+          <span style={{ fontSize: 11, color: "#64748b", marginLeft: "auto", fontWeight: 700 }}>
+            MAG: {maxAmmo}
+          </span>
+        </div>
+
+        {/* Magazine Ammo Gauge Bar */}
+        <div style={{ width: "100%", height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden", margin: "6px 0 8px 0" }}>
+          <div
+            style={{
+              width: `${magPercent}%`,
+              height: "100%",
+              background: magPercent > 50 ? "linear-gradient(90deg, #38bdf8, #0ea5e9)" : magPercent > 20 ? "linear-gradient(90deg, #eab308, #f59e0b)" : "linear-gradient(90deg, #dc2626, #ef4444)",
+              transition: "width 0.15s ease",
+            }}
+          />
+        </div>
+
+        {/* Status Alerts */}
+        {isReloading ? (
+          <div style={{ background: "rgba(234, 179, 8, 0.2)", border: "1px solid #eab308", borderRadius: 6, padding: "4px 8px", textAlign: "center", fontSize: 12, fontWeight: 900, color: "#fef08a", letterSpacing: "0.08em" }}>
+            ⟳ SEDANG RELOAD...
+          </div>
+        ) : currentAmmo === 0 ? (
+          <div style={{ background: "rgba(239, 68, 68, 0.25)", border: "1px solid #ef4444", borderRadius: 6, padding: "4px 8px", textAlign: "center", fontSize: 12, fontWeight: 900, color: "#fca5a5", letterSpacing: "0.08em" }}>
+            ⚠️ PELURU HABIS! TEKAN [R]
+          </div>
+        ) : currentAmmo <= 5 ? (
+          <div style={{ background: "rgba(249, 115, 22, 0.2)", border: "1px solid #f97316", borderRadius: 6, padding: "2px 8px", textAlign: "center", fontSize: 11, fontWeight: 800, color: "#fdba74" }}>
+            ⚠️ PELURU MENIPIS
+          </div>
+        ) : (
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b", fontWeight: 700 }}>
+            <span>[R] RELOAD</span>
+            <span>[1-3] GANTI SENJATA</span>
+          </div>
+        )}
       </div>
 
       {/* ── Bottom Controls Guide ── */}

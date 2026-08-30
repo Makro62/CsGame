@@ -32,6 +32,7 @@ interface PlayerState {
 interface ZombieGameState {
   currentWave: number; waveState: WaveState;
   zombiesRemaining: number; totalZombiesInWave: number; interWaveTimer: number;
+  purchasedWeapons: string[];
   powerUps: PowerUpState[];
   loot: LootDrop[];
   player: PlayerState;
@@ -40,6 +41,7 @@ interface ZombieGameState {
   setCurrentWave: (w: number) => void;
   setZombiesRemaining: (n: number) => void;
   setInterWaveTimer: (n: number) => void;
+  addPurchasedWeapon: (weapon: string) => void;
   addPowerUp: (p: PowerUpState) => void; removePowerUp: (id: string) => void;
   addLoot: (p: LootDrop) => void; removeLoot: (id: string) => void;
   setPlayer: (fn: (p: PlayerState) => PlayerState) => void;
@@ -60,6 +62,7 @@ const INITIAL_PLAYER: PlayerState = {
 const INITIAL_STATE = {
   currentWave: 0, waveState: "buy_phase" as WaveState,
   zombiesRemaining: 0, totalZombiesInWave: 0, interWaveTimer: 8,
+  purchasedWeapons: ["mp5", "glock", "knife"] as string[],
   powerUps: [] as PowerUpState[],
   loot: [] as LootDrop[],
 };
@@ -72,6 +75,12 @@ export const useZombieStore = create<ZombieGameState>((set, get) => ({
   setCurrentWave: (currentWave) => set({ currentWave }),
   setZombiesRemaining: (zombiesRemaining) => set({ zombiesRemaining }),
   setInterWaveTimer: (interWaveTimer) => set({ interWaveTimer }),
+  addPurchasedWeapon: (weapon) => {
+    const list = get().purchasedWeapons;
+    if (!list.includes(weapon)) {
+      set({ purchasedWeapons: [...list, weapon] });
+    }
+  },
   addPowerUp: (p) => set({ powerUps: [...get().powerUps, p] }),
   removePowerUp: (id) => set({ powerUps: get().powerUps.filter(p => p.id !== id) }),
   addLoot: (p) => set({ loot: [...get().loot, p] }),

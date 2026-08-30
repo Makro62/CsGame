@@ -246,12 +246,11 @@ export function ShootingSystem() {
 
   const recoilController = useRef<RecoilController | null>(null);
   const lastWeapon = useRef<string | null>(null);
-  const seqRef = useRef(0);
   const mouseHeld = useRef(false);
   const impactTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const flashTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const casingRafs = useRef<number[]>([]);
-  const liveFx = useRef<Array<{ mesh: THREE.Object3D; recycle: (m: any) => void }>>([]);
+  const liveFx = useRef<Array<{ mesh: THREE.Object3D; recycle: (m: THREE.Object3D) => void }>>([]);
   // Akimbo weapons alternate hands, so every shot flips this.
   const akimboSide = useRef<AkimboSide>(1);
 
@@ -282,18 +281,22 @@ export function ShootingSystem() {
   // Clear in-flight VFX on unmount. Module-level pools stay alive so React
   // Strict Mode remounts (and the next match) can reuse them.
   useEffect(() => {
+    const it = impactTimers.current;
+    const ft = flashTimers.current;
+    const cr = casingRafs.current;
+    const lf = liveFx.current;
     return () => {
-      impactTimers.current.forEach(clearTimeout);
-      flashTimers.current.forEach(clearTimeout);
-      casingRafs.current.forEach((id) => cancelAnimationFrame(id));
-      impactTimers.current.length = 0;
-      flashTimers.current.length = 0;
-      casingRafs.current.length = 0;
-      liveFx.current.forEach(({ mesh, recycle }) => {
+      it.forEach(clearTimeout);
+      ft.forEach(clearTimeout);
+      cr.forEach((id) => cancelAnimationFrame(id));
+      it.length = 0;
+      ft.length = 0;
+      cr.length = 0;
+      lf.forEach(({ mesh, recycle }) => {
         if (mesh.parent) mesh.parent.remove(mesh);
         recycle(mesh);
       });
-      liveFx.current.length = 0;
+      lf.length = 0;
     };
   }, []);
 

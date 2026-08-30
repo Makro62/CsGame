@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
-import { MAP_CALLOUTS } from "@cs-game/shared";
+import { MAP_CALLOUTS, DUST_CALLOUTS, type MapCallout } from "@cs-game/shared";
 
 // Cache canvas textures per label (zero external assets)
 const textureCache = new Map<string, THREE.Texture>();
@@ -28,10 +28,16 @@ function makeCalloutTexture(label: string): THREE.Texture {
   return tex;
 }
 
+function getCalloutsForMap(mapId: string): readonly MapCallout[] {
+  if (mapId === "dust") return DUST_CALLOUTS;
+  return MAP_CALLOUTS;
+}
+
 // Callout labels for strategic spots — toggled with V key.
 // Off by default in production; useful for learning map callouts.
-export function CalloutLabels() {
+export function CalloutLabels({ mapId = "container_yard" }: { mapId?: string }) {
   const [visible, setVisible] = useState(false);
+  const callouts = getCalloutsForMap(mapId);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -47,7 +53,7 @@ export function CalloutLabels() {
 
   return (
     <group>
-      {MAP_CALLOUTS.map((c) => (
+      {callouts.map((c) => (
         <CalloutSprite key={c.id} label={c.label} x={c.x} z={c.z} />
       ))}
     </group>
