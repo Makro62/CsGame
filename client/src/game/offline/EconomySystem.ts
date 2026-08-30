@@ -1,4 +1,4 @@
-import { WEAPONS, GEAR } from "@cs-game/shared";
+import { WEAPONS, GEAR, isPrimaryWeapon, isSecondaryWeapon, isMeleeWeapon } from "@cs-game/shared";
 import type { LocalPlayer } from "./types";
 
 export function getWeaponStats(weapon: string) {
@@ -19,11 +19,13 @@ export function executeLocalBuy(
     if (ws.price > me.money) return { success: false, players };
     if (ws.team !== "both" && ws.team !== me.team) return { success: false, players };
 
-    const isPrimary = ["ak47", "m4a1", "awp", "mp5"].includes(item);
-    const isSecondary = ["deagle", "glock", "tec9", "autopistol"].includes(item);
+    const isPrimary = isPrimaryWeapon(item);
+    const isSecondary = isSecondaryWeapon(item);
+    const isMelee = isMeleeWeapon(item);
 
     if (isPrimary && me.primaryWeapon === item) return { success: false, players };
     if (isSecondary && me.secondaryWeapon === item) return { success: false, players };
+    if (isMelee && me.knifeSlot === item) return { success: false, players };
 
     const newMe: LocalPlayer = {
       ...me,
@@ -40,6 +42,9 @@ export function executeLocalBuy(
       newMe.currentWeapon = item;
       newMe.ammo = ws.mag;
       newMe.reserveAmmo = ws.reserveAmmo;
+    } else if (isMelee) {
+      newMe.knifeSlot = item;
+      newMe.currentWeapon = item;
     }
 
     updatedPlayers.set("local", newMe);

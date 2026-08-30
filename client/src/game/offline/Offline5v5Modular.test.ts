@@ -37,15 +37,30 @@ describe("5v5 Offline Modular Subsystems", () => {
     });
 
     it("buys rifle and armor if bot has enough funds", () => {
-      const bot = mkPlayer("b1", "T", "Bot1", true);
+      const bot = mkPlayer("bot_t2", "T", "Support", true);
       bot.money = 5000;
       botBuy(bot);
 
+      expect(bot.botRole).toBe("support");
       expect(bot.primaryWeapon).toBe("ak47");
       expect(bot.currentWeapon).toBe("ak47");
       expect(bot.armor).toBe(100);
       expect(bot.hasHelmet).toBe(true);
       expect(bot.money).toBeLessThan(5000);
+    });
+
+    it("splits buy loadout by squad role", () => {
+      const entry = mkPlayer("bot_t1", "T", "Entry", true);
+      entry.money = 5000;
+      botBuy(entry);
+      expect(entry.botRole).toBe("entry");
+      expect(entry.primaryWeapon).toBe("mp5");
+
+      const flanker = mkPlayer("bot_t4", "T", "Flanker", true);
+      flanker.money = 8000;
+      botBuy(flanker);
+      expect(flanker.botRole).toBe("flanker");
+      expect(flanker.primaryWeapon).toBe("awp");
     });
   });
 
@@ -83,6 +98,45 @@ describe("5v5 Offline Modular Subsystems", () => {
 
       const result = executeLocalBuy(players, "ak47");
       expect(result.success).toBe(false);
+    });
+
+    it("rejects buying a weapon already in that slot", () => {
+      const players = new Map<string, LocalPlayer>();
+      const tPlayer = mkPlayer("local", "T", "LocalT", false);
+      tPlayer.money = 8000;
+      tPlayer.primaryWeapon = "ak47";
+      players.set("local", tPlayer);
+
+      const result = executeLocalBuy(players, "ak47");
+      expect(result.success).toBe(false);
+      expect(result.players.get("local")?.money).toBe(8000);
+    });
+
+    it("replaces the primary slot when buying a different rifle", () => {
+      const players = new Map<string, LocalPlayer>();
+      const tPlayer = mkPlayer("local", "T", "LocalT", false);
+      tPlayer.money = 5000;
+      tPlayer.primaryWeapon = "mp5";
+      players.set("local", tPlayer);
+
+      const result = executeLocalBuy(players, "ak47");
+      expect(result.success).toBe(true);
+      expect(result.players.get("local")?.primaryWeapon).toBe("ak47");
+      expect(result.players.get("local")?.money).toBe(2300);
+    });
+
+    it("assigns combat knife to the melee slot", () => {
+      const players = new Map<string, LocalPlayer>();
+      const tPlayer = mkPlayer("local", "T", "LocalT", false);
+      tPlayer.money = 800;
+      players.set("local", tPlayer);
+
+      const result = executeLocalBuy(players, "combatknife");
+      expect(result.success).toBe(true);
+      const updated = result.players.get("local")!;
+      expect(updated.knifeSlot).toBe("combatknife");
+      expect(updated.currentWeapon).toBe("combatknife");
+      expect(updated.money).toBe(300);
     });
   });
 

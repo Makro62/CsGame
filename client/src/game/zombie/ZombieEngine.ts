@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {
-  ZOMBIE_TYPES, ZOMBIE_POINTS, WEAPONS, WAVE_CONFIG,
+  ZOMBIE_TYPES, ZOMBIE_POINTS, WEAPONS, WAVE_CONFIG, isMeleeWeapon,
   type ZombieType, type PowerUpType,
 } from "@cs-game/shared";
 import { useZombieStore, type ZombieState, type LootKind } from "../../stores/useZombieStore";
@@ -14,6 +14,7 @@ import { chaseStep, hordeSeparationFromIds, SURVIVAL_HORDE_SEP } from "./hordeMo
 import { pickZombieType, waveCount, waveHpScale, waveDamageScale, waveInterval, waveSpeedScale, isBossWave } from "./zombieWaves";
 import { zombieEvents, type ZombieEvent } from "./ZombieEventBus";
 import { ZombieDOTSystem } from "./ZombieDOTSystem";
+import { pickupSurvivalWeapon } from "./survivalBuy";
 
 export { zombieEvents, type ZombieEvent };
 
@@ -50,18 +51,37 @@ const MELEE_DMG = 65;
 
 export function refillAllAmmo() {
   const ws = useWeaponStore.getState();
-  const next: Partial<{ currentAmmo: number; reserveAmmo: number; primaryAmmo: number; primaryReserve: number; secondaryAmmo: number; secondaryReserve: number }> = {};
-  if (ws.activeWeapon && WEAPONS[ws.activeWeapon]) {
-    next.currentAmmo = WEAPONS[ws.activeWeapon].mag;
-    next.reserveAmmo = WEAPONS[ws.activeWeapon].reserveAmmo;
+  const bag = { ...ws.ammoByWeapon };
+  const fill = (id: string | null | undefined) => {
+    if (!id || !(id in WEAPONS) || isMeleeWeapon(id)) return;
+    const stats = WEAPONS[id as keyof typeof WEAPONS];
+    bag[id] = { mag: stats.mag, reserve: stats.reserveAmmo };
+  };
+  fill(ws.activeWeapon);
+  fill(ws.primaryWeapon);
+  fill(ws.secondaryWeapon);
+  for (const id of useZombieStore.getState().purchasedWeapons) fill(id);
+
+  const next: Partial<{
+    currentAmmo: number;
+    reserveAmmo: number;
+    primaryAmmo: number;
+    primaryReserve: number;
+    secondaryAmmo: number;
+    secondaryReserve: number;
+    ammoByWeapon: Record<string, { mag: number; reserve: number }>;
+  }> = { ammoByWeapon: bag };
+  if (ws.activeWeapon && bag[ws.activeWeapon]) {
+    next.currentAmmo = bag[ws.activeWeapon].mag;
+    next.reserveAmmo = bag[ws.activeWeapon].reserve;
   }
-  if (ws.primaryWeapon && WEAPONS[ws.primaryWeapon]) {
-    next.primaryAmmo = WEAPONS[ws.primaryWeapon].mag;
-    next.primaryReserve = WEAPONS[ws.primaryWeapon].reserveAmmo;
+  if (ws.primaryWeapon && bag[ws.primaryWeapon]) {
+    next.primaryAmmo = bag[ws.primaryWeapon].mag;
+    next.primaryReserve = bag[ws.primaryWeapon].reserve;
   }
-  if (ws.secondaryWeapon && WEAPONS[ws.secondaryWeapon]) {
-    next.secondaryAmmo = WEAPONS[ws.secondaryWeapon].mag;
-    next.secondaryReserve = WEAPONS[ws.secondaryWeapon].reserveAmmo;
+  if (ws.secondaryWeapon && bag[ws.secondaryWeapon]) {
+    next.secondaryAmmo = bag[ws.secondaryWeapon].mag;
+    next.secondaryReserve = bag[ws.secondaryWeapon].reserve;
   }
   useWeaponStore.setState(next);
 }
@@ -87,7 +107,26 @@ export function refillHalfReserve() {
       next.reserveAmmo = Math.min(cap, ws.reserveAmmo + Math.ceil(cap * 0.5));
     }
   }
-  useWeaponStore.setState(next);
+  const bag = { ...ws.ammoByWeapon };
+  if (ws.primaryWeapon && next.primaryReserve !== undefined) {
+    bag[ws.primaryWeapon] = {
+      mag: bag[ws.primaryWeapon]?.mag ?? ws.primaryAmmo,
+      reserve: next.primaryReserve,
+    };
+  }
+  if (ws.secondaryWeapon && next.secondaryReserve !== undefined) {
+    bag[ws.secondaryWeapon] = {
+      mag: bag[ws.secondaryWeapon]?.mag ?? ws.secondaryAmmo,
+      reserve: next.secondaryReserve,
+    };
+  }
+  if (ws.activeWeapon && next.reserveAmmo !== undefined) {
+    bag[ws.activeWeapon] = {
+      mag: bag[ws.activeWeapon]?.mag ?? ws.currentAmmo,
+      reserve: next.reserveAmmo,
+    };
+  }
+  useWeaponStore.setState({ ...next, ammoByWeapon: bag });
 }
 
 // ── Obstacle helpers ───────────────────────────────────────────────────────
@@ -539,8 +578,7 @@ export class ZombieEngine {
     } else if (item.kind === "armor") {
       store.setPlayer(p => ({ ...p, armor: Math.min(100, p.armor + 50) }));
     } else if (item.kind === "weapon" && item.weapon) {
-      useWeaponStore.getState().equipWeapon(item.weapon as WeaponKey);
-      store.addPurchasedWeapon(item.weapon);
+      pickupSurvivalWeapon(item.weapon as WeaponKey);
     }
   }
 

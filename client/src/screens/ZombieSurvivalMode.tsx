@@ -20,6 +20,7 @@ import { useWeaponStore } from "../stores/useWeaponStore";
 import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
 import { type WeaponKey } from "../stores/useWeaponStore";
 import { weaponDisplay } from "../game/weapons/weaponDisplay";
+import { equipSurvivalWeapon } from "../game/zombie/survivalBuy";
 
 export function ZombieSurvivalMode() {
   const waveState = useZombieStore(s => s.waveState);
@@ -33,6 +34,9 @@ export function ZombieSurvivalMode() {
   const maxAmmo = useWeaponStore(s => s.maxAmmo);
   const reserveAmmo = useWeaponStore(s => s.reserveAmmo);
   const activeWeapon = useWeaponStore(s => s.activeWeapon);
+  const primaryWeapon = useWeaponStore(s => s.primaryWeapon);
+  const secondaryWeapon = useWeaponStore(s => s.secondaryWeapon);
+  const knifeSlot = useWeaponStore(s => s.knifeSlot);
   const isReloading = useWeaponStore(s => s.isReloading);
   const { buyMenuOpen, closeBuyMenu, toggleBuyMenu } = useWeaponSwitch();
   const [paused, setPaused] = useState(false);
@@ -55,6 +59,7 @@ export function ZombieSurvivalMode() {
     const ws = useWeaponStore.getState();
     ws.setInfiniteAmmo(false);
     ws.resetUpgrades();
+    ws.resetAmmoInventory();
     ws.syncLoadout({ primary: "mp5", secondary: "glock", knife: "knife" });
     ws.equipWeapon("mp5");
   }, []);
@@ -562,12 +567,15 @@ export function ZombieSurvivalMode() {
             const info = weaponDisplay(wId);
             const isActive = activeWeapon === wId;
             const tier = player.weaponTiers?.[wId] ?? 0;
+            const inSlot =
+              wId === primaryWeapon ? "1" : wId === secondaryWeapon ? "2" : wId === knifeSlot ? "3" : null;
 
             return (
               <div
                 key={wId}
                 onClick={() => {
-                  useWeaponStore.getState().equipWeapon(wId as WeaponKey);
+                  if (isActive) return;
+                  equipSurvivalWeapon(wId as WeaponKey, false);
                 }}
                 style={{
                   display: "flex",
@@ -603,9 +611,13 @@ export function ZombieSurvivalMode() {
                     <span style={{ fontSize: 10, fontWeight: 900, color: "#84cc16", background: "rgba(132, 204, 22, 0.2)", padding: "2px 6px", borderRadius: 4 }}>
                       AKTIF
                     </span>
-                  ) : (
+                  ) : inSlot ? (
                     <span style={{ fontSize: 10, color: "#94a3b8", background: "rgba(255,255,255,0.06)", padding: "2px 6px", borderRadius: 4 }}>
-                      [{info.slot}]
+                      [{inSlot}]
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10, color: "#38bdf8", background: "rgba(56, 189, 248, 0.12)", padding: "2px 6px", borderRadius: 4 }}>
+                      PASANG
                     </span>
                   )}
                 </div>

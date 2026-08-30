@@ -1,4 +1,4 @@
-import type { BotLane } from "./offlineCombat";
+import type { BotLane, BotRole } from "./offlineCombat";
 
 export type BotTacticalState =
   | "idle"
@@ -68,6 +68,7 @@ export interface LocalPlayer {
   botViewDist: number;
   plantSite: string;
   botLane: BotLane;
+  botRole: BotRole;
   botWp: number;
 }
 

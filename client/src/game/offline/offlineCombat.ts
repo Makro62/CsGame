@@ -6,6 +6,7 @@ interface Point2D {
 }
 
 export type BotLane = "A" | "mid" | "B";
+export type BotRole = "entry" | "support" | "flanker" | "runner";
 
 const BODY = 0.45;
 
@@ -17,6 +18,36 @@ function hitsObstacle(p: Point2D, obstacles: readonly MapObstacle[] = MAP_OBSTAC
       p.z >= obs.minZ - pad &&
       p.z <= obs.maxZ + pad,
   );
+}
+
+export function isPointBlocked(
+  p: Point2D,
+  pad = BODY,
+  obstacles: readonly MapObstacle[] = MAP_OBSTACLES,
+): boolean {
+  return hitsObstacle(p, obstacles, pad);
+}
+
+/** Nudge a bot that spawned or slid inside a container back into open ground. */
+export function pushOutOfObstacles(
+  p: Point2D,
+  obstacles: readonly MapObstacle[] = MAP_OBSTACLES,
+): Point2D {
+  const start = clampToMap(p);
+  if (!hitsObstacle(start, obstacles)) return start;
+  const radii = [0.4, 0.8, 1.2, 1.8, 2.5, 3.5, 5, 7];
+  const dirs = 16;
+  for (const r of radii) {
+    for (let k = 0; k < dirs; k++) {
+      const a = (k / dirs) * Math.PI * 2;
+      const c = clampToMap({
+        x: start.x + Math.sin(a) * r,
+        z: start.z + Math.cos(a) * r,
+      });
+      if (!hitsObstacle(c, obstacles)) return c;
+    }
+  }
+  return start;
 }
 
 export function hasLineOfSight(
@@ -72,26 +103,43 @@ export function resolveBotShot(opts: {
   return { hit, headshot: hit && Math.random() < opts.headshotRate };
 }
 
-/** Slide along AABB walls so bots do not walk through containers. */
+/** Fan-sample headings so a corner does not trap a bot in a spin. */
 export function steerAroundObstacles(
   from: Point2D,
   intended: Point2D,
   obstacles: readonly MapObstacle[] = MAP_OBSTACLES
 ): Point2D {
+  const origin = hitsObstacle(from, obstacles) ? pushOutOfObstacles(from, obstacles) : from;
   if (!hitsObstacle(intended, obstacles)) return intended;
 
-  const onlyX = { x: intended.x, z: from.z };
+  const dx = intended.x - origin.x;
+  const dz = intended.z - origin.z;
+  const step = Math.max(0.08, Math.hypot(dx, dz));
+  const desired = Math.atan2(dx, dz);
+
+  const onlyX = { x: origin.x + dx, z: origin.z };
   if (!hitsObstacle(onlyX, obstacles)) return onlyX;
-  const onlyZ = { x: from.x, z: intended.z };
+  const onlyZ = { x: origin.x, z: origin.z + dz };
   if (!hitsObstacle(onlyZ, obstacles)) return onlyZ;
 
-  const dx = intended.x - from.x;
-  const dz = intended.z - from.z;
-  const left = { x: from.x - dz, z: from.z + dx };
-  const right = { x: from.x + dz, z: from.z - dx };
-  if (!hitsObstacle(left, obstacles)) return left;
-  if (!hitsObstacle(right, obstacles)) return right;
-  return { x: from.x, z: from.z };
+  let best: Point2D | null = null;
+  let bestPenalty = Infinity;
+  for (let k = 1; k <= 10; k++) {
+    const mag = k * (Math.PI / 10);
+    for (const sign of [1, -1] as const) {
+      const ang = desired + sign * mag;
+      const cand = {
+        x: origin.x + Math.sin(ang) * step,
+        z: origin.z + Math.cos(ang) * step,
+      };
+      if (hitsObstacle(cand, obstacles)) continue;
+      if (mag < bestPenalty) {
+        bestPenalty = mag;
+        best = cand;
+      }
+    }
+  }
+  return best ?? origin;
 }
 
 export function clampToMap(p: Point2D): Point2D {
@@ -107,20 +155,36 @@ export function laneForBotId(id: string): BotLane {
   return n % 3 === 1 ? "A" : n % 3 === 2 ? "B" : "mid";
 }
 
+const ROLE_SLOTS: BotRole[] = ["entry", "support", "support", "flanker", "runner"];
+
+export function roleForBotId(id: string): BotRole {
+  const n = Number.parseInt(id.replace(/\D/g, ""), 10);
+  if (!Number.isFinite(n)) return "support";
+  return ROLE_SLOTS[(n - 1 + ROLE_SLOTS.length) % ROLE_SLOTS.length];
+}
+
+/** Spread roles across A / mid / B so the squad does not stack one corridor. */
+export function laneForRole(role: BotRole, id: string): BotLane {
+  if (role === "entry" || role === "runner") return "A";
+  if (role === "flanker") return "B";
+  const n = Number.parseInt(id.replace(/\D/g, ""), 10);
+  return Number.isFinite(n) && n % 5 === 3 ? "A" : "mid";
+}
+
 /** Waypoints weave through cover instead of walking the open axis. */
 export const BOT_PATHS: Record<BotLane, { T: Point2D[]; CT: Point2D[] }> = {
   A: {
     T: [
       { x: -22, z: -2 },
-      { x: -22, z: -14 },
+      { x: -21, z: -14 },
       { x: -10, z: -14.2 },
-      { x: 2, z: -14.2 },
-      { x: 14, z: -14.5 },
+      { x: 2, z: -14.8 },
+      { x: 15, z: -16 },
     ],
     CT: [
       { x: 22, z: -3 },
       { x: 18, z: -12 },
-      { x: 14, z: -14.5 },
+      { x: 15, z: -16 },
     ],
   },
   mid: {
@@ -142,15 +206,15 @@ export const BOT_PATHS: Record<BotLane, { T: Point2D[]; CT: Point2D[] }> = {
   B: {
     T: [
       { x: -22, z: 2 },
-      { x: -22, z: 14 },
+      { x: -21, z: 14 },
       { x: -10, z: 14.2 },
-      { x: 2, z: 14.2 },
-      { x: 12, z: 14.5 },
+      { x: 2, z: 14.8 },
+      { x: 15, z: 16 },
     ],
     CT: [
       { x: 22, z: 3 },
       { x: 18, z: 12 },
-      { x: 12, z: 14.5 },
+      { x: 15, z: 16 },
     ],
   },
 };
@@ -180,7 +244,7 @@ export function stepToward(
     x: from.x + (dx / dist) * speed * dt,
     z: from.z + (dz / dist) * speed * dt,
   };
-  return clampToMap(steerAroundObstacles(from, intended));
+  return pushOutOfObstacles(clampToMap(steerAroundObstacles(from, intended)));
 }
 
 /** Stand on the far side of the nearest cover wall from a threat. */

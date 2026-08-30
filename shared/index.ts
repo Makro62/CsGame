@@ -679,8 +679,8 @@ export const GEAR = {
 } as const
 
 export const SPAWN = {
-  T: { x: -25, y: 0, z: 0 },
-  CT: { x: 25, y: 0, z: 0 },
+  T: { x: -22, y: 0, z: 0 },
+  CT: { x: 22, y: 0, z: 0 },
 } as const
 
 export const BOMB_SITES = {

@@ -97,6 +97,7 @@ const BUY_CATALOG: BuyItem[] = [
 
 function purchase(itemId: string) {
   if (useGameStore.getState().mode === "offline5v5") {
+    const prevWeapon = useWeaponStore.getState().activeWeapon;
     const ok = useOffline5v5Store.getState().localBuy(itemId);
     if (ok) {
       const me = useOffline5v5Store.getState().players.get("local");
@@ -106,8 +107,16 @@ function purchase(itemId: string) {
           secondary: me.secondaryWeapon,
           knife: me.knifeSlot,
         });
-        useWeaponStore.getState().equipWeapon(me.currentWeapon as never);
+        if (me.currentWeapon !== prevWeapon) {
+          useWeaponStore.getState().equipWeapon(me.currentWeapon as never, {
+            ammo: me.ammo,
+            reserveAmmo: me.reserveAmmo,
+          });
+        }
       }
+      gameEvents.emit("buyResult", { item: itemId, ok: true });
+    } else {
+      gameEvents.emit("buyResult", { item: itemId, ok: false, reason: "already_owned" });
     }
     return ok;
   }
@@ -115,26 +124,119 @@ function purchase(itemId: string) {
   return true;
 }
 
+type BuyView = {
+  money: number;
+  team: string;
+  x: number;
+  z: number;
+  primary: string;
+  secondary: string;
+  knife: string;
+  armor: number;
+  helmet: boolean;
+  grenadeHE: number;
+  grenadeSmoke: number;
+  grenadeFlash: number;
+  buyPhaseTimeLeft: number;
+};
+
+function readOfflineBuyView(): BuyView | null {
+  const me = useOffline5v5Store.getState().players.get("local");
+  if (!me) return null;
+  return {
+    money: me.money,
+    team: me.team,
+    x: me.x,
+    z: me.z,
+    primary: me.primaryWeapon,
+    secondary: me.secondaryWeapon,
+    knife: me.knifeSlot,
+    armor: me.armor,
+    helmet: me.hasHelmet,
+    grenadeHE: me.grenadeHE,
+    grenadeSmoke: me.grenadeSmoke,
+    grenadeFlash: me.grenadeFlash,
+    buyPhaseTimeLeft: useOffline5v5Store.getState().buyPhaseTimeLeft,
+  };
+}
+
+function readNetworkBuyView(): BuyView {
+  const n = useNetworkStore.getState();
+  return {
+    money: n.localMoney,
+    team: n.localTeam,
+    x: (n as { localX?: number }).localX ?? 0,
+    z: (n as { localZ?: number }).localZ ?? 0,
+    primary: (n as { localPrimaryWeapon?: string }).localPrimaryWeapon ?? "",
+    secondary: (n as { localSecondaryWeapon?: string }).localSecondaryWeapon ?? "",
+    knife: (n as { localKnifeSlot?: string }).localKnifeSlot ?? "knife",
+    armor: n.localArmor,
+    helmet: Boolean((n as { localHelmet?: boolean }).localHelmet),
+    grenadeHE: (n as { localGrenadeHE?: number }).localGrenadeHE ?? 0,
+    grenadeSmoke: (n as { localGrenadeSmoke?: number }).localGrenadeSmoke ?? 0,
+    grenadeFlash: (n as { localGrenadeFlash?: number }).localGrenadeFlash ?? 0,
+    buyPhaseTimeLeft: n.round.buyPhaseTimeLeft,
+  };
+}
+
+function readBuyView(): BuyView {
+  if (useGameStore.getState().mode === "offline5v5") {
+    return readOfflineBuyView() ?? readNetworkBuyView();
+  }
+  return readNetworkBuyView();
+}
+
 export function BuyMenu({ onClose }: { onClose: () => void }) {
   // Do not auto-lock from effect cleanup: React StrictMode can run cleanup
   // during its mount probe and re-lock the cursor while this menu is visible.
   useMenuPointerLock(false);
 
+  const mode = useGameStore((s) => s.mode);
+  const offlineMe = useOffline5v5Store((s) => s.players.get("local"));
+  const offlineBuyTime = useOffline5v5Store((s) => s.buyPhaseTimeLeft);
+  const networkRound = useNetworkStore((s) => s.round);
+  const networkMoney = useNetworkStore((s) => s.localMoney);
+  const networkTeam = useNetworkStore((s) => s.localTeam);
+
+  const view: BuyView =
+    mode === "offline5v5" && offlineMe
+      ? {
+          money: offlineMe.money,
+          team: offlineMe.team,
+          x: offlineMe.x,
+          z: offlineMe.z,
+          primary: offlineMe.primaryWeapon,
+          secondary: offlineMe.secondaryWeapon,
+          knife: offlineMe.knifeSlot,
+          armor: offlineMe.armor,
+          helmet: offlineMe.hasHelmet,
+          grenadeHE: offlineMe.grenadeHE,
+          grenadeSmoke: offlineMe.grenadeSmoke,
+          grenadeFlash: offlineMe.grenadeFlash,
+          buyPhaseTimeLeft: offlineBuyTime,
+        }
+      : {
+          ...readNetworkBuyView(),
+          money: networkMoney,
+          team: networkTeam,
+          buyPhaseTimeLeft: networkRound.buyPhaseTimeLeft,
+        };
+
   const {
-    round,
-    localMoney,
-    localTeam,
-    localX,
-    localZ,
-    localPrimaryWeapon,
-    localSecondaryWeapon,
-    localKnifeSlot,
-    localArmor,
-    localHelmet,
-    localGrenadeHE,
-    localGrenadeSmoke,
-    localGrenadeFlash,
-  } = useNetworkStore();
+    money: localMoney,
+    team: localTeam,
+    x: localX,
+    z: localZ,
+    primary: localPrimaryWeapon,
+    secondary: localSecondaryWeapon,
+    knife: localKnifeSlot,
+    armor: localArmor,
+    helmet: localHelmet,
+    grenadeHE: localGrenadeHE,
+    grenadeSmoke: localGrenadeSmoke,
+    grenadeFlash: localGrenadeFlash,
+    buyPhaseTimeLeft,
+  } = view;
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
 
   useEffect(() => {
@@ -228,18 +330,18 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
       if (item) {
         e.preventDefault();
         // Read fresh state from stores to avoid stale closures
-        const state = useNetworkStore.getState();
-        if (item.team && item.team !== state.localTeam) return;
-        const buyZone = BUY_ZONE[state.localTeam as keyof typeof BUY_ZONE];
-        if (buyZone) {
-          const dx = state.localX - buyZone.x;
-          const dz = state.localZ - buyZone.z;
-          if (Math.sqrt(dx * dx + dz * dz) > buyZone.radius) {
+        const state = readBuyView();
+        if (item.team && item.team !== state.team) return;
+        const zone = BUY_ZONE[state.team as keyof typeof BUY_ZONE];
+        if (zone) {
+          const dx = state.x - zone.x;
+          const dz = state.z - zone.z;
+          if (Math.sqrt(dx * dx + dz * dz) > zone.radius) {
             setFeedback({ text: FAIL_MESSAGES.outside_buy_zone, ok: false });
             return;
           }
         }
-        if (state.localMoney < item.price) {
+        if (state.money < item.price) {
           setFeedback({ text: FAIL_MESSAGES.no_money, ok: false });
           return;
         }
@@ -367,7 +469,7 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
         )}
 
         <div style={{ marginBottom: "12px", fontSize: "12px", color: "#888" }}>
-          Buy Phase: {round.buyPhaseTimeLeft.toFixed(1)}s remaining
+          Buy Phase: {buyPhaseTimeLeft.toFixed(1)}s remaining
         </div>
 
         {renderSection("Weapons", "#60a5fa", "weapon")}

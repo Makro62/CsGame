@@ -4,6 +4,7 @@ import { useZombieStore } from "../../stores/useZombieStore";
 import { refillAllAmmo } from "./ZombieEngine";
 import { Sound } from "../../components/AudioManager";
 import { weaponDisplay } from "../weapons/weaponDisplay";
+import { purchaseOrEquipSurvivalWeapon } from "./survivalBuy";
 
 interface ShopWeapon {
   id: WeaponKey;
@@ -36,6 +37,7 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
   const [activeTab, setActiveTab] = useState<"weapons" | "upgrades" | "perks">("weapons");
   const points = useZombieStore(s => s.player.points);
   const player = useZombieStore(s => s.player);
+  const purchasedWeapons = useZombieStore(s => s.purchasedWeapons);
   const activeWeapon = useWeaponStore(s => s.activeWeapon);
 
   if (!open) return null;
@@ -44,23 +46,9 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
   const upgradeCost = currentTier === 0 ? 1200 : currentTier === 1 ? 2400 : 3800;
 
   const buyWeapon = (id: WeaponKey, cost: number) => {
-    const st = useZombieStore.getState();
-    const ws = useWeaponStore.getState();
-    if (st.player.points < cost) return;
-    st.addPoints(-cost);
-
-    const isPrimary = id === "mp5" || id === "ak47" || id === "m4a1" || id === "awp";
-    const isSecondary = id === "deagle" || id === "glock" || id === "tec9";
-
-    if (isPrimary) {
-      ws.syncLoadout({ primary: id, secondary: ws.secondaryWeapon ?? "glock", knife: ws.knifeSlot ?? "knife" });
-    } else if (isSecondary) {
-      ws.syncLoadout({ primary: ws.primaryWeapon ?? "mp5", secondary: id, knife: ws.knifeSlot ?? "knife" });
-    }
-    ws.equipWeapon(id);
-    st.addPurchasedWeapon(id);
-    refillAllAmmo();
-    Sound.gunshot(id);
+    const result = purchaseOrEquipSurvivalWeapon(id, cost);
+    if (result === "bought") Sound.gunshot(id);
+    else if (result === "equipped") Sound.deploy(id);
   };
 
   const handleUpgradeTier = () => {
@@ -211,14 +199,20 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, overflowY: "auto", maxHeight: 330, paddingRight: 4 }}>
             {SHOP_WEAPONS.map(w => {
               const isEquipped = activeWeapon === w.id;
+              const isOwned = purchasedWeapons.includes(w.id);
               const canAfford = points >= w.cost;
+              const canAct = isEquipped ? false : isOwned || canAfford;
               const info = weaponDisplay(w.id);
+              const actionLabel = isEquipped ? "TERPASANG" : isOwned ? "PASANG" : "BELI";
+              const priceLabel = isEquipped || isOwned
+                ? (isOwned && !isEquipped ? "DIMILIKI" : "")
+                : (w.cost > 0 ? `${w.cost} PTS` : "FREE");
               return (
                 <div
                   key={w.id}
                   style={{
-                    background: isEquipped ? "rgba(101, 163, 13, 0.25)" : "rgba(0, 0, 0, 0.4)",
-                    border: isEquipped ? "1.5px solid #a3e635" : "1px solid rgba(255, 255, 255, 0.1)",
+                    background: isEquipped ? "rgba(101, 163, 13, 0.25)" : isOwned ? "rgba(56, 189, 248, 0.12)" : "rgba(0, 0, 0, 0.4)",
+                    border: isEquipped ? "1.5px solid #a3e635" : isOwned ? "1px solid rgba(56, 189, 248, 0.45)" : "1px solid rgba(255, 255, 255, 0.1)",
                     borderRadius: 8,
                     padding: "10px 12px",
                     display: "flex",
@@ -237,24 +231,30 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
                   </div>
                   <button
                     onClick={() => buyWeapon(w.id, w.cost)}
-                    disabled={isEquipped || !canAfford}
+                    disabled={!canAct}
                     style={{
                       marginTop: 8,
                       padding: "6px 10px",
-                      background: isEquipped ? "rgba(163, 230, 53, 0.3)" : canAfford ? "linear-gradient(90deg, #65a30d, #4d7c0f)" : "rgba(255, 255, 255, 0.05)",
+                      background: isEquipped
+                        ? "rgba(163, 230, 53, 0.3)"
+                        : isOwned
+                          ? "linear-gradient(90deg, #0284c7, #0369a1)"
+                          : canAfford
+                            ? "linear-gradient(90deg, #65a30d, #4d7c0f)"
+                            : "rgba(255, 255, 255, 0.05)",
                       border: "none",
                       borderRadius: 6,
-                      color: isEquipped ? "#a3e635" : canAfford ? "#ffffff" : "#64748b",
+                      color: isEquipped ? "#a3e635" : canAct ? "#ffffff" : "#64748b",
                       fontSize: 12,
                       fontWeight: 800,
-                      cursor: isEquipped || !canAfford ? "default" : "pointer",
+                      cursor: canAct ? "pointer" : "default",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
                     }}
                   >
-                    <span>{isEquipped ? "TERPASANG" : "BELI & AMBIL"}</span>
-                    <span>{w.cost > 0 ? `${w.cost} PTS` : "FREE"}</span>
+                    <span>{actionLabel}</span>
+                    <span>{priceLabel}</span>
                   </button>
                 </div>
               );

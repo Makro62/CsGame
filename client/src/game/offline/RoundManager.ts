@@ -1,6 +1,7 @@
 import { ROUND, ECONOMY, SPAWN } from "@cs-game/shared";
-import { botPath, laneForBotId, stepToward } from "./offlineCombat";
-import { botBuy, botThink, defaultLoadout, refillAmmo } from "./BotAI";
+import { botPath, laneForRole, roleForBotId, stepToward } from "./offlineCombat";
+import { botBuy, botThink, defaultLoadout, refillAmmo, assignBombCarrier, resetBotNav } from "./BotAI";
+import { spawnJitter } from "./botNav";
 import { getWeaponStats } from "./EconomySystem";
 import type {
   LocalPlayer,
@@ -343,23 +344,31 @@ export function resetForRound(
     cloned.grenadeFlash = 0;
 
     const sp = SPAWN[cloned.team as keyof typeof SPAWN];
-    cloned.x = sp.x + (cloned.isBot ? (Math.random() - 0.5) * 8 : 0);
-    cloned.z = sp.z + (cloned.isBot ? (Math.random() - 0.5) * 8 : 0);
+    if (cloned.isBot) {
+      const pos = spawnJitter(cloned.team);
+      cloned.x = pos.x;
+      cloned.z = pos.z;
+    } else {
+      cloned.x = sp.x;
+      cloned.z = sp.z;
+    }
 
     if (cloned.isBot) {
       defaultLoadout(cloned);
       cloned.botAmmoInMag = cloned.ammo;
       cloned.botState = "idle";
       cloned.botWp = 0;
-      cloned.botLane = laneForBotId(id);
+      cloned.botRole = roleForBotId(id);
+      cloned.botLane = laneForRole(cloned.botRole, id);
+      cloned.plantSite = cloned.botLane === "B" ? "B" : "A";
     } else {
       refillAmmo(cloned);
     }
     players.set(id, cloned);
   });
 
-  const local = players.get("local");
-  if (local && local.team === "T") local.hasBomb = true;
+  assignBombCarrier(players);
+  resetBotNav();
 
   set({
     phase: "buy",

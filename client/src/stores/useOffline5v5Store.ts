@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { ROUND, ECONOMY, BOMB_SITES } from "@cs-game/shared";
 import { distToBombSite, nearestBombSite } from "../game/offline/offlineCombat";
-import { mkPlayer } from "../game/offline/BotAI";
+import { mkPlayer, assignBombCarrier, resetBotNav } from "../game/offline/BotAI";
 import { getWeaponStats, executeLocalBuy } from "../game/offline/EconomySystem";
 import { executeLocalShoot } from "../game/offline/CombatSystem";
 import { tickRound, endRound as handleEndRound, resetForRound as handleResetRound } from "../game/offline/RoundManager";
@@ -56,7 +56,8 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       players.set(`bot_ct${i}`, mkPlayer(`bot_ct${i}`, "CT", `Bot CT${i}`, true, difficulty));
     }
 
-    if (team === "T") local.hasBomb = true;
+    assignBombCarrier(players);
+    resetBotNav();
 
     set({
       phase: "buy",

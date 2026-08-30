@@ -5,7 +5,9 @@ import {
   hasLineOfSight,
   hideBehindCover,
   laneForBotId,
+  laneForRole,
   nextWaypointIndex,
+  roleForBotId,
   stepToward,
 } from "../offline/offlineCombat";
 
@@ -42,6 +44,16 @@ describe("bot lanes", () => {
     expect(laneForBotId("bot_t1")).toBe("A");
     expect(laneForBotId("bot_t2")).toBe("B");
     expect(laneForBotId("bot_t3")).toBe("mid");
+  });
+
+  it("assigns arcade squad roles and spreads them on the map", () => {
+    expect(roleForBotId("bot_t1")).toBe("entry");
+    expect(roleForBotId("bot_t2")).toBe("support");
+    expect(roleForBotId("bot_t4")).toBe("flanker");
+    expect(roleForBotId("bot_t5")).toBe("runner");
+    expect(laneForRole("entry", "bot_t1")).toBe("A");
+    expect(laneForRole("flanker", "bot_t4")).toBe("B");
+    expect(laneForRole("support", "bot_t2")).toBe("mid");
   });
 
   it("keeps every waypoint in walkable space", () => {
