@@ -852,4 +852,3 @@ export function ZombieSurvivalMode() {
     </div>
   );
 }
-export default ZombieSurvivalMode;

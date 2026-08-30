@@ -104,5 +104,3 @@ export function cn(...classes: ClassValue[]): string {
   const merged = clsx(...classes)
   return mergeTailwindClasses(merged)
 }
-
-export default cn

@@ -69,7 +69,7 @@ const MODE_BOUNDS: Record<string, Bounds> = {
   l4d: { minX: L4D_BOUNDS.minX, maxX: L4D_BOUNDS.maxX, minZ: L4D_BOUNDS.minZ, maxZ: L4D_BOUNDS.maxZ },
 }
 
-export function getBounds(mode: string, mapId?: string): Bounds {
+function getBounds(mode: string, mapId?: string): Bounds {
   if (mode === 'offline5v5' && mapId === 'dust') return MODE_BOUNDS.offline5v5_dust
   return MODE_BOUNDS[mode] ?? MODE_BOUNDS.offline5v5
 }

@@ -128,5 +128,3 @@ export function DamageIndicator() {
     </div>
   );
 }
-
-export default DamageIndicator;

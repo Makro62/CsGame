@@ -774,5 +774,3 @@ export function Offline5v5Mode() {
     </div>
   );
 }
-
-export default Offline5v5Mode;
