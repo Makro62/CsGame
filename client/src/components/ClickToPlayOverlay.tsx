@@ -5,9 +5,11 @@ interface ClickToPlayOverlayProps {
   onLock: () => void;
   /** Hide while a pause/shop modal is open so overlays do not stack. */
   suppressed?: boolean;
+  /** Prefer this canvas when locking (avoid locking a hero-preview canvas). */
+  canvasSelector?: string;
 }
 
-export function ClickToPlayOverlay({ onLock, suppressed = false }: ClickToPlayOverlayProps) {
+export function ClickToPlayOverlay({ onLock, suppressed = false, canvasSelector }: ClickToPlayOverlayProps) {
   const [visible, setVisible] = useState(true);
   const mode = useGameStore((s) => s.mode);
   const onLockRef = useRef(onLock);
@@ -15,11 +17,12 @@ export function ClickToPlayOverlay({ onLock, suppressed = false }: ClickToPlayOv
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    const canvas = document.querySelector("canvas");
-    if (canvas) {
-      canvas.requestPointerLock();
-    }
-  }, []);
+    const canvas = (
+      (canvasSelector ? document.querySelector(canvasSelector) : null) ||
+      document.querySelector("canvas")
+    ) as HTMLCanvasElement | null;
+    canvas?.requestPointerLock();
+  }, [canvasSelector]);
 
   useEffect(() => {
     const checkLock = () => {
@@ -63,7 +66,7 @@ export function ClickToPlayOverlay({ onLock, suppressed = false }: ClickToPlayOv
         title: "LEFT 4 DEAD",
         accent: "#10b981",
         glow: "rgba(16, 185, 129, 0.4)",
-        hints: ["WASD gerak", "LMB tembak", "RMB ADS", "F revive bot", "R reload"],
+        hints: ["WASD gerak", "LMB tembak", "RMB ADS", "Q ability", "F revive bot"],
       };
     }
     return {

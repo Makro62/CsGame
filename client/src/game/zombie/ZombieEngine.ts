@@ -584,6 +584,26 @@ export class ZombieEngine {
 
   getZombies(): ZombieState[] { return Array.from(this.zombies.values()); }
 
+  berserkBurst(cx: number, cz: number, radius: number, damage: number) {
+    const store = useZombieStore.getState();
+    const instaKill = store.player.activePowerUps.has("insta_kill");
+    for (const z of this.zombies.values()) {
+      if (z.isDead) continue;
+      const dist = Math.hypot(z.x - cx, z.z - cz);
+      if (dist > radius) continue;
+      if (instaKill) {
+        z.hp = 0;
+      } else {
+        z.hp -= damage;
+      }
+      if (z.hp <= 0) {
+        this.killZombie(z);
+        store.addPoints(ZOMBIE_CFG[z.type].points);
+      }
+      zombieEvents.emit({ type: "zombieHit", id: z.id, x: z.x, y: 1, z: z.z, headshot: false, damage });
+    }
+  }
+
   cleanup() {
     this.dotSystem.clear();
     this._aliveCount = 0;

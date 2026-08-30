@@ -144,7 +144,11 @@ const WALL_JUMP_HORIZONTAL = PHYSICS.wallJumpHorizontal as number
 const WALL_JUMP_COOLDOWN = PHYSICS.wallJumpCooldown as number
 const WALL_JUMP_RAY_DIST = PHYSICS.wallJumpRayDist as number
 
-export function PlayerController() {
+interface PlayerControllerProps {
+  speedFactor?: number;
+}
+
+export function PlayerController({ speedFactor: speedFactorProp }: PlayerControllerProps = {}) {
   const { camera } = useThree()
   const { world } = useRapier()
   const { getInput, getCrouchReleasedAt } = usePlayerInput()
@@ -422,6 +426,14 @@ export function PlayerController() {
     let targetSpeed: number = WALK_SPEED
     if (input.sprint) targetSpeed = SPRINT_SPEED
     if (input.crouch) targetSpeed = PHYSICS.crouchSpeed as number
+
+    const l4dSpeed = mode === "l4d" ? useL4DStore.getState().survivors[0]?.speed : undefined;
+    if (l4dSpeed) {
+      targetSpeed *= l4dSpeed / 5.4;
+      if (Date.now() < useL4DStore.getState().sprintBoostUntil) targetSpeed *= 1.45;
+    } else if (speedFactorProp) {
+      targetSpeed *= speedFactorProp;
+    }
 
     // Knife speed buff (+10%)
     if (useWeaponStore.getState().activeWeapon === 'knife') {

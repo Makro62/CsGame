@@ -19,6 +19,7 @@ import { zombieEngine } from "../zombie/ZombieEngine";
 import { useZombieStore } from "../../stores/useZombieStore";
 import { useL4DStore } from "../../stores/useL4DStore";
 import { useNetworkStore } from "../../stores/useNetworkStore";
+import { useHeroStore } from "../../stores/useHeroStore";
 
 function isZombieArcade() {
   return useGameStore.getState().mode === "zombie";
@@ -458,7 +459,10 @@ export function ShootingSystem() {
             if (dirDot > 0.35) { bestD = d; bestId = inf.id; }
           }
         }
-        if (bestId) useL4DStore.getState().damageInfected(bestId, 70);
+        if (bestId) {
+          const lucky = Date.now() < useL4DStore.getState().luckyShotUntil ? 1.6 : 1;
+          useL4DStore.getState().damageInfected(bestId, Math.round(70 * lucky));
+        }
       } else if (gameMode === "offline5v5") {
         let current: THREE.Object3D | null = hit?.object ?? null;
         let targetId: string | null = null;
@@ -501,6 +505,12 @@ export function ShootingSystem() {
       const aim = getArcadeAim();
       shootOrigin.copy(aim.origin);
       _arcadeDir.copy(aim.direction).normalize();
+      const accSpread = ((100 - (useHeroStore.getState().hero.stats.accuracy || 85)) / 100) * 0.04;
+      if (accSpread > 0) {
+        _arcadeDir.x += (Math.random() - 0.5) * accSpread;
+        _arcadeDir.z += (Math.random() - 0.5) * accSpread;
+        _arcadeDir.normalize();
+      }
       const stats = WEAPONS[activeWeapon];
       const baseDmg = stats?.dmg ?? 35;
       const zombiePlayer = useZombieStore.getState().player;
@@ -508,7 +518,8 @@ export function ShootingSystem() {
       // Tier 1: +75% DMG, Tier 2: +160% DMG, Tier 3: +260% DMG
       const tierMult = 1 + tier * 0.85;
       const doubleTapMult = zombiePlayer.perks?.includes("double_tap") ? 1.4 : 1.0;
-      const finalDmg = Math.round(baseDmg * tierMult * doubleTapMult);
+      const heroDmgMult = (useHeroStore.getState().hero.stats.damage || 25) / 25;
+      const finalDmg = Math.round(baseDmg * tierMult * doubleTapMult * heroDmgMult);
       const pierce = tier >= 3;
       const hit = zombieEngine.handleShoot(shootOrigin, _arcadeDir, finalDmg, pierce);
       const wallDist = zombieEngine.wallDistance(shootOrigin, _arcadeDir, 70);
@@ -667,7 +678,8 @@ export function ShootingSystem() {
         const inf = infectedFrom(hit.object);
         if (inf) {
           const stats = WEAPONS[activeWeapon];
-          const dmgVal = inf.isHead ? (stats?.headshot ?? 70) : (stats?.dmg ?? 35);
+          const lucky = Date.now() < useL4DStore.getState().luckyShotUntil ? 1.6 : 1;
+          const dmgVal = Math.round((inf.isHead ? (stats?.headshot ?? 70) : (stats?.dmg ?? 35)) * lucky);
           useL4DStore.getState().damageInfected(inf.id, dmgVal);
           gameEvents.emit("hitMarker", { headshot: inf.isHead });
         }
@@ -729,8 +741,9 @@ export function ShootingSystem() {
       if (e.button === 0) {
         const arcade = isZombieArcade();
         if (arcade) {
+          const locked = !!document.pointerLockElement;
           const tag = (e.target as HTMLElement | null)?.tagName;
-          if (tag !== "CANVAS") return;
+          if (!locked && tag !== "CANVAS") return;
         } else if (!document.pointerLockElement) {
           return;
         }

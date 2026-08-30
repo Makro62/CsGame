@@ -1,17 +1,18 @@
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { usePlayerInput } from "../../hooks/usePlayerInput";
 import { useZombieStore } from "../../stores/useZombieStore";
 import { useGameStore } from "../../stores/useGameStore";
+import { useHeroStore } from "../../stores/useHeroStore";
 import { useAimStore } from "../../stores/useAimStore";
 import { zombieEngine } from "../zombie/ZombieEngine";
 import { MinecraftCharacter } from "./MinecraftCharacter";
 import { SURVIVAL_BOUNDS, pushOutSurvival } from "../zombie/survivalLayout";
 import { arcadeScreenMove } from "./arcadeScreenMove";
 
-const WALK_SPEED = 5.4;
-const SPRINT_SPEED = 8.4;
+const BASE_WALK_SPEED = 5.4;
+const BASE_SPRINT_SPEED = 8.4;
 const PLAYER_RADIUS = 0.55;
 
 const _tGround = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -19,9 +20,10 @@ const _tHit = new THREE.Vector3();
 const _tMove = new THREE.Vector3();
 const _tOrigin = new THREE.Vector3();
 const _tDir = new THREE.Vector3();
+const _aimNdc = new THREE.Vector2();
 
 export function ZombieArcadeController() {
-  const { camera, pointer, raycaster } = useThree();
+  const { camera, pointer, raycaster, size } = useThree();
   const { getInput } = usePlayerInput();
   const posRef = useRef(new THREE.Vector3(0, 0, 0));
   const yawRef = useRef(0);
@@ -29,6 +31,34 @@ export function ZombieArcadeController() {
   const isDead = useZombieStore(s => s.player.isDowned);
   const groupRef = useRef<THREE.Group>(null);
   const motionRef = useRef({ moving: false, sprinting: false });
+  const hero = useHeroStore(s => s.hero);
+  const lockedNdc = useRef({ x: 0, y: 0 });
+  const pointerRef = useRef(pointer);
+  pointerRef.current = pointer;
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!document.pointerLockElement) return;
+      const nx = size.width || window.innerWidth;
+      const ny = size.height || window.innerHeight;
+      lockedNdc.current.x = THREE.MathUtils.clamp(lockedNdc.current.x + e.movementX / (nx * 0.5), -0.98, 0.98);
+      lockedNdc.current.y = THREE.MathUtils.clamp(lockedNdc.current.y - e.movementY / (ny * 0.5), -0.98, 0.98);
+      useAimStore.getState().setCursorNdc(lockedNdc.current.x, lockedNdc.current.y);
+    };
+    const onLock = () => {
+      if (document.pointerLockElement) {
+        lockedNdc.current.x = pointerRef.current.x;
+        lockedNdc.current.y = pointerRef.current.y;
+        useAimStore.getState().setCursorNdc(pointerRef.current.x, pointerRef.current.y);
+      }
+    };
+    window.addEventListener("mousemove", onMove);
+    document.addEventListener("pointerlockchange", onLock);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      document.removeEventListener("pointerlockchange", onLock);
+    };
+  }, [size.width, size.height]);
 
   useFrame((_, dt) => {
     const input = getInput();
@@ -39,7 +69,12 @@ export function ZombieArcadeController() {
 
     if (isDead) return;
 
-    raycaster.setFromCamera(pointer, camera);
+    if (document.pointerLockElement) {
+      _aimNdc.set(lockedNdc.current.x, lockedNdc.current.y);
+    } else {
+      _aimNdc.set(pointer.x, pointer.y);
+    }
+    raycaster.setFromCamera(_aimNdc, camera);
     if (raycaster.ray.intersectPlane(_tGround, _tHit)) {
       const dx = _tHit.x - posRef.current.x;
       const dz = _tHit.z - posRef.current.z;
@@ -57,7 +92,8 @@ export function ZombieArcadeController() {
     motionRef.current.moving = lenSq > 0;
     motionRef.current.sprinting = input.sprint && lenSq > 0;
 
-    const speed = input.sprint ? SPRINT_SPEED : WALK_SPEED;
+    const speedFactor = hero.stats.speed / 5.4;
+    const speed = input.sprint ? BASE_SPRINT_SPEED * speedFactor : BASE_WALK_SPEED * speedFactor;
     posRef.current.x += _tMove.x * speed * dt;
     posRef.current.z += _tMove.z * speed * dt;
 
@@ -91,15 +127,7 @@ export function ZombieArcadeController() {
 
   return (
     <group ref={groupRef}>
-      <MinecraftCharacter team="CT" holdWeapon motionRef={motionRef} isDead={isDead} />
-      <mesh position={[0.38, 0.82, 0.42]} rotation={[0.15, 0, 0]} castShadow>
-        <boxGeometry args={[0.07, 0.08, 0.42]} />
-        <meshStandardMaterial color="#1c1917" metalness={0.55} roughness={0.35} />
-      </mesh>
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.35, 16]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.25} />
-      </mesh>
+      <MinecraftCharacter team="CT" holdWeapon weaponType={hero.weaponType} motionRef={motionRef} isDead={isDead} heroColor={hero.armorColor} heroAccent={hero.accentColor} bodyStyle={hero.id} />
     </group>
   );
 }

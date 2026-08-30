@@ -13,14 +13,59 @@ import { ShootingSystem } from "../game/weapons/ShootingSystem";
 import { ReloadSystem } from "../game/weapons/ReloadSystem";
 import { TracerManager } from "../game/effects/TracerManager";
 import { DamageVignette } from "../components/DamageVignette";
+import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
+import { HeroSelectScreen } from "./HeroSelectScreen";
 import { useZombieStore } from "../stores/useZombieStore";
 import { useGameStore } from "../stores/useGameStore";
+import { useHeroStore } from "../stores/useHeroStore";
 import { useAimStore } from "../stores/useAimStore";
 import { useWeaponStore } from "../stores/useWeaponStore";
 import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
 import { type WeaponKey } from "../stores/useWeaponStore";
 import { weaponDisplay } from "../game/weapons/weaponDisplay";
 import { equipSurvivalWeapon } from "../game/zombie/survivalBuy";
+import { applyHeroToMatch } from "../game/zombie/applyHeroMatch";
+
+const ZOMBIE_CANVAS_ID = "zombie-survival-canvas";
+const SHIELD_ARMOR_BONUS = 40;
+
+function lockZombieCanvas() {
+  const canvas = (
+    document.querySelector("#zombie-survival-canvas canvas") ||
+    document.querySelector("canvas")
+  ) as HTMLCanvasElement | null;
+  canvas?.requestPointerLock();
+}
+
+function ArcadeLockCursor() {
+  const ndc = useAimStore(s => s.cursorNdc);
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    const sync = () => setLocked(!!document.pointerLockElement);
+    sync();
+    document.addEventListener("pointerlockchange", sync);
+    return () => document.removeEventListener("pointerlockchange", sync);
+  }, []);
+  if (!locked) return null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: `${(ndc.x * 0.5 + 0.5) * 100}vw`,
+        top: `${(-ndc.y * 0.5 + 0.5) * 100}vh`,
+        width: 18,
+        height: 18,
+        marginLeft: -9,
+        marginTop: -9,
+        pointerEvents: "none",
+        zIndex: 55,
+        border: "2px solid #84cc16",
+        borderRadius: "50%",
+        boxShadow: "0 0 8px rgba(132,204,22,0.8)",
+      }}
+    />
+  );
+}
 
 export function ZombieSurvivalMode() {
   const waveState = useZombieStore(s => s.waveState);
@@ -28,7 +73,7 @@ export function ZombieSurvivalMode() {
   const player = useZombieStore(s => s.player);
   const zombiesRemaining = useZombieStore(s => s.zombiesRemaining);
   const totalZombiesInWave = useZombieStore(s => s.totalZombiesInWave);
-  const purchasedWeapons = useZombieStore(s => s.purchasedWeapons || ["mp5", "glock", "knife"]);
+  const purchasedWeapons = useZombieStore(s => s.purchasedWeapons);
   const interWaveTimer = useZombieStore(s => s.interWaveTimer);
   const currentAmmo = useWeaponStore(s => s.currentAmmo);
   const maxAmmo = useWeaponStore(s => s.maxAmmo);
@@ -39,11 +84,19 @@ export function ZombieSurvivalMode() {
   const knifeSlot = useWeaponStore(s => s.knifeSlot);
   const isReloading = useWeaponStore(s => s.isReloading);
   const { buyMenuOpen, closeBuyMenu, toggleBuyMenu } = useWeaponSwitch();
+  const hero = useHeroStore(s => s.hero);
+  const abilityReady = useHeroStore(s => s.abilityReady);
+  const abilityCooldownRemaining = useHeroStore(s => s.abilityCooldownRemaining);
   const [paused, setPaused] = useState(false);
   const [showWaveAlert, setShowWaveAlert] = useState(false);
+  const [heroSelected, setHeroSelected] = useState(false);
   const prevWaveState = useRef(waveState);
   const pausedRef = useRef(false);
   pausedRef.current = paused;
+  const heroSelectedRef = useRef(false);
+  heroSelectedRef.current = heroSelected;
+  const buyMenuOpenRef = useRef(false);
+  buyMenuOpenRef.current = buyMenuOpen;
   const reviveHeld = useRef(false);
 
   useEffect(() => {
@@ -55,28 +108,21 @@ export function ZombieSurvivalMode() {
     prevWaveState.current = waveState;
   }, [waveState]);
 
-  const startLoadout = useCallback(() => {
-    const ws = useWeaponStore.getState();
-    ws.setInfiniteAmmo(false);
-    ws.resetUpgrades();
-    ws.resetAmmoInventory();
-    ws.syncLoadout({ primary: "mp5", secondary: "glock", knife: "knife" });
-    ws.equipWeapon("mp5");
-  }, []);
-
   useEffect(() => {
+    if (!heroSelected) return;
     useGameStore.getState().setMode("zombie");
     zombieEngine.init();
     useZombieStore.getState().resetGame(true);
-    startLoadout();
+    applyHeroToMatch(useHeroStore.getState().hero);
+    useHeroStore.getState().resetAbility();
     return () => zombieEngine.cleanup();
-  }, [startLoadout]);
+  }, [heroSelected]);
 
   useEffect(() => {
     let raf = 0; let last = performance.now(); let acc = 0;
     const FIXED = 1 / 60;
     const tick = (dt: number) => {
-      if (pausedRef.current) return;
+      if (pausedRef.current || !heroSelectedRef.current) return;
       const st0 = useZombieStore.getState();
 
       if (st0.waveState === "buy_phase" || st0.waveState === "wave_clear") {
@@ -90,6 +136,8 @@ export function ZombieSurvivalMode() {
           useZombieStore.getState().setInterWaveTimer(nt);
         }
       }
+
+      useHeroStore.getState().tickCooldown(dt);
 
       if (st0.waveState === "wave_active") {
         zombieEngine.update(dt);
@@ -159,16 +207,15 @@ export function ZombieSurvivalMode() {
     zombieEngine.cleanup();
     zombieEngine.init();
     useZombieStore.getState().resetGame(true);
-    startLoadout();
+    applyHeroToMatch(useHeroStore.getState().hero);
+    useHeroStore.getState().resetAbility();
     closeBuyMenu();
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.requestPointerLock();
-  }, [startLoadout, closeBuyMenu]);
+    lockZombieCanvas();
+  }, [closeBuyMenu]);
 
   const resume = useCallback(() => {
     setPaused(false);
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.requestPointerLock();
+    lockZombieCanvas();
   }, []);
 
   const openSettings = useCallback(() => {
@@ -181,6 +228,22 @@ export function ZombieSurvivalMode() {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "KeyF") {
         reviveHeld.current = true;
+        return;
+      }
+      if (e.code === "KeyQ") {
+        if (!heroSelectedRef.current || pausedRef.current || buyMenuOpenRef.current) return;
+        const used = useHeroStore.getState().triggerAbility();
+        if (used) {
+          const heroState = useHeroStore.getState();
+          if (heroState.hero.ability === "berserk") {
+            const pos = useAimStore.getState().pos;
+            zombieEngine.berserkBurst(pos.x, pos.z, 8, Math.floor(heroState.hero.stats.damage * 0.8));
+          } else if (heroState.hero.ability === "shield") {
+            useZombieStore.setState(s => ({
+              player: { ...s.player, armor: Math.min(100, s.player.armor + SHIELD_ARMOR_BONUS) },
+            }));
+          }
+        }
         return;
       }
       if (e.code !== "Escape") return;
@@ -212,8 +275,25 @@ export function ZombieSurvivalMode() {
   const waveProgressPercent = Math.min(100, Math.round((killedZombies / totalWaveZombies) * 100));
   const magPercent = maxAmmo > 0 ? Math.max(0, Math.min(100, (currentAmmo / maxAmmo) * 100)) : 0;
 
+  const handleHeroSelect = useCallback(() => {
+    setHeroSelected(true);
+    lockZombieCanvas();
+  }, []);
+
   return (
     <div className="w-full h-screen bg-black relative" style={{ cursor: "crosshair" }}>
+      {/* Hero Selection Screen */}
+      {!heroSelected && <HeroSelectScreen onSelect={handleHeroSelect} />}
+      {heroSelected && (
+        <ClickToPlayOverlay
+          onLock={() => setPaused(false)}
+          suppressed={paused || buyMenuOpen || waveState === "game_over"}
+          canvasSelector="#zombie-survival-canvas canvas"
+        />
+      )}
+      {heroSelected && <ArcadeLockCursor />}
+
+      <div id={ZOMBIE_CANVAS_ID} className="w-full h-full">
       <Canvas camera={{ position: [0, 22, 11], fov: 48 }} shadows>
         <color attach="background" args={["#12180f"]} />
         <fog attach="fog" args={["#12180f", 40, 90]} />
@@ -240,8 +320,7 @@ export function ZombieSurvivalMode() {
         <ReloadSystem />
         <TracerManager />
       </Canvas>
-
-      {/* ── Top Left: Glassmorphic Zombie Tactical HUD ── */}
+      </div>
       <div
         style={{
           position: "fixed",
@@ -314,6 +393,34 @@ export function ZombieSurvivalMode() {
             <span style={{ fontSize: 12, color: "#94a3b8" }}>HORDE:</span>
             <span style={{ fontSize: 15, fontWeight: 900, color: "#ef4444" }}>{zombiesRemaining}</span>
           </div>
+        </div>
+
+        {/* Hero Ability Status */}
+        <div style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{
+            padding: "3px 10px",
+            background: abilityReady ? `${hero.accentColor}22` : "rgba(255,255,255,0.05)",
+            border: `1px solid ${abilityReady ? hero.accentColor : "rgba(255,255,255,0.15)"}`,
+            borderRadius: 6,
+            fontSize: 11,
+            color: abilityReady ? hero.accentColor : "#64748b",
+            fontWeight: 900,
+            letterSpacing: "0.05em",
+          }}>
+            {hero.ability === "berserk" ? "🔥" : "🛡️"} [Q] {hero.ability === "berserk" ? "BERSERK" : "SHIELD"}
+            {!abilityReady && ` ${Math.ceil(abilityCooldownRemaining)}s`}
+          </span>
+          <span style={{
+            padding: "2px 8px",
+            background: `${hero.accentColor}15`,
+            border: `1px solid ${hero.accentColor}33`,
+            borderRadius: 4,
+            fontSize: 10,
+            color: hero.accentColor,
+            fontWeight: 800,
+          }}>
+            ★ {hero.name}
+          </span>
         </div>
 
         {/* Perks and Power-up badges */}
@@ -746,7 +853,7 @@ export function ZombieSurvivalMode() {
           pointerEvents: "none",
         }}
       >
-        W Atas • S Bawah • A Kiri • D Kanan • Mouse Bidik • Klik Kiri Tembak • R Reload • 1-3 Ganti Senjata • B Toko • F Revive • ESC Menu
+        W Atas • S Bawah • A Kiri • D Kanan • Mouse Bidik • Klik Kiri Tembak • R Reload • Q Ability • 1-3 Ganti Senjata • B Toko • F Revive • ESC Menu
       </div>
 
       {/* ── Game Over (K.I.A.) Tactical Modal ── */}

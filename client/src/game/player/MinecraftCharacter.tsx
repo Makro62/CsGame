@@ -1,12 +1,14 @@
 import { useRef, useMemo, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { getCharacterLook } from "./characterLooks";
+import { CharacterGear } from "./CharacterGear";
 
 // ============================================================================
 // Face Texture (Canvas-based, no external images)
 // ============================================================================
 
-function createFaceTexture(team: string): THREE.Texture {
+function createFaceTexture(team: string, accent?: string, skin = "#d4a574"): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
   canvas.height = 64;
@@ -14,7 +16,7 @@ function createFaceTexture(team: string): THREE.Texture {
   if (!ctx) return new THREE.Texture();
 
   // Skin color
-  ctx.fillStyle = "#d4a574";
+  ctx.fillStyle = skin;
   ctx.fillRect(0, 0, 64, 64);
 
   // Eyes (white)
@@ -28,7 +30,7 @@ function createFaceTexture(team: string): THREE.Texture {
   ctx.fillRect(40, 26, 6, 6);
 
   // Eyebrows
-  ctx.fillStyle = team === "T" ? "#8b0000" : "#1e3a8a";
+  ctx.fillStyle = accent ?? (team === "T" ? "#8b0000" : "#1e3a8a");
   ctx.fillRect(14, 20, 16, 3);
   ctx.fillRect(34, 20, 16, 3);
 
@@ -46,7 +48,7 @@ function createFaceTexture(team: string): THREE.Texture {
   return texture;
 }
 
-function createHelmetTexture(team: string): THREE.Texture {
+function createHelmetTexture(team: string, accent?: string): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
   canvas.height = 64;
@@ -58,13 +60,156 @@ function createHelmetTexture(team: string): THREE.Texture {
   ctx.fillRect(0, 0, 64, 64);
 
   // Visor line
-  ctx.fillStyle = team === "T" ? "#b91c1c" : "#1e3a8a";
+  ctx.fillStyle = accent ?? (team === "T" ? "#b91c1c" : "#1e3a8a");
   ctx.fillRect(0, 32, 64, 8);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;
   return texture;
+}
+
+// ============================================================================
+// Minecraft-style Weapon Meshes
+// ============================================================================
+
+function MinecraftRifle({ team }: { team: string }) {
+  const metal = team === "T" ? "#2d2d2d" : "#1a1a1a";
+  const wood = team === "T" ? "#6b3d1f" : "#5c3518";
+  return (
+    <group position={[0, 0, 0]} rotation={[0.1, 0, 0]}>
+      {/* Receiver body */}
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[0.045, 0.055, 0.2]} />
+        <meshStandardMaterial color={metal} metalness={0.7} roughness={0.35} />
+      </mesh>
+      {/* Barrel */}
+      <mesh position={[0, 0.005, -0.18]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.008, 0.01, 0.18, 8]} />
+        <meshStandardMaterial color="#1a1a1a" metalness={0.8} roughness={0.25} />
+      </mesh>
+      {/* Muzzle */}
+      <mesh position={[0, 0.005, -0.28]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.012, 0.012, 0.03, 8]} />
+        <meshStandardMaterial color="#333" metalness={0.7} roughness={0.3} />
+      </mesh>
+      {/* Handguard - wood */}
+      <mesh position={[0, -0.008, -0.1]}>
+        <boxGeometry args={[0.04, 0.03, 0.12]} />
+        <meshStandardMaterial color={wood} roughness={0.75} />
+      </mesh>
+      {/* Magazine */}
+      <mesh position={[0, -0.05, 0.03]} rotation={[0.15, 0, 0]}>
+        <boxGeometry args={[0.03, 0.05, 0.04]} />
+        <meshStandardMaterial color={metal} metalness={0.5} roughness={0.4} />
+      </mesh>
+      {/* Stock */}
+      <mesh position={[0, 0, 0.15]}>
+        <boxGeometry args={[0.038, 0.04, 0.1]} />
+        <meshStandardMaterial color={wood} roughness={0.75} />
+      </mesh>
+      {/* Grip */}
+      <mesh position={[0, -0.05, 0.08]} rotation={[0.4, 0, 0]}>
+        <boxGeometry args={[0.025, 0.06, 0.025]} />
+        <meshStandardMaterial color={wood} roughness={0.7} />
+      </mesh>
+      {/* Sight - front post */}
+      <mesh position={[0, 0.035, -0.16]}>
+        <boxGeometry args={[0.003, 0.012, 0.003]} />
+        <meshStandardMaterial color="#555" />
+      </mesh>
+      {/* Sight - rear notch */}
+      <mesh position={[0, 0.032, 0.06]}>
+        <boxGeometry args={[0.018, 0.008, 0.008]} />
+        <meshStandardMaterial color="#444" />
+      </mesh>
+    </group>
+  );
+}
+
+function MinecraftPistol({ team }: { team: string }) {
+  const metal = team === "T" ? "#1e293b" : "#111827";
+  return (
+    <group position={[0.01, -0.01, 0]} rotation={[0.15, 0, 0]}>
+      {/* Slide */}
+      <mesh position={[0, 0.012, 0]}>
+        <boxGeometry args={[0.032, 0.04, 0.12]} />
+        <meshStandardMaterial color={metal} metalness={0.8} roughness={0.25} />
+      </mesh>
+      {/* Barrel tip */}
+      <mesh position={[0, 0.012, -0.07]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.007, 0.007, 0.03, 8]} />
+        <meshStandardMaterial color="#111" metalness={0.85} />
+      </mesh>
+      {/* Frame */}
+      <mesh position={[0, -0.015, 0.01]}>
+        <boxGeometry args={[0.03, 0.02, 0.1]} />
+        <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.35} />
+      </mesh>
+      {/* Grip */}
+      <mesh position={[0, -0.06, 0.04]} rotation={[0.35, 0, 0]}>
+        <boxGeometry args={[0.028, 0.06, 0.028]} />
+        <meshStandardMaterial color="#1c1917" roughness={0.7} />
+      </mesh>
+      {/* Trigger guard */}
+      <mesh position={[0, -0.032, 0.03]}>
+        <boxGeometry args={[0.026, 0.012, 0.04]} />
+        <meshStandardMaterial color="#333" metalness={0.5} />
+      </mesh>
+      {/* Magazine */}
+      <mesh position={[0, -0.075, 0.04]} rotation={[0.35, 0, 0]}>
+        <boxGeometry args={[0.022, 0.04, 0.022]} />
+        <meshStandardMaterial color="#475569" metalness={0.6} roughness={0.3} />
+      </mesh>
+      {/* Front sight */}
+      <mesh position={[0, 0.038, -0.05]}>
+        <boxGeometry args={[0.004, 0.008, 0.004]} />
+        <meshStandardMaterial color="#fff" emissive="#fff" emissiveIntensity={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+function MinecraftKnife() {
+  return (
+    <group position={[0, 0, 0]} rotation={[0.1, 0, 0]}>
+      {/* Blade */}
+      <mesh position={[0, 0.005, -0.08]} rotation={[0.05, 0, 0]}>
+        <boxGeometry args={[0.008, 0.035, 0.1]} />
+        <meshStandardMaterial color="#c0c0c0" metalness={0.9} roughness={0.15} />
+      </mesh>
+      {/* Blade edge */}
+      <mesh position={[0, -0.012, -0.08]} rotation={[0.05, 0, 0]}>
+        <boxGeometry args={[0.004, 0.008, 0.1]} />
+        <meshStandardMaterial color="#e0e0e0" metalness={0.95} roughness={0.1} />
+      </mesh>
+      {/* Guard */}
+      <mesh position={[0, 0, -0.02]}>
+        <boxGeometry args={[0.028, 0.012, 0.008]} />
+        <meshStandardMaterial color="#8b4513" roughness={0.6} />
+      </mesh>
+      {/* Handle */}
+      <mesh position={[0, 0, 0.04]}>
+        <boxGeometry args={[0.018, 0.028, 0.08]} />
+        <meshStandardMaterial color="#5c3518" roughness={0.7} />
+      </mesh>
+      {/* Handle rivets */}
+      <mesh position={[0.01, 0, 0.03]}>
+        <sphereGeometry args={[0.003, 6, 6]} />
+        <meshStandardMaterial color="#888" metalness={0.8} />
+      </mesh>
+      <mesh position={[-0.01, 0, 0.05]}>
+        <sphereGeometry args={[0.003, 6, 6]} />
+        <meshStandardMaterial color="#888" metalness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+function MinecraftWeapon({ weaponType, team }: { weaponType: string; team: string }) {
+  if (weaponType === "knife") return <MinecraftKnife />;
+  if (weaponType === "pistol") return <MinecraftPistol team={team} />;
+  return <MinecraftRifle team={team} />;
 }
 
 // ============================================================================
@@ -79,8 +224,12 @@ interface MinecraftCharacterProps {
   isDead?: boolean;
   limbSwingSpeed?: number;
   holdWeapon?: boolean;
+  weaponType?: "rifle" | "pistol" | "knife";
   motionRef?: MutableRefObject<{ moving: boolean; sprinting: boolean }>;
   playerId?: string;
+  heroColor?: string;
+  heroAccent?: string;
+  bodyStyle?: string;
 }
 
 // ============================================================================
@@ -95,8 +244,12 @@ export function MinecraftCharacter({
   isDead = false,
   limbSwingSpeed = 0,
   holdWeapon = false,
+  weaponType = "rifle",
   motionRef,
   playerId,
+  heroColor,
+  heroAccent,
+  bodyStyle,
 }: MinecraftCharacterProps) {
   const leftArmRef = useRef<THREE.Group>(null);
   const rightArmRef = useRef<THREE.Group>(null);
@@ -104,15 +257,20 @@ export function MinecraftCharacter({
   const rightLegRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
 
-  // Create textures once
-  const faceTexture = useMemo(() => createFaceTexture(team), [team]);
-  const helmetTexture = useMemo(() => createHelmetTexture(team), [team]);
+  const look = getCharacterLook(bodyStyle);
+  const faceTexture = useMemo(() => createFaceTexture(team, heroAccent, look.skin), [team, heroAccent, look.skin]);
+  const helmetTexture = useMemo(() => createHelmetTexture(team, heroAccent), [team, heroAccent]);
 
-  // Team colors
-  const shirtColor = team === "T" ? "#b91c1c" : "#1e3a8a";
-  const pantsColor = team === "T" ? "#4b5563" : "#374151";
-  const skinColor = "#d4a574";
-  const shoeColor = team === "T" ? "#1c1917" : "#111827";
+  const shirtColor = heroColor ?? (team === "T" ? "#b91c1c" : "#1e3a8a");
+  const vestColor = heroAccent ?? (team === "T" ? "#7f1d1d" : "#1e3a8a");
+  const pantsColor = look.pants;
+  const skinColor = look.skin;
+  const shoeColor = look.shoes;
+  const beltColor = team === "T" ? "#3f2a1a" : "#0f172a";
+  const [torsoW, torsoH, torsoD] = look.torso;
+  const [vestW, vestH, vestD] = look.vest;
+  const armW = look.armW;
+  const legW = look.legW;
 
   // Animation
   useFrame(() => {
@@ -155,78 +313,125 @@ export function MinecraftCharacter({
   const opacity = isDead ? 0.6 : 1;
 
   return (
-    <group ref={bodyRef}>
-      {/* ── Head ── */}
-      <group position={[0, 1.45, 0]}>
-        {/* Helmet */}
-        <mesh position={[0, 0.05, 0]} castShadow userData={playerId ? { playerId, isHead: true } : undefined}>
-          <boxGeometry args={[0.40, 0.40, 0.40]} />
-          <meshStandardMaterial map={helmetTexture} opacity={opacity} transparent />
-        </mesh>
-        {/* Face */}
-        <mesh position={[0, -0.02, 0.211]} castShadow userData={playerId ? { playerId, isHead: true } : undefined}>
-          <planeGeometry args={[0.36, 0.36]} />
-          <meshStandardMaterial map={faceTexture} opacity={opacity} transparent />
-        </mesh>
-      </group>
+    <group ref={bodyRef} scale={look.scale}>
+      <CharacterGear
+        look={look}
+        accent={heroAccent ?? vestColor}
+        armor={shirtColor}
+        opacity={opacity}
+        helmetTex={helmetTexture}
+        faceTex={faceTexture}
+      />
 
-      {/* ── Torso ── */}
-      <mesh position={[0, 0.8, 0]} castShadow userData={playerId ? { playerId, isHead: false } : undefined}>
-        <boxGeometry args={[0.5, 0.8, 0.3]} />
-        <meshStandardMaterial color={shirtColor} emissive={shirtColor} emissiveIntensity={0.15} opacity={opacity} transparent />
+      <mesh position={[0, 1.22, 0]} castShadow userData={playerId ? { playerId, isHead: true } : undefined}>
+        <cylinderGeometry args={[0.06, 0.07, 0.08, 8]} />
+        <meshStandardMaterial color={skinColor} opacity={opacity} transparent />
       </mesh>
 
-      {/* ── Left Arm ── */}
-      <group ref={leftArmRef} position={[-0.35, 1.1, 0]}>
-        <mesh position={[0, -0.35, 0]} castShadow>
-          <boxGeometry args={[0.2, 0.7, 0.2]} />
+      <mesh position={[0, 0.82, 0]} castShadow userData={playerId ? { playerId, isHead: false } : undefined}>
+        <boxGeometry args={[torsoW, torsoH, torsoD]} />
+        <meshStandardMaterial color={shirtColor} emissive={shirtColor} emissiveIntensity={0.1} opacity={opacity} transparent />
+      </mesh>
+
+      <mesh position={[0, 0.84, 0.01]} castShadow>
+        <boxGeometry args={[vestW, vestH, vestD]} />
+        <meshStandardMaterial color={vestColor} roughness={0.65} metalness={0.12} opacity={opacity} transparent />
+      </mesh>
+      <mesh position={[-torsoW * 0.22, 0.72, vestD * 0.45]} castShadow>
+        <boxGeometry args={[0.08, 0.1, 0.04]} />
+        <meshStandardMaterial color={beltColor} opacity={opacity} transparent />
+      </mesh>
+      <mesh position={[torsoW * 0.22, 0.72, vestD * 0.45]} castShadow>
+        <boxGeometry args={[0.08, 0.1, 0.04]} />
+        <meshStandardMaterial color={beltColor} opacity={opacity} transparent />
+      </mesh>
+      <mesh position={[0, 1.0, -torsoD * 0.45]}>
+        <boxGeometry args={[0.2, 0.06, 0.02]} />
+        <meshStandardMaterial color={heroAccent ?? vestColor} roughness={0.5} opacity={opacity} transparent />
+      </mesh>
+
+      <mesh position={[0, 0.42, 0]} castShadow>
+        <boxGeometry args={[torsoW + 0.02, 0.06, torsoD + 0.02]} />
+        <meshStandardMaterial color={beltColor} roughness={0.7} opacity={opacity} transparent />
+      </mesh>
+
+      <group ref={leftArmRef} position={[-look.shoulder, 1.12, 0]}>
+        <mesh position={[0, -0.04, 0]} castShadow>
+          <boxGeometry args={[armW + 0.02, 0.1, armW + 0.02]} />
           <meshStandardMaterial color={shirtColor} opacity={opacity} transparent />
         </mesh>
-        {/* Hand */}
-        <mesh position={[0, -0.72, 0]} castShadow>
-          <boxGeometry args={[0.18, 0.12, 0.18]} />
+        <mesh position={[0, -0.2, 0]} castShadow>
+          <boxGeometry args={[armW, 0.22, armW]} />
+          <meshStandardMaterial color={shirtColor} opacity={opacity} transparent />
+        </mesh>
+        <mesh position={[0, -0.44, 0]} castShadow>
+          <boxGeometry args={[armW - 0.01, 0.26, armW - 0.01]} />
+          <meshStandardMaterial color={shirtColor} opacity={opacity} transparent />
+        </mesh>
+        <mesh position={[0, -0.65, 0]} castShadow>
+          <boxGeometry args={[armW - 0.02, 0.12, armW - 0.02]} />
           <meshStandardMaterial color={skinColor} opacity={opacity} transparent />
         </mesh>
       </group>
 
-      {/* ── Right Arm ── */}
-      <group ref={rightArmRef} position={[0.35, 1.1, 0]}>
-        <mesh position={[0, -0.35, 0]} castShadow>
-          <boxGeometry args={[0.2, 0.7, 0.2]} />
+      <group ref={rightArmRef} position={[look.shoulder, 1.12, 0]}>
+        <mesh position={[0, -0.04, 0]} castShadow>
+          <boxGeometry args={[armW + 0.02, 0.1, armW + 0.02]} />
           <meshStandardMaterial color={shirtColor} opacity={opacity} transparent />
         </mesh>
-        {/* Hand */}
-        <mesh position={[0, -0.72, 0]} castShadow>
-          <boxGeometry args={[0.18, 0.12, 0.18]} />
+        <mesh position={[0, -0.2, 0]} castShadow>
+          <boxGeometry args={[armW, 0.22, armW]} />
+          <meshStandardMaterial color={shirtColor} opacity={opacity} transparent />
+        </mesh>
+        <mesh position={[0, -0.44, 0]} castShadow>
+          <boxGeometry args={[armW - 0.01, 0.26, armW - 0.01]} />
+          <meshStandardMaterial color={shirtColor} opacity={opacity} transparent />
+        </mesh>
+        <mesh position={[0, -0.65, 0]} castShadow>
+          <boxGeometry args={[armW - 0.02, 0.12, armW - 0.02]} />
           <meshStandardMaterial color={skinColor} opacity={opacity} transparent />
         </mesh>
+        {holdWeapon && (
+          <group position={[0, -0.68, -0.02]}>
+            <MinecraftWeapon weaponType={weaponType} team={team} />
+          </group>
+        )}
       </group>
 
-      {/* ── Left Leg ── */}
-      <group ref={leftLegRef} position={[-0.12, 0.4, 0]}>
-        <mesh position={[0, -0.35, 0]} castShadow>
-          <boxGeometry args={[0.22, 0.7, 0.22]} />
+      <group ref={leftLegRef} position={[-legW * 0.55, 0.38, 0]}>
+        <mesh position={[0, -0.18, 0]} castShadow>
+          <boxGeometry args={[legW, 0.32, legW]} />
           <meshStandardMaterial color={pantsColor} opacity={opacity} transparent />
         </mesh>
-        {/* Shoe */}
-        <mesh position={[0, -0.72, 0.03]} castShadow>
-          <boxGeometry args={[0.24, 0.1, 0.28]} />
+        <mesh position={[0, -0.46, 0]} castShadow>
+          <boxGeometry args={[legW - 0.01, 0.28, legW - 0.01]} />
+          <meshStandardMaterial color={pantsColor} opacity={opacity} transparent />
+        </mesh>
+        <mesh position={[0, -0.64, 0.02]} castShadow>
+          <boxGeometry args={[legW + 0.02, 0.08, legW + 0.06]} />
           <meshStandardMaterial color={shoeColor} opacity={opacity} transparent />
         </mesh>
       </group>
 
-      {/* ── Right Leg ── */}
-      <group ref={rightLegRef} position={[0.12, 0.4, 0]}>
-        <mesh position={[0, -0.35, 0]} castShadow>
-          <boxGeometry args={[0.22, 0.7, 0.22]} />
+      <group ref={rightLegRef} position={[legW * 0.55, 0.38, 0]}>
+        <mesh position={[0, -0.18, 0]} castShadow>
+          <boxGeometry args={[legW, 0.32, legW]} />
           <meshStandardMaterial color={pantsColor} opacity={opacity} transparent />
         </mesh>
-        {/* Shoe */}
-        <mesh position={[0, -0.72, 0.03]} castShadow>
-          <boxGeometry args={[0.24, 0.1, 0.28]} />
+        <mesh position={[0, -0.46, 0]} castShadow>
+          <boxGeometry args={[legW - 0.01, 0.28, legW - 0.01]} />
+          <meshStandardMaterial color={pantsColor} opacity={opacity} transparent />
+        </mesh>
+        <mesh position={[0, -0.64, 0.02]} castShadow>
+          <boxGeometry args={[legW + 0.02, 0.08, legW + 0.06]} />
           <meshStandardMaterial color={shoeColor} opacity={opacity} transparent />
         </mesh>
       </group>
+
+      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.28 + look.scale * 0.12, 16]} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.2} />
+      </mesh>
     </group>
   );
 }

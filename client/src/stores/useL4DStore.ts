@@ -7,6 +7,7 @@ export type SpecialType = "common" | "hunter" | "smoker" | "boomer" | "tank" | "
 
 export interface L4DSurvivor {
   id: string; name: string; x: number; z: number; hp: number; maxHp: number;
+  speed: number;
   isDowned: boolean; isDead: boolean; isBot: boolean; hasPills: boolean; hasMedkit: boolean;
   downedTimer: number;
   pinnedBy: string | null;
@@ -38,6 +39,9 @@ interface L4DState {
   chapterProgress: number;
   isGameOver: boolean;
   isVictory: boolean;
+  abilityCooldownRemaining: number;
+  sprintBoostUntil: number;
+  luckyShotUntil: number;
 
   setFinaleState: (s: L4DFinaleState, timer?: number) => void;
   updateSurvivor: (id: string, fn: (s: L4DSurvivor) => L4DSurvivor) => void;
@@ -49,6 +53,8 @@ interface L4DState {
   resetCampaign: (chapter?: L4DChapter) => void;
   setVictory: (v: boolean) => void;
   setGameOver: (g: boolean) => void;
+  tickAbility: (dt: number) => void;
+  resetAbility: () => void;
 }
 
 const SURVIVOR_NAMES = ["Coach", "Rochelle", "Ellis", "Nick"];
@@ -59,7 +65,7 @@ function mkSurvivors(): L4DSurvivor[] {
     name,
     x: (i % 2 ? 1.0 : -1.0),
     z: L4D_SAFE_Z + Math.floor(i / 2) * 1.15,
-    hp: 100, maxHp: 100,
+    hp: 100, maxHp: 100, speed: 5.4,
     isDowned: false, isDead: false, isBot: i !== 0,
     hasPills: false, hasMedkit: i === 0,
     downedTimer: 0, pinnedBy: null, grabbedBy: null, bileUntil: 0,
@@ -94,6 +100,9 @@ export const useL4DStore = create<L4DState>((set, get) => ({
   chapterProgress: 0,
   isGameOver: false,
   isVictory: false,
+  abilityCooldownRemaining: 0,
+  sprintBoostUntil: 0,
+  luckyShotUntil: 0,
 
   setFinaleState: (finaleState, finaleTimer) => set({ finaleState, finaleTimer: finaleTimer ?? get().finaleTimer }),
   updateSurvivor: (id, fn) => set({ survivors: get().survivors.map(s => s.id === id ? fn({ ...s }) : s) }),
@@ -134,7 +143,14 @@ export const useL4DStore = create<L4DState>((set, get) => ({
     chapter: chapter ?? 1, chapterState: "safeRoom", finaleState: "idle", finaleTimer: 0, rescueVehicleArrived: false,
     survivors: mkSurvivors(), infected: [], hordeActive: false, hordeTimer: 0, directorIntensity: 0, panicLevel: 0,
     crescendoActive: false, chapterProgress: 0, isGameOver: false, isVictory: false,
+    abilityCooldownRemaining: 0, sprintBoostUntil: 0, luckyShotUntil: 0,
   }),
   setVictory: (isVictory) => set({ isVictory }),
   setGameOver: (isGameOver) => set({ isGameOver }),
+  tickAbility: (dt) => {
+    const cd = get().abilityCooldownRemaining;
+    if (cd <= 0) return;
+    set({ abilityCooldownRemaining: Math.max(0, cd - dt) });
+  },
+  resetAbility: () => set({ abilityCooldownRemaining: 0, sprintBoostUntil: 0, luckyShotUntil: 0 }),
 }));

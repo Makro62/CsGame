@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { useLocation } from "wouter";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
-import { getMapById, MAPS } from "../game/map/MapRegistry";
+import { getMapById } from "../game/map/MapRegistry";
 import { PlayerController } from "../game/player/PlayerController";
 import { WeaponModel } from "../game/weapons/WeaponModel";
 import { ShootingSystem } from "../game/weapons/ShootingSystem";
@@ -27,110 +27,33 @@ import { TacticalBotModel } from "../game/player/TacticalBotModel";
 import { BOMB_SITES } from "@cs-game/shared";
 import { distToBombSite, nearestBombSite } from "../game/offline/offlineCombat";
 import { CalloutLabels } from "../game/map/CalloutLabels";
-
-type MapSelectionScreenProps = {
-  onSelect: (mapId: string) => void;
-  onBack: () => void;
-};
-
-function MapSelectionScreen({ onSelect, onBack }: MapSelectionScreenProps) {
-  const [hoveredMap, setHoveredMap] = useState<string | null>(null);
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #0a0e14 0%, #1a1f2e 50%, #0a0e14 100%)",
-        zIndex: 100,
-      }}
-    >
-      <div style={{ marginBottom: 40, textAlign: "center" }}>
-        <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 900, letterSpacing: 3, marginBottom: 8, fontFamily: "monospace" }}>
-          SELECT MAP
-        </div>
-        <h1 style={{ color: "#f8fafc", fontSize: 36, fontWeight: 900, fontFamily: "'Rajdhani', monospace", letterSpacing: "0.08em", margin: 0 }}>
-          5V5 OFFLINE MATCH
-        </h1>
-      </div>
-
-      <div style={{ display: "flex", gap: 24, marginBottom: 40 }}>
-        {MAPS.map((map) => (
-          <div
-            key={map.id}
-            onMouseEnter={() => setHoveredMap(map.id)}
-            onMouseLeave={() => setHoveredMap(null)}
-            onClick={() => onSelect(map.id)}
-            style={{
-              width: 280,
-              padding: "24px 20px",
-              background: hoveredMap === map.id
-                ? "linear-gradient(155deg, rgba(37, 99, 235, 0.3), rgba(15, 23, 42, 0.95))"
-                : "linear-gradient(155deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95))",
-              border: `1.5px solid ${hoveredMap === map.id ? "#3b82f6" : "rgba(255,255,255,0.15)"}`,
-              borderRadius: 16,
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-              boxShadow: hoveredMap === map.id
-                ? "0 0 30px rgba(59, 130, 246, 0.4), 0 20px 40px rgba(0,0,0,0.6)"
-                : "0 8px 30px rgba(0,0,0,0.4)",
-              transform: hoveredMap === map.id ? "translateY(-4px)" : "none",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: map.id === "container_yard" ? "linear-gradient(135deg, #1e3a8a, #3b82f6)" : "linear-gradient(135deg, #92400e, #d97706)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 20,
-              }}>
-                {map.id === "container_yard" ? "📦" : "🏜️"}
-              </div>
-              <div>
-                <div style={{ color: "#f8fafc", fontSize: 18, fontWeight: 900, fontFamily: "'Rajdhani', monospace" }}>
-                  {map.name}
-                </div>
-              </div>
-            </div>
-            <div style={{ color: "#94a3b8", fontSize: 13, fontFamily: "'Rajdhani', monospace", lineHeight: 1.4 }}>
-              {map.description}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={onBack}
-        style={{
-          padding: "12px 28px",
-          background: "rgba(239,68,68,0.2)",
-          color: "#fecaca",
-          border: "1px solid #ef4444",
-          borderRadius: 8,
-          cursor: "pointer",
-          fontFamily: "'Rajdhani', monospace",
-          fontSize: 14,
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        KEMBALI KE MENU
-      </button>
-    </div>
-  );
-}
+import { Offline5v5Select } from "./Offline5v5Select";
+import { getAgent } from "../game/offline/agents";
 
 function RemoteBots() {
   const players = useOffline5v5Store((s) => s.players);
   const bots = Array.from(players.values()).filter((p) => p.id !== "local");
+
+  // Assign agent colors to bots based on team
+  const getBotColors = (team: string, id: string) => {
+    const tColors = [
+      { shirt: "#5a1e1e", vest: "#3f1515", pants: "#3f3b32", helmet: "#3f1515", accent: "#ef4444" },
+      { shirt: "#4a3a1e", vest: "#3d2e15", pants: "#3f3b32", helmet: "#3d2e15", accent: "#f97316" },
+      { shirt: "#2d1e4a", vest: "#231538", pants: "#3f3b32", helmet: "#231538", accent: "#a855f7" },
+      { shirt: "#1e3a4a", vest: "#152d38", pants: "#3f3b32", helmet: "#152d38", accent: "#22d3ee" },
+      { shirt: "#4a1e3a", vest: "#38152d", pants: "#3f3b32", helmet: "#38152d", accent: "#ec4899" },
+    ];
+    const ctColors = [
+      { shirt: "#1e3a5f", vest: "#0f172a", pants: "#1e293b", helmet: "#111827", accent: "#3b82f6" },
+      { shirt: "#1e293b", vest: "#1e293b", pants: "#1e293b", helmet: "#1e293b", accent: "#60a5fa" },
+      { shirt: "#1e3a3a", vest: "#134e4a", pants: "#1e293b", helmet: "#134e4a", accent: "#22d3ee" },
+      { shirt: "#3a3a1e", vest: "#3f3d15", pants: "#1e293b", helmet: "#3f3d15", accent: "#facc15" },
+      { shirt: "#1a1a2e", vest: "#111827", pants: "#1e293b", helmet: "#111827", accent: "#818cf8" },
+    ];
+    const idx = parseInt(id.replace(/\D/g, "")) % 5;
+    return team === "T" ? tColors[idx] : ctColors[idx];
+  };
+
   return (
     <>
       {bots.map((bot) => {
@@ -154,6 +77,7 @@ function RemoteBots() {
               isDefusing={bot.isDefusing}
               lastShootTime={bot.botLastShootTime}
               rotationY={bot.rotationY}
+              agentColors={getBotColors(bot.team, bot.id)}
             />
           </group>
         );
@@ -198,13 +122,19 @@ export function Offline5v5Mode() {
   const initMatch = useOffline5v5Store((s) => s.initMatch);
   const me = useOffline5v5Store((s) => s.players.get("local"));
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<"T" | "CT" | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [showSelection, setShowSelection] = useState(true);
   const MapComp = selectedMapId ? getMapById(selectedMapId).component : null;
   const inited = useRef(false);
   const [paused, setPaused] = useState(false);
 
-  const handleMapSelect = useCallback((mapId: string) => {
+  const handleFullSelect = useCallback((team: "T" | "CT", mapId: string, agentId: string) => {
+    setSelectedTeam(team);
     setSelectedMapId(mapId);
+    setSelectedAgentId(agentId);
     useGameStore.getState().setCurrentMap(mapId);
+    setShowSelection(false);
   }, []);
 
   // Player lists for top header status
@@ -213,10 +143,21 @@ export function Offline5v5Mode() {
   const ctPlayers = allPlayers.filter((p) => p.team === "CT");
 
   useEffect(() => {
-    if (!selectedMapId || inited.current) return;
+    if (!selectedMapId || !selectedTeam || !selectedAgentId || inited.current) return;
     inited.current = true;
     useGameStore.getState().setMode("offline5v5");
-    initMatch(nickname || "Player", "T");
+    initMatch(nickname || "Player", selectedTeam);
+    // Apply agent name and colors to local player
+    const agentDef = getAgent(selectedAgentId);
+    useOffline5v5Store.setState(s => {
+      const local = s.players.get("local");
+      if (local) {
+        const updated = new Map(s.players);
+        updated.set("local", { ...local, nickname: agentDef.name });
+        return { players: updated };
+      }
+      return {};
+    });
     const me = useOffline5v5Store.getState().players.get("local");
     const ws = useWeaponStore.getState();
     ws.setInfiniteAmmo(false);
@@ -224,7 +165,7 @@ export function Offline5v5Mode() {
       ws.syncLoadout({ primary: me.primaryWeapon, secondary: me.secondaryWeapon, knife: me.knifeSlot });
       if (me.currentWeapon) ws.equipWeapon(me.currentWeapon as never);
     }
-  }, [selectedMapId, initMatch, nickname]);
+  }, [selectedMapId, selectedTeam, selectedAgentId, initMatch, nickname]);
 
   useEffect(() => {
     const onPointerLockChange = () => {
@@ -252,6 +193,11 @@ export function Offline5v5Mode() {
   const back = useCallback(() => {
     if (document.pointerLockElement) document.exitPointerLock();
     setPaused(false);
+    setSelectedMapId(null);
+    setSelectedTeam(null);
+    setSelectedAgentId(null);
+    setShowSelection(true);
+    inited.current = false;
     useOffline5v5Store.setState({
       phase: "buy",
       roundNumber: 1,
@@ -315,12 +261,15 @@ export function Offline5v5Mode() {
   const rematch = useCallback(() => {
     inited.current = false;
     setSelectedMapId(null);
+    setSelectedTeam(null);
+    setSelectedAgentId(null);
+    setShowSelection(true);
   }, []);
 
-  if (!selectedMapId || !MapComp) {
+  if (showSelection || !selectedMapId || !MapComp) {
     return (
-      <MapSelectionScreen
-        onSelect={handleMapSelect}
+      <Offline5v5Select
+        onSelect={handleFullSelect}
         onBack={() => {
           setMode("menu");
           setLocation("/");

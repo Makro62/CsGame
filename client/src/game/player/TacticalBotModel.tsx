@@ -12,6 +12,13 @@ interface TacticalBotModelProps {
   isDefusing?: boolean;
   lastShootTime?: number;
   rotationY?: number;
+  agentColors?: {
+    shirt?: string;
+    vest?: string;
+    pants?: string;
+    helmet?: string;
+    accent?: string;
+  };
 }
 
 function BotWeaponMesh({ weapon = "ak47", isFiring = false }: { weapon?: string; isFiring?: boolean }) {
@@ -186,6 +193,7 @@ export function TacticalBotModel({
   isPlanting = false,
   isDefusing = false,
   lastShootTime = 0,
+  agentColors,
 }: TacticalBotModelProps) {
   const bodyRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Group>(null);
@@ -199,7 +207,14 @@ export function TacticalBotModel({
 
   const [isFiring, setIsFiring] = useState(false);
   const lastShotRef = useRef(lastShootTime);
-  const palette = team === "T" ? TEAM.T : TEAM.CT;
+  const defaultPalette = team === "T" ? TEAM.T : TEAM.CT;
+  const palette = {
+    shirt: agentColors?.shirt ?? defaultPalette.shirt,
+    vest: agentColors?.vest ?? defaultPalette.vest,
+    pants: agentColors?.pants ?? defaultPalette.pants,
+    helmet: agentColors?.helmet ?? defaultPalette.helmet,
+    accent: agentColors?.accent ?? defaultPalette.accent,
+  };
   const face = useMemo(() => createOperatorFace(team === "T" ? "T" : "CT"), [team]);
 
   useEffect(() => {

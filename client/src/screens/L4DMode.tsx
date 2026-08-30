@@ -22,17 +22,94 @@ import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
 import { InfectedFigure } from "../game/zombie/HumanoidFigures";
 import { MinecraftCharacter } from "../game/player/MinecraftCharacter";
 import SettingsMenu from "./SettingsMenu";
+import { L4DSurvivorSelect } from "./L4DSurvivorSelect";
+import { getL4DSurvivor } from "../game/l4d/l4dSurvivors";
+import type { L4DSurvivorDef } from "../game/l4d/l4dSurvivors";
 
-function applyL4DLoadout() {
+function applyL4DSurvivorStats(survivor: L4DSurvivorDef) {
+  useL4DStore.setState(s => ({
+    survivors: s.survivors.map((sv, i) => {
+      if (i !== 0) return sv;
+      return {
+        ...sv,
+        name: survivor.name,
+        maxHp: survivor.stats.maxHp,
+        hp: survivor.stats.maxHp,
+        speed: survivor.stats.speed,
+      };
+    }),
+  }));
+  applyL4DLoadout(survivor);
+}
+
+const L4D_CANVAS_ID = "l4d-game-canvas";
+
+function lockL4DCanvas() {
+  const canvas = document.querySelector(`#${L4D_CANVAS_ID} canvas`) as HTMLCanvasElement | null;
+  canvas?.requestPointerLock();
+}
+
+const L4D_ABILITY_LABEL: Record<string, string> = {
+  rally: "RALLY",
+  heal_pulse: "HEAL PULSE",
+  sprint_burst: "SPRINT",
+  lucky_shot: "LUCKY SHOT",
+};
+
+function tryL4DSurvivorAbility(def: L4DSurvivorDef): boolean {
+  const st = useL4DStore.getState();
+  if (st.abilityCooldownRemaining > 0) return false;
+  const me = st.survivors[0];
+  if (!me || me.isDead || me.isDowned) return false;
+  const now = Date.now();
+
+  if (def.ability === "rally") {
+    useL4DStore.setState(s => ({
+      survivors: s.survivors.map(sv => sv.isDead ? sv : {
+        ...sv,
+        hp: Math.min(sv.maxHp, sv.hp + 35),
+        isDowned: sv.isDowned && sv.hp + 35 >= 20 ? false : sv.isDowned,
+        downedTimer: sv.isDowned && sv.hp + 35 >= 20 ? 0 : sv.downedTimer,
+      }),
+      abilityCooldownRemaining: def.abilityCooldown,
+    }));
+  } else if (def.ability === "heal_pulse") {
+    useL4DStore.setState(s => ({
+      survivors: s.survivors.map(sv => {
+        if (sv.isDead) return sv;
+        const heal = sv.id === "survivor_0" ? 40 : 20;
+        return { ...sv, hp: Math.min(sv.maxHp, sv.hp + heal) };
+      }),
+      abilityCooldownRemaining: def.abilityCooldown,
+    }));
+  } else if (def.ability === "sprint_burst") {
+    useL4DStore.setState({
+      sprintBoostUntil: now + 6000,
+      abilityCooldownRemaining: def.abilityCooldown,
+    });
+  } else if (def.ability === "lucky_shot") {
+    useL4DStore.setState({
+      luckyShotUntil: now + 8000,
+      abilityCooldownRemaining: def.abilityCooldown,
+    });
+  } else {
+    return false;
+  }
+  return true;
+}
+
+function applyL4DLoadout(survivor?: L4DSurvivorDef) {
   const ws = useWeaponStore.getState();
+  const primary = (survivor?.primaryWeapon ?? "ak47") as keyof typeof WEAPONS;
+  const secondary = (survivor?.secondaryWeapon ?? "glock") as keyof typeof WEAPONS;
   ws.setInfiniteAmmo(false);
-  ws.syncLoadout({ primary: "ak47", secondary: "glock", knife: "knife" });
-  ws.equipWeapon("ak47", { ammo: WEAPONS.ak47.mag, reserveAmmo: WEAPONS.ak47.reserveAmmo });
+  ws.syncLoadout({ primary, secondary, knife: "knife" });
+  ws.equipWeapon(primary, { ammo: WEAPONS[primary].mag, reserveAmmo: WEAPONS[primary].reserveAmmo });
   useWeaponStore.setState({
-    primaryAmmo: WEAPONS.ak47.mag,
-    primaryReserve: WEAPONS.ak47.reserveAmmo,
-    secondaryAmmo: WEAPONS.glock.mag,
-    secondaryReserve: WEAPONS.glock.reserveAmmo,
+    primaryAmmo: WEAPONS[primary].mag,
+    primaryReserve: WEAPONS[primary].reserveAmmo,
+    secondaryAmmo: WEAPONS[secondary].mag,
+    secondaryReserve: WEAPONS[secondary].reserveAmmo,
   });
 }
 
@@ -59,12 +136,13 @@ function L4DInfectedRenderer() {
   );
 }
 
-function SurvivorBots() {
+function SurvivorBots({ survivorDefs }: { survivorDefs: Record<string, L4DSurvivorDef> }) {
   const survivors = useL4DStore(s => s.survivors);
   return (
     <group>
       {survivors.map((s, idx) => {
         if (idx === 0 || s.isDead) return null;
+        const def = survivorDefs[s.id];
         return (
           <group key={s.id} position={[s.x, 0, s.z]}>
             <MinecraftCharacter
@@ -72,6 +150,9 @@ function SurvivorBots() {
               isDead={s.isDowned}
               limbSwingSpeed={s.isDowned ? 0 : 6}
               holdWeapon={!s.isDowned}
+              heroColor={def?.armorColor}
+              heroAccent={def?.accentColor}
+              bodyStyle={def?.id}
             />
           </group>
         );
@@ -83,16 +164,18 @@ function SurvivorBots() {
 function L4DSimLoop({
   directorRef,
   pausedRef,
+  startedRef,
 }: {
   directorRef: React.MutableRefObject<L4DDirector | null>;
   pausedRef: React.MutableRefObject<boolean>;
+  startedRef: React.MutableRefObject<boolean>;
 }) {
   const last = useRef(performance.now());
   const acc = useRef(0);
   const botRevive = useRef(new Map<string, number>());
 
   useFrame(() => {
-    if (pausedRef.current) {
+    if (pausedRef.current || !startedRef.current) {
       last.current = performance.now();
       return;
     }
@@ -168,6 +251,7 @@ function L4DSimLoop({
 
     directorRef.current?.setSurvivorPositions(useL4DStore.getState().survivors.filter(s => !s.isDead).map(s => ({ x: s.x, z: s.z })));
     directorRef.current?.update(dt);
+    useL4DStore.getState().tickAbility(dt);
 
     const survivorsNow = useL4DStore.getState().survivors;
     for (const inf of useL4DStore.getState().infected) {
@@ -261,26 +345,38 @@ export function L4DMode() {
   const isVictory = useL4DStore(s => s.isVictory);
   const crescendoActive = useL4DStore(s => s.crescendoActive);
   const rescueVehicleArrived = useL4DStore(s => s.rescueVehicleArrived);
+  const abilityCooldownRemaining = useL4DStore(s => s.abilityCooldownRemaining);
+  const sprintBoostUntil = useL4DStore(s => s.sprintBoostUntil);
+  const luckyShotUntil = useL4DStore(s => s.luckyShotUntil);
   const currentAmmo = useWeaponStore(s => s.currentAmmo);
   const reserveAmmo = useWeaponStore(s => s.reserveAmmo);
   const activeWeapon = useWeaponStore(s => s.activeWeapon);
   const [session, setSession] = useState(0);
   useWeaponSwitch({ buyMenu: false });
   const [paused, setPaused] = useState(false);
+  const [survivorSelected, setSurvivorSelected] = useState(false);
+  const [selectedSurvivorId, setSelectedSurvivorId] = useState("coach");
+  const selectedSurvivorDef = getL4DSurvivor(selectedSurvivorId);
   const pausedRef = useRef(false);
   pausedRef.current = paused;
+  const startedRef = useRef(false);
+  startedRef.current = survivorSelected;
+  const survivorSelectedRef = useRef(false);
+  survivorSelectedRef.current = survivorSelected;
+  const selectedSurvivorIdRef = useRef(selectedSurvivorId);
+  selectedSurvivorIdRef.current = selectedSurvivorId;
 
   useEffect(() => {
+    if (!survivorSelected) return;
     directorRef.current = new L4DDirector();
     directorRef.current.init();
     useL4DStore.getState().resetCampaign(chapter);
-    useL4DStore.setState({ chapterState: "safeRoom" });
-    applyL4DLoadout();
+    applyL4DSurvivorStats(getL4DSurvivor(selectedSurvivorId));
     return () => {
       directorRef.current?.cleanup();
       directorRef.current = null;
     };
-  }, [chapter]);
+  }, [survivorSelected, chapter, selectedSurvivorId]);
 
   useEffect(() => {
     let holding = false;
@@ -326,22 +422,22 @@ export function L4DMode() {
   }, []);
   const handleRestart = useCallback(() => {
     setPaused(false);
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.requestPointerLock();
     useL4DStore.getState().resetCampaign(1);
+    applyL4DSurvivorStats(getL4DSurvivor(selectedSurvivorId));
+    useL4DStore.getState().resetAbility();
     directorRef.current?.init();
     setSession(s => s + 1);
-    applyL4DLoadout();
-  }, []);
+    lockL4DCanvas();
+  }, [selectedSurvivorId]);
 
   const resume = useCallback(() => {
     setPaused(false);
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.requestPointerLock();
+    lockL4DCanvas();
   }, []);
 
   useEffect(() => {
     const onPointerLockChange = () => {
+      if (!survivorSelectedRef.current) return;
       const locked = !!document.pointerLockElement;
       if (!locked && !isGameOver && !isVictory) setPaused(true);
     };
@@ -351,6 +447,11 @@ export function L4DMode() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.code === "KeyQ") {
+        if (!survivorSelectedRef.current || pausedRef.current) return;
+        tryL4DSurvivorAbility(getL4DSurvivor(selectedSurvivorIdRef.current));
+        return;
+      }
       if (e.code === "Escape") {
         if (paused) resume();
         else if (document.pointerLockElement) document.exitPointerLock();
@@ -366,8 +467,38 @@ export function L4DMode() {
   const bileActive = me && me.bileUntil > Date.now();
   const subtitle = chapterState === "safeRoom" ? "SAFE ROOM" : chapterState === "traverse" ? `CHAPTER ${chapter}` : `FINALE — ${finaleState.toUpperCase()}`;
 
+  const handleSurvivorSelect = useCallback((id: string) => {
+    selectedSurvivorIdRef.current = id;
+    survivorSelectedRef.current = true;
+    setSelectedSurvivorId(id);
+    setSurvivorSelected(true);
+    lockL4DCanvas();
+  }, []);
+
+  // Build survivor defs map for bot colors
+  const survivorDefsMap: Record<string, L4DSurvivorDef> = {};
+  const botIds = survivors.filter(s => s.isBot).map(s => s.id);
+  for (const s of survivors) {
+    // Map survivor_0 to selected, others to remaining defs
+    if (s.id === "survivor_0") {
+      survivorDefsMap[s.id] = selectedSurvivorDef;
+    } else {
+      // Find a bot def that isn't the selected one
+      const usedNames = Object.values(survivorDefsMap).map(d => d.name);
+      const allDefs = ["coach", "rochelle", "ellis", "nick"]
+        .map(id => getL4DSurvivor(id))
+        .filter(d => d.name !== selectedSurvivorDef.name && !usedNames.includes(d.name));
+      const idx = botIds.indexOf(s.id);
+      survivorDefsMap[s.id] = allDefs[idx] ?? allDefs[0];
+    }
+  }
+
   return (
     <div className="w-full h-screen bg-black relative">
+      {/* Survivor Selection Screen */}
+      {!survivorSelected && <L4DSurvivorSelect onSelect={handleSurvivorSelect} />}
+
+      <div id={L4D_CANVAS_ID} className="w-full h-full">
       <Canvas shadows camera={{ fov: 75, position: [0, 1.6, L4D_SAFE_Z] }}>
         <color attach="background" args={["#070c09"]} />
         <fog attach="fog" args={["#070c09", 12, 48]} />
@@ -377,15 +508,16 @@ export function L4DMode() {
         <Physics gravity={[0, -9.81, 0]}>
           <L4DCampaignMap />
           <PlayerController key={`${chapter}-${session}`} />
-          <SurvivorBots />
+          <SurvivorBots survivorDefs={survivorDefsMap} />
           <L4DInfectedRenderer />
           <WeaponModel />
         </Physics>
         <ShootingSystem />
         <ReloadSystem />
         <TracerManager />
-        <L4DSimLoop directorRef={directorRef} pausedRef={pausedRef} />
+        <L4DSimLoop directorRef={directorRef} pausedRef={pausedRef} startedRef={startedRef} />
       </Canvas>
+      </div>
 
       <div className="absolute top-3 left-3 bg-black/60 border border-white/10 rounded px-3 py-2 text-white font-mono">
         <div className="text-lg font-bold">L4D {chapter}/4</div>
@@ -470,7 +602,7 @@ export function L4DMode() {
         {survivors.map(s => (
           <div key={s.id} className={`px-3 py-2 rounded border text-xs font-mono ${s.isDead ? "bg-red-900 border-red-600 text-white/50" : s.isDowned ? "bg-yellow-900 border-yellow-600 text-white" : "bg-black/60 border-white/20 text-white"}`}>
             <div className="font-bold">{s.name} {s.id === "survivor_0" && "(YOU)"}</div>
-            <div>HP {Math.ceil(s.hp)}/100</div>
+            <div>HP {Math.ceil(s.hp)}/{s.maxHp}</div>
             {s.isDowned && <div className="text-yellow-300 animate-pulse">DOWNED {Math.ceil(s.downedTimer)}s</div>}
             {s.grabbedBy && <div className="text-green-300">SMOKER!</div>}
             {s.pinnedBy && <div className="text-blue-300">HUNTER PIN</div>}
@@ -480,7 +612,17 @@ export function L4DMode() {
       <div className="absolute bottom-3 right-3 bg-black/60 border border-white/10 rounded px-3 py-2 text-white font-mono text-right">
         <div className="text-lg">{(activeWeapon ?? "—").toUpperCase()}</div>
         <div className="text-2xl">{currentAmmo} <span className="text-sm opacity-60">/ {reserveAmmo}</span></div>
-        <div className="text-white/60 text-xs">WASD • LMB • RMB ADS • R reload • F revive</div>
+        <div className="text-white/60 text-xs">WASD • LMB • RMB ADS • R reload • F revive • Q ability</div>
+        <div className={`mt-1 text-xs font-bold ${abilityCooldownRemaining <= 0 ? "text-emerald-400" : "text-white/40"}`}>
+          [Q] {L4D_ABILITY_LABEL[selectedSurvivorDef.ability] ?? selectedSurvivorDef.ability}
+          {abilityCooldownRemaining > 0
+            ? ` ${Math.ceil(abilityCooldownRemaining)}s`
+            : Date.now() < sprintBoostUntil
+              ? " ACTIVE"
+              : Date.now() < luckyShotUntil
+                ? " ACTIVE"
+                : " READY"}
+        </div>
       </div>
 
       <Crosshair />
@@ -504,7 +646,11 @@ export function L4DMode() {
           </div>
         </div>
       )}
-      <ClickToPlayOverlay onLock={() => {}} suppressed={isGameOver || isVictory || paused} />
+      <ClickToPlayOverlay
+        onLock={() => {}}
+        suppressed={isGameOver || isVictory || paused || !survivorSelected}
+        canvasSelector={`#${L4D_CANVAS_ID} canvas`}
+      />
       <SettingsMenu />
       {paused && !isGameOver && !isVictory && (
         <div className="absolute inset-0 z-50 bg-black/75 flex flex-col items-center justify-center gap-4">
