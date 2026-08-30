@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useOffline5v5Store } from "../screens/Offline5v5Store";
+import { gameEvents } from "../lib/gameEvents";
 
 interface HitIndicator {
   id: number;
@@ -14,10 +15,8 @@ export function DamageIndicator() {
   const idRef = useRef(0);
 
   useEffect(() => {
-    const handleHit = (e: Event) => {
-      const customEvent = e as CustomEvent<{ shooterX: number; shooterZ: number; damage?: number }>;
-      if (!customEvent.detail) return;
-      const { shooterX, shooterZ, damage = 25 } = customEvent.detail;
+    const processHit = (data: { shooterX: number; shooterZ: number; damage?: number }) => {
+      const { shooterX, shooterZ, damage = 25 } = data;
 
       // Get camera position and forward direction
       const camera = (window as unknown as { __CS_GAME_CAMERA__?: THREE.Camera }).__CS_GAME_CAMERA__;
@@ -61,8 +60,23 @@ export function DamageIndicator() {
       setIndicators((prev) => [...prev.slice(-4), newHit]);
     };
 
-    window.addEventListener("playerHitFeedback", handleHit);
-    return () => window.removeEventListener("playerHitFeedback", handleHit);
+    const handleWindowHit = (e: Event) => {
+      const customEvent = e as CustomEvent<{ shooterX: number; shooterZ: number; damage?: number }>;
+      if (!customEvent.detail) return;
+      processHit(customEvent.detail);
+    };
+
+    const handleGameEventHit = (payload: { shooterX: number; shooterZ: number; damage: number }) => {
+      processHit(payload);
+    };
+
+    window.addEventListener("playerHitFeedback", handleWindowHit);
+    gameEvents.on("playerHitFeedback", handleGameEventHit);
+
+    return () => {
+      window.removeEventListener("playerHitFeedback", handleWindowHit);
+      gameEvents.off("playerHitFeedback", handleGameEventHit);
+    };
   }, []);
 
   // Fade out timer

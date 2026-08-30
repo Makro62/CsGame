@@ -684,8 +684,8 @@ export const SPAWN = {
 } as const
 
 export const BOMB_SITES = {
-  A: { x: 15, y: 0, z: -15, radius: 6 },
-  B: { x: 12, y: 0, z: 15, radius: 6 },
+  A: { x: 15, y: 0, z: -16, radius: 6 },
+  B: { x: 15, y: 0, z: 16, radius: 6 },
 } as const
 
 export const BUY_ZONE = {
@@ -729,22 +729,22 @@ function box(id: string, material: ObstacleMaterial, cx: number, cy: number, cz:
 // Layout: 3 lanes (A Long, Mid, B Long), T spawn (west), CT spawn (east)
 export const MAP_OBSTACLES = [
   // ─── Perimeter Walls ───
-  box('wall_north', 'concrete', 0, 4, -19.4, 60, 8, 0.8),
-  box('wall_south', 'concrete', 0, 4, 19.4, 60, 8, 0.8),
-  box('wall_west', 'concrete', -29.4, 4, 0, 0.8, 8, 40),
-  box('wall_east', 'concrete', 29.4, 4, 0, 0.8, 8, 40),
+  box('wall_north', 'concrete', 0, 4, -20, 50, 8, 0.8),
+  box('wall_south', 'concrete', 0, 4, 20, 50, 8, 0.8),
+  box('wall_west', 'concrete', -25, 4, 0, 0.8, 8, 40),
+  box('wall_east', 'concrete', 25, 4, 0, 0.8, 8, 40),
 
   // ─── T Spawn Area (West) ───
   // Spawn cover walls - provide safety on spawn
-  box('t_spawn_wall_n', 'metal', -26.2, 1.3, -8.4, 3.4, 2.6, 4.6),
-  box('t_spawn_wall_s', 'metal', -26.2, 1.3, 8.4, 3.4, 2.6, 4.6),
+  box('t_spawn_wall_n', 'metal', -24.2, 1.3, -8.4, 3.4, 2.6, 4.6),
+  box('t_spawn_wall_s', 'metal', -24.2, 1.3, 8.4, 3.4, 2.6, 4.6),
   // Exit peek boxes - first cover when leaving spawn
   box('t_peek_n', 'metal', -20.6, 1.3, -4.6, 1.6, 2.6, 3.2),
   box('t_peek_s', 'metal', -20.6, 1.3, 4.6, 1.6, 2.6, 3.2),
 
   // ─── CT Spawn Area (East) ───
-  box('ct_spawn_wall_n', 'metal', 26.2, 1.3, -8.4, 3.4, 2.6, 4.6),
-  box('ct_spawn_wall_s', 'metal', 26.2, 1.3, 8.4, 3.4, 2.6, 4.6),
+  box('ct_spawn_wall_n', 'metal', 24.2, 1.3, -8.4, 3.4, 2.6, 4.6),
+  box('ct_spawn_wall_s', 'metal', 24.2, 1.3, 8.4, 3.4, 2.6, 4.6),
   box('ct_peek_n', 'metal', 20.6, 1.3, -4.6, 1.6, 2.6, 3.2),
   box('ct_peek_s', 'metal', 20.6, 1.3, 4.6, 1.6, 2.6, 3.2),
 
@@ -794,10 +794,10 @@ export const MAP_OBSTACLES = [
 ] as const satisfies readonly MapObstacle[]
 
 export const MAP_BOUNDARY = {
-  minX: -29,
-  maxX: 29,
-  minZ: -19,
-  maxZ: 19,
+  minX: -25,
+  maxX: 25,
+  minZ: -20,
+  maxZ: 20,
 } as const
 
 // ─── Dust Map Boundary ──────────────────────────────────────────
@@ -833,18 +833,18 @@ export const MAP_CALLOUTS: readonly MapCallout[] = [
   { id: 'ct_peek', label: 'CT PEEK', x: 20, z: -4 },
 
   // A Site
-  { id: 'site_a', label: 'SITE A', x: 15, z: -15 },
+  { id: 'site_a', label: 'SITE A', x: 15, z: -16 },
   { id: 'a_long', label: 'A LONG', x: -8, z: -15 },
   { id: 'a_connector', label: 'A CONN', x: -3, z: -7.5 },
   { id: 'a_ninja', label: 'A NINJA', x: 11, z: -17 },
-  { id: 'a_site_boxes', label: 'A BOXES', x: 15, z: -15 },
+  { id: 'a_site_boxes', label: 'A BOXES', x: 15, z: -16 },
 
   // B Site
-  { id: 'site_b', label: 'SITE B', x: 12, z: 15 },
+  { id: 'site_b', label: 'SITE B', x: 15, z: 16 },
   { id: 'b_long', label: 'B LONG', x: -8, z: 15 },
   { id: 'b_connector', label: 'B CONN', x: -3, z: 7.5 },
   { id: 'b_box', label: 'B BOX', x: 9, z: 17 },
-  { id: 'b_site_boxes', label: 'B BOXES', x: 15, z: 15 },
+  { id: 'b_site_boxes', label: 'B BOXES', x: 15, z: 16 },
 
   // Container Areas
   { id: 't_containers', label: 'T CONTAINERS', x: -22, z: 0 },

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useRef, useCallback, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -268,7 +267,7 @@ export function ShootingSystem() {
     spark.position.copy(point);
     spark.visible = true;
     scene.add(spark);
-    liveFx.current.push({ mesh: spark, recycle: recycleImpact });
+    liveFx.current.push({ mesh: spark, recycle: (m) => recycleImpact(m as THREE.Mesh) });
 
     const timerId = setTimeout(() => {
       dropLiveFx(spark);
@@ -348,7 +347,7 @@ export function ShootingSystem() {
     casing.position.copy(shootOrigin).add(_casingOffset);
     casing.visible = true;
     scene.add(casing);
-    liveFx.current.push({ mesh: casing, recycle: recycleShellCasing });
+    liveFx.current.push({ mesh: casing, recycle: (m) => recycleShellCasing(m as THREE.Mesh) });
 
     const casingDir = new THREE.Vector3(
       (0.5 + Math.random() * 0.3) * side,

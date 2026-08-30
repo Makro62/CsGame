@@ -8,6 +8,7 @@ import { useAimStore } from "../../stores/useAimStore";
 import { zombieEngine } from "../zombie/ZombieEngine";
 import { MinecraftCharacter } from "./MinecraftCharacter";
 import { SURVIVAL_BOUNDS, pushOutSurvival } from "../zombie/survivalLayout";
+import { arcadeScreenMove } from "./arcadeScreenMove";
 
 const WALK_SPEED = 5.4;
 const SPRINT_SPEED = 8.4;
@@ -50,19 +51,9 @@ export function ZombieArcadeController() {
     );
     yawRef.current += deltaYaw * (1 - Math.exp(-16 * dt));
 
-    _tMove.set(0, 0, 0);
-    const sin = Math.sin(yawRef.current);
-    const cos = Math.cos(yawRef.current);
-    if (input.forward) { _tMove.x += sin; _tMove.z += cos; }
-    if (input.backward) { _tMove.x -= sin; _tMove.z -= cos; }
-    if (input.left) { _tMove.x -= cos; _tMove.z += sin; }
-    if (input.right) { _tMove.x += cos; _tMove.z -= sin; }
+    const move = arcadeScreenMove(input.forward, input.backward, input.left, input.right);
+    _tMove.set(move.x, 0, move.z);
     const lenSq = _tMove.lengthSq();
-    if (lenSq > 0) {
-      const invLen = 1 / Math.sqrt(lenSq);
-      _tMove.x *= invLen;
-      _tMove.z *= invLen;
-    }
     motionRef.current.moving = lenSq > 0;
     motionRef.current.sprinting = input.sprint && lenSq > 0;
 
@@ -85,6 +76,8 @@ export function ZombieArcadeController() {
     camera.position.z = THREE.MathUtils.lerp(camera.position.z, posRef.current.z + 11, camLag);
     camera.lookAt(posRef.current.x, 0.45, posRef.current.z);
 
+    const sin = Math.sin(yawRef.current);
+    const cos = Math.cos(yawRef.current);
     _tOrigin.set(posRef.current.x + sin * 0.55, 0.9, posRef.current.z + cos * 0.55);
     _tDir.set(sin, 0, cos);
     useAimStore.getState().setAim(_tOrigin, _tDir, yawRef.current, posRef.current);

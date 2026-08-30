@@ -734,7 +734,7 @@ export function ZombieSurvivalMode() {
           pointerEvents: "none",
         }}
       >
-        WASD Gerak • Mouse Arah Bidik • Klik Kiri Tembak • R Reload • 1-3 Ganti Senjata • B Toko • F Revive • ESC Menu
+        W Atas • S Bawah • A Kiri • D Kanan • Mouse Bidik • Klik Kiri Tembak • R Reload • 1-3 Ganti Senjata • B Toko • F Revive • ESC Menu
       </div>
 
       {/* ── Game Over (K.I.A.) Tactical Modal ── */}

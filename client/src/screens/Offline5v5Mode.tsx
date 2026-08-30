@@ -184,8 +184,8 @@ function OfflineLoop({ paused }: { paused: boolean }) {
 export function Offline5v5Mode() {
   const { setMode, nickname } = useGameStore();
   const [, setLocation] = useLocation();
-  const { buyMenuOpen, closeBuyMenu } = useWeaponSwitch();
   const phase = useOffline5v5Store((s) => s.phase);
+  const { buyMenuOpen, closeBuyMenu } = useWeaponSwitch({ buyMenu: phase === "buy" });
   const roundNumber = useOffline5v5Store((s) => s.roundNumber);
   const teamRedScore = useOffline5v5Store((s) => s.teamRedScore);
   const teamBlueScore = useOffline5v5Store((s) => s.teamBlueScore);
@@ -236,6 +236,12 @@ export function Offline5v5Mode() {
     document.addEventListener("pointerlockchange", onPointerLockChange);
     return () => document.removeEventListener("pointerlockchange", onPointerLockChange);
   }, [buyMenuOpen]);
+
+  useEffect(() => {
+    if (phase !== "buy" && buyMenuOpen) {
+      closeBuyMenu();
+    }
+  }, [phase, buyMenuOpen, closeBuyMenu]);
 
   const resume = useCallback(() => {
     setPaused(false);
@@ -626,7 +632,8 @@ export function Offline5v5Mode() {
                 background: "rgba(15,23,42,0.95)",
                 border: "2px solid #eab308",
                 borderRadius: 14,
-                padding: "16px 32px",
+                padding: "16px 28px",
+                minWidth: 280,
                 color: "#facc15",
                 fontFamily: "'Rajdhani', monospace",
                 fontSize: 18,
@@ -635,7 +642,17 @@ export function Offline5v5Mode() {
                 boxShadow: "0 0 30px rgba(234,179,8,0.5)",
               }}
             >
-              PLANTING C4 BOMB... TAHAN [E]
+              <div style={{ marginBottom: 10, letterSpacing: "0.06em" }}>PLANTING C4 BOMB... TAHAN [E]</div>
+              <div style={{ width: "100%", height: 10, background: "rgba(0,0,0,0.6)", borderRadius: 6, overflow: "hidden", border: "1px solid rgba(234,179,8,0.4)" }}>
+                <div
+                  style={{
+                    width: `${Math.min(100, Math.max(0, me.plantProgress * 100))}%`,
+                    height: "100%",
+                    background: "linear-gradient(90deg, #ca8a04, #facc15)",
+                    transition: "width 0.05s linear",
+                  }}
+                />
+              </div>
             </div>
           )}
 
@@ -650,7 +667,8 @@ export function Offline5v5Mode() {
                 background: "rgba(15,23,42,0.95)",
                 border: "2px solid #60a5fa",
                 borderRadius: 14,
-                padding: "16px 32px",
+                padding: "16px 28px",
+                minWidth: 280,
                 color: "#93c5fd",
                 fontFamily: "'Rajdhani', monospace",
                 fontSize: 18,
@@ -659,7 +677,17 @@ export function Offline5v5Mode() {
                 boxShadow: "0 0 30px rgba(96,165,250,0.5)",
               }}
             >
-              DEFUSING BOMB... TAHAN [E]
+              <div style={{ marginBottom: 10, letterSpacing: "0.06em" }}>DEFUSING BOMB... TAHAN [E]</div>
+              <div style={{ width: "100%", height: 10, background: "rgba(0,0,0,0.6)", borderRadius: 6, overflow: "hidden", border: "1px solid rgba(96,165,250,0.4)" }}>
+                <div
+                  style={{
+                    width: `${Math.min(100, Math.max(0, me.defuseProgress * 100))}%`,
+                    height: "100%",
+                    background: "linear-gradient(90deg, #2563eb, #60a5fa)",
+                    transition: "width 0.05s linear",
+                  }}
+                />
+              </div>
             </div>
           )}
         </>

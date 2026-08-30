@@ -20,7 +20,7 @@ interface StubNetworkState {
   sendPickupBomb: () => void;
   sendSwitchWeapon: () => void;
   sendMelee: () => void;
-  sendThrowGrenade: () => void;
+  sendThrowGrenade: (payload?: unknown) => void;
   sendFFVote: () => void;
   sendGameMode: () => void;
   sendVoteRequest: () => void;

@@ -16,6 +16,7 @@ export type GameEvents = {
   ffVoteStarted: { initiatorId: string; initiatorName: string; team: string }
   resetDrill: Record<string, never> | undefined
   hitMarker: { headshot: boolean }
+  playerHitFeedback: { shooterX: number; shooterZ: number; damage: number }
 }
 
 export const gameEvents = mitt<GameEvents>()
