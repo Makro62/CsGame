@@ -8,6 +8,7 @@ import { useWeaponStore } from "../../stores/useWeaponStore";
 import { useGameStore } from "../../stores/useGameStore";
 import { gameEvents } from "../../lib/gameEvents";
 import { Sound } from "../../components/AudioManager";
+import { triggerScreenShake } from "../effects/screenShake";
 
 // ─── Object Pool: reusable Vector3 instances ───
 const _dir = new THREE.Vector3();
@@ -68,6 +69,7 @@ export function GrenadeSystem() {
   const triggerDetonationEffects = (g: ThrownGrenade) => {
     if (g.type === "he") {
       Sound.explosion();
+      triggerScreenShake(0.22);
       // Apply splash damage in training mode
       const gameMode = useGameStore.getState().mode;
       if (gameMode === "training") {

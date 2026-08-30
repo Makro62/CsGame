@@ -109,6 +109,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     if (result.bombDropped || result.didHitEnemy) {
       get().checkRoundEnd();
     }
+    return result.didKillEnemy;
   },
 
   localBuy: (item: string) => {

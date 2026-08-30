@@ -326,6 +326,8 @@ export const Sound = {
 
 import { playMusicForMode, updateMusicVolume, stopMusic } from './MusicEngine'
 import { useGameStore } from '../stores/useGameStore'
+import { gameEvents } from '../lib/gameEvents'
+import { triggerScreenShake, resetScreenShake } from '../game/effects/screenShake'
 
 export function AudioManager() {
   const hitMarker = useNetworkStore((s) => s.hitMarker)
@@ -360,19 +362,27 @@ export function AudioManager() {
   // Switch background music track when game mode changes
   useEffect(() => {
     playMusicForMode(mode || 'menu')
+    resetScreenShake()
   }, [mode])
 
-  // Play hitmarker/headshot sound when we hit someone
+  // Offline hitmarker / kill confirm (5v5, Survival, L4D, training)
   useEffect(() => {
-    if (hitMarker && hitMarker.timestamp !== lastHitTime.current) {
-      lastHitTime.current = hitMarker.timestamp
-      if (hitMarker.headshot) {
-        Sound.headshot()
-      } else {
-        Sound.hitmarker()
-      }
+    const offHit = gameEvents.on("hitMarker", (data) => {
+      if (data.killed) Sound.killConfirm()
+      else if (data.headshot) Sound.headshot()
+      else Sound.hitmarker()
+    })
+    const offDmg = gameEvents.on("playerHitFeedback", () => {
+      triggerScreenShake(0.08)
+    })
+    const onBoomer = () => triggerScreenShake(0.22)
+    window.addEventListener("l4dBoomerPop", onBoomer)
+    return () => {
+      offHit()
+      offDmg()
+      window.removeEventListener("l4dBoomerPop", onBoomer)
     }
-  }, [hitMarker])
+  }, [])
 
   // Play kill confirm sound
   useEffect(() => {

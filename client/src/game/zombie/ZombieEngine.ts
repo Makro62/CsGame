@@ -15,6 +15,7 @@ import { pickZombieType, waveCount, waveHpScale, waveDamageScale, waveInterval, 
 import { zombieEvents, type ZombieEvent } from "./ZombieEventBus";
 import { ZombieDOTSystem } from "./ZombieDOTSystem";
 import { pickupSurvivalWeapon } from "./survivalBuy";
+import { gameEvents } from "../../lib/gameEvents";
 
 export { zombieEvents, type ZombieEvent };
 
@@ -25,6 +26,7 @@ export type ArcadeShotHit = {
   z: number;
   headshot: boolean;
   dist: number;
+  killed?: boolean;
 };
 
 // ── Config derived from shared constants ───────────────────────────────────
@@ -297,7 +299,7 @@ export class ZombieEngine {
     if (dist < 1.5 && z.attackCooldown <= 0 && hasLos) {
       z.isAttacking = true;
       z.attackCooldown = 1.0;
-      this.damagePlayer(cfg.damage * this.dmgScale);
+      this.damagePlayer(cfg.damage * this.dmgScale, z.x, z.z);
     } else if (dist >= 1.5) {
       z.isAttacking = false;
     }
@@ -312,7 +314,7 @@ export class ZombieEngine {
 
     // Exploder suicide at close range (50 dmg AoE)
     if (z.type === "exploder" && dist < 2.5 && hasLos) {
-      this.damagePlayer(50 * this.dmgScale);
+      this.damagePlayer(50 * this.dmgScale, z.x, z.z);
       this.killZombie(z);
     }
   }
@@ -345,7 +347,7 @@ export class ZombieEngine {
     this._aliveCount++;
   }
 
-  private damagePlayer(amount: number) {
+  private damagePlayer(amount: number, fromX = 0, fromZ = 0) {
     const store = useZombieStore.getState();
     const p = store.player;
     if (p.isDowned) return;
@@ -361,6 +363,7 @@ export class ZombieEngine {
       store.setPlayer(pl => ({ ...pl, hp: newHp, armor: newArmor }));
     }
     zombieEvents.emit({ type: "playerDamaged", amount: dmg });
+    gameEvents.emit("playerHitFeedback", { shooterX: fromX, shooterZ: fromZ, damage: dmg });
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("zombieDamageTaken"));
   }
 
@@ -421,7 +424,8 @@ export class ZombieEngine {
       const store = useZombieStore.getState();
       if (store.player.activePowerUps.has("insta_kill")) dmg = z.hp;
       z.hp -= dmg;
-      if (z.hp <= 0) {
+      const killed = z.hp <= 0;
+      if (killed) {
         this.killZombie(z);
         const pts = hit.headshot ? cfg.points + ZOMBIE_POINTS.headshotBonus : cfg.points;
         store.addPoints(pts);
@@ -437,7 +441,7 @@ export class ZombieEngine {
         headshot: hit.headshot,
         damage: dmg,
       });
-      if (!first) first = hit;
+      if (!first) first = { ...hit, killed };
     }
     return first;
   }
@@ -482,7 +486,7 @@ export class ZombieEngine {
   }
 
   // ── Melee ───────────────────────────────────────────────────────────────
-  handleMelee(data: { direction: THREE.Vector3 }) {
+  handleMelee(data: { direction: THREE.Vector3 }): { killed: boolean } | null {
     const dir = this._tMeleeDir.copy(data.direction).normalize();
     const origin = this._tMeleeOrigin.set(this.playerX, 0.9, this.playerZ);
     let best: ZombieState | null = null;
@@ -498,7 +502,8 @@ export class ZombieEngine {
     }
     if (best) {
       best.hp -= MELEE_DMG;
-      if (best.hp <= 0) {
+      const killed = best.hp <= 0;
+      if (killed) {
         this.killZombie(best);
         useZombieStore.getState().addPoints(ZOMBIE_CFG[best.type].points + ZOMBIE_POINTS.knifeBonus);
       }
@@ -511,7 +516,9 @@ export class ZombieEngine {
         headshot: false,
         damage: MELEE_DMG,
       });
+      return { killed };
     }
+    return null;
   }
 
   private maybeSpawnLoot(x: number, z: number) {

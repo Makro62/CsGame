@@ -409,7 +409,7 @@ export function ShootingSystem() {
       const dmg = isHead ? (stats?.headshot ?? 100) : (stats?.dmg ?? 35);
       useGameStore.getState().damageTarget(targetId, dmg, isHead);
       useGameStore.getState().incrementHits();
-      // hit marker local — no network
+      gameEvents.emit("hitMarker", { headshot: isHead });
     },
     []
   );
@@ -443,7 +443,8 @@ export function ShootingSystem() {
 
       if (gameMode === "zombie") {
         const aim = getArcadeAim();
-        zombieEngine.handleMelee({ direction: aim.direction });
+        const meleeHit = zombieEngine.handleMelee({ direction: aim.direction });
+        if (meleeHit) gameEvents.emit("hitMarker", { headshot: false, killed: meleeHit.killed });
       } else if (gameMode === "l4d") {
         camera.getWorldDirection(shootDirection);
         const st = useL4DStore.getState();
@@ -461,7 +462,8 @@ export function ShootingSystem() {
         }
         if (bestId) {
           const lucky = Date.now() < useL4DStore.getState().luckyShotUntil ? 1.6 : 1;
-          useL4DStore.getState().damageInfected(bestId, Math.round(70 * lucky));
+          const killed = useL4DStore.getState().damageInfected(bestId, Math.round(70 * lucky));
+          gameEvents.emit("hitMarker", { headshot: false, killed });
         }
       } else if (gameMode === "offline5v5") {
         let current: THREE.Object3D | null = hit?.object ?? null;
@@ -473,7 +475,8 @@ export function ShootingSystem() {
           }
           current = current.parent;
         }
-        useOffline5v5Store.getState().localShoot(targetId, false);
+        const killed = useOffline5v5Store.getState().localShoot(targetId, false);
+        if (targetId) gameEvents.emit("hitMarker", { headshot: false, killed });
       } else if (gameMode !== "training") {
         // offline: no network melee
       }
@@ -525,7 +528,7 @@ export function ShootingSystem() {
       const wallDist = zombieEngine.wallDistance(shootOrigin, _arcadeDir, 70);
       if (hit) {
         _tempVec3.set(hit.x, hit.y, hit.z);
-        gameEvents.emit("hitMarker", { headshot: hit.headshot });
+        gameEvents.emit("hitMarker", { headshot: hit.headshot, killed: !!hit.killed });
       } else {
         _tempVec3.copy(shootOrigin).addScaledVector(_arcadeDir, wallDist);
       }
@@ -668,9 +671,9 @@ export function ShootingSystem() {
           }
           current = current.parent;
         }
-        useOffline5v5Store.getState().localShoot(targetId, isHead);
+        const killed = useOffline5v5Store.getState().localShoot(targetId, isHead);
         if (targetId) {
-          gameEvents.emit("hitMarker", { headshot: isHead });
+          gameEvents.emit("hitMarker", { headshot: isHead, killed });
         }
       }
 
@@ -680,8 +683,8 @@ export function ShootingSystem() {
           const stats = WEAPONS[activeWeapon];
           const lucky = Date.now() < useL4DStore.getState().luckyShotUntil ? 1.6 : 1;
           const dmgVal = Math.round((inf.isHead ? (stats?.headshot ?? 70) : (stats?.dmg ?? 35)) * lucky);
-          useL4DStore.getState().damageInfected(inf.id, dmgVal);
-          gameEvents.emit("hitMarker", { headshot: inf.isHead });
+          const killed = useL4DStore.getState().damageInfected(inf.id, dmgVal);
+          gameEvents.emit("hitMarker", { headshot: inf.isHead, killed });
         }
       }
     } else {

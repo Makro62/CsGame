@@ -6,6 +6,8 @@ import { ZombieSurvivalMode } from './screens/ZombieSurvivalMode'
 import { Offline5v5Mode } from './screens/Offline5v5Mode'
 import { L4DMode } from './screens/L4DMode'
 import { AudioManager } from './components/AudioManager'
+import { HitMarker } from './components/HitMarker'
+import { DamageIndicator } from './components/DamageIndicator'
 import SettingsMenu from './screens/SettingsMenu'
 import { useGameStore } from './stores/useGameStore'
 import './index.css'
@@ -66,6 +68,8 @@ export default function App() {
   return (
     <>
       <AudioManager />
+      <HitMarker />
+      <DamageIndicator />
       <SettingsMenu />
       <SyncModeToURL />
       <Switch>

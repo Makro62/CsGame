@@ -10,6 +10,8 @@ import { zombieEngine } from "../zombie/ZombieEngine";
 import { MinecraftCharacter } from "./MinecraftCharacter";
 import { SURVIVAL_BOUNDS, pushOutSurvival } from "../zombie/survivalLayout";
 import { arcadeScreenMove } from "./arcadeScreenMove";
+import { consumeScreenShake } from "../effects/screenShake";
+import { Sound } from "../../components/AudioManager";
 
 const BASE_WALK_SPEED = 5.4;
 const BASE_SPRINT_SPEED = 8.4;
@@ -35,6 +37,7 @@ export function ZombieArcadeController() {
   const lockedNdc = useRef({ x: 0, y: 0 });
   const pointerRef = useRef(pointer);
   pointerRef.current = pointer;
+  const stepAccum = useRef(0);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -96,6 +99,13 @@ export function ZombieArcadeController() {
     const speed = input.sprint ? BASE_SPRINT_SPEED * speedFactor : BASE_WALK_SPEED * speedFactor;
     posRef.current.x += _tMove.x * speed * dt;
     posRef.current.z += _tMove.z * speed * dt;
+    if (lenSq > 0) {
+      stepAccum.current += speed * dt;
+      if (stepAccum.current > (input.sprint ? 1.6 : 2.1)) {
+        stepAccum.current = 0;
+        Sound.footstep(input.sprint ? "sprint" : "walk");
+      }
+    }
 
     posRef.current.x = THREE.MathUtils.clamp(posRef.current.x, SURVIVAL_BOUNDS.minX, SURVIVAL_BOUNDS.maxX);
     posRef.current.z = THREE.MathUtils.clamp(posRef.current.z, SURVIVAL_BOUNDS.minZ, SURVIVAL_BOUNDS.maxZ);
@@ -110,6 +120,9 @@ export function ZombieArcadeController() {
     camera.position.x = THREE.MathUtils.lerp(camera.position.x, posRef.current.x, camLag);
     camera.position.y = THREE.MathUtils.lerp(camera.position.y, 22, camLag);
     camera.position.z = THREE.MathUtils.lerp(camera.position.z, posRef.current.z + 11, camLag);
+    const shake = consumeScreenShake(dt);
+    camera.position.x += shake.x * 3;
+    camera.position.y += shake.y * 2;
     camera.lookAt(posRef.current.x, 0.45, posRef.current.z);
 
     const sin = Math.sin(yawRef.current);

@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useOffline5v5Store } from "../screens/Offline5v5Store";
+import { useGameStore } from "../stores/useGameStore";
+import { useAimStore } from "../stores/useAimStore";
+import { useL4DStore } from "../stores/useL4DStore";
 import { gameEvents } from "../lib/gameEvents";
 
 interface HitIndicator {
@@ -23,13 +26,25 @@ export function DamageIndicator() {
       let playerX = 0;
       let playerZ = 0;
       let camYaw = 0;
+      const mode = useGameStore.getState().mode;
 
-      if (camera) {
+      if (mode === "zombie") {
+        const aim = useAimStore.getState();
+        playerX = aim.pos.x;
+        playerZ = aim.pos.z;
+        camYaw = aim.yaw;
+      } else if (camera) {
         playerX = camera.position.x;
         playerZ = camera.position.z;
         const dir = new THREE.Vector3();
         camera.getWorldDirection(dir);
         camYaw = Math.atan2(dir.x, dir.z);
+      } else if (mode === "l4d") {
+        const me = useL4DStore.getState().survivors[0];
+        if (me) {
+          playerX = me.x;
+          playerZ = me.z;
+        }
       } else {
         const local = useOffline5v5Store.getState().players.get("local");
         if (local) {

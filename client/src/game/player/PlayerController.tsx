@@ -13,7 +13,8 @@ import { spawnCameraYaw } from '../offline/offlineCombat'
 import { TRAINING_ARENA } from '../training/TrainingArena'
 import { SURVIVAL_BOUNDS } from '../zombie/survivalLayout'
 import { L4D_BOUNDS, L4D_SAFE_Z } from '../l4d/l4dLayout'
-import { updateAudioListener } from '../../components/AudioManager'
+import { updateAudioListener, Sound } from '../../components/AudioManager'
+import { consumeScreenShake } from '../effects/screenShake'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
 import { useGameStore } from '../../stores/useGameStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
@@ -202,6 +203,7 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
     startTime: 0,
     startVelXZ: new THREE.Vector2(),
   })
+  const footstepReady = useRef(true)
 
   const headBob = useRef(0)
   const lookYaw = useRef(0)
@@ -317,6 +319,7 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
     const now = performance.now()
     const dt = Math.min((now - lastFrameTime.current) / 1000, 0.05)
     lastFrameTime.current = now
+    ;(window as unknown as { __CS_GAME_CAMERA__: THREE.Camera }).__CS_GAME_CAMERA__ = camera
 
     if (effectiveIsDead) {
       // Offline death cam: freeze at death spot (no network killcam/spectator).
@@ -793,13 +796,24 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
     if (grounded.current && speed > 0.5 && !slideState.current.active) {
       const bobSpeed = input.sprint ? 12 : 6
       headBob.current += dt * bobSpeed
+      const phase = Math.sin(headBob.current)
+      if (phase > 0.85 && footstepReady.current) {
+        footstepReady.current = false
+        Sound.footstep(input.sprint ? 'sprint' : input.crouch ? 'crouch' : 'walk')
+      } else if (phase < 0) {
+        footstepReady.current = true
+      }
     } else {
       headBob.current = 0
+      footstepReady.current = true
     }
 
     // Camera position XZ
     camera.position.x = _currentPos.x
     camera.position.z = _currentPos.z
+    const shake = consumeScreenShake(dt)
+    camera.position.x += shake.x * 0.45
+    camera.position.y += shake.y
 
     // Update Web Audio listener to match camera for spatial audio
     _lookTarget.set(

@@ -15,7 +15,7 @@ export type GameEvents = {
   buyResult: { item: string; ok: boolean; reason?: BuyFailReason }
   ffVoteStarted: { initiatorId: string; initiatorName: string; team: string }
   resetDrill: Record<string, never> | undefined
-  hitMarker: { headshot: boolean }
+  hitMarker: { headshot: boolean; killed?: boolean }
   playerHitFeedback: { shooterX: number; shooterZ: number; damage: number }
 }
 

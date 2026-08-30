@@ -129,7 +129,7 @@ export interface OfflineGameState {
   initMatch: (nickname: string, team: "T" | "CT", difficulty?: BotDifficultyLevel) => void;
   tick: (dt: number) => void;
   setLocalPos: (x: number, z: number, rotY: number) => void;
-  localShoot: (targetId: string | null, headshot: boolean) => void;
+  localShoot: (targetId: string | null, headshot: boolean) => boolean;
   localBuy: (item: string) => boolean;
   localReload: () => void;
   localPlantStart: (site: string) => void;

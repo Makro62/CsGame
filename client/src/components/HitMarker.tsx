@@ -4,10 +4,12 @@ import { gameEvents } from "../lib/gameEvents";
 export function HitMarker() {
   const [show, setShow] = useState(false);
   const [headshot, setHeadshot] = useState(false);
+  const [killed, setKilled] = useState(false);
 
   useEffect(() => {
     const off = gameEvents.on("hitMarker", (data) => {
       setHeadshot(data.headshot);
+      setKilled(!!data.killed);
       setShow(true);
     });
     return off;
@@ -15,13 +17,14 @@ export function HitMarker() {
 
   useEffect(() => {
     if (!show) return;
-    const t = setTimeout(() => setShow(false), 150);
+    const t = setTimeout(() => setShow(false), killed ? 220 : 140);
     return () => clearTimeout(t);
-  }, [show]);
+  }, [show, killed]);
 
   if (!show) return null;
 
-  const color = headshot ? "#ef4444" : "white";
+  const color = killed ? "#facc15" : headshot ? "#ef4444" : "#ffffff";
+  const size = killed ? 26 : 20;
 
   return (
     <div
@@ -32,54 +35,19 @@ export function HitMarker() {
         transform: "translate(-50%, -50%)",
         pointerEvents: "none",
         zIndex: 100,
+        animation: "hitMarkerPop 0.14s ease-out",
       }}
     >
-      {/* Cross */}
-      <div
-        style={{
-          position: "absolute",
-          width: "20px",
-          height: "2px",
-          backgroundColor: color,
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          width: "2px",
-          height: "20px",
-          backgroundColor: color,
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-        }}
-      />
-      {/* Diagonal lines */}
-      <div
-        style={{
-          position: "absolute",
-          width: "14px",
-          height: "2px",
-          backgroundColor: color,
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%) rotate(45deg)",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          width: "14px",
-          height: "2px",
-          backgroundColor: color,
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%) rotate(-45deg)",
-        }}
-      />
+      <style>{`
+        @keyframes hitMarkerPop {
+          0% { transform: translate(-50%, -50%) scale(1.45); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(1); opacity: 0.9; }
+        }
+      `}</style>
+      <div style={{ position: "absolute", width: size, height: 2, backgroundColor: color, top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} />
+      <div style={{ position: "absolute", width: 2, height: size, backgroundColor: color, top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} />
+      <div style={{ position: "absolute", width: size * 0.7, height: 2, backgroundColor: color, top: "50%", left: "50%", transform: "translate(-50%, -50%) rotate(45deg)" }} />
+      <div style={{ position: "absolute", width: size * 0.7, height: 2, backgroundColor: color, top: "50%", left: "50%", transform: "translate(-50%, -50%) rotate(-45deg)" }} />
     </div>
   );
 }

@@ -134,7 +134,7 @@ export const useL4DStore = create<L4DState>((set, get) => ({
       return true;
     }
     set({ infected: st.infected.map(x => x.id === id ? { ...x, hp: nhp } : x) });
-    return true;
+    return false;
   },
   setDirectorIntensity: (directorIntensity) => set({ directorIntensity: Math.max(0, Math.min(100, directorIntensity)) }),
   setHorde: (hordeActive, hordeTimer) => set({ hordeActive, hordeTimer: hordeTimer ?? get().hordeTimer }),

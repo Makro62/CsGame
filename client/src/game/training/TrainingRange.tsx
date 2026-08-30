@@ -8,7 +8,6 @@ import { WeaponModel } from "../weapons/WeaponModel";
 import { ShootingSystem } from "../weapons/ShootingSystem";
 import { ReloadSystem } from "../weapons/ReloadSystem";
 import { Crosshair } from "../../components/Crosshair";
-import { HitMarker } from "../../components/HitMarker";
 import { ClickToPlayOverlay } from "../../components/ClickToPlayOverlay";
 import { AudioManager } from "../../components/AudioManager";
 import SniperScope from "../../components/SniperScope";
@@ -435,7 +434,6 @@ export function TrainingRange() {
       <Crosshair />
       <SniperScope />
       <ADSOpticSight />
-      <HitMarker />
       <HUDLayout />
       <AudioManager />
       {trainingMode === "aim" && <AimTrainerUI />}

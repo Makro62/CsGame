@@ -198,7 +198,7 @@ export function tickRound(
   }
 
   // ── Check plant complete ──
-  players.forEach((p, id) => {
+  for (const [id, p] of players) {
     if (p.isPlanting && p.plantProgress >= 1 && !bombPlanted) {
       const updated = { ...p, isPlanting: false, plantProgress: 0, hasBomb: false };
       players.set(id, updated);
@@ -206,10 +206,10 @@ export function tickRound(
       bombTimeLeft = ROUND.bombTimer;
       bombSite = p.plantSite || "A";
     }
-  });
+  }
 
   // ── Check defuse complete ──
-  players.forEach((p, id) => {
+  for (const [id, p] of players) {
     if (p.isDefusing && p.defuseProgress >= 1) {
       const updated = { ...p, isDefusing: false, defuseProgress: 0 };
       players.set(id, updated);
@@ -225,7 +225,7 @@ export function tickRound(
       get().endRound("CT");
       return;
     }
-  });
+  }
 
   // ── Round timeout ──
   const newTime = state.roundTimeLeft - dt;
@@ -317,6 +317,7 @@ export function endRound(
     roundEndTimer: ROUND.roundEndDuration,
     bombPlanted: false,
     bombTimeLeft: 0,
+    bombSite: "",
     bombDropped: false,
     players,
     activeReloads: new Map(),

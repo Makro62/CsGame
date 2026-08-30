@@ -9,10 +9,8 @@ import { ShootingSystem } from "../game/weapons/ShootingSystem";
 import { ReloadSystem } from "../game/weapons/ReloadSystem";
 import { GrenadeSystem } from "../game/weapons/GrenadeSystem";
 import { Crosshair } from "../components/Crosshair";
-import { HitMarker } from "../components/HitMarker";
 import { BuyMenu } from "../components/BuyMenu";
 import { DamageVignette } from "../components/DamageVignette";
-import { DamageIndicator } from "../components/DamageIndicator";
 import { DeathScreen } from "../components/DeathScreen";
 import SniperScope from "../components/SniperScope";
 import { ADSOpticSight } from "../components/ADSOpticSight";
@@ -644,9 +642,7 @@ export function Offline5v5Mode() {
 
       <SniperScope />
       <ADSOpticSight />
-      <HitMarker />
       <DamageVignette />
-      <DamageIndicator />
       <DeathScreen />
       <FlashEffect />
 

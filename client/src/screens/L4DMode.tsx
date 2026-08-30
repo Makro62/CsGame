@@ -11,6 +11,7 @@ import SniperScope from "../components/SniperScope";
 import { ADSOpticSight } from "../components/ADSOpticSight";
 import { DamageVignette } from "../components/DamageVignette";
 import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
+import { gameEvents } from "../lib/gameEvents";
 import { useL4DStore } from "../stores/useL4DStore";
 import { L4DDirector } from "../game/l4d/L4DDirector";
 import { L4DCampaignMap } from "../game/l4d/L4DCampaignMap";
@@ -268,6 +269,7 @@ function L4DSimLoop({
             return { ...s, hp: nhp };
           });
           if (sv.id === "survivor_0") {
+            gameEvents.emit("playerHitFeedback", { shooterX: inf.x, shooterZ: inf.z, damage: dmg });
             window.dispatchEvent(new CustomEvent("zombieDamageTaken"));
           }
         }
