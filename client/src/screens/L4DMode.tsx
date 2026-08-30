@@ -7,18 +7,34 @@ import { ShootingSystem } from "../game/weapons/ShootingSystem";
 import { ReloadSystem } from "../game/weapons/ReloadSystem";
 import { TracerManager } from "../game/effects/TracerManager";
 import { Crosshair } from "../components/Crosshair";
+import SniperScope from "../components/SniperScope";
+import { ADSOpticSight } from "../components/ADSOpticSight";
 import { DamageVignette } from "../components/DamageVignette";
 import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
 import { useL4DStore } from "../stores/useL4DStore";
 import { L4DDirector } from "../game/l4d/L4DDirector";
 import { L4DCampaignMap } from "../game/l4d/L4DCampaignMap";
-import { l4dFinishZ, L4D_SAFE_Z, L4D_FINISH_Z, L4D_TRAVERSE_Z, L4D_RESCUE_RADIUS } from "../game/l4d/l4dLayout";
+import { l4dFinishZ, L4D_SAFE_Z, L4D_FINISH_Z, L4D_TRAVERSE_Z, L4D_RESCUE_RADIUS, clampL4DInfected, l4dRoughLos } from "../game/l4d/l4dLayout";
 import { useGameStore } from "../stores/useGameStore";
 import { useWeaponStore } from "../stores/useWeaponStore";
+import { WEAPONS } from "@cs-game/shared";
 import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
 import { InfectedFigure } from "../game/zombie/HumanoidFigures";
 import { MinecraftCharacter } from "../game/player/MinecraftCharacter";
 import SettingsMenu from "./SettingsMenu";
+
+function applyL4DLoadout() {
+  const ws = useWeaponStore.getState();
+  ws.setInfiniteAmmo(false);
+  ws.syncLoadout({ primary: "ak47", secondary: "glock", knife: "knife" });
+  ws.equipWeapon("ak47", { ammo: WEAPONS.ak47.mag, reserveAmmo: WEAPONS.ak47.reserveAmmo });
+  useWeaponStore.setState({
+    primaryAmmo: WEAPONS.ak47.mag,
+    primaryReserve: WEAPONS.ak47.reserveAmmo,
+    secondaryAmmo: WEAPONS.glock.mag,
+    secondaryReserve: WEAPONS.glock.reserveAmmo,
+  });
+}
 
 function L4DInfectedRenderer() {
   const infected = useL4DStore(s => s.infected);
@@ -73,7 +89,7 @@ function L4DSimLoop({
 }) {
   const last = useRef(performance.now());
   const acc = useRef(0);
-  const botRevive = useRef(0);
+  const botRevive = useRef(new Map<string, number>());
 
   useFrame(() => {
     if (pausedRef.current) {
@@ -108,26 +124,34 @@ function L4DSimLoop({
         continue;
       }
       const helpTarget = p.isDowned ? p : st.survivors.find(s => s.isDowned && !s.isDead && s.id !== bot.id);
-      const targetX = helpTarget ? helpTarget.x : p.x + (i % 2 ? 1.6 : -1.6);
-      const targetZ = helpTarget ? helpTarget.z : p.z - 1.4 - i * 0.45;
+      const inFinale = st.chapterState === "finale";
+      const targetX = helpTarget ? helpTarget.x : inFinale ? 0 : p.x + (i % 2 ? 1.6 : -1.6);
+      const targetZ = helpTarget ? helpTarget.z : inFinale ? finishZ : p.z - 1.4 - i * 0.45;
       const dx = targetX - bot.x, dz = targetZ - bot.z, d = Math.hypot(dx, dz);
       if (d > 0.35) {
+        const step = 3.2 * dt;
+        const nx = bot.x + (dx / d) * step;
+        const nz = bot.z + (dz / d) * step;
+        const clamped = clampL4DInfected(nx, nz);
         useL4DStore.getState().updateSurvivor(bot.id, s => ({
           ...s,
-          x: s.x + (dx / d) * 3.2 * dt,
-          z: s.z + (dz / d) * 3.2 * dt,
+          x: clamped.x,
+          z: clamped.z,
         }));
       }
+      const progress = botRevive.current.get(bot.id) ?? 0;
       if (helpTarget && d < 1.7) {
-        botRevive.current += dt;
-        if (botRevive.current >= 3.5) {
-          botRevive.current = 0;
+        const next = progress + dt;
+        if (next >= 3.5) {
+          botRevive.current.set(bot.id, 0);
           useL4DStore.getState().updateSurvivor(helpTarget.id, s => ({
             ...s, isDowned: false, downedTimer: 0, hp: Math.max(40, s.hp), pinnedBy: null, grabbedBy: null,
           }));
+        } else {
+          botRevive.current.set(bot.id, next);
         }
       } else {
-        botRevive.current = Math.max(0, botRevive.current - dt);
+        botRevive.current.set(bot.id, Math.max(0, progress - dt));
       }
 
       let nearest = null as typeof st.infected[0] | null;
@@ -137,7 +161,7 @@ function L4DSimLoop({
         const dd = Math.hypot(inf.x - bot.x, inf.z - bot.z);
         if (dd < nd) { nd = dd; nearest = inf; }
       }
-      if (nearest && nd < 16 && Math.random() < 0.1) {
+      if (nearest && nd < 16 && Math.random() < 0.1 && l4dRoughLos(bot.x, bot.z, nearest.x, nearest.z)) {
         useL4DStore.getState().damageInfected(nearest.id, 20 + Math.random() * 12);
       }
     }
@@ -204,6 +228,7 @@ function L4DSimLoop({
             const nextChapter = (st2.chapter + 1) as typeof st2.chapter;
             useL4DStore.getState().resetCampaign(nextChapter);
             directorRef.current?.init();
+            applyL4DLoadout();
           } else {
             useL4DStore.setState({ isVictory: true, finaleState: "completed" });
           }
@@ -250,10 +275,7 @@ export function L4DMode() {
     directorRef.current.init();
     useL4DStore.getState().resetCampaign(chapter);
     useL4DStore.setState({ chapterState: "safeRoom" });
-    const ws = useWeaponStore.getState();
-    ws.setInfiniteAmmo(false);
-    ws.syncLoadout({ primary: "ak47", secondary: "glock", knife: "knife" });
-    ws.equipWeapon("ak47");
+    applyL4DLoadout();
     return () => {
       directorRef.current?.cleanup();
       directorRef.current = null;
@@ -309,9 +331,7 @@ export function L4DMode() {
     useL4DStore.getState().resetCampaign(1);
     directorRef.current?.init();
     setSession(s => s + 1);
-    const ws = useWeaponStore.getState();
-    ws.syncLoadout({ primary: "ak47", secondary: "glock", knife: "knife" });
-    ws.equipWeapon("ak47");
+    applyL4DLoadout();
   }, []);
 
   const resume = useCallback(() => {
@@ -464,6 +484,8 @@ export function L4DMode() {
       </div>
 
       <Crosshair />
+      <SniperScope />
+      <ADSOpticSight />
       <DamageVignette />
       {hordeActive && <div className="absolute inset-0 pointer-events-none border-4 border-red-600/35 animate-pulse" />}
       {bileActive && <div className="absolute inset-0 pointer-events-none bg-lime-500/25" />}

@@ -29,6 +29,7 @@ export function HUDLayout() {
     knifeSlot,
     grenadeType,
     infiniteAmmo,
+    reserveAmmo,
   } = useWeaponStore()
 
   const {
@@ -256,7 +257,7 @@ export function HUDLayout() {
             <AmmoCounter
               current={currentAmmo}
               max={maxAmmo}
-              reserve={isCompetitive ? localReserveAmmo : (infiniteAmmo ? Infinity : 90)}
+              reserve={isCompetitive ? localReserveAmmo : (infiniteAmmo ? Infinity : reserveAmmo)}
               isReloading={isReloading}
               isSwitching={isSwitching}
               weaponName={activeWeapon}

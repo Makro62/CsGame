@@ -19,18 +19,7 @@ import { useAimStore } from "../stores/useAimStore";
 import { useWeaponStore } from "../stores/useWeaponStore";
 import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
 import { type WeaponKey } from "../stores/useWeaponStore";
-
-const WEAPON_INFO: Record<string, { label: string; type: string; icon: string; slot: string; dmg: number }> = {
-  glock: { label: "Glock-18", type: "Pistol", icon: "🔫", slot: "2", dmg: 28 },
-  deagle: { label: "Desert Eagle .50", type: "Heavy Pistol", icon: "💥", slot: "2", dmg: 63 },
-  tec9: { label: "Tec-9", type: "Pistol", icon: "🔫", slot: "2", dmg: 29 },
-  mp5: { label: "MP5-SD Tactical", type: "SMG", icon: "⚡", slot: "1", dmg: 32 },
-  ak47: { label: "AK-47 Rifle", type: "Assault Rifle", icon: "🎯", slot: "1", dmg: 48 },
-  m4a1: { label: "M4A1-S Silenced", type: "Assault Rifle", icon: "🎯", slot: "1", dmg: 44 },
-  awp: { label: "AWP Magnum", type: "Sniper Rifle", icon: "🔭", slot: "1", dmg: 145 },
-  knife: { label: "Combat Knife", type: "Melee", icon: "🔪", slot: "3", dmg: 50 },
-  combatknife: { label: "Combat Knife", type: "Melee", icon: "🔪", slot: "3", dmg: 50 },
-};
+import { weaponDisplay } from "../game/weapons/weaponDisplay";
 
 export function ZombieSurvivalMode() {
   const waveState = useZombieStore(s => s.waveState);
@@ -51,6 +40,7 @@ export function ZombieSurvivalMode() {
   const prevWaveState = useRef(waveState);
   const pausedRef = useRef(false);
   pausedRef.current = paused;
+  const reviveHeld = useRef(false);
 
   useEffect(() => {
     if (waveState === "wave_active" && prevWaveState.current !== "wave_active") {
@@ -82,7 +72,6 @@ export function ZombieSurvivalMode() {
     const FIXED = 1 / 60;
     const tick = (dt: number) => {
       if (pausedRef.current) return;
-      const aim = useAimStore.getState().pos;
       const st0 = useZombieStore.getState();
 
       if (st0.waveState === "buy_phase" || st0.waveState === "wave_clear") {
@@ -101,20 +90,42 @@ export function ZombieSurvivalMode() {
         zombieEngine.update(dt);
       }
 
+      const pos = useAimStore.getState().pos;
       for (const p of useZombieStore.getState().powerUps) {
-        if (Math.hypot(p.x - aim.x, p.z - aim.z) < 2.2) zombieEngine.collectPowerUp(p.id);
+        if (Math.hypot(p.x - pos.x, p.z - pos.z) < 2.2) zombieEngine.collectPowerUp(p.id);
       }
       for (const item of useZombieStore.getState().loot) {
-        if (Math.hypot(item.x - aim.x, item.z - aim.z) < 2.0) zombieEngine.collectLoot(item.id);
+        if (Math.hypot(item.x - pos.x, item.z - pos.z) < 2.0) zombieEngine.collectLoot(item.id);
       }
 
       if (useZombieStore.getState().player.isDowned) {
         const p = useZombieStore.getState().player;
-        const nt = p.downedTimer - dt;
-        if (nt <= 0) {
-          useZombieStore.setState(s => ({ player: { ...s.player, isDowned: false, downedTimer: 0 }, waveState: "game_over" }));
+        if (p.soloRevivesLeft > 0 && reviveHeld.current) {
+          const next = Math.min(1, p.reviveProgress + dt / 3);
+          if (next >= 1) {
+            useZombieStore.setState(s => ({
+              player: {
+                ...s.player,
+                isDowned: false,
+                downedTimer: 0,
+                reviveProgress: 0,
+                soloRevivesLeft: 0,
+                hp: Math.max(40, s.player.hp),
+              },
+            }));
+          } else {
+            useZombieStore.setState(s => ({ player: { ...s.player, reviveProgress: next } }));
+          }
         } else {
-          useZombieStore.setState(s => ({ player: { ...s.player, downedTimer: nt } }));
+          if (p.reviveProgress > 0) {
+            useZombieStore.setState(s => ({ player: { ...s.player, reviveProgress: 0 } }));
+          }
+          const nt = p.downedTimer - dt;
+          if (nt <= 0) {
+            useZombieStore.setState(s => ({ player: { ...s.player, isDowned: false, downedTimer: 0 }, waveState: "game_over" }));
+          } else {
+            useZombieStore.setState(s => ({ player: { ...s.player, downedTimer: nt } }));
+          }
         }
       }
     };
@@ -163,13 +174,24 @@ export function ZombieSurvivalMode() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.code === "KeyF") {
+        reviveHeld.current = true;
+        return;
+      }
       if (e.code !== "Escape") return;
       if (buyMenuOpen) { closeBuyMenu(); return; }
       if (paused) { resume(); return; }
       setPaused(true);
     };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.code === "KeyF") reviveHeld.current = false;
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+    };
   }, [buyMenuOpen, closeBuyMenu, paused, resume]);
 
   const hpPercent = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
@@ -274,7 +296,7 @@ export function ZombieSurvivalMode() {
               </span>
             ) : null}
             <span style={{ fontSize: 16, fontWeight: 900, color: "#38bdf8" }}>{currentAmmo}</span>
-            <span style={{ fontSize: 12, color: "#64748b" }}>/ {reserveAmmo || maxAmmo}</span>
+            <span style={{ fontSize: 12, color: "#64748b" }}>/ {reserveAmmo}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 12, color: "#94a3b8" }}>HORDE:</span>
@@ -530,7 +552,7 @@ export function ZombieSurvivalMode() {
         {/* List of Purchased Weapons */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
           {purchasedWeapons.map((wId) => {
-            const info = WEAPON_INFO[wId] || { label: wId.toUpperCase(), type: "Weapon", icon: "🔫", slot: "1", dmg: 30 };
+            const info = weaponDisplay(wId);
             const isActive = activeWeapon === wId;
             const tier = player.weaponTiers?.[wId] ?? 0;
 
@@ -611,9 +633,9 @@ export function ZombieSurvivalMode() {
         {/* Weapon Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 18 }}>{WEAPON_INFO[activeWeapon ?? ""]?.icon || "🔫"}</span>
+            <span style={{ fontSize: 18 }}>{weaponDisplay(activeWeapon).icon}</span>
             <span style={{ fontSize: 16, fontWeight: 900, color: "#f8fafc", letterSpacing: "0.08em" }}>
-              {WEAPON_INFO[activeWeapon ?? ""]?.label.toUpperCase() || (activeWeapon ?? "—").toUpperCase()}
+              {weaponDisplay(activeWeapon).label.toUpperCase()}
             </span>
           </div>
 
@@ -623,7 +645,7 @@ export function ZombieSurvivalMode() {
             </span>
           ) : (
             <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
-              {WEAPON_INFO[activeWeapon ?? ""]?.type || "WEAPON"}
+              {weaponDisplay(activeWeapon).type}
             </span>
           )}
         </div>
@@ -705,7 +727,7 @@ export function ZombieSurvivalMode() {
           pointerEvents: "none",
         }}
       >
-        WASD Gerak • Mouse Arah Bidik • Klik Kiri Tembak • R Reload • 1-3 Ganti Senjata • B Toko • ESC Menu
+        WASD Gerak • Mouse Arah Bidik • Klik Kiri Tembak • R Reload • 1-3 Ganti Senjata • B Toko • F Revive • ESC Menu
       </div>
 
       {/* ── Game Over (K.I.A.) Tactical Modal ── */}

@@ -73,7 +73,7 @@ export function SurvivalArena() {
         );
       })}
 
-      {/* Gate posts */}
+      {/* Gate posts + spawn markers */}
       {([[0, 22.8], [0, -22.8], [22.8, 0], [-22.8, 0]] as const).map(([x, z], i) => (
         <group key={`gate-${i}`}>
           <mesh position={[x + (z === 0 ? 0 : -3.5), 1.7, z + (x === 0 ? 0 : -3.5)]} castShadow>
@@ -83,6 +83,10 @@ export function SurvivalArena() {
           <mesh position={[x + (z === 0 ? 0 : 3.5), 1.7, z + (x === 0 ? 0 : 3.5)]} castShadow>
             <boxGeometry args={[0.55, 3.4, 0.55]} />
             <meshStandardMaterial color="#3f4a52" metalness={0.25} roughness={0.5} />
+          </mesh>
+          <mesh position={[x * 0.92, 0.06, z * 0.92]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[1.1, 1.55, 20]} />
+            <meshBasicMaterial color="#ef4444" transparent opacity={0.55} />
           </mesh>
         </group>
       ))}

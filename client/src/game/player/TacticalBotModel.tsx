@@ -398,5 +398,3 @@ export function TacticalBotModel({
     </group>
   );
 }
-
-export default TacticalBotModel;

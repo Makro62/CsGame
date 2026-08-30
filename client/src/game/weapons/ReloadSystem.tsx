@@ -39,7 +39,8 @@ export function ReloadSystem() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "KeyR" && activeWeapon && !isReloading) {
         const stats = WEAPONS[activeWeapon];
-        if (stats && stats.reload > 0 && currentAmmo < maxAmmo) {
+        const { reserveAmmo, infiniteAmmo } = useWeaponStore.getState();
+        if (stats && stats.reload > 0 && currentAmmo < maxAmmo && (infiniteAmmo || reserveAmmo > 0)) {
           startReload();
           requestReload();
         }
@@ -67,7 +68,8 @@ export function ReloadSystem() {
       // Speed Cola halves reload duration when active in zombie store
       const speedMultiplier =
         useGameStore.getState().mode === "zombie" &&
-        useZombieStore.getState().player.activePowerUps.has("speed_cola")
+        (useZombieStore.getState().player.activePowerUps.has("speed_cola") ||
+          useZombieStore.getState().player.perks.includes("speed_cola"))
           ? 0.5
           : 1;
 
@@ -113,7 +115,8 @@ export function ReloadSystem() {
   useEffect(() => {
     if (activeWeapon && currentAmmo === 0 && !isReloading) {
       const stats = WEAPONS[activeWeapon];
-      if (stats && stats.reload > 0 && maxAmmo > 0) {
+      const { reserveAmmo, infiniteAmmo } = useWeaponStore.getState();
+      if (stats && stats.reload > 0 && maxAmmo > 0 && (infiniteAmmo || reserveAmmo > 0)) {
         startReload();
         requestReload();
       }

@@ -189,7 +189,7 @@ export function WeaponModel() {
     recoilGroupRef.current.rotation.set(rotX, rotY, rotZ)
 
     // Hide weapon model for AWP during ADS so sniper scope is clear
-    if (activeWeapon === 'awp' && adsFactor > 0.35) {
+    if (activeWeapon === 'awp' && adsFactor > 0.12) {
       groupRef.current.visible = false
     } else {
       groupRef.current.visible = true
@@ -474,6 +474,9 @@ function AK47Model() {
 // ─── M4A1 ────────────────────────────────────────────────────────
 // M4A1-S: carbine with suppressor, rail system, collapsible stock
 function M4A1Model() {
+  const isADS = useWeaponStore((s) => s.isADS)
+  const isReloading = useWeaponStore((s) => s.isReloading)
+  const hideDot = isADS && !isReloading
   return (
     <group>
       {/* Lower receiver */}
@@ -650,11 +653,13 @@ function M4A1Model() {
           <boxGeometry args={[0.024, 0.018, 0.002]} />
           <meshStandardMaterial color="#113344" transparent opacity={0.6} metalness={0.9} roughness={0.1} />
         </mesh>
-        {/* Glowing Red Dot (at exact sight height Y=0.05 relative to weapon origin, 0.05 - 0.046 = 0.004 in sight space) */}
+        {/* Glowing Red Dot — hidden during ADS so the optic overlay is the only reticle */}
+        {!hideDot && (
         <mesh position={[0, 0.004, 0.007]}>
           <sphereGeometry args={[0.0012, 8, 8]} />
           <meshBasicMaterial color="#ff0000" toneMapped={false} />
         </mesh>
+        )}
       </group>
 
       {/* Bolt catch */}

@@ -3,27 +3,25 @@ import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
 import { useZombieStore } from "../../stores/useZombieStore";
 import { refillAllAmmo } from "./ZombieEngine";
 import { Sound } from "../../components/AudioManager";
+import { weaponDisplay } from "../weapons/weaponDisplay";
 
 interface ShopWeapon {
   id: WeaponKey;
   cost: number;
-  label: string;
-  dmg: number;
   type: string;
-  mag: number;
 }
 
 const SHOP_WEAPONS: ShopWeapon[] = [
-  { id: "glock", cost: 0, label: "Glock-18", dmg: 28, type: "PISTOL", mag: 20 },
-  { id: "deagle", cost: 650, label: "Desert Eagle .50", dmg: 63, type: "HEAVY PISTOL", mag: 7 },
-  { id: "mp5", cost: 850, label: "MP5-SD Tactical", dmg: 32, type: "SMG", mag: 30 },
-  { id: "ak47", cost: 1400, label: "AK-47 Assault Rifle", dmg: 48, type: "RIFLE", mag: 30 },
-  { id: "m4a1", cost: 1500, label: "M4A1-S Silenced", dmg: 44, type: "RIFLE", mag: 25 },
-  { id: "awp", cost: 2600, label: "AWP Magnum Sniper", dmg: 145, type: "SNIPER", mag: 10 },
+  { id: "glock", cost: 0, type: "PISTOL" },
+  { id: "deagle", cost: 650, type: "HEAVY PISTOL" },
+  { id: "mp5", cost: 850, type: "SMG" },
+  { id: "ak47", cost: 1400, type: "RIFLE" },
+  { id: "m4a1", cost: 1500, type: "RIFLE" },
+  { id: "awp", cost: 2600, type: "SNIPER" },
 ];
 
 const SHOP_PERKS = [
-  { id: "double_tap", cost: 1600, label: "Double Tap Root Beer", desc: "+40% Fire Rate & Double Damage", icon: "⚡" },
+  { id: "double_tap", cost: 1600, label: "Double Tap Root Beer", desc: "+40% Fire Rate & +40% Damage", icon: "⚡" },
   { id: "speed_cola", cost: 1200, label: "Speed Cola", desc: "+50% Faster Reload Speed", icon: "🥤" },
   { id: "juggernog", cost: 1800, label: "Juggernog Armor", desc: "+100 Max HP & Instant Shield", icon: "🛡️" },
 ];
@@ -84,6 +82,9 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
           hp: p.hp + 100,
           armor: Math.min(100, p.armor + 50),
         }));
+      }
+      if (perkId === "double_tap") {
+        useWeaponStore.getState().setFireRateMultiplier(1.4);
       }
     }
   };
@@ -211,6 +212,7 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
             {SHOP_WEAPONS.map(w => {
               const isEquipped = activeWeapon === w.id;
               const canAfford = points >= w.cost;
+              const info = weaponDisplay(w.id);
               return (
                 <div
                   key={w.id}
@@ -226,11 +228,11 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
                 >
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>{w.label}</span>
+                      <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>{info.label}</span>
                       <span style={{ fontSize: 10, color: "#a3e635", fontWeight: 800 }}>{w.type}</span>
                     </div>
                     <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
-                      DMG: <span style={{ color: "#facc15", fontWeight: 800 }}>{w.dmg}</span> • MAG: <span style={{ color: "#38bdf8", fontWeight: 800 }}>{w.mag}</span>
+                      DMG: <span style={{ color: "#facc15", fontWeight: 800 }}>{info.dmg}</span> • MAG: <span style={{ color: "#38bdf8", fontWeight: 800 }}>{info.mag}</span>
                     </div>
                   </div>
                   <button

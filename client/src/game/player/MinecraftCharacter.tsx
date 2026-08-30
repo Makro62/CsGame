@@ -230,5 +230,3 @@ export function MinecraftCharacter({
     </group>
   );
 }
-
-export default MinecraftCharacter;

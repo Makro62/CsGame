@@ -1,3 +1,4 @@
+import { WAVE_CONFIG, ZOMBIE_STARTING_POINTS } from "@cs-game/shared";
 import { create } from "zustand";
 
 export type ZombieType = "walker"|"runner"|"tank"|"spitter"|"exploder"|"boss";
@@ -24,6 +25,7 @@ interface PowerUpState {
 interface PlayerState {
   hp: number; maxHp: number; armor: number; points: number;
   isDowned: boolean; downedTimer: number; reviveProgress: number;
+  soloRevivesLeft: number;
   activePowerUps: Map<PowerUpType, number>;
   weaponTiers: Record<string, number>;
   perks: string[];
@@ -52,8 +54,8 @@ interface ZombieGameState {
 }
 
 const INITIAL_PLAYER: PlayerState = {
-  hp: 100, maxHp: 100, armor: 0, points: 800,
-  isDowned: false, downedTimer: 0, reviveProgress: 0,
+  hp: 100, maxHp: 100, armor: 0, points: ZOMBIE_STARTING_POINTS,
+  isDowned: false, downedTimer: 0, reviveProgress: 0, soloRevivesLeft: 1,
   activePowerUps: new Map(),
   weaponTiers: {},
   perks: [],
@@ -61,7 +63,7 @@ const INITIAL_PLAYER: PlayerState = {
 
 const INITIAL_STATE = {
   currentWave: 0, waveState: "buy_phase" as WaveState,
-  zombiesRemaining: 0, totalZombiesInWave: 0, interWaveTimer: 8,
+  zombiesRemaining: 0, totalZombiesInWave: 0, interWaveTimer: WAVE_CONFIG.firstWaveDelay,
   purchasedWeapons: ["mp5", "glock", "knife"] as string[],
   powerUps: [] as PowerUpState[],
   loot: [] as LootDrop[],

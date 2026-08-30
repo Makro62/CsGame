@@ -724,63 +724,73 @@ function box(id: string, material: ObstacleMaterial, cx: number, cy: number, cz:
   }
 }
 
-// ─── Container Yard — 3 open lanes, one floor, no overlapping props ──
+// ─── Container Yard — Industrial Container Yard (5v5 Competitive) ──
 // Visuals in ContainerYard.tsx are drawn from this list (center + size).
+// Layout: 3 lanes (A Long, Mid, B Long), T spawn (west), CT spawn (east)
 export const MAP_OBSTACLES = [
-  // Perimeter (just outside MAP_BOUNDARY so the clamp never sits inside a wall)
+  // ─── Perimeter Walls ───
   box('wall_north', 'concrete', 0, 4, -19.4, 60, 8, 0.8),
   box('wall_south', 'concrete', 0, 4, 19.4, 60, 8, 0.8),
   box('wall_west', 'concrete', -29.4, 4, 0, 0.8, 8, 40),
   box('wall_east', 'concrete', 29.4, 4, 0, 0.8, 8, 40),
 
-  // T spawn flanks + exit peeks — spawn at (-25, 0) stays in the pocket
-  box('t_spawn_n', 'metal', -26.2, 1.3, -8.4, 3.4, 2.6, 4.6),
-  box('t_spawn_s', 'metal', -26.2, 1.3, 8.4, 3.4, 2.6, 4.6),
+  // ─── T Spawn Area (West) ───
+  // Spawn cover walls - provide safety on spawn
+  box('t_spawn_wall_n', 'metal', -26.2, 1.3, -8.4, 3.4, 2.6, 4.6),
+  box('t_spawn_wall_s', 'metal', -26.2, 1.3, 8.4, 3.4, 2.6, 4.6),
+  // Exit peek boxes - first cover when leaving spawn
   box('t_peek_n', 'metal', -20.6, 1.3, -4.6, 1.6, 2.6, 3.2),
   box('t_peek_s', 'metal', -20.6, 1.3, 4.6, 1.6, 2.6, 3.2),
 
-  // CT spawn flanks + exit peeks
-  box('ct_spawn_n', 'metal', 26.2, 1.3, -8.4, 3.4, 2.6, 4.6),
-  box('ct_spawn_s', 'metal', 26.2, 1.3, 8.4, 3.4, 2.6, 4.6),
+  // ─── CT Spawn Area (East) ───
+  box('ct_spawn_wall_n', 'metal', 26.2, 1.3, -8.4, 3.4, 2.6, 4.6),
+  box('ct_spawn_wall_s', 'metal', 26.2, 1.3, 8.4, 3.4, 2.6, 4.6),
   box('ct_peek_n', 'metal', 20.6, 1.3, -4.6, 1.6, 2.6, 3.2),
   box('ct_peek_s', 'metal', 20.6, 1.3, 4.6, 1.6, 2.6, 3.2),
 
-  // A / Mid divider (gap x=-5..-1 = A connector)
-  box('a_div_w', 'metal', -12.5, 1.3, -7.5, 15, 2.6, 2.2),
-  box('a_div_e', 'metal', 4.5, 1.3, -7.5, 11, 2.6, 2.2),
+  // ─── A Long Divider (North) ───
+  // Long wall separating A Long from Mid
+  box('a_div_west', 'metal', -12.5, 1.3, -7.5, 15, 2.6, 2.2),
+  box('a_div_east', 'metal', 4.5, 1.3, -7.5, 11, 2.6, 2.2),
 
-  // B / Mid divider (same connector gap)
-  box('b_div_w', 'metal', -12.5, 1.3, 7.5, 15, 2.6, 2.2),
-  box('b_div_e', 'metal', 4.5, 1.3, 7.5, 11, 2.6, 2.2),
+  // ─── B Long Divider (South) ───
+  box('b_div_west', 'metal', -12.5, 1.3, 7.5, 15, 2.6, 2.2),
+  box('b_div_east', 'metal', 4.5, 1.3, 7.5, 11, 2.6, 2.2),
 
-  // Mid staggered walls — hide on the sides, leave a weaving path
-  box('mid_t_n', 'metal', -16, 1.05, 4.3, 5.2, 2.1, 1.7),
-  box('mid_t_s', 'metal', -11.5, 1.05, -4.3, 4.4, 2.1, 1.7),
-  box('mid_kink', 'metal', -1.2, 1.05, 3.1, 2.6, 2.1, 2.4),
-  box('mid_break', 'metal', 0.9, 1.05, 0.85, 2.4, 2.1, 2.1),
-  box('mid_c_s', 'metal', 3.4, 1.05, -4.1, 3.4, 2.1, 1.8),
-  box('mid_ct_n', 'metal', 12, 1.05, 4.3, 4.4, 2.1, 1.7),
-  box('mid_ct_s', 'metal', 16.5, 1.05, -4.3, 5.2, 2.1, 1.7),
-  box('mid_box_t', 'wood', -7.2, 0.65, 1.35, 1.9, 1.3, 1.9),
-  box('mid_box_ct', 'wood', 7.2, 0.65, -1.35, 1.9, 1.3, 1.9),
+  // ─── Mid Area - Staggered Cover ───
+  // T side mid cover
+  box('mid_t_wall_n', 'metal', -16, 1.05, 4.3, 5.2, 2.1, 1.7),
+  box('mid_t_wall_s', 'metal', -11.5, 1.05, -4.3, 4.4, 2.1, 1.7),
+  box('mid_t_box', 'wood', -7.2, 0.65, 1.35, 1.9, 1.3, 1.9),
+  // Center mid cover
+  box('mid_center_n', 'metal', -1.2, 1.05, 3.1, 2.6, 2.1, 2.4),
+  box('mid_center_s', 'metal', 0.9, 1.05, 0.85, 2.4, 2.1, 2.1),
+  // CT side mid cover
+  box('mid_ct_wall_n', 'metal', 12, 1.05, 4.3, 4.4, 2.1, 1.7),
+  box('mid_ct_wall_s', 'metal', 16.5, 1.05, -4.3, 5.2, 2.1, 1.7),
+  box('mid_ct_box', 'wood', 7.2, 0.65, -1.35, 1.9, 1.3, 1.9),
 
-  // A long cover against the divider / north wall
+  // ─── A Long Cover (North Lane) ───
   box('a_long_1', 'metal', -16, 1.05, -12.7, 4.6, 2.1, 1.6),
   box('a_long_2', 'metal', -6, 1.05, -16.7, 3.6, 2.1, 1.5),
   box('a_long_3', 'metal', 4, 1.05, -12.7, 4.2, 2.1, 1.6),
   box('a_ninja', 'wood', 11.2, 0.65, -17.4, 1.6, 1.3, 1.6),
 
-  // Site A cover — plant center (15, -15) stays clear
-  box('site_a_cover', 'metal', 20.2, 1.3, -14.8, 2.6, 2.6, 6.2),
+  // ─── Site A Cover ───
+  box('site_a_main', 'metal', 20.2, 1.3, -14.8, 2.6, 2.6, 6.2),
+  box('site_a_box_1', 'wood', 14, 0.65, -13, 1.2, 1.3, 1.2),
+  box('site_a_box_2', 'wood', 16, 0.65, -17, 1.2, 1.3, 1.2),
 
-  // B long cover
+  // ─── B Long Cover (South Lane) ───
   box('b_long_1', 'metal', -16, 1.05, 12.7, 4.6, 2.1, 1.6),
   box('b_long_2', 'metal', -6, 1.05, 16.7, 3.6, 2.1, 1.5),
   box('b_long_3', 'metal', 4, 1.05, 12.7, 4.2, 2.1, 1.6),
   box('b_box', 'wood', 9.6, 0.65, 17.4, 1.6, 1.3, 1.6),
 
-  // Site B cover — plant center (12, 15) stays clear
-  box('site_b_cover', 'metal', 20.2, 1.3, 14.8, 2.6, 2.6, 6.2),
+  // ─── Site B Cover ───
+  box('site_b_main', 'metal', 20.2, 1.3, 14.8, 2.6, 2.6, 6.2),
+  box('site_b_box_1', 'wood', 14, 0.65, 13, 1.2, 1.3, 1.2),
+  box('site_b_box_2', 'wood', 16, 0.65, 17, 1.2, 1.3, 1.2),
 ] as const satisfies readonly MapObstacle[]
 
 export const MAP_BOUNDARY = {
@@ -807,17 +817,38 @@ export interface MapCallout {
 }
 
 export const MAP_CALLOUTS: readonly MapCallout[] = [
+  // Mid Area
   { id: 'mid', label: 'MID', x: 0, z: 0 },
+  { id: 'mid_boxes', label: 'MID BOXES', x: -1, z: 2 },
+  { id: 'mid_pillar', label: 'MID PILLAR', x: 0, z: 0 },
+
+  // T Side
+  { id: 't_spawn', label: 'T SPAWN', x: -25, z: 0 },
   { id: 't_mid', label: 'T MID', x: -15, z: 0 },
+  { id: 't_peek', label: 'T PEEK', x: -20, z: -4 },
+
+  // CT Side
+  { id: 'ct_spawn', label: 'CT SPAWN', x: 25, z: 0 },
   { id: 'ct_rot', label: 'CT ROTATE', x: 18, z: 0 },
+  { id: 'ct_peek', label: 'CT PEEK', x: 20, z: -4 },
+
+  // A Site
   { id: 'site_a', label: 'SITE A', x: 15, z: -15 },
   { id: 'a_long', label: 'A LONG', x: -8, z: -15 },
   { id: 'a_connector', label: 'A CONN', x: -3, z: -7.5 },
+  { id: 'a_ninja', label: 'A NINJA', x: 11, z: -17 },
+  { id: 'a_site_boxes', label: 'A BOXES', x: 15, z: -15 },
+
+  // B Site
   { id: 'site_b', label: 'SITE B', x: 12, z: 15 },
   { id: 'b_long', label: 'B LONG', x: -8, z: 15 },
   { id: 'b_connector', label: 'B CONN', x: -3, z: 7.5 },
-  { id: 't_spawn', label: 'T BASE', x: -25, z: 0 },
-  { id: 'ct_spawn', label: 'CT BASE', x: 25, z: 0 },
+  { id: 'b_box', label: 'B BOX', x: 9, z: 17 },
+  { id: 'b_site_boxes', label: 'B BOXES', x: 15, z: 15 },
+
+  // Container Areas
+  { id: 't_containers', label: 'T CONTAINERS', x: -22, z: 0 },
+  { id: 'ct_containers', label: 'CT CONTAINERS', x: 22, z: 0 },
 ]
 
 // ─── Dust Map Callouts ──────────────────────────────────────────
@@ -1036,14 +1067,15 @@ export const ZOMBIE_TYPES: Record<ZombieType, { hp: number; speed: number; damag
 }
 
 export const WAVE_CONFIG = {
-  baseZombieCount: 6,
-  zombiesPerWave: 4,
+  baseZombieCount: 10,
+  zombiesPerWave: 5,
   interWaveTime: 5,       // seconds between waves (wave clear display)
   interWaveMinTime: 3,    // minimum wave clear time
   spawnDuration: 10,      // seconds to spawn all zombies in a wave
   buyPhaseDuration: 15,   // seconds to buy weapons between waves
   firstWaveDelay: 20,     // seconds before first wave starts (initial buy phase)
-  hpMultiplierPerWave: 0.28,
+  hpMultiplierPerWave: 0.16,
+  damageMultiplierPerWave: 0.06,
   speedBonusPerWave: 0.03,
   // Active spawn points per wave range
   activeSpawns: [

@@ -133,7 +133,6 @@ export function survivalLineOfSight(ox: number, oz: number, tx: number, tz: numb
   const ndx = dx / dist;
   const ndz = dz / dist;
   for (const obs of SURVIVAL_OBSTACLES) {
-    if (obs.kind !== "wall") continue;
     const t = slabEnter(ox, oz, ndx, ndz, obs, dist);
     if (t !== null && t < dist - 0.05) return false;
   }
@@ -147,7 +146,6 @@ export function survivalWallDistance(ox: number, oz: number, dx: number, dz: num
   const ndz = dz / len;
   let best = maxDist;
   for (const obs of SURVIVAL_OBSTACLES) {
-    if (obs.kind !== "wall") continue;
     const t = slabEnter(ox, oz, ndx, ndz, obs, best);
     if (t !== null && t > 0.15 && t < best) best = t;
   }

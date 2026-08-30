@@ -487,6 +487,11 @@ export function ShootingSystem() {
     if (gameMode !== "training" && gameMode !== "zombie" && gameMode !== "offline5v5" && gameMode !== "l4d") return;
     // offline phases always active, no round.phase check needed (round removed for offline)
 
+    if (gameMode === "l4d") {
+      const me = useL4DStore.getState().survivors[0];
+      if (me && (me.isDowned || me.isDead || me.pinnedBy || me.grabbedBy)) return;
+    }
+
     if (isMeleeWeapon(activeWeapon)) {
       meleeAttack(activeWeapon, gameMode);
       return;
@@ -505,7 +510,8 @@ export function ShootingSystem() {
       const tierMult = 1 + tier * 0.85;
       const doubleTapMult = zombiePlayer.perks?.includes("double_tap") ? 1.4 : 1.0;
       const finalDmg = Math.round(baseDmg * tierMult * doubleTapMult);
-      const hit = zombieEngine.handleShoot(shootOrigin, _arcadeDir, finalDmg);
+      const pierce = tier >= 3;
+      const hit = zombieEngine.handleShoot(shootOrigin, _arcadeDir, finalDmg, pierce);
       const wallDist = zombieEngine.wallDistance(shootOrigin, _arcadeDir, 70);
       if (hit) {
         _tempVec3.set(hit.x, hit.y, hit.z);

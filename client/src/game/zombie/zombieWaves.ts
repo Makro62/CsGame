@@ -16,19 +16,26 @@ export function waveHpScale(wave: number): number {
   return 1 + Math.max(0, wave - 1) * WAVE_CONFIG.hpMultiplierPerWave;
 }
 
+export function waveDamageScale(wave: number): number {
+  return 1 + Math.max(0, wave - 1) * WAVE_CONFIG.damageMultiplierPerWave;
+}
+
 export function waveSpeedScale(wave: number): number {
   return 1 + Math.max(0, wave - 1) * WAVE_CONFIG.speedBonusPerWave;
 }
 
+/** Dedicated boss + small horde every 5 waves. */
+export function isBossWave(wave: number): boolean {
+  return wave > 0 && wave % 5 === 0;
+}
+
 export function pickZombieType(wave: number, rng: () => number = Math.random): ZombieType {
   const unlock = WAVE_CONFIG.specialUnlock;
-  const chances = WAVE_CONFIG.specialChances;
   const candidates: ZombieType[] = ["walker"];
   if (wave >= unlock.runner) candidates.push("runner");
   if (wave >= unlock.tank) candidates.push("tank");
   if (wave >= unlock.spitter) candidates.push("spitter");
   if (wave >= unlock.exploder) candidates.push("exploder");
-  if (wave >= unlock.boss && rng() < chances.boss) return "boss";
 
   let total = 0;
   for (const t of candidates) total += ZOMBIE_PICK_WEIGHTS[t];

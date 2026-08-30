@@ -9,7 +9,7 @@ import {
 } from '@react-three/rapier'
 import * as THREE from 'three'
 import { KinematicCharacterController } from '@dimforge/rapier3d-compat'
-import { PHYSICS, SPAWN, MAP_OBSTACLES, MAP_BOUNDARY, DUST_MAP_BOUNDARY } from '@cs-game/shared'
+import { PHYSICS, SPAWN, MAP_OBSTACLES, MAP_BOUNDARY, DUST_MAP_BOUNDARY, isMeleeWeapon, isGrenadeWeapon } from '@cs-game/shared'
 import { spawnCameraYaw } from '../offline/offlineCombat'
 import { TRAINING_ARENA } from '../training/TrainingArena'
 import { SURVIVAL_BOUNDS } from '../zombie/survivalLayout'
@@ -223,7 +223,13 @@ export function PlayerController() {
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 2) {
         const state = useWeaponStore.getState()
-        if (state.activeWeapon && !state.isReloading && !state.isSwitching) {
+        if (
+          state.activeWeapon &&
+          !state.isReloading &&
+          !state.isSwitching &&
+          !isMeleeWeapon(state.activeWeapon) &&
+          !isGrenadeWeapon(state.activeWeapon)
+        ) {
           state.setADS(true)
           if (!grounded.current) {
             adsPressedInAir.current = true
@@ -433,7 +439,7 @@ export function PlayerController() {
     }
 
     // 5v5 is CS-like: walk / sprint / crouch / jump only. Parkour stays in training.
-    const csTactical = mode === 'offline5v5'
+    const csTactical = mode === 'offline5v5' || mode === 'l4d'
 
     // Calculate desired velocity XZ with smoother acceleration / deceleration
     const desiredMove = new THREE.Vector2()

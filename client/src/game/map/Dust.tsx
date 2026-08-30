@@ -201,5 +201,3 @@ export function Dust() {
     </group>
   );
 }
-
-export default Dust;

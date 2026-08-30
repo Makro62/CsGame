@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {
-  ZOMBIE_TYPES, ZOMBIE_POINTS, WEAPONS,
+  ZOMBIE_TYPES, ZOMBIE_POINTS, WEAPONS, WAVE_CONFIG,
   type ZombieType, type PowerUpType,
 } from "@cs-game/shared";
 import { useZombieStore, type ZombieState, type LootKind } from "../../stores/useZombieStore";
@@ -11,7 +11,7 @@ import {
 } from "./survivalLayout";
 import { zombieBodyRadius, zombieHeadRadius, zombieVisualScale } from "./zombieVisual";
 import { chaseStep, hordeSeparationFromIds, SURVIVAL_HORDE_SEP } from "./hordeMovement";
-import { pickZombieType, waveCount, waveHpScale, waveInterval, waveSpeedScale } from "./zombieWaves";
+import { pickZombieType, waveCount, waveHpScale, waveDamageScale, waveInterval, waveSpeedScale, isBossWave } from "./zombieWaves";
 
 // ── Event Bus (replaces window.dispatchEvent) ─────────────────────────────
 export type ZombieEvent =
@@ -52,7 +52,7 @@ const ZOMBIE_CFG: Record<ZombieType, ZConfig> = {
   boss:     { hp: ZOMBIE_TYPES.boss.hp,     speed: ZOMBIE_TYPES.boss.speed,     damage: ZOMBIE_TYPES.boss.damage,     points: ZOMBIE_POINTS.boss },
 };
 
-const MAX_ALIVE = 55;
+const MAX_ALIVE = 70;
 const POWERUP_DROP_CHANCE = 0.15;
 const HEADSHOT_MULT = 2;
 const MELEE_CONE = 0.55;
@@ -73,6 +73,30 @@ export function refillAllAmmo() {
   if (ws.secondaryWeapon && WEAPONS[ws.secondaryWeapon]) {
     next.secondaryAmmo = WEAPONS[ws.secondaryWeapon].mag;
     next.secondaryReserve = WEAPONS[ws.secondaryWeapon].reserveAmmo;
+  }
+  useWeaponStore.setState(next);
+}
+
+export function refillHalfReserve() {
+  const ws = useWeaponStore.getState();
+  const next: Partial<{ reserveAmmo: number; primaryReserve: number; secondaryReserve: number }> = {};
+  if (ws.primaryWeapon && WEAPONS[ws.primaryWeapon]) {
+    const cap = WEAPONS[ws.primaryWeapon].reserveAmmo;
+    next.primaryReserve = Math.min(cap, ws.primaryReserve + Math.ceil(cap * 0.5));
+  }
+  if (ws.secondaryWeapon && WEAPONS[ws.secondaryWeapon]) {
+    const cap = WEAPONS[ws.secondaryWeapon].reserveAmmo;
+    next.secondaryReserve = Math.min(cap, ws.secondaryReserve + Math.ceil(cap * 0.5));
+  }
+  if (ws.activeWeapon && WEAPONS[ws.activeWeapon]) {
+    const cap = WEAPONS[ws.activeWeapon].reserveAmmo;
+    if (ws.primaryWeapon === ws.activeWeapon && next.primaryReserve !== undefined) {
+      next.reserveAmmo = next.primaryReserve;
+    } else if (ws.secondaryWeapon === ws.activeWeapon && next.secondaryReserve !== undefined) {
+      next.reserveAmmo = next.secondaryReserve;
+    } else {
+      next.reserveAmmo = Math.min(cap, ws.reserveAmmo + Math.ceil(cap * 0.5));
+    }
   }
   useWeaponStore.setState(next);
 }
@@ -98,6 +122,7 @@ export class ZombieEngine {
   private playerX = 0;
   private playerZ = 0;
   private hpScale = 1;
+  private dmgScale = 1;
   private spdScale = 1;
 
   /** Frame-based acid DOTs — replaces leaking setInterval */
@@ -117,6 +142,7 @@ export class ZombieEngine {
     this.cleanup();
     this.engineId = Date.now() + Math.random();
     this.hpScale = 1;
+    this.dmgScale = 1;
     this.spdScale = 1;
     this._aliveCount = 0;
     this.acidDots = [];
@@ -135,18 +161,29 @@ export class ZombieEngine {
 
   startWave(wave: number) {
     const store = useZombieStore.getState();
-    const count = waveCount(wave);
+    const bossWave = isBossWave(wave);
+    const base = waveCount(wave);
+    const count = bossWave ? Math.max(8, Math.floor(base * 0.55)) : base;
     const interval = waveInterval(wave);
     this.hpScale = waveHpScale(wave);
+    this.dmgScale = waveDamageScale(wave);
     this.spdScale = waveSpeedScale(wave);
 
     store.setWaveState("wave_active");
     store.setZombiesRemaining(count);
     useZombieStore.setState({ totalZombiesInWave: count });
+    store.setPlayer(p => ({ ...p, soloRevivesLeft: 1, reviveProgress: 0 }));
 
     this.spawnQueue = [];
-    for (let i = 0; i < count; i++) {
-      this.spawnQueue.push({ type: pickZombieType(wave), delay: i * interval });
+    if (bossWave) {
+      this.spawnQueue.push({ type: "boss", delay: 0 });
+      for (let i = 1; i < count; i++) {
+        this.spawnQueue.push({ type: pickZombieType(wave), delay: i * interval });
+      }
+    } else {
+      for (let i = 0; i < count; i++) {
+        this.spawnQueue.push({ type: pickZombieType(wave), delay: i * interval });
+      }
     }
     this.spawnTimer = 0;
   }
@@ -230,15 +267,17 @@ export class ZombieEngine {
     const pushed = pushOutSurvival(z.x, z.z, ZOMBIE_RADIUS);
     z.x = pushed.x;
     z.z = pushed.z;
-    z.x = THREE.MathUtils.clamp(z.x, SURVIVAL_BOUNDS.minX + 1, SURVIVAL_BOUNDS.maxX - 1);
-    z.z = THREE.MathUtils.clamp(z.z, SURVIVAL_BOUNDS.minZ + 1, SURVIVAL_BOUNDS.maxZ - 1);
+    z.x = THREE.MathUtils.clamp(z.x, SURVIVAL_BOUNDS.minX, SURVIVAL_BOUNDS.maxX);
+    z.z = THREE.MathUtils.clamp(z.z, SURVIVAL_BOUNDS.minZ, SURVIVAL_BOUNDS.maxZ);
     z.rotationY = next.rotationY;
 
+    const hasLos = survivalLineOfSight(z.x, z.z, this.playerX, this.playerZ);
+
     // Melee attack on player
-    if (dist < 1.5 && z.attackCooldown <= 0) {
+    if (dist < 1.5 && z.attackCooldown <= 0 && hasLos) {
       z.isAttacking = true;
       z.attackCooldown = 1.0;
-      this.damagePlayer(cfg.damage * this.hpScale);
+      this.damagePlayer(cfg.damage * this.dmgScale);
     } else if (dist >= 1.5) {
       z.isAttacking = false;
     }
@@ -246,14 +285,14 @@ export class ZombieEngine {
     z.animTime += dt;
 
     // Spitter ranged acid (3-10m, cd 2s → DOT 5 dps × 3s)
-    if (z.type === "spitter" && dist < 10 && dist > 3 && z.attackCooldown <= 0) {
+    if (z.type === "spitter" && dist < 10 && dist > 3 && z.attackCooldown <= 0 && hasLos) {
       z.attackCooldown = 2.0;
       this.applyAcidDot(3000, 5);
     }
 
     // Exploder suicide at close range (50 dmg AoE)
-    if (z.type === "exploder" && dist < 2.5) {
-      this.damagePlayer(50 * this.hpScale);
+    if (z.type === "exploder" && dist < 2.5 && hasLos) {
+      this.damagePlayer(50 * this.dmgScale);
       this.killZombie(z);
     }
   }
@@ -338,8 +377,9 @@ export class ZombieEngine {
     const store = useZombieStore.getState();
     const wave = store.currentWave;
     store.setWaveState("buy_phase");
-    store.setInterWaveTimer(12);
-    store.addPoints(wave * 80);
+    store.setInterWaveTimer(WAVE_CONFIG.buyPhaseDuration);
+    store.addPoints(500 + wave * 80);
+    refillHalfReserve();
   }
 
   private updatePowerUps() {
@@ -356,34 +396,38 @@ export class ZombieEngine {
   }
 
   // ── Shooting ────────────────────────────────────────────────────────────
-  handleShoot(origin: THREE.Vector3, dir: THREE.Vector3, weaponDmg: number): ArcadeShotHit | null {
+  handleShoot(origin: THREE.Vector3, dir: THREE.Vector3, weaponDmg: number, pierce = false): ArcadeShotHit | null {
     const hits = this.raycastZombies(origin, dir, 80);
     if (hits.length === 0) return null;
-    const hit = hits[0];
-    const z = this.zombies.get(hit.id);
-    if (!z || z.isDead) return null;
-    const cfg = ZOMBIE_CFG[z.type];
-    let dmg = weaponDmg * (hit.headshot ? HEADSHOT_MULT : 1);
-    const store = useZombieStore.getState();
-    if (store.player.activePowerUps.has("insta_kill")) dmg = z.hp;
-    z.hp -= dmg;
-    if (z.hp <= 0) {
-      this.killZombie(z);
-      const pts = hit.headshot ? cfg.points + ZOMBIE_POINTS.headshotBonus : cfg.points;
-      store.addPoints(pts);
-      if (Math.random() < POWERUP_DROP_CHANCE) this.spawnPowerUp(z.x, z.z);
-      this.maybeSpawnLoot(z.x, z.z);
+    const maxHits = pierce ? 2 : 1;
+    let first: ArcadeShotHit | null = null;
+    for (const hit of hits.slice(0, maxHits)) {
+      const z = this.zombies.get(hit.id);
+      if (!z || z.isDead) continue;
+      const cfg = ZOMBIE_CFG[z.type];
+      let dmg = weaponDmg * (hit.headshot ? HEADSHOT_MULT : 1);
+      const store = useZombieStore.getState();
+      if (store.player.activePowerUps.has("insta_kill")) dmg = z.hp;
+      z.hp -= dmg;
+      if (z.hp <= 0) {
+        this.killZombie(z);
+        const pts = hit.headshot ? cfg.points + ZOMBIE_POINTS.headshotBonus : cfg.points;
+        store.addPoints(pts);
+        if (Math.random() < POWERUP_DROP_CHANCE) this.spawnPowerUp(z.x, z.z);
+        this.maybeSpawnLoot(z.x, z.z);
+      }
+      zombieEvents.emit({
+        type: "zombieHit",
+        id: hit.id,
+        x: hit.x,
+        y: hit.y,
+        z: hit.z,
+        headshot: hit.headshot,
+        damage: dmg,
+      });
+      if (!first) first = hit;
     }
-    zombieEvents.emit({
-      type: "zombieHit",
-      id: hit.id,
-      x: hit.x,
-      y: hit.y,
-      z: hit.z,
-      headshot: hit.headshot,
-      damage: dmg,
-    });
-    return hit;
+    return first;
   }
 
   wallDistance(origin: THREE.Vector3, dir: THREE.Vector3, maxDist = 70): number {

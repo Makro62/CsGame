@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WAVE_CONFIG } from "@cs-game/shared";
-import { pickZombieType, waveCount, waveHpScale, waveInterval, waveSpeedScale } from "./zombieWaves";
+import { isBossWave, pickZombieType, waveCount, waveDamageScale, waveHpScale, waveInterval, waveSpeedScale } from "./zombieWaves";
 
 describe("waveCount", () => {
   it("starts at base count", () => {
@@ -25,10 +25,22 @@ describe("wave scales", () => {
   it("wave 1 is baseline", () => {
     expect(waveHpScale(1)).toBe(1);
     expect(waveSpeedScale(1)).toBe(1);
+    expect(waveDamageScale(1)).toBe(1);
   });
-  it("later waves raise hp and speed", () => {
+  it("later waves raise hp, damage, and speed", () => {
     expect(waveHpScale(2)).toBeCloseTo(1 + WAVE_CONFIG.hpMultiplierPerWave);
+    expect(waveDamageScale(2)).toBeCloseTo(1 + WAVE_CONFIG.damageMultiplierPerWave);
     expect(waveSpeedScale(2)).toBeCloseTo(1 + WAVE_CONFIG.speedBonusPerWave);
+  });
+});
+
+describe("isBossWave", () => {
+  it("is every 5th wave", () => {
+    expect(isBossWave(5)).toBe(true);
+    expect(isBossWave(10)).toBe(true);
+    expect(isBossWave(15)).toBe(true);
+    expect(isBossWave(4)).toBe(false);
+    expect(isBossWave(1)).toBe(false);
   });
 });
 
@@ -44,7 +56,9 @@ describe("pickZombieType", () => {
     expect(types.has("walker")).toBe(true);
     expect(types.has("runner")).toBe(true);
   });
-  it("can spawn boss from wave 10 when rng hits chance", () => {
-    expect(pickZombieType(10, () => 0)).toBe("boss");
+  it("does not randomly spawn boss — boss waves inject one separately", () => {
+    for (let i = 0; i < 30; i++) {
+      expect(pickZombieType(10, () => i / 30)).not.toBe("boss");
+    }
   });
 });

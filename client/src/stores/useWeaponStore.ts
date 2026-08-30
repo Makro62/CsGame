@@ -10,6 +10,7 @@ import { Sound } from "../components/AudioManager";
 import { useNetworkStore } from "./useNetworkStore";
 import { useOffline5v5Store } from "../screens/Offline5v5Store";
 import { useGameStore } from "./useGameStore";
+import { applySwitchAmmo, slotOfWeapon, type AmmoSlot } from "./weaponAmmo";
 
 export type WeaponKey = keyof typeof WEAPONS;
 
@@ -156,10 +157,22 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     const melee = isMeleeWeapon(weapon);
     const isGrenade = weapon === "he" || weapon === "smoke" || weapon === "flash";
     const ammoCount = melee ? 0 : isGrenade ? 1 : (options?.ammo ?? stats.mag);
+    const reserveCount = melee || isGrenade ? 0 : (options?.reserveAmmo ?? stats.reserveAmmo);
 
     // Already holding it: reconcile the magazine without replaying the draw.
     if (get().activeWeapon === weapon) {
-      if (options?.ammo !== undefined) set({ currentAmmo: ammoCount });
+      const patch: Partial<WeaponState> = {};
+      if (options?.ammo !== undefined) patch.currentAmmo = ammoCount;
+      if (options?.reserveAmmo !== undefined) patch.reserveAmmo = reserveCount;
+      if (isPrimaryWeapon(weapon)) {
+        if (options?.ammo !== undefined) patch.primaryAmmo = ammoCount;
+        if (options?.reserveAmmo !== undefined) patch.primaryReserve = reserveCount;
+      }
+      if (isSecondaryWeapon(weapon)) {
+        if (options?.ammo !== undefined) patch.secondaryAmmo = ammoCount;
+        if (options?.reserveAmmo !== undefined) patch.secondaryReserve = reserveCount;
+      }
+      if (Object.keys(patch).length) set(patch);
       return;
     }
 
@@ -176,9 +189,11 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       knifeSlot: melee ? weapon : state.knifeSlot,
       currentAmmo: ammoCount,
       maxAmmo: melee ? 0 : stats.mag,
-      reserveAmmo: melee || isGrenade ? 0 : (options?.reserveAmmo ?? stats.reserveAmmo),
+      reserveAmmo: reserveCount,
       primaryAmmo: isPrimaryWeapon(weapon) ? ammoCount : state.primaryAmmo,
       secondaryAmmo: isSecondaryWeapon(weapon) ? ammoCount : state.secondaryAmmo,
+      primaryReserve: isPrimaryWeapon(weapon) ? reserveCount : state.primaryReserve,
+      secondaryReserve: isSecondaryWeapon(weapon) ? reserveCount : state.secondaryReserve,
       primaryMaxAmmo: isPrimaryWeapon(weapon) ? stats.mag : state.primaryMaxAmmo,
       secondaryMaxAmmo: isSecondaryWeapon(weapon) ? stats.mag : state.secondaryMaxAmmo,
       isReloading: false,
@@ -223,16 +238,23 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
 
     const stats = WEAPONS[target];
 
-    // Save current active weapon's ammo
-    let currentPrimaryAmmo = state.primaryAmmo;
-    let currentSecondaryAmmo = state.secondaryAmmo;
-    if (activeWeapon && isPrimaryWeapon(activeWeapon)) {
-      currentPrimaryAmmo = currentAmmo;
-    } else if (activeWeapon && isSecondaryWeapon(activeWeapon)) {
-      currentSecondaryAmmo = currentAmmo;
-    }
+    const from: AmmoSlot | null = activeWeapon
+      ? slotOfWeapon(isPrimaryWeapon(activeWeapon), isSecondaryWeapon(activeWeapon))
+      : null;
+    const to: AmmoSlot = slot === 1 ? "primary" : slot === 2 ? "secondary" : "melee";
+    const ammoSlots = applySwitchAmmo(
+      {
+        currentAmmo,
+        reserveAmmo: state.reserveAmmo,
+        primaryAmmo: state.primaryAmmo,
+        primaryReserve: state.primaryReserve,
+        secondaryAmmo: state.secondaryAmmo,
+        secondaryReserve: state.secondaryReserve,
+      },
+      from,
+      to,
+    );
 
-    const ammo = slot === 1 ? currentPrimaryAmmo : slot === 2 ? currentSecondaryAmmo : 0;
     const { upgradedWeapons, dualWieldWeapons } = state;
     const isUpgraded = upgradedWeapons.includes(target);
     const isDual = dualWieldWeapons.includes(target);
@@ -241,9 +263,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       activeWeapon: target,
       hasPackAPunch: isUpgraded,
       dualWield: isDual,
-      primaryAmmo: currentPrimaryAmmo,
-      secondaryAmmo: currentSecondaryAmmo,
-      currentAmmo: ammo,
+      ...ammoSlots,
       maxAmmo: slot === 3 ? 0 : (stats.mag as number),
       isReloading: false,
       reloadStartTime: null,
@@ -283,9 +303,11 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
     const secondaryKey = toKey(secondary);
     const knifeKey = toKey(knife) ?? "knife";
 
+    const primaryChanged = state.primaryWeapon !== primaryKey;
+    const secondaryChanged = state.secondaryWeapon !== secondaryKey;
     if (
-      state.primaryWeapon === primaryKey &&
-      state.secondaryWeapon === secondaryKey &&
+      !primaryChanged &&
+      !secondaryChanged &&
       state.knifeSlot === knifeKey
     ) {
       return;
@@ -295,12 +317,27 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       primaryWeapon: primaryKey,
       secondaryWeapon: secondaryKey,
       knifeSlot: knifeKey,
+      ...(primaryChanged && primaryKey
+        ? {
+            primaryAmmo: WEAPONS[primaryKey].mag,
+            primaryMaxAmmo: WEAPONS[primaryKey].mag,
+            primaryReserve: WEAPONS[primaryKey].reserveAmmo,
+          }
+        : {}),
+      ...(secondaryChanged && secondaryKey
+        ? {
+            secondaryAmmo: WEAPONS[secondaryKey].mag,
+            secondaryMaxAmmo: WEAPONS[secondaryKey].mag,
+            secondaryReserve: WEAPONS[secondaryKey].reserveAmmo,
+          }
+        : {}),
     });
   },
 
   startReload: () => {
-    const { activeWeapon, isReloading, isSwitching, currentAmmo, maxAmmo } = get();
+    const { activeWeapon, isReloading, isSwitching, currentAmmo, maxAmmo, reserveAmmo, infiniteAmmo } = get();
     if (!activeWeapon || isReloading || isSwitching || currentAmmo === maxAmmo) return;
+    if (!infiniteAmmo && reserveAmmo <= 0) return;
     const stats = WEAPONS[activeWeapon];
     if (!stats || !stats.reload || stats.reload <= 0) return;
     set({ isReloading: true, reloadStartTime: Date.now(), isADS: false });
@@ -323,11 +360,14 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
       const needed = stats.mag - state.currentAmmo;
       const load = Math.min(needed, Math.max(0, state.reserveAmmo));
       const newAmmo = state.currentAmmo + load;
+      const newReserve = state.infiniteAmmo ? state.reserveAmmo : Math.max(0, state.reserveAmmo - load);
       return {
         currentAmmo: newAmmo,
         primaryAmmo: isPrimaryWeapon(activeWeapon) ? newAmmo : state.primaryAmmo,
         secondaryAmmo: isSecondaryWeapon(activeWeapon) ? newAmmo : state.secondaryAmmo,
-        reserveAmmo: state.infiniteAmmo ? state.reserveAmmo : Math.max(0, state.reserveAmmo - load),
+        reserveAmmo: newReserve,
+        primaryReserve: isPrimaryWeapon(activeWeapon) ? newReserve : state.primaryReserve,
+        secondaryReserve: isSecondaryWeapon(activeWeapon) ? newReserve : state.secondaryReserve,
         isReloading: false,
         reloadStartTime: null,
       };

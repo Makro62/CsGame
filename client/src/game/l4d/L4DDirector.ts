@@ -20,6 +20,7 @@ export class L4DDirector {
   private hordeTimer = 0;
   /** Crescendo timer — replaces leaked setTimeout */
   private crescendoTimer = 0;
+  private ambientTimer = 0;
 
   init() {
     this.phase = "buildUp";
@@ -32,6 +33,7 @@ export class L4DDirector {
     this.hordeQueue = [];
     this.hordeTimer = 0;
     this.crescendoTimer = 0;
+    this.ambientTimer = 0;
   }
 
   cleanup() {
@@ -101,8 +103,15 @@ export class L4DDirector {
         this.phase = "relief"; this.phaseTimer = 0;
       } else {
         useL4DStore.getState().setHorde(true, t);
-        if (Math.random() < 0.08) this.spawnPanicCommon();
+        if (Math.random() < 0.02) this.spawnPanicCommon();
       }
+    }
+
+    this.ambientTimer += dt;
+    if (!st.hordeActive && this.phase !== "relief" && this.intensity > 30 && this.ambientTimer >= 4) {
+      this.ambientTimer = 0;
+      const roaming = st.infected.filter(i => !i.isDead && i.type === "common").length;
+      if (roaming < 3) this.spawnPanicCommon();
     }
 
     // Special infected

@@ -48,15 +48,15 @@ export const WEAPON_ROTATIONS: Record<string, [number, number, number]> = {
  * Height of each weapon's sight line above its model origin.
  */
 const SIGHT_HEIGHT: Record<string, number> = {
-  ak47: 0.082,
-  m4a1: 0.080,
+  ak47: 0.054,
+  m4a1: 0.050,
   awp: 0.075,
-  mp5: 0.070,
+  mp5: 0.055,
   arccaster: 0.072,
-  deagle: 0.086,
-  glock: 0.080,
-  tec9: 0.078,
-  autopistol: 0.080,
+  deagle: 0.058,
+  glock: 0.031,
+  tec9: 0.031,
+  autopistol: 0.031,
 }
 
 const ADS_DEPTH: Record<string, number> = {

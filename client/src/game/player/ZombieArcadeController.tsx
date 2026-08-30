@@ -51,10 +51,12 @@ export function ZombieArcadeController() {
     yawRef.current += deltaYaw * (1 - Math.exp(-16 * dt));
 
     _tMove.set(0, 0, 0);
-    if (input.forward) _tMove.z -= 1;
-    if (input.backward) _tMove.z += 1;
-    if (input.left) _tMove.x -= 1;
-    if (input.right) _tMove.x += 1;
+    const sin = Math.sin(yawRef.current);
+    const cos = Math.cos(yawRef.current);
+    if (input.forward) { _tMove.x += sin; _tMove.z += cos; }
+    if (input.backward) { _tMove.x -= sin; _tMove.z -= cos; }
+    if (input.left) { _tMove.x -= cos; _tMove.z += sin; }
+    if (input.right) { _tMove.x += cos; _tMove.z -= sin; }
     const lenSq = _tMove.lengthSq();
     if (lenSq > 0) {
       const invLen = 1 / Math.sqrt(lenSq);
@@ -83,8 +85,6 @@ export function ZombieArcadeController() {
     camera.position.z = THREE.MathUtils.lerp(camera.position.z, posRef.current.z + 11, camLag);
     camera.lookAt(posRef.current.x, 0.45, posRef.current.z);
 
-    const sin = Math.sin(yawRef.current);
-    const cos = Math.cos(yawRef.current);
     _tOrigin.set(posRef.current.x + sin * 0.55, 0.9, posRef.current.z + cos * 0.55);
     _tDir.set(sin, 0, cos);
     useAimStore.getState().setAim(_tOrigin, _tDir, yawRef.current, posRef.current);
