@@ -10,9 +10,11 @@ describe("useSettingsStore", () => {
   });
 
   describe("setSlideControl", () => {
-    it("updates slideControl", () => {
+    it("clamps slideControl to 0-10", () => {
       useSettingsStore.getState().setSlideControl(15);
-      expect(useSettingsStore.getState().slideControl).toBe(15);
+      expect(useSettingsStore.getState().slideControl).toBe(10);
+      useSettingsStore.getState().setSlideControl(-4);
+      expect(useSettingsStore.getState().slideControl).toBe(0);
     });
   });
 
@@ -65,6 +67,28 @@ describe("useSettingsStore", () => {
     it("accepts 'dynamic' style", () => {
       useSettingsStore.getState().setCrosshairStyle("dynamic");
       expect(useSettingsStore.getState().crosshairStyle).toBe("dynamic");
+    });
+
+    it("rejects unknown crosshair style", () => {
+      useSettingsStore.getState().setCrosshairStyle("dynamic");
+      useSettingsStore.getState().setCrosshairStyle("laser" as "dot");
+      expect(useSettingsStore.getState().crosshairStyle).toBe("dynamic");
+    });
+  });
+
+  describe("clamps", () => {
+    it("clamps sensitivity", () => {
+      useSettingsStore.getState().setSensitivity(99);
+      expect(useSettingsStore.getState().sensitivity).toBe(5);
+      useSettingsStore.getState().setSensitivity(NaN);
+      expect(useSettingsStore.getState().sensitivity).toBe(0.1);
+    });
+
+    it("clamps volumes", () => {
+      useSettingsStore.getState().setMasterVolume(140);
+      expect(useSettingsStore.getState().masterVolume).toBe(100);
+      useSettingsStore.getState().setSfxVolume(-10);
+      expect(useSettingsStore.getState().sfxVolume).toBe(0);
     });
   });
 });

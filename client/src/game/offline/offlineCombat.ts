@@ -24,7 +24,9 @@ function resolveObstacles(obstacles: readonly MapObstacle[] | undefined): readon
   try {
     const mapId = getCurrentMapId();
     if (mapId === "dust" || mapId === "ravenpoint") return getObstaclesForMap(mapId) as unknown as readonly MapObstacle[];
-  } catch {}
+  } catch {
+    /* store may be uninitialized outside React */
+  }
   return MAP_OBSTACLES;
 }
 
@@ -32,7 +34,9 @@ function resolveBoundary(): typeof MAP_BOUNDARY {
   try {
     const mapId = getCurrentMapId();
     if (mapId === "dust" || mapId === "ravenpoint") return getBoundaryForMap(mapId) as typeof MAP_BOUNDARY;
-  } catch {}
+  } catch {
+    /* store may be uninitialized outside React */
+  }
   return MAP_BOUNDARY;
 }
 
@@ -40,7 +44,9 @@ function resolveBombSites(): typeof BOMB_SITES {
   try {
     const mapId = getCurrentMapId();
     if (mapId === "dust" || mapId === "ravenpoint") return getBombSitesForMap(mapId) as typeof BOMB_SITES;
-  } catch {}
+  } catch {
+    /* store may be uninitialized outside React */
+  }
   return BOMB_SITES;
 }
 

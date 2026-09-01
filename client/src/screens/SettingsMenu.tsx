@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'wouter'
 import { useSettingsStore } from '../stores/useSettingsStore'
 import { useGameStore } from '../stores/useGameStore'
-import { useNetworkStore } from '../stores/useNetworkStore'
+import { useUiOverlayStore } from '../stores/useUiOverlayStore'
+import { HUD_Z, modalBackdrop, overlayButton } from '../ui/hudTheme'
 
 export default function SettingsMenu() {
   const [open, setOpen] = useState(false)
-  const [, setLocation] = useLocation()
   const {
     sensitivity,
     slideControl,
@@ -20,50 +19,43 @@ export default function SettingsMenu() {
   } = useSettingsStore()
 
   useEffect(() => {
+    useUiOverlayStore.getState().setSettingsOpen(open)
+  }, [open])
+
+  useEffect(() => () => {
+    useUiOverlayStore.getState().setSettingsOpen(false)
+  }, [])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Don't intercept 'p' if user is typing in an input
-      if (
-        (e.key === 'p' || e.key === 'P' || e.key === 'Escape') &&
-        !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)
-      ) {
-        if (e.key === 'Escape' && !open) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'Escape' && open) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setOpen(false)
+        return
+      }
+      if (e.key === 'p' || e.key === 'P') {
         setOpen(v => {
           const next = !v
-          if (next && document.pointerLockElement) {
-            document.exitPointerLock()
-          }
+          if (next && document.pointerLockElement) document.exitPointerLock()
           return next
         })
       }
     }
     const onOpen = () => {
-      if (document.pointerLockElement) {
-        document.exitPointerLock()
-      }
+      if (document.pointerLockElement) document.exitPointerLock()
       setOpen(true)
     }
-    window.addEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
     window.addEventListener('openSettings', onOpen)
     return () => {
-      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', onKey, true)
       window.removeEventListener('openSettings', onOpen)
     }
   }, [open])
 
-  const handleResume = () => {
-    setOpen(false)
-    const canvas = document.querySelector('canvas')
-    if (canvas) {
-      canvas.requestPointerLock()
-    }
-  }
-
-  const handleLeaveToMenu = () => {
-    setOpen(false)
-    useGameStore.getState().setMode('menu')
-    useNetworkStore.getState().disconnect()
-    setLocation('/')
-  }
+  const handleClose = () => setOpen(false)
 
   const handleSensitivityChange = (value: number) => {
     useSettingsStore.getState().setSensitivity(value)
@@ -85,41 +77,12 @@ export default function SettingsMenu() {
     useSettingsStore.getState().setMusicVolume(value)
   }
 
-  const handleRestartMatch = () => {
-    setOpen(false)
-    const mode = useGameStore.getState().mode
-    if (mode === 'training') {
-      window.location.href = '/training'
-    } else if (mode === 'offline5v5') {
-      window.location.href = '/offline5v5'
-    } else if (mode === 'zombie') {
-      window.location.href = '/zombie'
-    } else if (mode === 'l4d') {
-      window.location.href = '/l4d'
-    }
-  }
-
-  const isIngame = useGameStore.getState().mode !== 'menu'
-
   if (!open) return null
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(4, 8, 16, 0.78)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 700,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: "'Rajdhani', 'Chakra Petch', 'Inter', system-ui, sans-serif",
-        padding: '16px',
-        boxSizing: 'border-box',
-        userSelect: 'none',
-      }}
-      onClick={handleResume}
+      style={modalBackdrop(HUD_Z.settings)}
+      onClick={handleClose}
     >
       <div
         onClick={e => e.stopPropagation()}
@@ -154,7 +117,7 @@ export default function SettingsMenu() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.12em', color: '#ffffff' }}>
-                  PAUSE & PENGATURAN
+                  PENGATURAN
                 </span>
                 <span
                   style={{
@@ -184,28 +147,6 @@ export default function SettingsMenu() {
               </div>
             </div>
           </div>
-          <button
-            onClick={handleResume}
-            title="Tutup Pengaturan (ESC)"
-            style={{
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: 6,
-              color: '#cbd5e1',
-              padding: '6px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 800,
-              letterSpacing: '0.05em',
-              transition: 'all 0.15s',
-            }}
-          >
-            <span>✕</span>
-            <span>TUTUP [ESC]</span>
-          </button>
         </div>
 
         {/* Scrollable Content Body */}
@@ -424,8 +365,12 @@ export default function SettingsMenu() {
                 <span style={keyLabelStyle}>Buy Menu (Shop)</span>
               </div>
               <div style={keybindItemStyle}>
-                <span style={keyBoxStyle}>P / ESC</span>
-                <span style={keyLabelStyle}>Settings / Pause Menu</span>
+                <span style={keyBoxStyle}>ESC</span>
+                <span style={keyLabelStyle}>Pause Menu</span>
+              </div>
+              <div style={keybindItemStyle}>
+                <span style={keyBoxStyle}>P</span>
+                <span style={keyLabelStyle}>Pengaturan</span>
               </div>
               <div style={keybindItemStyle}>
                 <span style={keyBoxStyle}>F</span>
@@ -435,89 +380,17 @@ export default function SettingsMenu() {
           </div>
         </div>
 
-        {/* Footer Actions */}
+        {/* Footer — one close action only */}
         <div
           style={{
             padding: '14px 20px',
             borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
             background: 'rgba(10, 16, 28, 0.95)',
-            gap: 12,
-            flexWrap: 'wrap',
           }}
         >
-          <button
-            onClick={handleLeaveToMenu}
-            style={{
-              padding: '10px 18px',
-              background: 'rgba(239, 68, 68, 0.15)',
-              color: '#f87171',
-              border: '1px solid rgba(239, 68, 68, 0.45)',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontWeight: 800,
-              fontSize: 13,
-              letterSpacing: '0.06em',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              transition: 'all 0.15s',
-            }}
-          >
-            <span>🚪</span>
-            <span>KELUAR KE MENU UTAMA</span>
+          <button type="button" onClick={handleClose} style={overlayButton('primary')}>
+            TUTUP [ESC]
           </button>
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            {isIngame && (
-              <button
-                onClick={handleRestartMatch}
-                style={{
-                  padding: '10px 18px',
-                  background: 'rgba(234, 179, 8, 0.15)',
-                  color: '#facc15',
-                  border: '1px solid rgba(234, 179, 8, 0.45)',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontWeight: 800,
-                  fontSize: 13,
-                  letterSpacing: '0.06em',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s',
-                }}
-              >
-                <span>🔄</span>
-                <span>ULANGI MATCH</span>
-              </button>
-            )}
-
-            <button
-              onClick={handleResume}
-              style={{
-                padding: '10px 24px',
-                background: 'linear-gradient(90deg, #0284c7 0%, #0369a1 100%)',
-                color: '#ffffff',
-                border: '1px solid rgba(56, 189, 248, 0.6)',
-                boxShadow: '0 0 18px rgba(56, 189, 248, 0.4)',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontWeight: 900,
-                fontSize: 13,
-                letterSpacing: '0.08em',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.15s',
-              }}
-            >
-              <span>▶</span>
-              <span>LANJUTKAN PERMAINAN [ESC]</span>
-            </button>
-          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,21 @@
 import { create } from "zustand";
 import { PHYSICS } from "@cs-game/shared";
+import {
+  parseStoredFloat,
+  parseStoredInt,
+  parseCrosshairStyle,
+  clampNumber,
+  type CrosshairStyle,
+} from "../lib/numericGuards";
+
+const SENS_MIN = 0.1;
+const SENS_MAX = 5;
+const SLIDE_MIN = 0;
+const SLIDE_MAX = 10;
+const VOL_MIN = 0;
+const VOL_MAX = 100;
+const CROSSHAIR_SIZE_MIN = 1;
+const CROSSHAIR_SIZE_MAX = 5;
 
 interface SettingsState {
   sensitivity: number;
@@ -9,7 +25,7 @@ interface SettingsState {
   musicVolume: number;
   crosshairColor: string;
   crosshairSize: number;
-  crosshairStyle: 'dot' | 'cross' | 'dynamic';
+  crosshairStyle: CrosshairStyle;
   setSensitivity: (value: number) => void;
   setSlideControl: (value: number) => void;
   setMasterVolume: (value: number) => void;
@@ -17,7 +33,7 @@ interface SettingsState {
   setMusicVolume: (value: number) => void;
   setCrosshairColor: (color: string) => void;
   setCrosshairSize: (size: number) => void;
-  setCrosshairStyle: (style: 'dot' | 'cross' | 'dynamic') => void;
+  setCrosshairStyle: (style: CrosshairStyle) => void;
 }
 
 function getStorage(key: string, fallback: string): string {
@@ -42,38 +58,43 @@ function setStorage(key: string, value: string): void {
 }
 
 export const useSettingsStore = create<SettingsState>()((set) => ({
-  sensitivity: parseFloat(getStorage("sensitivity", "1.2")),
-  slideControl: parseInt(getStorage("slideControl", `${PHYSICS.slideControlDefault}`), 10),
-  masterVolume: parseInt(getStorage("masterVolume", "80"), 10),
-  sfxVolume: parseInt(getStorage("sfxVolume", "80"), 10),
-  musicVolume: parseInt(getStorage("musicVolume", "60"), 10),
+  sensitivity: parseStoredFloat(getStorage("sensitivity", "1.2"), 1.2, SENS_MIN, SENS_MAX),
+  slideControl: parseStoredInt(getStorage("slideControl", `${PHYSICS.slideControlDefault}`), PHYSICS.slideControlDefault, SLIDE_MIN, SLIDE_MAX),
+  masterVolume: parseStoredInt(getStorage("masterVolume", "80"), 80, VOL_MIN, VOL_MAX),
+  sfxVolume: parseStoredInt(getStorage("sfxVolume", "80"), 80, VOL_MIN, VOL_MAX),
+  musicVolume: parseStoredInt(getStorage("musicVolume", "60"), 60, VOL_MIN, VOL_MAX),
   crosshairColor: getStorage("crosshairColor", "#ffffff"),
-  crosshairSize: parseInt(getStorage("crosshairSize", "1"), 10),
-  crosshairStyle: (getStorage("crosshairStyle", "dynamic") as 'dot' | 'cross' | 'dynamic'),
+  crosshairSize: parseStoredInt(getStorage("crosshairSize", "1"), 1, CROSSHAIR_SIZE_MIN, CROSSHAIR_SIZE_MAX),
+  crosshairStyle: parseCrosshairStyle(getStorage("crosshairStyle", "dynamic")),
 
   setSensitivity: (value: number) => {
-    setStorage("sensitivity", value.toString());
-    set({ sensitivity: value });
+    const next = clampNumber(value, SENS_MIN, SENS_MAX);
+    setStorage("sensitivity", next.toString());
+    set({ sensitivity: next });
   },
 
   setSlideControl: (value: number) => {
-    setStorage("slideControl", value.toString());
-    set({ slideControl: value });
+    const next = clampNumber(value, SLIDE_MIN, SLIDE_MAX);
+    setStorage("slideControl", next.toString());
+    set({ slideControl: next });
   },
 
   setMasterVolume: (value: number) => {
-    setStorage("masterVolume", value.toString());
-    set({ masterVolume: value });
+    const next = clampNumber(value, VOL_MIN, VOL_MAX);
+    setStorage("masterVolume", next.toString());
+    set({ masterVolume: next });
   },
 
   setSfxVolume: (value: number) => {
-    setStorage("sfxVolume", value.toString());
-    set({ sfxVolume: value });
+    const next = clampNumber(value, VOL_MIN, VOL_MAX);
+    setStorage("sfxVolume", next.toString());
+    set({ sfxVolume: next });
   },
 
   setMusicVolume: (value: number) => {
-    setStorage("musicVolume", value.toString());
-    set({ musicVolume: value });
+    const next = clampNumber(value, VOL_MIN, VOL_MAX);
+    setStorage("musicVolume", next.toString());
+    set({ musicVolume: next });
   },
 
   setCrosshairColor: (color: string) => {
@@ -82,12 +103,14 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   },
 
   setCrosshairSize: (size: number) => {
-    setStorage("crosshairSize", size.toString());
-    set({ crosshairSize: size });
+    const next = clampNumber(size, CROSSHAIR_SIZE_MIN, CROSSHAIR_SIZE_MAX);
+    setStorage("crosshairSize", next.toString());
+    set({ crosshairSize: next });
   },
 
-  setCrosshairStyle: (style: 'dot' | 'cross' | 'dynamic') => {
-    setStorage("crosshairStyle", style);
-    set({ crosshairStyle: style });
+  setCrosshairStyle: (style: CrosshairStyle) => {
+    const next = parseCrosshairStyle(style);
+    setStorage("crosshairStyle", next);
+    set({ crosshairStyle: next });
   },
 }));

@@ -7,6 +7,9 @@ import {
   SURVIVAL_BOUNDS,
   SURVIVAL_SPAWNS,
   getSurvivalObstacles,
+  findNearestDoor,
+  findRepairableBarricade,
+  findNearestBarricade,
 } from "@src/game/zombie/survivalLayout";
 
 describe("survivalLayout — Operation Blackout", () => {
@@ -86,6 +89,14 @@ describe("survivalLayout — Operation Blackout", () => {
         expect(o.minZ).toBeLessThan(o.maxZ);
       }
     });
+
+    it("catwalk and bunker unlocks keep valid AABB", () => {
+      const obs = getSurvivalObstacles(["door_lab", "door_armory", "door_catwalk", "door_bunker"]);
+      for (const o of obs) {
+        expect(o.minX).toBeLessThanOrEqual(o.maxX);
+        expect(o.minZ).toBeLessThanOrEqual(o.maxZ);
+      }
+    });
   });
 
   describe("SURVIVAL_BOUNDS & SPAWNS", () => {
@@ -101,6 +112,26 @@ describe("survivalLayout — Operation Blackout", () => {
         expect(s.z).toBeGreaterThanOrEqual(SURVIVAL_BOUNDS.minZ);
         expect(s.z).toBeLessThanOrEqual(SURVIVAL_BOUNDS.maxZ);
       }
+    });
+  });
+
+  describe("interact helpers", () => {
+    it("DOOR_LOCATIONS costs stay in sync with SURVIVAL_DOORS", () => {
+      expect(DOOR_LOCATIONS.map((d) => d.cost)).toEqual(SURVIVAL_DOORS.map((d) => d.cost));
+      expect(DOOR_LOCATIONS.map((d) => d.doorId)).toEqual(SURVIVAL_DOORS.map((d) => d.id));
+    });
+
+    it("findNearestDoor uses layout positions", () => {
+      const lab = SURVIVAL_DOORS.find((d) => d.id === "door_lab")!;
+      expect(findNearestDoor(lab.x, lab.z)?.id).toBe("door_lab");
+      expect(findNearestDoor(lab.x, lab.z, ["door_lab"])).toBeNull();
+    });
+
+    it("findRepairableBarricade only returns damaged windows", () => {
+      const full = { win_north: 6, win_south: 6, win_east: 6, win_west: 6 };
+      expect(findRepairableBarricade(0, -22, full)).toBeNull();
+      expect(findRepairableBarricade(0, -22, { ...full, win_north: 4 })).toBe("win_north");
+      expect(findNearestBarricade(0, -21, full)).toBe("win_north");
     });
   });
 });

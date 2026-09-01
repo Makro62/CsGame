@@ -10,11 +10,11 @@
     "jsx": "react-jsx",
     "strict": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
+    "types": ["node"],
     "paths": {
-      "@src/*": ["client/src/*"],
-      "@cs-game/shared": ["shared"],
-      "@cs-game/shared/*": ["shared/*"]
+      "@src/*": ["./client/src/*"],
+      "@cs-game/shared": ["./shared"],
+      "@cs-game/shared/*": ["./shared/*"]
     }
   },
   "include": ["client/src/**/*", "test/**/*", "shared/**/*"],

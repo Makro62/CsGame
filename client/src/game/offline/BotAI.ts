@@ -23,6 +23,7 @@ import {
 } from "./offlineCombat";
 import { navigateTo, resetBotNav, spawnJitter } from "./botNav";
 import { getWeaponStats } from "./EconomySystem";
+import { safeDiv } from "../../lib/numericGuards";
 import type {
   LocalPlayer,
   BombState,
@@ -337,8 +338,8 @@ function engageTarget(
   } else if (cover) {
     dest = peek
       ? {
-          x: cover.x + (dx / dd) * 1.7 + perpX * bot.botStrafeDir * 1.15,
-          z: cover.z + (dz / dd) * 1.7 + perpZ * bot.botStrafeDir * 1.15,
+          x: cover.x + safeDiv(dx, dd) * 1.7 + perpX * bot.botStrafeDir * 1.15,
+          z: cover.z + safeDiv(dz, dd) * 1.7 + perpZ * bot.botStrafeDir * 1.15,
         }
       : cover;
   } else {

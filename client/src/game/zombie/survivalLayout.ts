@@ -62,15 +62,21 @@ export const SURVIVAL_ROOMS: Room[] = [
   { id: "bunker", name: "Bunker Utara", bounds: { minX: -25, maxX: -10, minZ: -10, maxZ: 10 }, unlockCost: 2000, isStartingRoom: false },
 ];
 
-export const DOOR_LOCATIONS = [
-  { doorId: "door_to_armory", position: [10, 2.5, 0] as [number, number, number], rotation: [0, Math.PI / 2, 0] as [number, number, number], cost: 750 },
-  { doorId: "door_to_lab", position: [0, 2.5, -10] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], cost: 1000 },
-  { doorId: "door_to_catwalk", position: [0, 2.5, 10] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], cost: 1500 },
-  { doorId: "door_to_bunker", position: [-10, 2.5, 0] as [number, number, number], rotation: [0, Math.PI / 2, 0] as [number, number, number], cost: 2000 },
-] as const;
+export const DOOR_LOCATIONS = SURVIVAL_DOORS.map((d) => ({
+  doorId: d.id,
+  position: [d.x, d.h / 2, d.z] as [number, number, number],
+  rotation: [0, d.w < 1 ? Math.PI / 2 : 0, 0] as [number, number, number],
+  cost: d.cost,
+}));
 
-function wall(minX: number, maxX: number, minZ: number, maxZ: number): SurvivalObstacle {
-  return { minX, maxX, minZ, maxZ, kind: "wall" };
+function wall(a: number, b: number, c: number, d: number): SurvivalObstacle {
+  return {
+    minX: Math.min(a, b),
+    maxX: Math.max(a, b),
+    minZ: Math.min(c, d),
+    maxZ: Math.max(c, d),
+    kind: "wall",
+  };
 }
 function crate(cx: number, cz: number, half = 0.7): SurvivalObstacle {
   return { minX: cx - half, maxX: cx + half, minZ: cz - half, maxZ: cz + half, kind: "crate" };
@@ -126,32 +132,34 @@ export const SURVIVAL_OBSTACLES: SurvivalObstacle[] = [
 
 /** Room obstacles — only active when door unlocked */
 const LAB_OBSTACLES: SurvivalObstacle[] = [
-  wall(-12, -8, -8, -7.2), wall(-12, -1, -8, 8), wall(12, -8, 16, -7.2), wall(12, -1, 16, 8),
+  wall(-12, -8, -8, -7.2), wall(-12, -8, -1, 8), wall(8, 12, -8, -7.2), wall(12, 16, -1, 8),
   crate(-10, -10, 0.7), crate(10, -14, 0.7), barrel(-8, -12, 0.5),
 ];
 const ARMORY_OBSTACLES: SurvivalObstacle[] = [
-  wall(-22, -6, -16, -5.2), wall(-22, 5.2, -16, 6),
-  crate(-18, -2, 0.7), crate(-14, 3, 0.7),
+  wall(10.5, 11.2, -6, 6),
+  wall(12, 22, -8, -7.2), wall(12, 22, 7.2, 8),
+  crate(18, -2, 0.7), crate(15, 3, 0.7),
+  barrel(20, 0, 0.42),
 ];
 const CATWALK_OBSTACLES: SurvivalObstacle[] = [
-  wall(8, -14, 14, -13.2), wall(8, -1, 14, 0),
-  crate(12, -10, 0.7),
+  wall(-8, 8, 10.5, 11.2), wall(-8, 8, 23.8, 24.5),
+  crate(-5, 17, 0.7), crate(5, 21, 0.7),
 ];
 const BUNKER_OBSTACLES: SurvivalObstacle[] = [
-  ...uBunker(-16, -16), ...uBunker(16, -16),
-  crate(0, -18, 0.7),
+  ...uBunker(-16, 0),
+  crate(-18, 3, 0.7), crate(-14, -3, 0.7), barrel(-12, 0, 0.42),
 ];
 
 export function getSurvivalObstacles(unlockedDoors: string[] = []): SurvivalObstacle[] {
   let obs = [...SURVIVAL_OBSTACLES];
   if (unlockedDoors.includes("door_lab")) obs = obs.concat(LAB_OBSTACLES);
-  else obs.push(wall(-2, 8, 2, 9)); // closed door
+  else obs.push(wall(-2, 2, 8, 9)); // closed door
   if (unlockedDoors.includes("door_armory")) obs = obs.concat(ARMORY_OBSTACLES);
-  else obs.push(wall(-10, -0.5, -9, 0.5));
+  else obs.push(wall(-10.15, -9.85, -0.5, 0.5));
   if (unlockedDoors.includes("door_catwalk")) obs = obs.concat(CATWALK_OBSTACLES);
-  else obs.push(wall(9, -8, 10, -7));
+  else obs.push(wall(9, 10, -8, -7));
   if (unlockedDoors.includes("door_bunker")) obs = obs.concat(BUNKER_OBSTACLES);
-  else obs.push(wall(-2, -12, 2, -11));
+  else obs.push(wall(-2, 2, -12, -11));
   return obs;
 }
 
@@ -207,6 +215,66 @@ export function survivalLineOfSight(ox: number, oz: number, tx: number, tz: numb
     if (t !== null && t < dist - 0.05) return false;
   }
   return true;
+}
+
+function nearestBarricadeId(
+  x: number,
+  z: number,
+  barricades: Record<string, number>,
+  maxDist: number,
+  plankOk: (planks: number) => boolean,
+): string | null {
+  let best: string | null = null;
+  let bestDist = Infinity;
+  for (const w of SURVIVAL_BARRICADES) {
+    const planks = barricades[w.id] ?? 6;
+    if (!plankOk(planks)) continue;
+    const d = Math.hypot(x - w.x, z - w.z);
+    if (d < bestDist) {
+      bestDist = d;
+      best = w.id;
+    }
+  }
+  return bestDist < maxDist ? best : null;
+}
+
+/** Closest window that still has planks (zombies attack these). */
+export function findNearestBarricade(
+  x: number,
+  z: number,
+  barricades: Record<string, number>,
+  maxDist = 4,
+): string | null {
+  return nearestBarricadeId(x, z, barricades, maxDist, (planks) => planks > 0);
+}
+
+/** Closest window the player can repair (missing at least one plank). */
+export function findRepairableBarricade(
+  x: number,
+  z: number,
+  barricades: Record<string, number>,
+  maxDist = 2.5,
+): string | null {
+  return nearestBarricadeId(x, z, barricades, maxDist, (planks) => planks < 6);
+}
+
+export function findNearestDoor(
+  x: number,
+  z: number,
+  unlockedDoors: string[] = [],
+  maxDist = 2.5,
+): SurvivalDoor | null {
+  let best: SurvivalDoor | null = null;
+  let bestDist = Infinity;
+  for (const d of SURVIVAL_DOORS) {
+    if (unlockedDoors.includes(d.id)) continue;
+    const dist = Math.hypot(x - d.x, z - d.z);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = d;
+    }
+  }
+  return bestDist < maxDist ? best : null;
 }
 
 export function survivalWallDistance(ox: number, oz: number, dx: number, dz: number, maxDist = 70, obstacles?: SurvivalObstacle[]): number {

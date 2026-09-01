@@ -4,6 +4,7 @@ import { mkPlayer, assignBombCarrier, resetBotNav } from "../game/offline/BotAI"
 import { getWeaponStats, executeLocalBuy } from "../game/offline/EconomySystem";
 import { executeLocalShoot } from "../game/offline/CombatSystem";
 import { tickRound, endRound as handleEndRound, resetForRound as handleResetRound } from "../game/offline/RoundManager";
+import { computeReloadFill } from "../lib/numericGuards";
 import type {
   OfflineGameState,
   LocalPlayer,
@@ -137,13 +138,12 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     setTimeout(() => {
       const currentMe = get().players.get("local");
       if (!currentMe || currentMe.isDead) return;
-      const needed = ws.mag - currentMe.ammo;
-      const load = Math.min(needed, currentMe.reserveAmmo);
+      const fill = computeReloadFill(ws.mag, currentMe.ammo, currentMe.reserveAmmo);
       const updatedPlayers = new Map(get().players);
       updatedPlayers.set("local", {
         ...currentMe,
-        ammo: currentMe.ammo + load,
-        reserveAmmo: currentMe.reserveAmmo - load,
+        ammo: fill.ammoAfter,
+        reserveAmmo: fill.reserveAfter,
         isReloading: false,
       });
       set({ players: updatedPlayers });

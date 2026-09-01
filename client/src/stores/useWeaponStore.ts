@@ -11,6 +11,7 @@ import { useNetworkStore } from "./useNetworkStore";
 import { useOffline5v5Store } from "../screens/Offline5v5Store";
 import { useGameStore } from "./useGameStore";
 import { applySwitchAmmo, slotOfWeapon, type AmmoSlot } from "./weaponAmmo";
+import { sanitizeFireRateMultiplier } from "../lib/numericGuards";
 
 export type WeaponKey = keyof typeof WEAPONS;
 
@@ -467,7 +468,7 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
   },
 
   setFireRateMultiplier: (multiplier: number) => {
-    set({ fireRateMultiplier: Math.max(1, multiplier) });
+    set({ fireRateMultiplier: sanitizeFireRateMultiplier(multiplier) });
   },
 
   resetAmmoInventory: () => {

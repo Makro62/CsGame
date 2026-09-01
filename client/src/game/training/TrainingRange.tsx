@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation } from "wouter";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
 import { HUDLayout } from "../../ui/components/hud/HUDLayout";
@@ -12,7 +11,7 @@ import { ClickToPlayOverlay } from "../../components/ClickToPlayOverlay";
 import { AudioManager } from "../../components/AudioManager";
 import SniperScope from "../../components/SniperScope";
 import { ADSOpticSight } from "../../components/ADSOpticSight";
-import SettingsMenu from "../../screens/SettingsMenu";
+import { PauseMenu } from "../../ui/components/overlays/PauseMenu";
 import { AimTrainer, AimTrainerUI } from "./AimTrainer";
 import { RecoilPractice, RecoilPracticeUI } from "./RecoilPractice";
 import { TrainingArena } from "./TrainingArena";
@@ -167,12 +166,12 @@ function QuickArsenalSelector() {
 function TrainingTopNav({
   mode,
   onModeChange,
+  onMenu,
 }: {
   mode: "aim" | "recoil";
   onModeChange: (m: "aim" | "recoil") => void;
+  onMenu: () => void;
 }) {
-  const { setMode } = useGameStore();
-  const [, setLocation] = useLocation();
   const fps = useLiveFPS();
   const frameTime = fps > 0 ? (1000 / fps).toFixed(1) : "16.6";
   const fpsColor = fps >= 55 ? "#4ade80" : fps >= 30 ? "#facc15" : "#f87171";
@@ -312,35 +311,13 @@ function TrainingTopNav({
         </div>
 
         <button
-          onClick={() => window.dispatchEvent(new CustomEvent("openSettings"))}
+          onClick={onMenu}
           style={{
-            padding: "8px 12px",
+            padding: "8px 14px",
             background: "rgba(255, 255, 255, 0.06)",
             border: "1px solid rgba(255, 255, 255, 0.12)",
             borderRadius: "8px",
             color: "#cbd5e1",
-            fontSize: "11px",
-            fontWeight: 700,
-            letterSpacing: 0.6,
-            whiteSpace: "nowrap",
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          ⚙️ SETTINGS [P]
-        </button>
-
-        <button
-          onClick={() => {
-            setMode("menu");
-            setLocation("/");
-          }}
-          style={{
-            padding: "8px 14px",
-            background: "rgba(239, 68, 68, 0.18)",
-            border: "1px solid rgba(239, 68, 68, 0.4)",
-            borderRadius: "8px",
-            color: "#f87171",
             fontSize: "11px",
             fontWeight: 800,
             letterSpacing: 0.6,
@@ -349,7 +326,7 @@ function TrainingTopNav({
             transition: "all 0.2s",
           }}
         >
-          ← MENU
+          MENU [ESC]
         </button>
       </div>
     </header>
@@ -394,10 +371,9 @@ export function TrainingRange() {
     useGameStore.getState().setMode("menu");
   }, []);
 
-  const handleRestart = useCallback(() => {
-    setPaused(false);
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.requestPointerLock();
+  const openPause = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    setPaused(true);
   }, []);
 
   useEffect(() => {
@@ -414,7 +390,7 @@ export function TrainingRange() {
   }, [paused, buyMenuOpen, closeBuyMenu, resume]);
 
   return (
-    <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", backgroundColor: "#000" }}>
+    <div style={{ width: "100dvw", height: "100dvh", position: "relative", overflow: "hidden", backgroundColor: "#000" }}>
       <Canvas shadows camera={{ fov: 75 }}>
         <color attach="background" args={["#0e1118"]} />
         <fog attach="fog" args={["#0e1118", 40, 80]} />
@@ -439,49 +415,14 @@ export function TrainingRange() {
       {trainingMode === "aim" && <AimTrainerUI />}
       {trainingMode === "recoil" && <RecoilPracticeUI />}
       <QuickArsenalSelector />
-      <TrainingTopNav mode={trainingMode} onModeChange={setTrainingMode} />
-      <SettingsMenu />
-      {/* Pause Menu */}
+      <TrainingTopNav mode={trainingMode} onModeChange={setTrainingMode} onMenu={openPause} />
       {paused && (
-        <div
-          style={{
-            position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", zIndex: 90,
-          }}
-        >
-          <div style={{
-            background: "linear-gradient(155deg, rgba(13, 20, 36, 0.96), rgba(8, 12, 22, 0.98))",
-            border: "1.5px solid #38bdf8", borderRadius: 16, padding: "32px 48px", textAlign: "center",
-            boxShadow: "0 0 35px rgba(56,189,248,0.3), 0 20px 50px rgba(0,0,0,0.8)", minWidth: 300,
-          }}>
-            <div style={{ color: "#38bdf8", fontSize: 11, fontWeight: 900, letterSpacing: 2.5, marginBottom: 8, fontFamily: "monospace" }}>
-              PAUSED
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: "#f8fafc", marginBottom: 24, fontFamily: "monospace", letterSpacing: "0.08em" }}>
-              TRAINING RANGE
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button
-                onClick={resume}
-                style={{ padding: "12px 28px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                RESUME
-              </button>
-              <button
-                onClick={handleRestart}
-                style={{ padding: "12px 28px", background: "rgba(234,179,8,0.2)", color: "#facc15", border: "1px solid #eab308", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                RESTART
-              </button>
-              <button
-                onClick={backToMenu}
-                style={{ padding: "12px 28px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                BACK TO MENU
-              </button>
-            </div>
-          </div>
-        </div>
+        <PauseMenu
+          title="TRAINING RANGE"
+          accent="blue"
+          onResume={resume}
+          onQuit={backToMenu}
+        />
       )}
       {!paused && <ClickToPlayOverlay onLock={() => {}} />}
     </div>

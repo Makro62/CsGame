@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useOffline5v5Store } from "@src/stores/useOffline5v5Store";
 import { ECONOMY, BOMB_SITES } from "@cs-game/shared";
 
@@ -332,6 +332,33 @@ describe("useOffline5v5Store", () => {
       useOffline5v5Store.setState({ players });
       useOffline5v5Store.getState().localReload();
       expect(useOffline5v5Store.getState().players.get("local")!.isReloading).toBe(false);
+    });
+
+    it("does not overfill mag if ammo grows during reload", () => {
+      vi.useFakeTimers();
+      const me = useOffline5v5Store.getState().players.get("local")!;
+      const players = new Map(useOffline5v5Store.getState().players);
+      players.set("local", {
+        ...me,
+        currentWeapon: "ak47",
+        ammo: 10,
+        reserveAmmo: 30,
+        isReloading: false,
+      });
+      useOffline5v5Store.setState({ players });
+      useOffline5v5Store.getState().localReload();
+
+      const mid = useOffline5v5Store.getState().players.get("local")!;
+      const midPlayers = new Map(useOffline5v5Store.getState().players);
+      midPlayers.set("local", { ...mid, ammo: 40 });
+      useOffline5v5Store.setState({ players: midPlayers });
+
+      vi.runAllTimers();
+      const after = useOffline5v5Store.getState().players.get("local")!;
+      expect(after.ammo).toBe(40);
+      expect(after.reserveAmmo).toBe(30);
+      expect(after.isReloading).toBe(false);
+      vi.useRealTimers();
     });
   });
 

@@ -22,7 +22,13 @@ export const HUD_Z = {
   overlay: 50,
   /** Always-clickable chrome: menu button, mode tabs. */
   chrome: 60,
-  /** Modals: shop, mystery box, settings, game over. */
+  /** ESC pause menu. */
+  pause: 90,
+  /** Buy / shop panels. */
+  shop: 200,
+  /** Settings sits above pause so the two never stack as twins. */
+  settings: 700,
+  /** Game-over / match-over. */
   modal: 1000,
 } as const;
 
@@ -132,5 +138,73 @@ export function hudPromptStack(bottom: number): CSSProperties {
     pointerEvents: "none",
     userSelect: "none",
     fontFamily: HUD_FONT,
+  };
+}
+
+/** Shared dimmed backdrop for pause, buy, settings, and end-game cards. */
+export function modalBackdrop(zIndex: number): CSSProperties {
+  return {
+    position: "fixed",
+    inset: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "rgba(4, 8, 16, 0.78)",
+    backdropFilter: "blur(8px)",
+    zIndex,
+    padding: 16,
+    boxSizing: "border-box",
+    userSelect: "none",
+    fontFamily: HUD_FONT,
+  };
+}
+
+/** One card shape for every overlay so buy / pause / settings match. */
+export function modalCard(accent: HudAccent = "blue"): CSSProperties {
+  return {
+    ...hudPanel(accent),
+    width: "min(92vw, 560px)",
+    minWidth: "min(520px, 92vw)",
+    maxWidth: "96vw",
+    maxHeight: "80dvh",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    boxSizing: "border-box",
+    padding: 0,
+    textAlign: "left",
+  };
+}
+
+export type OverlayBtnVariant = "primary" | "warn" | "danger" | "ghost" | "accent";
+
+/** Shared overlay button so pause / shop / game-over never mix Tailwind vs inline. */
+export function overlayButton(variant: OverlayBtnVariant = "ghost"): CSSProperties {
+  const palettes: Record<OverlayBtnVariant, { bg: string; color: string; border: string }> = {
+    primary: { bg: "linear-gradient(90deg, #0284c7, #0369a1)", color: "#fff", border: "1px solid rgba(56, 189, 248, 0.6)" },
+    accent: { bg: "linear-gradient(90deg, #4d7c0f, #3f6212)", color: "#fff", border: "1px solid rgba(132, 204, 22, 0.55)" },
+    warn: { bg: "rgba(234, 179, 8, 0.16)", color: "#facc15", border: "1px solid rgba(234, 179, 8, 0.45)" },
+    danger: { bg: "rgba(239, 68, 68, 0.16)", color: "#fecaca", border: "1px solid rgba(239, 68, 68, 0.45)" },
+    ghost: { bg: "rgba(255, 255, 255, 0.06)", color: "#e2e8f0", border: "1px solid rgba(255, 255, 255, 0.14)" },
+  };
+  const p = palettes[variant];
+  return {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    width: "100%",
+    minHeight: 44,
+    padding: "12px 20px",
+    background: p.bg,
+    color: p.color,
+    border: p.border,
+    borderRadius: 8,
+    cursor: "pointer",
+    fontFamily: HUD_FONT,
+    fontSize: 14,
+    fontWeight: 800,
+    letterSpacing: "0.06em",
+    boxSizing: "border-box",
   };
 }

@@ -7,7 +7,7 @@ import { useZombieStore, type ZombieState, type LootKind } from "../../stores/us
 import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
 import { SpatialGrid } from "./SpatialGrid";
 import {
-  SURVIVAL_BOUNDS, SURVIVAL_SPAWNS, pushOutSurvival, survivalLineOfSight, survivalWallDistance,
+  SURVIVAL_BOUNDS, SURVIVAL_SPAWNS, SURVIVAL_BARRICADES, pushOutSurvival, survivalLineOfSight, survivalWallDistance,
 } from "./survivalLayout";
 import { zombieBodyRadius, zombieHeadRadius, zombieVisualScale } from "./zombieVisual";
 import { chaseStep, hordeSeparationFromIds, SURVIVAL_HORDE_SEP } from "./hordeMovement";
@@ -266,21 +266,17 @@ export class ZombieEngine {
     const cfg = ZOMBIE_CFG[z.type];
     // Barricade check — attack planks before player
     const barricades = useZombieStore.getState().barricades;
-    const winPositions: Record<string, { x: number; z: number }> = {
-      win_north: { x: 0, z: -22 }, win_south: { x: 0, z: 22 }, win_east: { x: 22, z: 0 }, win_west: { x: -22, z: 0 },
-    };
-    for (const [winId, pos] of Object.entries(winPositions)) {
-      const planks = barricades[winId] ?? 6;
+    for (const win of SURVIVAL_BARRICADES) {
+      const planks = barricades[win.id] ?? 6;
       if (planks > 0) {
-        const dToWin = Math.hypot(z.x - pos.x, z.z - pos.z);
-        const dWinToPlayer = Math.hypot(pos.x - this.playerX, pos.z - this.playerZ);
-        // If zombie is near window and window is between zombie and player, attack barricade
+        const dToWin = Math.hypot(z.x - win.x, z.z - win.z);
+        const dWinToPlayer = Math.hypot(win.x - this.playerX, win.z - this.playerZ);
         if (dToWin < 1.8 && dWinToPlayer < Math.hypot(z.x - this.playerX, z.z - this.playerZ)) {
           z.attackCooldown = Math.max(0, z.attackCooldown - dt);
           if (z.attackCooldown <= 0) {
             z.isAttacking = true;
             z.attackCooldown = 1.0;
-            useZombieStore.getState().damageBarricade(winId, 1);
+            useZombieStore.getState().damageBarricade(win.id, 1);
           }
           return;
         }

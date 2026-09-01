@@ -1,4 +1,5 @@
 import { ROUND, ECONOMY, SPAWN } from "@cs-game/shared";
+import { sanitizeTickDt } from "../../lib/numericGuards";
 import { botPath, laneForRole, roleForBotId, stepToward } from "./offlineCombat";
 import { botBuy, botThink, defaultLoadout, refillAmmo, assignBombCarrier, resetBotNav } from "./BotAI";
 import { spawnJitter } from "./botNav";
@@ -15,6 +16,7 @@ export function tickRound(
   set: (partial: Partial<OfflineGameState>) => void,
   get: () => OfflineGameState
 ) {
+  dt = sanitizeTickDt(dt);
   // ── Buy phase ──
   if (state.phase === "buy") {
     const t = state.buyPhaseTimeLeft - dt;

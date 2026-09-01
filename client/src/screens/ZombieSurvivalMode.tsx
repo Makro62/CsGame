@@ -25,6 +25,11 @@ import { type WeaponKey } from "../stores/useWeaponStore";
 import { weaponDisplay } from "../game/weapons/weaponDisplay";
 import { equipSurvivalWeapon } from "../game/zombie/survivalBuy";
 import { applyHeroToMatch } from "../game/zombie/applyHeroMatch";
+import { findRepairableBarricade, findNearestDoor } from "../game/zombie/survivalLayout";
+import { PauseMenu } from "../ui/components/overlays/PauseMenu";
+import { InGameChrome } from "../ui/components/overlays/InGameChrome";
+import { GameModal, ModalBody, ModalHeader, OverlayButton } from "../ui/components/overlays/GameModal";
+import { HUD_Z, hudActionButton } from "../ui/hudTheme";
 
 const ZOMBIE_CANVAS_ID = "zombie-survival-canvas";
 const SHIELD_ARMOR_BONUS = 40;
@@ -218,8 +223,9 @@ export function ZombieSurvivalMode() {
     lockZombieCanvas();
   }, []);
 
-  const openSettings = useCallback(() => {
-    window.dispatchEvent(new CustomEvent("openSettings"));
+  const openPause = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    setPaused(true);
   }, []);
 
   const betweenWaves = waveState === "buy_phase" || waveState === "wave_clear";
@@ -229,30 +235,16 @@ export function ZombieSurvivalMode() {
       if (e.code === "KeyF") {
         reviveHeld.current = true;
         const pos = useAimStore.getState().pos;
-        // Barricade repair
-        const barricades = useZombieStore.getState().barricades;
-        for (const [winId, planks] of Object.entries(barricades)) {
-          const winPos: Record<string, { x: number; z: number }> = {
-            win_north: { x: 0, z: -22 }, win_south: { x: 0, z: 22 }, win_east: { x: 22, z: 0 }, win_west: { x: -22, z: 0 },
-          };
-          const w = winPos[winId];
-          if (w && Math.hypot(pos.x - w.x, pos.z - w.z) < 2.5 && planks < 6) {
-            useZombieStore.getState().repairBarricade(winId);
-            return;
-          }
+        const zs = useZombieStore.getState();
+        const repairId = findRepairableBarricade(pos.x, pos.z, zs.barricades);
+        if (repairId) {
+          zs.repairBarricade(repairId);
+          return;
         }
-        // Door unlock via proximity (fallback for crosshair raycast)
-        const doors = [
-          { id: "door_lab", x: 0, z: 8, cost: 750 },
-          { id: "door_armory", x: -10, z: 0, cost: 1250 },
-          { id: "door_catwalk", x: 10, z: -8, cost: 1500 },
-          { id: "door_bunker", x: 0, z: -12, cost: 2000 },
-        ];
-        for (const d of doors) {
-          if (Math.hypot(pos.x - d.x, pos.z - d.z) < 2.5) {
-            useZombieStore.getState().unlockDoor(d.id, d.cost);
-            return;
-          }
+        const door = findNearestDoor(pos.x, pos.z, zs.unlockedDoors);
+        if (door) {
+          zs.unlockDoor(door.id, door.cost);
+          return;
         }
         return;
       }
@@ -473,80 +465,16 @@ export function ZombieSurvivalMode() {
         )}
       </div>
 
-      {/* ── Top Right: Standardized Tactical Action Buttons ── */}
-      <div style={{ position: "fixed", top: "clamp(8px, 2vw, 16px)", right: "clamp(8px, 2vw, 16px)", zIndex: 40, display: "flex", gap: "clamp(4px, 1vw, 8px)" }}>
-        {betweenWaves && (
-          <button
-            onClick={toggleBuyMenu}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "linear-gradient(135deg, rgba(77, 124, 15, 0.9), rgba(54, 83, 20, 0.95))",
-              border: "1px solid #84cc16",
-              borderRadius: 8,
-              padding: "8px 16px",
-              color: "#f7fee7",
-              fontSize: 13,
-              fontWeight: 900,
-              letterSpacing: "0.08em",
-              fontFamily: "'Rajdhani', monospace",
-              cursor: "pointer",
-              boxShadow: "0 0 16px rgba(132, 204, 22, 0.35)",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <span>🛒</span>
-            <span>ARSENAL [B]</span>
-          </button>
-        )}
-        <button
-          onClick={openSettings}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95))",
-            border: "1px solid rgba(56, 189, 248, 0.4)",
-            borderRadius: 8,
-            padding: "8px 16px",
-            color: "#38bdf8",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            fontFamily: "'Rajdhani', monospace",
-            cursor: "pointer",
-            boxShadow: "0 0 12px rgba(56, 189, 248, 0.15)",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span>⚙️</span>
-          <span>PENGATURAN</span>
-        </button>
-        <button
-          onClick={handleBackToMenu}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "linear-gradient(135deg, rgba(127, 29, 29, 0.85), rgba(69, 10, 10, 0.95))",
-            border: "1px solid rgba(239, 68, 68, 0.4)",
-            borderRadius: 8,
-            padding: "8px 16px",
-            color: "#fca5a5",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            fontFamily: "'Rajdhani', monospace",
-            cursor: "pointer",
-            boxShadow: "0 0 12px rgba(239, 68, 68, 0.15)",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span>✕</span>
-          <span>MENU</span>
-        </button>
-      </div>
+      {waveState !== "game_over" && (
+        <InGameChrome
+          onMenu={openPause}
+          extra={betweenWaves ? (
+            <button type="button" onClick={toggleBuyMenu} style={hudActionButton("green")}>
+              ARSENAL [B]
+            </button>
+          ) : null}
+        />
+      )}
 
       {/* ── Center Screen: Zombie Incoming Threat Alert ── */}
       {showWaveAlert && waveState === "wave_active" && (
@@ -891,146 +819,33 @@ export function ZombieSurvivalMode() {
         W Atas • S Bawah • A Kiri • D Kanan • Mouse Bidik • Klik Kiri Tembak • R Reload • Q Ability • 1-3 Ganti Senjata • B Toko • F Revive • ESC Menu
       </div>
 
-      {/* ── Game Over (K.I.A.) Tactical Modal ── */}
       {waveState === "game_over" && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.82)",
-            backdropFilter: "blur(6px)",
-            zIndex: 80,
-          }}
-        >
-          <div
-            style={{
-              background: "linear-gradient(160deg, rgba(24, 12, 12, 0.98), rgba(12, 6, 6, 0.99))",
-              border: "1.5px solid #ef4444",
-              borderRadius: 16,
-              padding: "36px 48px",
-              textAlign: "center",
-              boxShadow: "0 0 45px rgba(239, 68, 68, 0.4), 0 20px 50px rgba(0,0,0,0.9)",
-              minWidth: 360,
-              fontFamily: "'Rajdhani', monospace",
-            }}
-          >
-            <div style={{ fontSize: 36, fontWeight: 900, color: "#ef4444", letterSpacing: "0.15em", marginBottom: 6 }}>
-              K.I.A.
+        <GameModal accent="red" zIndex={HUD_Z.modal}>
+          <ModalHeader eyebrow="K.I.A." title={`WAVE ${currentWave}`} />
+          <ModalBody>
+            <div style={{ color: "#94a3b8", marginBottom: 16, fontSize: 13, fontWeight: 700 }}>
+              {player.points} PTS
             </div>
-            <div style={{ fontSize: 13, color: "#94a3b8", letterSpacing: "0.08em", marginBottom: 20 }}>
-              OUTPOST Z-7 SURVIVOR ELIMINATED
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <OverlayButton variant="danger" onClick={handleRestart}>ULANGI</OverlayButton>
+              <OverlayButton variant="ghost" onClick={handleBackToMenu}>MENU UTAMA</OverlayButton>
             </div>
-            <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: "14px 20px", marginBottom: 24, display: "flex", justifyContent: "space-around" }}>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>SURVIVED</div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: "#f8fafc" }}>WAVE {currentWave}</div>
-              </div>
-              <div style={{ width: 1, background: "rgba(255,255,255,0.1)" }} />
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>FINAL SCORE</div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: "#facc15" }}>{player.points} PTS</div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-              <button
-                onClick={handleRestart}
-                style={{
-                  padding: "12px 28px",
-                  background: "linear-gradient(135deg, #dc2626, #991b1b)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontSize: 14,
-                  fontWeight: 900,
-                  letterSpacing: "0.08em",
-                  boxShadow: "0 0 16px rgba(220, 38, 38, 0.4)",
-                }}
-              >
-                COBA LAGI
-              </button>
-              <button
-                onClick={handleBackToMenu}
-                style={{
-                  padding: "12px 28px",
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#cbd5e1",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontSize: 14,
-                  fontWeight: 900,
-                  letterSpacing: "0.08em",
-                }}
-              >
-                MENU UTAMA
-              </button>
-            </div>
-          </div>
-        </div>
+          </ModalBody>
+        </GameModal>
       )}
 
       <SurvivalShop open={buyMenuOpen && betweenWaves} onClose={closeBuyMenu} />
       <DamageVignette />
       <DownedOverlay />
 
-      {/* Pause Menu */}
       {paused && waveState !== "game_over" && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.75)",
-            backdropFilter: "blur(4px)",
-            zIndex: 90,
-          }}
-        >
-          <div
-            style={{
-              background: "linear-gradient(155deg, rgba(13, 20, 36, 0.96), rgba(8, 12, 22, 0.98))",
-              border: "1.5px solid #84cc16",
-              borderRadius: 16,
-              padding: "32px 48px",
-              textAlign: "center",
-              boxShadow: "0 0 35px rgba(132, 204, 22, 0.3), 0 20px 50px rgba(0,0,0,0.8)",
-              minWidth: 300,
-              fontFamily: "'Rajdhani', monospace",
-            }}
-          >
-            <div style={{ color: "#84cc16", fontSize: 11, fontWeight: 900, letterSpacing: 2.5, marginBottom: 8 }}>
-              PAUSED
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: "#f8fafc", marginBottom: 24, letterSpacing: "0.08em" }}>
-              ZOMBIE SURVIVAL
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button
-                onClick={resume}
-                style={{ padding: "12px 28px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                LANJUTKAN
-              </button>
-              <button
-                onClick={handleRestart}
-                style={{ padding: "12px 28px", background: "rgba(234,179,8,0.2)", color: "#facc15", border: "1px solid #eab308", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                RESTART
-              </button>
-              <button
-                onClick={handleBackToMenu}
-                style={{ padding: "12px 28px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                KEMBALI KE MENU
-              </button>
-            </div>
-          </div>
-        </div>
+        <PauseMenu
+          title="ZOMBIE SURVIVAL"
+          accent="green"
+          onResume={resume}
+          onRestart={handleRestart}
+          onQuit={handleBackToMenu}
+        />
       )}
     </div>
   );

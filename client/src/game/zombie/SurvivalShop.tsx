@@ -5,6 +5,8 @@ import { refillAllAmmo } from "./ZombieEngine";
 import { Sound } from "../../components/AudioManager";
 import { weaponDisplay } from "../weapons/weaponDisplay";
 import { purchaseOrEquipSurvivalWeapon } from "./survivalBuy";
+import { GameModal, ModalBody, ModalHeader } from "../../ui/components/overlays/GameModal";
+import { HUD_Z, overlayButton } from "../../ui/hudTheme";
 
 interface ShopWeapon {
   id: WeaponKey;
@@ -87,111 +89,36 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
   };
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "rgba(4, 8, 16, 0.78)",
-        backdropFilter: "blur(6px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 100,
-        userSelect: "none",
-        fontFamily: "'Rajdhani', monospace",
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: "linear-gradient(165deg, rgba(16, 24, 18, 0.98) 0%, rgba(9, 14, 12, 0.99) 100%)",
-          border: "1.5px solid rgba(132, 204, 22, 0.5)",
-          boxShadow: "0 0 35px rgba(132, 204, 22, 0.25), 0 20px 50px rgba(0, 0, 0, 0.8)",
-          borderRadius: 14,
-          padding: 24,
-          width: "100%",
-          maxWidth: 620,
-          maxHeight: "85vh",
-          display: "flex",
-          flexDirection: "column",
-          color: "#ecfccb",
-          boxSizing: "border-box",
-        }}
-      >
-        {/* Shop Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid rgba(132, 204, 22, 0.2)", paddingBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 24 }}>🛒</span>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "0.1em", color: "#bef264" }}>
-                OUTPOST ARSENAL & UPGRADES
-              </div>
-              <div style={{ fontSize: 11, color: "#86efac", opacity: 0.8 }}>
-                PERSENJATAAN & PENINGKATAN KEKUATAN
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(250, 204, 21, 0.15)", padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(250, 204, 21, 0.4)" }}>
-            <span style={{ fontSize: 18 }}>🪙</span>
-            <span style={{ fontSize: 20, fontWeight: 900, color: "#facc15" }}>{points}</span>
-            <span style={{ fontSize: 11, color: "#ca8a04", fontWeight: 800 }}>PTS</span>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
+    <GameModal accent="green" zIndex={HUD_Z.shop} onBackdrop={onClose}>
+      <ModalHeader
+        eyebrow="OUTPOST ARSENAL"
+        title="TOKO SURVIVAL"
+        extra={
+          <span style={{ color: "#facc15", fontSize: 16, fontWeight: 900 }}>{points} PTS</span>
+        }
+        onClose={onClose}
+      />
+      <ModalBody>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          <button
-            onClick={() => setActiveTab("weapons")}
-            style={{
-              flex: 1,
-              padding: "9px 12px",
-              background: activeTab === "weapons" ? "linear-gradient(135deg, rgba(101, 163, 13, 0.9), rgba(77, 124, 15, 0.95))" : "rgba(255, 255, 255, 0.05)",
-              border: activeTab === "weapons" ? "1px solid #a3e635" : "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: 8,
-              color: activeTab === "weapons" ? "#ffffff" : "#94a3b8",
-              fontSize: 13,
-              fontWeight: 800,
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-          >
-            🔫 SENJATA CS
-          </button>
-          <button
-            onClick={() => setActiveTab("upgrades")}
-            style={{
-              flex: 1,
-              padding: "9px 12px",
-              background: activeTab === "upgrades" ? "linear-gradient(135deg, rgba(202, 138, 4, 0.9), rgba(161, 98, 7, 0.95))" : "rgba(255, 255, 255, 0.05)",
-              border: activeTab === "upgrades" ? "1px solid #facc15" : "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: 8,
-              color: activeTab === "upgrades" ? "#ffffff" : "#94a3b8",
-              fontSize: 13,
-              fontWeight: 800,
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-          >
-            ⚡ UPGRADE TIER
-          </button>
-          <button
-            onClick={() => setActiveTab("perks")}
-            style={{
-              flex: 1,
-              padding: "9px 12px",
-              background: activeTab === "perks" ? "linear-gradient(135deg, rgba(147, 51, 234, 0.9), rgba(126, 34, 206, 0.95))" : "rgba(255, 255, 255, 0.05)",
-              border: activeTab === "perks" ? "1px solid #c084fc" : "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: 8,
-              color: activeTab === "perks" ? "#ffffff" : "#94a3b8",
-              fontSize: 13,
-              fontWeight: 800,
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-          >
-            🧪 PERK & GEAR
-          </button>
+          {([
+            ["weapons", "SENJATA"],
+            ["upgrades", "UPGRADE"],
+            ["perks", "PERK & GEAR"],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+              style={{
+                ...overlayButton(activeTab === id ? "accent" : "ghost"),
+                flex: 1,
+                minHeight: 40,
+                fontSize: 12,
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Tab Content: Weapons */}
@@ -418,28 +345,7 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
             </div>
           </div>
         )}
-
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          style={{
-            marginTop: 16,
-            width: "100%",
-            padding: 10,
-            background: "rgba(255, 255, 255, 0.08)",
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: 8,
-            color: "#e2e8f0",
-            cursor: "pointer",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            transition: "all 0.15s ease",
-          }}
-        >
-          KEMBALI KE PERMAINAN [B / ESC]
-        </button>
-      </div>
-    </div>
+      </ModalBody>
+    </GameModal>
   );
 }

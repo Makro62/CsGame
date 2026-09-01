@@ -27,6 +27,10 @@ import { distToBombSite, nearestBombSite } from "../game/offline/offlineCombat";
 import { CalloutLabels } from "../game/map/CalloutLabels";
 import { Offline5v5Select } from "./Offline5v5Select";
 import { getAgent } from "../game/offline/agents";
+import { PauseMenu } from "../ui/components/overlays/PauseMenu";
+import { InGameChrome } from "../ui/components/overlays/InGameChrome";
+import { GameModal, ModalBody, ModalHeader, OverlayButton } from "../ui/components/overlays/GameModal";
+import { HUD_Z } from "../ui/hudTheme";
 
 function RemoteBots() {
   const players = useOffline5v5Store((s) => s.players);
@@ -216,9 +220,9 @@ export function Offline5v5Mode() {
     setLocation("/");
   }, [setMode, setLocation]);
 
-  const openSettings = useCallback(() => {
+  const openPause = useCallback(() => {
     if (document.pointerLockElement) document.exitPointerLock();
-    window.dispatchEvent(new CustomEvent("openSettings"));
+    setPaused(true);
   }, []);
 
   useEffect(() => {
@@ -384,55 +388,7 @@ export function Offline5v5Mode() {
         </div>
       </div>
 
-      {/* ── Top Right: Standardized Tactical Action Buttons ── */}
-      <div style={{ position: "fixed", top: "clamp(8px, 2vw, 14px)", right: "clamp(8px, 2vw, 16px)", zIndex: 40, display: "flex", gap: "clamp(4px, 1vw, 8px)" }}>
-        <button
-          onClick={openSettings}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95))",
-            border: "1px solid rgba(56, 189, 248, 0.4)",
-            borderRadius: 8,
-            padding: "8px 16px",
-            color: "#38bdf8",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            fontFamily: "'Rajdhani', monospace",
-            cursor: "pointer",
-            boxShadow: "0 0 12px rgba(56, 189, 248, 0.15)",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span>⚙️</span>
-          <span>PENGATURAN</span>
-        </button>
-        <button
-          onClick={back}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "linear-gradient(135deg, rgba(127, 29, 29, 0.85), rgba(69, 10, 10, 0.95))",
-            border: "1px solid rgba(239, 68, 68, 0.4)",
-            borderRadius: 8,
-            padding: "8px 16px",
-            color: "#fca5a5",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            fontFamily: "'Rajdhani', monospace",
-            cursor: "pointer",
-            boxShadow: "0 0 12px rgba(239, 68, 68, 0.15)",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span>✕</span>
-          <span>MENU</span>
-        </button>
-      </div>
+      {phase !== "matchEnd" && <InGameChrome onMenu={openPause} />}
 
       <Crosshair />
 
@@ -652,53 +608,8 @@ export function Offline5v5Mode() {
 
       {buyMenuOpen && phase === "buy" && <BuyMenu onClose={closeBuyMenu} />}
 
-      {/* Pause Menu — shown when pointer lock exits */}
       {paused && phase !== "matchEnd" && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.75)",
-            backdropFilter: "blur(4px)",
-            zIndex: 90,
-          }}
-        >
-          <div
-            style={{
-              background: "linear-gradient(155deg, rgba(13, 20, 36, 0.96), rgba(8, 12, 22, 0.98))",
-              border: "1.5px solid #f59e0b",
-              borderRadius: 16,
-              padding: "32px 48px",
-              textAlign: "center",
-              boxShadow: "0 0 35px rgba(245,158,11,0.3), 0 20px 50px rgba(0,0,0,0.8)",
-              minWidth: 300,
-            }}
-          >
-            <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 900, letterSpacing: 2.5, marginBottom: 8, fontFamily: "monospace" }}>
-              PAUSED
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: "#f8fafc", marginBottom: 24, fontFamily: "monospace", letterSpacing: "0.08em" }}>
-              5V5 OFFLINE
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button
-                onClick={resume}
-                style={{ padding: "12px 28px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                LANJUTKAN
-              </button>
-              <button
-                onClick={back}
-                style={{ padding: "12px 28px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontFamily: "monospace", fontSize: 14, fontWeight: 700 }}
-              >
-                KEMBALI KE MENU
-              </button>
-            </div>
-          </div>
-        </div>
+        <PauseMenu title="5V5 OFFLINE" accent="amber" onResume={resume} onQuit={back} />
       )}
 
       {/* Click-to-play overlay — only show when NOT paused */}
@@ -729,24 +640,18 @@ export function Offline5v5Mode() {
 
       {/* Match Over Modal */}
       {phase === "matchEnd" && (
-        <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.75)", zIndex: 80 }}>
-          <div style={{ background: "rgba(15,23,42,0.95)", border: "1.5px solid #3b82f6", borderRadius: 16, padding: "36px 48px", textAlign: "center", boxShadow: "0 0 40px rgba(59,130,246,0.4)" }}>
-            <h1 style={{ color: "#fff", fontSize: 26, marginBottom: 8, fontFamily: "'Rajdhani', monospace", fontWeight: 900 }}>
-              MATCH OVER — {teamRedScore} : {teamBlueScore}
-            </h1>
-            <p style={{ color: teamRedScore > teamBlueScore ? "#f87171" : "#60a5fa", marginBottom: 20, fontSize: 18, fontWeight: 800 }}>
-              {teamRedScore > teamBlueScore ? "TERRORISTS WIN THE MATCH" : "COUNTER-TERRORISTS WIN THE MATCH"}
-            </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-              <button onClick={rematch} style={{ padding: "10px 24px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 900 }}>
-                REMATCH
-              </button>
-              <button onClick={back} style={{ padding: "10px 24px", background: "rgba(239,68,68,0.2)", color: "#fecaca", border: "1px solid #ef4444", borderRadius: 8, cursor: "pointer", fontWeight: 900 }}>
-                MENU
-              </button>
+        <GameModal accent="blue" zIndex={HUD_Z.modal}>
+          <ModalHeader eyebrow="MATCH OVER" title={`${teamRedScore} : ${teamBlueScore}`} />
+          <ModalBody>
+            <div style={{ color: teamRedScore > teamBlueScore ? "#f87171" : "#60a5fa", marginBottom: 16, fontWeight: 800 }}>
+              {teamRedScore > teamBlueScore ? "TERRORISTS WIN" : "COUNTER-TERRORISTS WIN"}
             </div>
-          </div>
-        </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <OverlayButton variant="primary" onClick={rematch}>ULANGI</OverlayButton>
+              <OverlayButton variant="danger" onClick={back}>MENU UTAMA</OverlayButton>
+            </div>
+          </ModalBody>
+        </GameModal>
       )}
     </div>
   );

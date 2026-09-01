@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { gameEvents } from '../lib/gameEvents'
+import { sanitizeDamage, sanitizeRegenAmount } from '../lib/numericGuards'
 
 export type GameMode = 'menu' | 'training' | 'zombie' | 'offline5v5' | 'l4d'
 
@@ -163,15 +164,17 @@ export const useGameStore = create<GameState>()((set, get) => {
     },
 
     damageTarget: (id: string, damage: number, isHeadshot: boolean) => {
+      const amount = sanitizeDamage(damage)
+      if (amount === null) return
       const { targets } = get()
       const target = targets[id] || { id, x: 0, y: 0, z: 0, hp: 100, maxHp: 100, isAlive: true }
       if (!target.isAlive) return
 
-      const newHp = target.hp - damage
+      const newHp = target.hp - amount
       const isDead = newHp <= 0
 
       // Emit event so Bot instance can react immediately
-      gameEvents.emit('targetDamaged', { id, damage, isHeadshot, isDead, newHp: Math.max(0, newHp) })
+      gameEvents.emit('targetDamaged', { id, damage: amount, isHeadshot, isDead, newHp: Math.max(0, newHp) })
 
       if (isDead) {
         set(state => {
@@ -288,9 +291,11 @@ export const useGameStore = create<GameState>()((set, get) => {
     },
 
     regenJumpStamina: (amount: number) => {
+      const add = sanitizeRegenAmount(amount)
+      if (add <= 0) return
       const { jumpStamina, maxJumpStamina } = get()
       if (jumpStamina < maxJumpStamina) {
-        set({ jumpStamina: Math.min(maxJumpStamina, jumpStamina + amount) })
+        set({ jumpStamina: Math.min(maxJumpStamina, jumpStamina + add) })
       }
     },
 

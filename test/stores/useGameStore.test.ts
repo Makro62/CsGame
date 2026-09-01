@@ -120,6 +120,16 @@ describe("useGameStore", () => {
       useGameStore.getState().damageTarget("nonexistent", 10, false);
       // Should NOT crash — creates fallback target internally
     });
+
+    it("ignores NaN and non-positive damage", () => {
+      useGameStore.getState().addTarget({
+        id: "t1", x: 0, y: 0, z: 0, hp: 100, maxHp: 100, isAlive: true,
+      });
+      useGameStore.getState().damageTarget("t1", NaN, false);
+      useGameStore.getState().damageTarget("t1", -20, false);
+      useGameStore.getState().damageTarget("t1", 0, false);
+      expect(useGameStore.getState().targets["t1"].hp).toBe(100);
+    });
   });
 
   describe("stats tracking", () => {
@@ -212,6 +222,14 @@ describe("useGameStore", () => {
       const before = useGameStore.getState().jumpStamina;
       useGameStore.getState().regenJumpStamina(1);
       expect(useGameStore.getState().jumpStamina).toBe(before);
+    });
+
+    it("regenJumpStamina ignores NaN", () => {
+      useGameStore.getState().resetJumpStamina();
+      useGameStore.getState().useJumpStamina();
+      const afterUse = useGameStore.getState().jumpStamina;
+      useGameStore.getState().regenJumpStamina(NaN);
+      expect(useGameStore.getState().jumpStamina).toBe(afterUse);
     });
 
     it("resetJumpStamina restores to max", () => {

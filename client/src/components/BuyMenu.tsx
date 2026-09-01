@@ -14,6 +14,8 @@ import { useGameStore } from "../stores/useGameStore";
 import { useOffline5v5Store } from "../screens/Offline5v5Store";
 import { useWeaponStore } from "../stores/useWeaponStore";
 import { useMenuPointerLock } from "../hooks/useMenuPointerLock";
+import { GameModal, ModalBody, ModalHeader } from "../ui/components/overlays/GameModal";
+import { HUD_Z } from "../ui/hudTheme";
 
 interface BuyItem {
   id: string;
@@ -385,81 +387,31 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 200,
-        background: "rgba(0,0,0,0.3)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "rgba(15,23,42,0.9)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: "12px",
-          padding: "24px",
-          width: "min(92vw, 560px)",
-          minWidth: "min(520px, 92vw)",
-          maxWidth: "96vw",
-          maxHeight: "80dvh",
-          overflowY: "auto",
-          fontFamily: "monospace",
-          color: "white",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "16px",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "bold" }}>
-              BUY MENU ({localTeam || "T"})
-            </h2>
-            <div style={{ color: "#4ade80", fontSize: "14px", fontWeight: "bold", marginTop: "4px" }}>
-              Money: ${localMoney.toLocaleString()}
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "rgba(255,255,255,0.1)",
-              border: "none",
-              color: "white",
-              padding: "4px 12px",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontFamily: "monospace",
-            }}
-          >
-            [ESC]
-          </button>
-        </div>
-
+    <GameModal accent="amber" zIndex={HUD_Z.shop} onBackdrop={onClose}>
+      <ModalHeader
+        eyebrow={`BUY PHASE • ${buyPhaseTimeLeft.toFixed(1)}s`}
+        title={`BUY MENU (${localTeam || "T"})`}
+        extra={
+          <span style={{ color: "#4ade80", fontSize: 14, fontWeight: 800 }}>
+            ${localMoney.toLocaleString()}
+          </span>
+        }
+        onClose={onClose}
+      />
+      <ModalBody>
         {!inBuyZone && (
-          <div style={{ marginBottom: "12px", fontSize: "12px", color: "#ef4444", fontWeight: "bold" }}>
-            ⚠️ MUST BE INSIDE BUY ZONE TO PURCHASE
+          <div style={{ marginBottom: 12, fontSize: 12, color: "#ef4444", fontWeight: "bold" }}>
+            HARUS DI DALAM BUY ZONE
           </div>
         )}
 
         {feedback && (
           <div
             style={{
-              marginBottom: "12px",
+              marginBottom: 12,
               padding: "8px 12px",
-              borderRadius: "6px",
-              fontSize: "12px",
+              borderRadius: 6,
+              fontSize: 12,
               fontWeight: "bold",
               color: feedback.ok ? "#4ade80" : "#fca5a5",
               background: feedback.ok ? "rgba(74,222,128,0.12)" : "rgba(239,68,68,0.12)",
@@ -470,26 +422,11 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        <div style={{ marginBottom: "12px", fontSize: "12px", color: "#888" }}>
-          Buy Phase: {buyPhaseTimeLeft.toFixed(1)}s remaining
-        </div>
-
         {renderSection("Weapons", "#60a5fa", "weapon")}
         {renderSection("Gear", "#fbbf24", "gear")}
         {renderSection("Utility", "#a78bfa", "utility")}
-
-        <div
-          style={{
-            marginTop: "16px",
-            fontSize: "11px",
-            color: "#666",
-            textAlign: "center",
-          }}
-        >
-          Press the key on a card to buy • B or ESC to close
-        </div>
-      </div>
-    </div>
+      </ModalBody>
+    </GameModal>
   );
 }
 

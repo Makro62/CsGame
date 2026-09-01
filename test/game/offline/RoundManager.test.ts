@@ -45,6 +45,7 @@ function mkState(overrides: Partial<OfflineGameState> = {}): OfflineGameState {
     localSwitchWeapon: vi.fn(), checkRoundEnd: vi.fn(),
     endRound: vi.fn(), resetForRound: vi.fn(), clearBotTimers: vi.fn(),
     ...overrides,
+    currentMap: overrides.currentMap ?? "dust",
   };
 }
 
@@ -221,6 +222,16 @@ describe("RoundManager deep edge cases", () => {
       tickRound(state, 1, setFn, getFn);
       const call = setFn.mock.calls[0][0];
       expect(call.buyPhaseTimeLeft).toBe(9);
+    });
+
+    it("does not poison buy timer when dt is NaN", () => {
+      const state = mkState({ phase: "buy", buyPhaseTimeLeft: 10 });
+      const setFn = vi.fn();
+      tickRound(state, NaN, setFn, () => state);
+      const t = setFn.mock.calls[0][0].buyPhaseTimeLeft;
+      expect(Number.isFinite(t)).toBe(true);
+      expect(t).toBeLessThan(10);
+      expect(t).toBeGreaterThan(9);
     });
   });
 

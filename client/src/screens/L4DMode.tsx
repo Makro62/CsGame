@@ -22,8 +22,11 @@ import { WEAPONS } from "@cs-game/shared";
 import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
 import { InfectedFigure } from "../game/zombie/HumanoidFigures";
 import { MinecraftCharacter } from "../game/player/MinecraftCharacter";
-import SettingsMenu from "./SettingsMenu";
 import { L4DSurvivorSelect } from "./L4DSurvivorSelect";
+import { PauseMenu } from "../ui/components/overlays/PauseMenu";
+import { InGameChrome } from "../ui/components/overlays/InGameChrome";
+import { GameModal, ModalBody, ModalHeader, OverlayButton } from "../ui/components/overlays/GameModal";
+import { HUD_Z } from "../ui/hudTheme";
 import { getL4DSurvivor } from "../game/l4d/l4dSurvivors";
 import type { L4DSurvivorDef } from "../game/l4d/l4dSurvivors";
 
@@ -437,6 +440,11 @@ export function L4DMode() {
     lockL4DCanvas();
   }, []);
 
+  const openPause = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    setPaused(true);
+  }, []);
+
   useEffect(() => {
     const onPointerLockChange = () => {
       if (!survivorSelectedRef.current) return;
@@ -528,77 +536,7 @@ export function L4DMode() {
         <div className="text-xs opacity-70" style={{ fontSize: "clamp(10px, 1.2vw, 12px)" }}>Infected {infected.filter(i => !i.isDead).length} • Alive {aliveCount}/4</div>
         {chapterState === "finale" && <div className="text-sm text-yellow-300" style={{ fontSize: "clamp(11px, 1.5vw, 14px)" }}>Finale {finaleState} {finaleTimer > 0 ? `${Math.ceil(finaleTimer)}s` : ""} {rescueVehicleArrived && "— RESCUE!"}</div>}
       </div>
-      <div style={{ position: "fixed", top: "clamp(8px, 2vw, 14px)", right: "clamp(8px, 2vw, 16px)", zIndex: 40, display: "flex", gap: "clamp(4px, 1vw, 8px)" }}>
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent("openSettings"))}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95))",
-            border: "1px solid rgba(56, 189, 248, 0.4)",
-            borderRadius: 8,
-            padding: "8px 16px",
-            color: "#38bdf8",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            fontFamily: "'Rajdhani', monospace",
-            cursor: "pointer",
-            boxShadow: "0 0 12px rgba(56, 189, 248, 0.15)",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span>⚙️</span>
-          <span>PENGATURAN</span>
-        </button>
-        <button
-          onClick={handleRestart}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "linear-gradient(135deg, rgba(202, 138, 4, 0.85), rgba(161, 98, 7, 0.95))",
-            border: "1px solid rgba(234, 179, 8, 0.4)",
-            borderRadius: 8,
-            padding: "8px 16px",
-            color: "#fef08a",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            fontFamily: "'Rajdhani', monospace",
-            cursor: "pointer",
-            boxShadow: "0 0 12px rgba(234, 179, 8, 0.15)",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span>🔄</span>
-          <span>RESTART</span>
-        </button>
-        <button
-          onClick={handleBack}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "linear-gradient(135deg, rgba(127, 29, 29, 0.85), rgba(69, 10, 10, 0.95))",
-            border: "1px solid rgba(239, 68, 68, 0.4)",
-            borderRadius: 8,
-            padding: "8px 16px",
-            color: "#fca5a5",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            fontFamily: "'Rajdhani', monospace",
-            cursor: "pointer",
-            boxShadow: "0 0 12px rgba(239, 68, 68, 0.15)",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span>✕</span>
-          <span>MENU</span>
-        </button>
-      </div>
+      {survivorSelected && !isGameOver && !isVictory && <InGameChrome onMenu={openPause} />}
 
       <div className="absolute flex gap-2" style={{ bottom: "clamp(8px, 2vw, 12px)", left: "clamp(8px, 2vw, 12px)", maxWidth: "58dvw" }}>
         {survivors.map(s => (
@@ -640,30 +578,32 @@ export function L4DMode() {
         </div>
       )}
       {(isGameOver || isVictory) && (
-        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-40">
-          <div className={`text-5xl font-bold mb-4 ${isVictory ? "text-green-400" : "text-red-500"}`}>{isVictory ? "CAMPAIGN COMPLETE" : "PARTY WIPED"}</div>
-          <div className="flex gap-3">
-            <button onClick={handleRestart} className="px-6 py-3 bg-green-600 text-white rounded hover:bg-green-700">PLAY AGAIN</button>
-            <button onClick={handleBack} className="px-6 py-3 bg-slate-700 text-white rounded hover:bg-slate-600">MENU</button>
-          </div>
-        </div>
+        <GameModal accent={isVictory ? "green" : "red"} zIndex={HUD_Z.modal}>
+          <ModalHeader
+            eyebrow={isVictory ? "CAMPAIGN COMPLETE" : "PARTY WIPED"}
+            title={isVictory ? "RESCUED" : "K.I.A."}
+          />
+          <ModalBody>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <OverlayButton variant={isVictory ? "accent" : "danger"} onClick={handleRestart}>ULANGI</OverlayButton>
+              <OverlayButton variant="ghost" onClick={handleBack}>MENU UTAMA</OverlayButton>
+            </div>
+          </ModalBody>
+        </GameModal>
       )}
       <ClickToPlayOverlay
         onLock={() => {}}
         suppressed={isGameOver || isVictory || paused || !survivorSelected}
         canvasSelector={`#${L4D_CANVAS_ID} canvas`}
       />
-      <SettingsMenu />
       {paused && !isGameOver && !isVictory && (
-        <div className="absolute inset-0 z-50 bg-black/75 flex flex-col items-center justify-center gap-4">
-          <div className="text-emerald-400 text-xs font-mono tracking-[0.3em]">PAUSED</div>
-          <div className="text-white text-3xl font-bold font-mono">LEFT 4 DEAD</div>
-          <div className="flex flex-col gap-2 min-w-[240px]">
-            <button onClick={resume} className="px-6 py-3 bg-blue-600 text-white rounded font-mono font-bold hover:bg-blue-500">RESUME</button>
-            <button onClick={handleRestart} className="px-6 py-3 bg-yellow-900/60 text-yellow-300 border border-yellow-600 rounded font-mono font-bold hover:bg-yellow-900">RESTART</button>
-            <button onClick={handleBack} className="px-6 py-3 bg-red-900/50 text-red-200 border border-red-500 rounded font-mono font-bold hover:bg-red-900">BACK TO MENU</button>
-          </div>
-        </div>
+        <PauseMenu
+          title="LEFT 4 DEAD"
+          accent="green"
+          onResume={resume}
+          onRestart={handleRestart}
+          onQuit={handleBack}
+        />
       )}
     </div>
   );

@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { hudPanel, hudPill, hudActionButton, hudBannerStack, HUD_EDGE_RESPONSIVE } from "@src/ui/hudTheme";
 
-const SRC = path.resolve(import.meta.dirname, "../../client/src");
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../client/src");
 
 // helper: read file as string
 function src(rel: string) {
@@ -39,10 +40,17 @@ describe("Responsive — hudTheme tokens (P0)", () => {
 
 describe("Responsive — BuyMenu modal (P0)", () => {
   const f = src("components/BuyMenu.tsx");
-  it("modal uses min(520px, 92vw) not fixed 520px", () => expect(f).toMatch(/min\(520px, 92vw\)/));
-  it("uses 80dvh not 80vh", () => expect(f).toMatch(/80dvh/));
-  it("has overflow-y-auto", () => expect(f).toMatch(/overflowY.*auto|overflow-y-auto/));
-  it("grid keeps 1fr 1fr but modal scales", () => expect(f).toMatch(/min\(92vw/));
+  const shell = src("ui/hudTheme.ts");
+  it("modal uses min(520px, 92vw) not fixed 520px", () => expect(shell).toMatch(/min\(520px, 92vw\)/));
+  it("uses 80dvh not 80vh", () => expect(shell).toMatch(/80dvh/));
+  it("has overflow-y-auto", () => {
+    const body = src("ui/components/overlays/GameModal.tsx");
+    expect(body).toMatch(/overflowY.*auto|overflow-y-auto/);
+  });
+  it("grid keeps 1fr 1fr but modal scales", () => {
+    expect(f).toMatch(/1fr 1fr/);
+    expect(shell).toMatch(/min\(92vw/);
+  });
 });
 
 describe("Responsive — MainMenu (P0) — posisi 4 kotak 2x2 + 1 preview tetap", () => {
@@ -129,6 +137,14 @@ describe("Responsive — Game Modes HUD (P0)", () => {
     expect(off).toMatch(/90vw|clamp/);
     expect(zom).toMatch(/90vw|clamp/);
     expect(l4d).toMatch(/90vw|clamp/);
+  });
+});
+
+describe("Responsive — TrainingRange (P0)", () => {
+  const f = src("game/training/TrainingRange.tsx");
+  it("uses 100dvh/100dvw not 100vh", () => {
+    expect(f).toMatch(/100dvh/);
+    expect(f).not.toMatch(/height: "100vh"/);
   });
 });
 
