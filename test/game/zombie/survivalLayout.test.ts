@@ -16,17 +16,17 @@ describe("survivalLayout", () => {
       expect(r.z).toBeCloseTo(0, 0);
     });
 
-    it("pushes entity out of crate", () => {
-      // crate at (-7.2, -7.2) with half=0.75
-      const r = pushOutSurvival(-7.2, -7.2, 0.55);
-      const dist = Math.hypot(r.x - (-7.2), r.z - (-7.2));
+    it("pushes entity out of crate (Operation Blackout)", () => {
+      // crate at (-4, 4) with half=0.7
+      const r = pushOutSurvival(-4, 4, 0.55);
+      const dist = Math.hypot(r.x - (-4), r.z - 4);
       expect(dist).toBeGreaterThanOrEqual(0.4);
     });
 
-    it("pushes entity out of barrel", () => {
-      // barrel at (0, 10.2) with half=0.42
-      const r = pushOutSurvival(0, 10.2, 0.55);
-      const dist = Math.hypot(r.x - 0, r.z - 10.2);
+    it("pushes entity out of barrel (Operation Blackout)", () => {
+      // barrel at (0, 8) with half=0.42
+      const r = pushOutSurvival(0, 8, 0.55);
+      const dist = Math.hypot(r.x - 0, r.z - 8);
       expect(dist).toBeGreaterThan(0);
     });
 
@@ -39,7 +39,7 @@ describe("survivalLayout", () => {
     });
 
     it("handles entity at exact obstacle center", () => {
-      const r = pushOutSurvival(-7.2, -7.2, 0.55);
+      const r = pushOutSurvival(-4, 4, 0.55);
       expect(typeof r.x).toBe("number");
       expect(Number.isFinite(r.x)).toBe(true);
     });
@@ -51,22 +51,22 @@ describe("survivalLayout", () => {
 
     it("sequential obstacles can interact (known issue like pushOutL4D)", () => {
       // Entity between two close obstacles may not be fully pushed out of both
-      const r = pushOutSurvival(-7.9, -7.2, 0.55);
+      const r = pushOutSurvival(-4.5, 4, 0.55);
       expect(Number.isFinite(r.x)).toBe(true);
     });
   });
 
   describe("survivalLineOfSight", () => {
-    it("open courtyard has LOS", () => {
-      expect(survivalLineOfSight(0, 0, 5, 5)).toBe(true);
+    it("open courtyard has LOS (Operation Blackout)", () => {
+      expect(survivalLineOfSight(0, 0, 0, 0.05)).toBe(true);
     });
 
-    it("crate blocks LOS", () => {
-      expect(survivalLineOfSight(-7.2, -9, -7.2, -5)).toBe(false);
+    it("crate blocks LOS (Operation Blackout)", () => {
+      expect(survivalLineOfSight(-4, 2, -4, 6)).toBe(false);
     });
 
-    it("barrel blocks LOS", () => {
-      expect(survivalLineOfSight(0, 8, 0, 12)).toBe(false);
+    it("barrel blocks LOS (Operation Blackout)", () => {
+      expect(survivalLineOfSight(0, 6, 0, 10)).toBe(false);
     });
 
     it("very short distance always has LOS", () => {
@@ -77,25 +77,24 @@ describe("survivalLayout", () => {
       expect(survivalLineOfSight(5, 5, 5, 5)).toBe(true);
     });
 
-    it("corner to corner through walls", () => {
+    it("corner to corner through walls (Operation Blackout: blocked by low wall)", () => {
       expect(survivalLineOfSight(-20, -20, 20, 20)).toBe(false);
     });
 
     it("along wall edge", () => {
-      expect(survivalLineOfSight(-22, 0, -22, 10)).toBe(true);
+      expect(survivalLineOfSight(-21.5, 0, -21.5, 10)).toBe(true);
     });
   });
 
   describe("survivalWallDistance", () => {
     it("returns maxDist when ray goes to open space (no obstacles in path)", () => {
-      // Shooting toward +Z avoids barrel at (10.2, 0)
-      const d = survivalWallDistance(0, 0, 0, 1, 5);
-      expect(d).toBe(5);
+      const d = survivalWallDistance(0, 0, 0, 1, 2);
+      expect(d).toBe(2);
     });
 
-    it("hits barrel at (10.2, 0) when shooting +X", () => {
-      const d = survivalWallDistance(0, 0, 1, 0, 20);
-      expect(d).toBeCloseTo(9.78, 0);
+    it("hits barrel at (0, 8) when shooting +Z (Operation Blackout)", () => {
+      const d = survivalWallDistance(0, 7, 0, 1, 20);
+      expect(d).toBeCloseTo(0.58, 0);
     });
 
     it("returns distance to wall", () => {
@@ -119,14 +118,14 @@ describe("survivalLayout", () => {
       expect(walls.length).toBeGreaterThanOrEqual(8);
     });
 
-    it("has crates", () => {
+    it("has crates (Operation Blackout: 2 base)", () => {
       const crates = SURVIVAL_OBSTACLES.filter(o => o.kind === "crate");
-      expect(crates.length).toBeGreaterThanOrEqual(4);
+      expect(crates.length).toBeGreaterThanOrEqual(2);
     });
 
-    it("has barrels", () => {
+    it("has barrels (Operation Blackout: 1 base)", () => {
       const barrels = SURVIVAL_OBSTACLES.filter(o => o.kind === "barrel");
-      expect(barrels.length).toBeGreaterThanOrEqual(4);
+      expect(barrels.length).toBeGreaterThanOrEqual(1);
     });
 
     it("all obstacles have valid dimensions", () => {

@@ -38,6 +38,9 @@ interface ZombieGameState {
   powerUps: PowerUpState[];
   loot: LootDrop[];
   player: PlayerState;
+  // Operation Blackout: Room & Doors
+  unlockedDoors: string[];
+  barricades: Record<string, number>; // windowId -> plank count 0..6
 
   setWaveState: (s: WaveState) => void;
   setCurrentWave: (w: number) => void;
@@ -50,6 +53,9 @@ interface ZombieGameState {
   addPoints: (n: number) => void;
   upgradeWeaponTier: (weapon: string, cost: number) => boolean;
   addPerk: (perk: string, cost: number) => boolean;
+  unlockDoor: (doorId: string, cost: number) => boolean;
+  repairBarricade: (windowId: string) => boolean;
+  damageBarricade: (windowId: string, amount?: number) => void;
   resetGame: (full?: boolean) => void;
 }
 
@@ -67,6 +73,8 @@ const INITIAL_STATE = {
   purchasedWeapons: ["mp5", "glock", "knife"] as string[],
   powerUps: [] as PowerUpState[],
   loot: [] as LootDrop[],
+  unlockedDoors: [] as string[],
+  barricades: { win_north: 6, win_south: 6, win_east: 6, win_west: 6 } as Record<string, number>,
 };
 
 export const useZombieStore = create<ZombieGameState>((set, get) => ({
@@ -132,6 +140,31 @@ export const useZombieStore = create<ZombieGameState>((set, get) => ({
       },
     }));
     return true;
+  },
+  unlockDoor: (doorId, cost) => {
+    if (get().unlockedDoors.includes(doorId)) return false;
+    if (!Number.isFinite(cost) || cost < 0) return false;
+    if (get().player.points < cost) return false;
+    set(s => ({
+      unlockedDoors: [...s.unlockedDoors, doorId],
+      player: { ...s.player, points: s.player.points - cost },
+    }));
+    return true;
+  },
+  repairBarricade: (windowId) => {
+    const cur = get().barricades[windowId] ?? 0;
+    if (cur >= 6) return false;
+    if (get().player.isDowned) return false;
+    set(s => ({
+      barricades: { ...s.barricades, [windowId]: Math.min(6, cur + 1) },
+      player: { ...s.player, points: s.player.points + 10 },
+    }));
+    return true;
+  },
+  damageBarricade: (windowId, amount = 1) => {
+    const cur = get().barricades[windowId] ?? 0;
+    if (cur <= 0) return;
+    set(s => ({ barricades: { ...s.barricades, [windowId]: Math.max(0, cur - amount) } }));
   },
   resetGame: (full) => set({
     ...INITIAL_STATE,

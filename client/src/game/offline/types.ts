@@ -121,12 +121,13 @@ export interface OfflineGameState {
   isHalfTime: boolean;
   maxRounds: number;
   difficulty: BotDifficultyLevel;
+  currentMap: string;
   players: Map<string, LocalPlayer>;
   killFeed: KillEvent[];
   activeReloads: Map<string, BotReloadState>;
 
   setDifficulty: (level: BotDifficultyLevel) => void;
-  initMatch: (nickname: string, team: "T" | "CT", difficulty?: BotDifficultyLevel) => void;
+  initMatch: (nickname: string, team: "T" | "CT", difficulty?: BotDifficultyLevel, mapId?: string) => void;
   tick: (dt: number) => void;
   setLocalPos: (x: number, z: number, rotY: number) => void;
   localShoot: (targetId: string | null, headshot: boolean) => boolean;

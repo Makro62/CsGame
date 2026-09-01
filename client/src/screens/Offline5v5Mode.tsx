@@ -144,7 +144,8 @@ export function Offline5v5Mode() {
     if (!selectedMapId || !selectedTeam || !selectedAgentId || inited.current) return;
     inited.current = true;
     useGameStore.getState().setMode("offline5v5");
-    initMatch(nickname || "Player", selectedTeam);
+    useGameStore.getState().setCurrentMap(selectedMapId);
+    initMatch(nickname || "Player", selectedTeam, "medium", selectedMapId);
     // Apply agent name and colors to local player
     const agentDef = getAgent(selectedAgentId);
     useOffline5v5Store.setState(s => {

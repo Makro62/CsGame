@@ -1,4 +1,5 @@
-import { BOMB_SITES, MAP_BOUNDARY, MAP_OBSTACLES, SPAWN, type MapObstacle } from "@cs-game/shared";
+import { BOMB_SITES, MAP_BOUNDARY, MAP_OBSTACLES, SPAWN, type MapObstacle, getObstaclesForMap, getBoundaryForMap, getBombSitesForMap } from "@cs-game/shared";
+import { useGameStore } from "../../stores/useGameStore";
 
 interface Point2D {
   x: number;
@@ -10,8 +11,42 @@ export type BotRole = "entry" | "support" | "flanker" | "runner";
 
 const BODY = 0.45;
 
+function getCurrentMapId(): string {
+  try {
+    return useGameStore.getState().currentMap || "container_yard";
+  } catch {
+    return "container_yard";
+  }
+}
+
+function resolveObstacles(obstacles: readonly MapObstacle[] | undefined): readonly MapObstacle[] {
+  if (obstacles && obstacles !== MAP_OBSTACLES) return obstacles;
+  try {
+    const mapId = getCurrentMapId();
+    if (mapId === "dust" || mapId === "ravenpoint") return getObstaclesForMap(mapId) as unknown as readonly MapObstacle[];
+  } catch {}
+  return MAP_OBSTACLES;
+}
+
+function resolveBoundary(): typeof MAP_BOUNDARY {
+  try {
+    const mapId = getCurrentMapId();
+    if (mapId === "dust" || mapId === "ravenpoint") return getBoundaryForMap(mapId) as typeof MAP_BOUNDARY;
+  } catch {}
+  return MAP_BOUNDARY;
+}
+
+function resolveBombSites(): typeof BOMB_SITES {
+  try {
+    const mapId = getCurrentMapId();
+    if (mapId === "dust" || mapId === "ravenpoint") return getBombSitesForMap(mapId) as typeof BOMB_SITES;
+  } catch {}
+  return BOMB_SITES;
+}
+
 function hitsObstacle(p: Point2D, obstacles: readonly MapObstacle[] = MAP_OBSTACLES, pad = BODY): boolean {
-  return obstacles.some(
+  const obs = resolveObstacles(obstacles);
+  return obs.some(
     (obs) =>
       p.x >= obs.minX - pad &&
       p.x <= obs.maxX + pad &&
@@ -148,9 +183,10 @@ export function steerAroundObstacles(
 export function clampToMap(p: Point2D): Point2D {
   const x = Number.isFinite(p.x) ? p.x : 0;
   const z = Number.isFinite(p.z) ? p.z : 0;
+  const b = resolveBoundary();
   return {
-    x: Math.max(MAP_BOUNDARY.minX + 1, Math.min(MAP_BOUNDARY.maxX - 1, x)),
-    z: Math.max(MAP_BOUNDARY.minZ + 1, Math.min(MAP_BOUNDARY.maxZ - 1, z)),
+    x: Math.max(b.minX + 1, Math.min(b.maxX - 1, x)),
+    z: Math.max(b.minZ + 1, Math.min(b.maxZ - 1, z)),
   };
 }
 
@@ -302,12 +338,14 @@ export function spawnCameraYaw(team: "T" | "CT"): number {
 }
 
 export function nearestBombSite(p: Point2D): "A" | "B" {
-  const dA = Math.hypot(p.x - BOMB_SITES.A.x, p.z - BOMB_SITES.A.z);
-  const dB = Math.hypot(p.x - BOMB_SITES.B.x, p.z - BOMB_SITES.B.z);
+  const bombs = resolveBombSites();
+  const dA = Math.hypot(p.x - bombs.A.x, p.z - bombs.A.z);
+  const dB = Math.hypot(p.x - bombs.B.x, p.z - bombs.B.z);
   return dA <= dB ? "A" : "B";
 }
 
 export function distToBombSite(p: Point2D, site: "A" | "B"): number {
-  const s = BOMB_SITES[site];
+  const bombs = resolveBombSites();
+  const s = bombs[site];
   return Math.hypot(p.x - s.x, p.z - s.z);
 }

@@ -1,4 +1,11 @@
 // OFFLINE BUILD v4.1 — plain TS types only (Colyseus Schema removed)
+import {
+  RAVENPOINT_BOUNDS as RP_BOUNDS,
+  RAVENPOINT_BOMB_SITES as RP_BOMBS,
+  RAVENPOINT_SPAWN as RP_SPAWN,
+  RAVENPOINT_BUY_ZONE as RP_BUY,
+  RAVENPOINT_OBSTACLES as RP_OBS,
+} from "./ravenpoint"
 
 // ─── Player State ───────────────────────────────────────────────
 // NOTE: @colyseus/schema 2.0.37 fails to encode fields declared as JS
@@ -684,7 +691,8 @@ export const SPAWN = {
 } as const
 
 export const BOMB_SITES = {
-  A: { x: 15, y: 0, z: -16, radius: 6 },
+  // Diagonal: A west/north (T rush), B east/south (CT hold) — TDD v2.0
+  A: { x: -12, y: 0, z: -15, radius: 6 },
   B: { x: 15, y: 0, z: 16, radius: 6 },
 } as const
 
@@ -698,9 +706,11 @@ export const BUY_ZONE = {
 // client (grenade bounce). Mirrors the visuals in ContainerYard.tsx.
 // material: "wood" = wallbangable (-50% dmg), "metal" = bulletproof, "concrete" = solid wall.
 export type ObstacleMaterial = 'wood' | 'metal' | 'concrete'
+export type ObstacleShape = 'box' | 'cylinder'
 
 export interface MapObstacle {
   id: string
+  shape: ObstacleShape
   material: ObstacleMaterial
   minX: number
   maxX: number
@@ -708,12 +718,22 @@ export interface MapObstacle {
   maxY: number
   minZ: number
   maxZ: number
+  // Center + size (for box) or radius/height (for cylinder) — kept for rendering
+  cx: number
+  cy: number
+  cz: number
+  sx?: number
+  sy?: number
+  sz?: number
+  radius?: number
+  height?: number
 }
 
-// Helper: center + size → AABB
+// Helper: center + size → AABB (box)
 function box(id: string, material: ObstacleMaterial, cx: number, cy: number, cz: number, sx: number, sy: number, sz: number): MapObstacle {
   return {
     id,
+    shape: "box",
     material,
     minX: cx - sx / 2,
     maxX: cx + sx / 2,
@@ -721,6 +741,32 @@ function box(id: string, material: ObstacleMaterial, cx: number, cy: number, cz:
     maxY: cy + sy / 2,
     minZ: cz - sz / 2,
     maxZ: cz + sz / 2,
+    cx,
+    cy,
+    cz,
+    sx,
+    sy,
+    sz,
+  }
+}
+
+// Helper for cylinder (pillar)
+function cylinder(id: string, material: ObstacleMaterial, cx: number, cy: number, cz: number, radius: number, height: number): MapObstacle {
+  return {
+    id,
+    shape: "cylinder",
+    material,
+    minX: cx - radius,
+    maxX: cx + radius,
+    minY: cy - height / 2,
+    maxY: cy + height / 2,
+    minZ: cz - radius,
+    maxZ: cz + radius,
+    cx,
+    cy,
+    cz,
+    radius,
+    height,
   }
 }
 
@@ -728,11 +774,11 @@ function box(id: string, material: ObstacleMaterial, cx: number, cy: number, cz:
 // Visuals in ContainerYard.tsx are drawn from this list (center + size).
 // Layout: 3 lanes (A Long, Mid, B Long), T spawn (west), CT spawn (east)
 export const MAP_OBSTACLES = [
-  // ─── Perimeter Walls ───
-  box('wall_north', 'concrete', 0, 4, -20, 50, 8, 0.8),
-  box('wall_south', 'concrete', 0, 4, 20, 50, 8, 0.8),
-  box('wall_west', 'concrete', -25, 4, 0, 0.8, 8, 40),
-  box('wall_east', 'concrete', 25, 4, 0, 0.8, 8, 40),
+  // ─── Perimeter Walls ─── 80×100 (DE_RAVENPOINT spec)
+  box('wall_north', 'concrete', 0, 4, -50, 80, 8, 0.8),
+  box('wall_south', 'concrete', 0, 4, 50, 80, 8, 0.8),
+  box('wall_west', 'concrete', -40, 4, 0, 0.8, 8, 100),
+  box('wall_east', 'concrete', 40, 4, 0, 0.8, 8, 100),
 
   // ─── T Spawn Area (West) ───
   // Spawn cover walls - provide safety on spawn
@@ -793,19 +839,56 @@ export const MAP_OBSTACLES = [
   box('site_b_box_2', 'wood', 16, 0.65, 17, 1.2, 1.3, 1.2),
 ] as const satisfies readonly MapObstacle[]
 
+// ─── Dust Map — Single Source of Truth (TDD v2.0: box + cylinder, 80×100) ──
+export const DUST_OBSTACLES = [
+  // Perimeter (80×100)
+  box('dust_wall_n', 'concrete', 0, 3.6, -50, 80, 7.2, 1),
+  box('dust_wall_s', 'concrete', 0, 3.6, 50, 80, 7.2, 1),
+  box('dust_wall_w', 'concrete', -40, 3.6, 0, 1, 7.2, 100),
+  box('dust_wall_e', 'concrete', 40, 3.6, 0, 1, 7.2, 100),
+  // T Spawn
+  box('dust_t_spawn_1', 'concrete', -22, 0.75, -5, 1, 1.5, 4),
+  box('dust_t_spawn_2', 'concrete', -22, 0.75, 5, 1, 1.5, 4),
+  box('dust_t_spawn_back', 'concrete', -26, 1.5, 0, 1, 3, 12),
+  // Mid
+  box('dust_mid_center', 'concrete', 0, 1.5, 0, 4, 3, 4),
+  box('dust_mid_box_1', 'wood', -8, 0.5, -6, 2, 1, 2),
+  box('dust_mid_box_2', 'wood', 8, 0.5, 6, 2, 1, 2),
+  box('dust_mid_metal_1', 'metal', -4, 0.75, 4, 3, 1.5, 1.5),
+  box('dust_mid_metal_2', 'metal', 4, 0.75, -4, 3, 1.5, 1.5),
+  cylinder('dust_mid_pillar_1', 'concrete', -5, 1, 0, 0.4, 2),
+  cylinder('dust_mid_pillar_2', 'concrete', 5, 1, 0, 0.4, 2),
+  // Site A
+  box('dust_site_a_1', 'concrete', -5, 1, -18, 6, 2, 4),
+  box('dust_site_a_2', 'concrete', 5, 1, -18, 4, 2, 4),
+  box('dust_site_a_box', 'wood', 0, 0.5, -14, 2, 1, 2),
+  box('dust_site_a_wall', 'metal', -3, 0.75, -12, 2, 1.5, 1.5),
+  box('dust_site_a_crate', 'wood', 8, 0.5, -14, 1.5, 1, 1.5),
+  // Site B
+  box('dust_site_b_platform', 'concrete', 0, 0.5, 18, 8, 1, 6),
+  box('dust_site_b_pillar_1', 'concrete', -3, 1.5, 20, 2, 2, 2),
+  box('dust_site_b_pillar_2', 'concrete', 3, 1.5, 20, 2, 2, 2),
+  box('dust_site_b_wall', 'metal', 0, 0.75, 14, 2, 1.5, 1.5),
+  box('dust_site_b_crate', 'wood', -6, 0.5, 16, 1.5, 1, 1.5),
+  // CT Spawn
+  box('dust_ct_spawn_1', 'concrete', 22, 0.75, -5, 1, 1.5, 4),
+  box('dust_ct_spawn_2', 'concrete', 22, 0.75, 5, 1, 1.5, 4),
+  box('dust_ct_spawn_back', 'concrete', 26, 1.5, 0, 1, 3, 12),
+] as const satisfies readonly MapObstacle[]
+
 export const MAP_BOUNDARY = {
-  minX: -25,
-  maxX: 25,
-  minZ: -20,
-  maxZ: 20,
+  minX: -40,
+  maxX: 40,
+  minZ: -50,
+  maxZ: 50,
 } as const
 
-// ─── Dust Map Boundary ──────────────────────────────────────────
+// ─── Dust / RavenPoint Map Boundary ─────────────────────────────
 export const DUST_MAP_BOUNDARY = {
-  minX: -28,
-  maxX: 28,
-  minZ: -20,
-  maxZ: 20,
+  minX: -40,
+  maxX: 40,
+  minZ: -50,
+  maxZ: 50,
 } as const
 
 // ─── Callout Labels (strategic spot names) ───────────────────────
@@ -832,11 +915,11 @@ export const MAP_CALLOUTS: readonly MapCallout[] = [
   { id: 'ct_rot', label: 'CT ROTATE', x: 18, z: 0 },
   { id: 'ct_peek', label: 'CT PEEK', x: 20, z: -4 },
 
-  // A Site
-  { id: 'site_a', label: 'SITE A', x: 15, z: -16 },
+  // A Site (rebalanced TDD v2.0: west)
+  { id: 'site_a', label: 'SITE A', x: -12, z: -15 },
   { id: 'a_long', label: 'A LONG', x: -8, z: -15 },
   { id: 'a_connector', label: 'A CONN', x: -3, z: -7.5 },
-  { id: 'a_ninja', label: 'A NINJA', x: 11, z: -17 },
+  { id: 'a_ninja', label: 'A NINJA', x: -10, z: -16 },
   { id: 'a_site_boxes', label: 'A BOXES', x: 15, z: -16 },
 
   // B Site
@@ -1256,4 +1339,29 @@ export const NAVMESH_COMPETITIVE: NavNode[] = [
   { id: "a_mid_link", x: 0, z: -8, neighbors: ["mid_box", "a_main_choke"] },
   { id: "b_mid_link", x: 0, z: 8, neighbors: ["mid_box", "b_tunnel_exit"] },
 ];
+
+// ─── DE_RAVENPOINT Map ──────────────────────────────────────────
+export * from "./ravenpoint"
+
+// ─── Per-Map Helpers ────────────────────────────────────────────
+export function getBombSitesForMap(mapId: string) {
+  if (mapId === "dust" || mapId === "ravenpoint") return RP_BOMBS
+  return BOMB_SITES
+}
+export function getSpawnForMap(mapId: string) {
+  if (mapId === "dust" || mapId === "ravenpoint") return RP_SPAWN
+  return SPAWN
+}
+export function getBuyZoneForMap(mapId: string) {
+  if (mapId === "dust" || mapId === "ravenpoint") return RP_BUY
+  return BUY_ZONE
+}
+export function getObstaclesForMap(mapId: string) {
+  if (mapId === "dust" || mapId === "ravenpoint") return RP_OBS as unknown as typeof MAP_OBSTACLES
+  return MAP_OBSTACLES
+}
+export function getBoundaryForMap(mapId: string) {
+  if (mapId === "dust" || mapId === "ravenpoint") return RP_BOUNDS
+  return MAP_BOUNDARY
+}
 

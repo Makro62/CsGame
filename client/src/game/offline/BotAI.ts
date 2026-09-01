@@ -6,6 +6,7 @@ import {
   DEFAULT_PISTOL,
   isMeleeWeapon,
   BOMB_SITES,
+  getSpawnForMap,
 } from "@cs-game/shared";
 import {
   distToBombSite,
@@ -469,9 +470,16 @@ export function mkPlayer(
   team: "T" | "CT",
   nickname: string,
   isBot: boolean,
-  difficulty: BotDifficultyLevel = "medium"
+  difficulty: BotDifficultyLevel = "medium",
+  mapId?: string
 ): LocalPlayer {
-  const sp = SPAWN[team];
+  let effectiveMap = mapId;
+  if (!effectiveMap) {
+    try { effectiveMap = useGameStore.getState().currentMap; } catch { effectiveMap = "container_yard"; }
+  }
+  if (!effectiveMap) effectiveMap = "container_yard";
+  const spawnMap = (() => { try { return getSpawnForMap(effectiveMap); } catch { return SPAWN; } })();
+  const sp = (spawnMap as Record<string, { x: number; y: number; z: number }>)[team] || SPAWN[team];
   const pistol = DEFAULT_PISTOL[team];
   const pStats = getWeaponStats(pistol);
   const diffCfg = DIFFICULTIES[difficulty] || DIFFICULTIES.medium;

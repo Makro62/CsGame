@@ -1,7 +1,5 @@
-import { useRef, useEffect } from "react";
-import * as THREE from "three";
 import { RigidBody, CuboidCollider } from "@react-three/rapier";
-import { BOMB_SITES, BUY_ZONE } from "@cs-game/shared";
+import { BOMB_SITES, BUY_ZONE, DUST_OBSTACLES } from "@cs-game/shared";
 import { StaticBox, StaticCylinder, FloorZone, SiteMarker, SpawnZone } from "./MapHelpers";
 
 // ============================================================================
@@ -20,119 +18,80 @@ const COLORS = {
 } as const;
 
 // ============================================================================
-// Ground
+// Ground - FIXED: flat collider = flat visual (no vertex displacement)
+// Gunakan Normal Map untuk ilusi bumpy agar collider sinkron & 60 FPS
 // ============================================================================
 function Ground() {
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  useEffect(() => {
-    if (!meshRef.current) return;
-    const geo = meshRef.current.geometry as THREE.PlaneGeometry;
-    const pos = geo.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      const height = Math.sin(x * 0.1) * Math.cos(z * 0.08) * 0.3 + (Math.random() - 0.5) * 0.1;
-      pos.setY(i, height);
-    }
-    geo.computeVertexNormals();
-  }, []);
-
   return (
     <RigidBody type="fixed" position={[0, -0.5, 0]}>
-      <mesh
-        ref={meshRef}
-        receiveShadow
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.5, 0]}
-      >
-        <planeGeometry args={[60, 40, 40, 40]} />
-        <meshStandardMaterial color={COLORS.ground} roughness={0.9} metalness={0.02} flatShading />
+      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.5, 0]}>
+        <planeGeometry args={[80, 100, 10, 10]} />
+        <meshStandardMaterial
+          color={COLORS.ground}
+          roughness={0.95}
+          metalness={0.02}
+          // normalMap={dustNormalTexture} // TODO: tambah texture untuk efek bumpy tanpa collider cost
+        />
       </mesh>
-      <CuboidCollider args={[30, 1.0, 20]} />
+      {/* Collider 100% sinkron dengan visual flat */}
+      <CuboidCollider args={[40, 1.0, 50]} />
     </RigidBody>
   );
 }
 
 // ============================================================================
-// T Spawn Area (West)
+// Single Source of Truth — obstacles from shared (server + client sync)
+// Visual cylinders kept as decoration (no collision mismatch)
 // ============================================================================
+function DustSharedObstacles() {
+  return (
+    <group>
+      {DUST_OBSTACLES.map((obs) => {
+        if (obs.shape === "cylinder") {
+          const color = obs.material === "wood" ? COLORS.wood : obs.material === "metal" ? COLORS.iron : COLORS.concrete;
+          return <StaticCylinder key={obs.id} position={[obs.cx, obs.cy, obs.cz]} radius={obs.radius!} height={obs.height!} color={color} materialType={obs.material} />;
+        }
+        const cx = (obs.minX + obs.maxX) / 2;
+        const cy = (obs.minY + obs.maxY) / 2;
+        const cz = (obs.minZ + obs.maxZ) / 2;
+        const sx = obs.maxX - obs.minX;
+        const sy = obs.maxY - obs.minY;
+        const sz = obs.maxZ - obs.minZ;
+        const color = obs.material === "wood" ? COLORS.wood : obs.material === "metal" ? COLORS.iron : COLORS.concrete;
+        return <StaticBox key={obs.id} position={[cx, cy, cz]} size={[sx, sy, sz]} color={color} materialType={obs.material} />;
+      })}
+    </group>
+  );
+}
+
 function TSpawnArea() {
-  return (
-    <group>
-      <StaticBox position={[-22, 0.75, -5]} size={[1, 1.5, 4]} color={COLORS.stone} materialType="concrete" />
-      <StaticBox position={[-22, 0.75, 5]} size={[1, 1.5, 4]} color={COLORS.stone} materialType="concrete" />
-      <StaticBox position={[-26, 1.5, 0]} size={[1, 3, 12]} color={COLORS.wall} materialType="concrete" />
-      <SpawnZone position={[BUY_ZONE.T.x, 0.03, BUY_ZONE.T.z]} color={COLORS.t} radius={BUY_ZONE.T.radius} />
-    </group>
-  );
+  return <SpawnZone position={[BUY_ZONE.T.x, 0.03, BUY_ZONE.T.z]} color={COLORS.t} radius={BUY_ZONE.T.radius} />;
 }
 
-// ============================================================================
-// Mid Area - Improved with more cover variety
-// ============================================================================
 function MidArea() {
-  return (
-    <group>
-      <StaticBox position={[0, 1.5, 0]} size={[4, 3, 4]} color={COLORS.stone} materialType="concrete" />
-      <StaticBox position={[-8, 0.5, -6]} size={[2, 1, 2]} color={COLORS.wood} materialType="wood" />
-      <StaticBox position={[8, 0.5, 6]} size={[2, 1, 2]} color={COLORS.wood} materialType="wood" />
-      <StaticBox position={[-4, 0.75, 4]} size={[3, 1.5, 1.5]} color={COLORS.iron} materialType="metal" />
-      <StaticBox position={[4, 0.75, -4]} size={[3, 1.5, 1.5]} color={COLORS.iron} materialType="metal" />
-      <StaticCylinder position={[-5, 1, 0]} radius={0.4} height={2} color={COLORS.concrete} materialType="concrete" />
-      <StaticCylinder position={[5, 1, 0]} radius={0.4} height={2} color={COLORS.concrete} materialType="concrete" />
-      <StaticCylinder position={[0, 0.6, -3]} radius={0.3} height={1.2} color={COLORS.iron} materialType="metal" />
-      <StaticCylinder position={[0, 0.6, 3]} radius={0.3} height={1.2} color={COLORS.iron} materialType="metal" />
-    </group>
-  );
+  return null;
 }
 
-// ============================================================================
-// Site A (North) - Improved structure
-// ============================================================================
 function SiteA() {
   return (
     <group>
-      <StaticBox position={[-5, 1, -18]} size={[6, 2, 4]} color={COLORS.sand} materialType="concrete" />
-      <StaticBox position={[5, 1, -18]} size={[4, 2, 4]} color={COLORS.sand} materialType="concrete" />
-      <StaticBox position={[0, 0.5, -14]} size={[2, 1, 2]} color={COLORS.wood} materialType="wood" />
-      <StaticBox position={[-3, 0.75, -12]} size={[2, 1.5, 1.5]} color={COLORS.iron} materialType="metal" />
-      <StaticBox position={[8, 0.5, -14]} size={[1.5, 1, 1.5]} color={COLORS.wood} materialType="wood" />
       <FloorZone position={[BOMB_SITES.A.x, 0.02, BOMB_SITES.A.z]} size={[BOMB_SITES.A.radius * 2, BOMB_SITES.A.radius * 2]} color="#dc2626" opacity={0.18} />
       <SiteMarker x={BOMB_SITES.A.x} z={BOMB_SITES.A.z} color="#ef4444" letter="A" />
     </group>
   );
 }
 
-// ============================================================================
-// Site B (South) - Improved structure
-// ============================================================================
 function SiteB() {
   return (
     <group>
-      <StaticBox position={[0, 0.5, 18]} size={[8, 1, 6]} color={COLORS.concrete} materialType="concrete" />
-      <StaticBox position={[-3, 1.5, 20]} size={[2, 2, 2]} color={COLORS.stone} materialType="concrete" />
-      <StaticBox position={[3, 1.5, 20]} size={[2, 2, 2]} color={COLORS.stone} materialType="concrete" />
-      <StaticBox position={[0, 0.75, 14]} size={[2, 1.5, 1.5]} color={COLORS.iron} materialType="metal" />
-      <StaticBox position={[-6, 0.5, 16]} size={[1.5, 1, 1.5]} color={COLORS.wood} materialType="wood" />
       <FloorZone position={[BOMB_SITES.B.x, 0.02, BOMB_SITES.B.z]} size={[BOMB_SITES.B.radius * 2, BOMB_SITES.B.radius * 2]} color="#2563eb" opacity={0.18} />
       <SiteMarker x={BOMB_SITES.B.x} z={BOMB_SITES.B.z} color="#3b82f6" letter="B" />
     </group>
   );
 }
 
-// ============================================================================
-// CT Spawn Area (East)
-// ============================================================================
 function CTSpawnArea() {
-  return (
-    <group>
-      <StaticBox position={[22, 0.75, -5]} size={[1, 1.5, 4]} color={COLORS.concrete} materialType="concrete" />
-      <StaticBox position={[22, 0.75, 5]} size={[1, 1.5, 4]} color={COLORS.concrete} materialType="concrete" />
-      <StaticBox position={[26, 1.5, 0]} size={[1, 3, 12]} color={COLORS.wall} materialType="concrete" />
-      <SpawnZone position={[BUY_ZONE.CT.x, 0.03, BUY_ZONE.CT.z]} color={COLORS.ct} radius={BUY_ZONE.CT.radius} />
-    </group>
-  );
+  return <SpawnZone position={[BUY_ZONE.CT.x, 0.03, BUY_ZONE.CT.z]} color={COLORS.ct} radius={BUY_ZONE.CT.radius} />;
 }
 
 // ============================================================================
@@ -141,10 +100,10 @@ function CTSpawnArea() {
 function PerimeterWalls() {
   return (
     <group>
-      <StaticBox position={[0, 3.6, -21]} size={[60, 7.2, 1]} color={COLORS.wall} materialType="concrete" />
-      <StaticBox position={[0, 3.6, 21]} size={[60, 7.2, 1]} color={COLORS.wall} materialType="concrete" />
-      <StaticBox position={[-30, 3.6, 0]} size={[1, 7.2, 42]} color={COLORS.wall} materialType="concrete" />
-      <StaticBox position={[30, 3.6, 0]} size={[1, 7.2, 42]} color={COLORS.wall} materialType="concrete" />
+      <StaticBox position={[0, 3.6, -50]} size={[80, 7.2, 1]} color={COLORS.wall} materialType="concrete" />
+      <StaticBox position={[0, 3.6, 50]} size={[80, 7.2, 1]} color={COLORS.wall} materialType="concrete" />
+      <StaticBox position={[-40, 3.6, 0]} size={[1, 7.2, 100]} color={COLORS.wall} materialType="concrete" />
+      <StaticBox position={[40, 3.6, 0]} size={[1, 7.2, 100]} color={COLORS.wall} materialType="concrete" />
     </group>
   );
 }
@@ -191,6 +150,7 @@ export function Dust() {
       <directionalLight position={[-15, 20, -10]} intensity={0.28} color="#ffd89b" />
 
       <Ground />
+      <DustSharedObstacles />
       <TSpawnArea />
       <MidArea />
       <SiteA />

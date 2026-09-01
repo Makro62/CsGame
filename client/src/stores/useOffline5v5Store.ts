@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import { ROUND, ECONOMY, BOMB_SITES } from "@cs-game/shared";
-import { distToBombSite, nearestBombSite } from "../game/offline/offlineCombat";
+import { ROUND, ECONOMY, getBombSitesForMap } from "@cs-game/shared";
 import { mkPlayer, assignBombCarrier, resetBotNav } from "../game/offline/BotAI";
 import { getWeaponStats, executeLocalBuy } from "../game/offline/EconomySystem";
 import { executeLocalShoot } from "../game/offline/CombatSystem";
@@ -28,6 +27,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
   isHalfTime: false,
   maxRounds: ROUND.maxRounds,
   difficulty: "medium",
+  currentMap: "container_yard",
   players: new Map(),
   killFeed: [],
   activeReloads: new Map(),
@@ -40,20 +40,20 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     set({ activeReloads: new Map() });
   },
 
-  initMatch: (nickname: string, team: "T" | "CT", difficulty: BotDifficultyLevel = "medium") => {
+  initMatch: (nickname: string, team: "T" | "CT", difficulty: BotDifficultyLevel = "medium", mapId: string = "container_yard") => {
     get().clearBotTimers();
     const players = new Map<string, LocalPlayer>();
-    const local = mkPlayer("local", team, nickname, false, difficulty);
+    const local = mkPlayer("local", team, nickname, false, difficulty, mapId);
     local.money = ECONOMY.startMoney;
     players.set("local", local);
 
     const tBots = team === "T" ? 4 : 5;
     const ctBots = team === "CT" ? 4 : 5;
     for (let i = 1; i <= tBots; i++) {
-      players.set(`bot_t${i}`, mkPlayer(`bot_t${i}`, "T", `Bot T${i}`, true, difficulty));
+      players.set(`bot_t${i}`, mkPlayer(`bot_t${i}`, "T", `Bot T${i}`, true, difficulty, mapId));
     }
     for (let i = 1; i <= ctBots; i++) {
-      players.set(`bot_ct${i}`, mkPlayer(`bot_ct${i}`, "CT", `Bot CT${i}`, true, difficulty));
+      players.set(`bot_ct${i}`, mkPlayer(`bot_ct${i}`, "CT", `Bot CT${i}`, true, difficulty, mapId));
     }
 
     assignBombCarrier(players);
@@ -74,6 +74,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       bombDropZ: 0,
       isHalfTime: false,
       difficulty,
+      currentMap: mapId,
       players,
       killFeed: [],
       activeReloads: new Map(),
@@ -154,9 +155,15 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     const me = s.players.get("local");
     if (!me || me.isDead || me.team !== "T" || !me.hasBomb || s.bombPlanted) return;
 
-    const resolved = site === "B" || site === "A" ? site : nearestBombSite(me);
-    const sitePos = BOMB_SITES[resolved];
-    if (distToBombSite(me, resolved) > sitePos.radius) return;
+    const bombSites = getBombSitesForMap(s.currentMap);
+    const resolved = site === "B" || site === "A" ? site : (() => {
+      const dA = Math.hypot(me.x - bombSites.A.x, me.z - bombSites.A.z);
+      const dB = Math.hypot(me.x - bombSites.B.x, me.z - bombSites.B.z);
+      return dA <= dB ? "A" : "B";
+    })();
+    const sitePos = bombSites[resolved as keyof typeof bombSites];
+    const dist = Math.hypot(me.x - sitePos.x, me.z - sitePos.z);
+    if (dist > sitePos.radius) return;
 
     const players = new Map(s.players);
     players.set("local", { ...me, isPlanting: true, plantProgress: 0, plantSite: resolved });
@@ -178,10 +185,11 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     const me = s.players.get("local");
     if (!me || me.isDead || me.team !== "CT" || !s.bombPlanted) return;
 
+    const bombSites = getBombSitesForMap(s.currentMap);
     let bombX = s.bombDropX;
     let bombZ = s.bombDropZ;
     if (s.bombPlanted && s.bombSite) {
-      const sitePos = BOMB_SITES[s.bombSite as keyof typeof BOMB_SITES];
+      const sitePos = bombSites[s.bombSite as keyof typeof bombSites];
       if (sitePos) {
         bombX = sitePos.x;
         bombZ = sitePos.z;
@@ -189,7 +197,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     }
 
     const distToBomb = Math.hypot(me.x - bombX, me.z - bombZ);
-    const radius = BOMB_SITES[s.bombSite as "A" | "B"]?.radius ?? 6;
+    const radius = bombSites[s.bombSite as "A" | "B"]?.radius ?? 6;
     if (distToBomb > radius) return;
 
     const players = new Map(s.players);

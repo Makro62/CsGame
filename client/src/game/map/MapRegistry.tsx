@@ -1,6 +1,6 @@
 import { ComponentType } from "react";
 import { ContainerYard } from "./ContainerYard";
-import { Dust } from "./Dust";
+import { RavenPoint } from "./RavenPoint";
 
 export interface MapInfo {
   id: string;
@@ -17,13 +17,14 @@ export const MAPS: MapInfo[] = [
     description: "Classic container arena with tight corridors",
   },
   {
-    id: "dust",
-    name: "Dust",
-    component: Dust,
-    description: "Open desert map with long sight lines",
+    id: "ravenpoint",
+    name: "DE_RAVENPOINT",
+    component: RavenPoint,
+    description: "Bomb defuse 5v5 — T south, CT north, 2 sites, Mid control (80×100m)",
   },
 ];
 
 export function getMapById(id: string): MapInfo {
+  if (id === "dust") id = "ravenpoint";
   return MAPS.find((m) => m.id === id) || MAPS[0];
 }

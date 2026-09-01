@@ -228,6 +228,32 @@ export function ZombieSurvivalMode() {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "KeyF") {
         reviveHeld.current = true;
+        const pos = useAimStore.getState().pos;
+        // Barricade repair
+        const barricades = useZombieStore.getState().barricades;
+        for (const [winId, planks] of Object.entries(barricades)) {
+          const winPos: Record<string, { x: number; z: number }> = {
+            win_north: { x: 0, z: -22 }, win_south: { x: 0, z: 22 }, win_east: { x: 22, z: 0 }, win_west: { x: -22, z: 0 },
+          };
+          const w = winPos[winId];
+          if (w && Math.hypot(pos.x - w.x, pos.z - w.z) < 2.5 && planks < 6) {
+            useZombieStore.getState().repairBarricade(winId);
+            return;
+          }
+        }
+        // Door unlock via proximity (fallback for crosshair raycast)
+        const doors = [
+          { id: "door_lab", x: 0, z: 8, cost: 750 },
+          { id: "door_armory", x: -10, z: 0, cost: 1250 },
+          { id: "door_catwalk", x: 10, z: -8, cost: 1500 },
+          { id: "door_bunker", x: 0, z: -12, cost: 2000 },
+        ];
+        for (const d of doors) {
+          if (Math.hypot(pos.x - d.x, pos.z - d.z) < 2.5) {
+            useZombieStore.getState().unlockDoor(d.id, d.cost);
+            return;
+          }
+        }
         return;
       }
       if (e.code === "KeyQ") {
@@ -294,14 +320,14 @@ export function ZombieSurvivalMode() {
       {heroSelected && <ArcadeLockCursor />}
 
       <div id={ZOMBIE_CANVAS_ID} className="w-full h-full">
-      <Canvas camera={{ position: [0, 22, 11], fov: 48 }} shadows>
-        <color attach="background" args={["#12180f"]} />
-        <fog attach="fog" args={["#12180f", 40, 90]} />
-        <ambientLight intensity={0.55} />
-        <hemisphereLight args={["#9bb87a", "#2a3018", 0.55]} />
+      <Canvas camera={{ position: [0, 5, 10], fov: 65 }} shadows>
+        <color attach="background" args={["#050505"]} />
+        <fog attach="fog" args={["#050505", 5, 35]} />
+        <ambientLight intensity={0.05} />
         <directionalLight
-          position={[14, 28, 10]}
-          intensity={1.25}
+          position={[10, 20, 5]}
+          intensity={0.3}
+          color="#4a5a7a"
           castShadow
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
