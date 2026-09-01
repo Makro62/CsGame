@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { getHero } from "./heroes";
-import { applyHeroToMatch } from "./applyHeroMatch";
-import { useHeroStore } from "../../stores/useHeroStore";
-import { useZombieStore } from "../../stores/useZombieStore";
-import { useWeaponStore } from "../../stores/useWeaponStore";
+import { getHero } from "@src/game/zombie/heroes";
+import { applyHeroToMatch } from "@src/game/zombie/applyHeroMatch";
+import { useHeroStore } from "@src/stores/useHeroStore";
+import { useZombieStore } from "@src/stores/useZombieStore";
+import { useWeaponStore } from "@src/stores/useWeaponStore";
 
 describe("hero selection", () => {
   beforeEach(() => {

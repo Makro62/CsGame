@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arcadeScreenMove } from "./arcadeScreenMove";
+import { arcadeScreenMove } from "@src/game/player/arcadeScreenMove";
 
 describe("arcadeScreenMove", () => {
   it("W moves up on screen (-Z)", () => {

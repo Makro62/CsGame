@@ -51,8 +51,8 @@ function ArcadeLockCursor() {
     <div
       style={{
         position: "fixed",
-        left: `${(ndc.x * 0.5 + 0.5) * 100}vw`,
-        top: `${(-ndc.y * 0.5 + 0.5) * 100}vh`,
+        left: `${(ndc.x * 0.5 + 0.5) * 100}dvw`,
+        top: `${(-ndc.y * 0.5 + 0.5) * 100}dvh`,
         width: 18,
         height: 18,
         marginLeft: -9,
@@ -281,7 +281,7 @@ export function ZombieSurvivalMode() {
   }, []);
 
   return (
-    <div className="w-full h-screen bg-black relative" style={{ cursor: "crosshair" }}>
+    <div className="w-full bg-black relative" style={{ cursor: "crosshair", height: "100dvh", width: "100dvw" }}>
       {/* Hero Selection Screen */}
       {!heroSelected && <HeroSelectScreen onSelect={handleHeroSelect} />}
       {heroSelected && (
@@ -324,30 +324,31 @@ export function ZombieSurvivalMode() {
       <div
         style={{
           position: "fixed",
-          top: 16,
-          left: 16,
+          top: "clamp(8px, 2vw, 16px)",
+          left: "clamp(8px, 2vw, 16px)",
           zIndex: 40,
           background: "linear-gradient(145deg, rgba(13, 20, 16, 0.94), rgba(8, 12, 10, 0.98))",
           border: "1.5px solid rgba(132, 204, 22, 0.4)",
           borderRadius: 14,
-          padding: "14px 20px",
+          padding: "clamp(8px, 1.5vw, 14px) clamp(12px, 2vw, 20px)",
           color: "#fff",
           fontFamily: "'Rajdhani', monospace",
-          minWidth: 260,
+          minWidth: "clamp(160px, 30vw, 260px)",
+          maxWidth: "42dvw",
           boxShadow: "0 8px 30px rgba(0,0,0,0.7), 0 0 20px rgba(132, 204, 22, 0.15)",
           userSelect: "none",
         }}
       >
         {/* Wave & Points Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 20 }}>☣️</span>
-            <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.08em", color: "#a3e635" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "clamp(4px, 1vw, 8px)" }}>
+            <span style={{ fontSize: "clamp(16px, 2vw, 20px)" }}>☣️</span>
+            <span style={{ fontSize: "clamp(16px, 2.5vw, 22px)", fontWeight: 900, letterSpacing: "0.08em", color: "#a3e635" }}>
               WAVE {Math.max(1, currentWave)}
             </span>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: "#facc15", textShadow: "0 0 10px rgba(250, 204, 21, 0.4)" }}>
-            {player.points} <span style={{ fontSize: 12, color: "#ca8a04" }}>PTS</span>
+          <div style={{ fontSize: "clamp(16px, 2.5vw, 20px)", fontWeight: 900, color: "#facc15", textShadow: "0 0 10px rgba(250, 204, 21, 0.4)" }}>
+            {player.points} <span style={{ fontSize: "clamp(10px, 1.5vw, 12px)", color: "#ca8a04" }}>PTS</span>
           </div>
         </div>
 
@@ -447,7 +448,7 @@ export function ZombieSurvivalMode() {
       </div>
 
       {/* ── Top Right: Standardized Tactical Action Buttons ── */}
-      <div style={{ position: "fixed", top: 16, right: 16, zIndex: 40, display: "flex", gap: 8 }}>
+      <div style={{ position: "fixed", top: "clamp(8px, 2vw, 16px)", right: "clamp(8px, 2vw, 16px)", zIndex: 40, display: "flex", gap: "clamp(4px, 1vw, 8px)" }}>
         {betweenWaves && (
           <button
             onClick={toggleBuyMenu}
@@ -563,17 +564,18 @@ export function ZombieSurvivalMode() {
       <div
         style={{
           position: "fixed",
-          top: 16,
+          top: "clamp(8px, 2vw, 16px)",
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 40,
           background: "linear-gradient(180deg, rgba(13, 20, 16, 0.96), rgba(8, 12, 10, 0.98))",
           border: waveState === "wave_active" ? "1.5px solid rgba(239, 68, 68, 0.6)" : "1.5px solid rgba(132, 204, 22, 0.5)",
           borderRadius: 14,
-          padding: "10px 24px",
+          padding: "clamp(6px, 1vw, 10px) clamp(14px, 2vw, 24px)",
           color: "#fff",
           fontFamily: "'Rajdhani', monospace",
-          minWidth: 380,
+          minWidth: "clamp(220px, 42vw, 380px)",
+          maxWidth: "52dvw",
           boxShadow: waveState === "wave_active"
             ? "0 8px 30px rgba(0,0,0,0.8), 0 0 25px rgba(239, 68, 68, 0.25)"
             : "0 8px 30px rgba(0,0,0,0.8), 0 0 20px rgba(132, 204, 22, 0.2)",
@@ -583,8 +585,8 @@ export function ZombieSurvivalMode() {
       >
         {/* Mission Status Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 900, letterSpacing: "0.1em" }}>
-            <span style={{ color: waveState === "wave_active" ? "#ef4444" : "#84cc16", fontSize: 15 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "clamp(10px, 1.4vw, 13px)", fontWeight: 900, letterSpacing: "0.1em" }}>
+            <span style={{ color: waveState === "wave_active" ? "#ef4444" : "#84cc16", fontSize: "clamp(12px, 1.6vw, 15px)" }}>
               {waveState === "wave_active" ? "⚔️ TARGET MISI SURVIVAL" : "🛡️ PERSIAPAN PERTAHANAN"}
             </span>
             <span style={{ background: "rgba(255,255,255,0.1)", padding: "1px 8px", borderRadius: 4, color: "#facc15" }}>
@@ -592,8 +594,8 @@ export function ZombieSurvivalMode() {
             </span>
           </div>
 
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8" }}>
-            PROGRES: <span style={{ color: "#a3e635", fontSize: 14 }}>{waveProgressPercent}%</span>
+          <div style={{ fontSize: "clamp(10px, 1.2vw, 12px)", fontWeight: 800, color: "#94a3b8" }}>
+            PROGRES: <span style={{ color: "#a3e635", fontSize: "clamp(11px, 1.5vw, 14px)" }}>{waveProgressPercent}%</span>
           </div>
         </div>
 
@@ -601,12 +603,12 @@ export function ZombieSurvivalMode() {
         {waveState === "wave_active" ? (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "#cbd5e1" }}>
-                ZOMBIE DIBUNUH: <span style={{ color: "#4ade80", fontSize: 16, fontWeight: 900 }}>{killedZombies}</span>
+              <div style={{ fontSize: "clamp(10px, 1.3vw, 12px)", fontWeight: 800, color: "#cbd5e1" }}>
+                ZOMBIE DIBUNUH: <span style={{ color: "#4ade80", fontSize: "clamp(12px, 1.8vw, 16px)", fontWeight: 900 }}>{killedZombies}</span>
                 <span style={{ color: "#64748b" }}> / {totalWaveZombies}</span>
               </div>
-              <div style={{ fontSize: 13, fontWeight: 900, color: "#ef4444" }}>
-                SISA: <span style={{ fontSize: 18, color: "#f87171" }}>{zombiesRemaining}</span> AKAN DATANG
+              <div style={{ fontSize: "clamp(11px, 1.5vw, 13px)", fontWeight: 900, color: "#ef4444" }}>
+                SISA: <span style={{ fontSize: "clamp(14px, 2vw, 18px)", color: "#f87171" }}>{zombiesRemaining}</span> AKAN DATANG
               </div>
             </div>
 
@@ -644,16 +646,17 @@ export function ZombieSurvivalMode() {
       <div
         style={{
           position: "fixed",
-          top: 68,
-          right: 16,
+          top: "clamp(52px, 10vh, 68px)",
+          right: "clamp(8px, 2vw, 16px)",
           zIndex: 40,
           background: "linear-gradient(160deg, rgba(13, 20, 16, 0.94), rgba(8, 12, 10, 0.98))",
           border: "1.5px solid rgba(132, 204, 22, 0.35)",
           borderRadius: 14,
-          padding: "12px 16px",
+          padding: "clamp(8px, 1.5vw, 12px) clamp(10px, 1.5vw, 16px)",
           color: "#fff",
           fontFamily: "'Rajdhani', monospace",
-          minWidth: 230,
+          minWidth: "clamp(160px, 28vw, 230px)",
+          maxWidth: "36dvw",
           boxShadow: "0 8px 30px rgba(0,0,0,0.7), 0 0 16px rgba(132, 204, 22, 0.1)",
           userSelect: "none",
         }}
@@ -738,16 +741,17 @@ export function ZombieSurvivalMode() {
       <div
         style={{
           position: "fixed",
-          bottom: 20,
-          right: 20,
+          bottom: "clamp(8px, 2vw, 20px)",
+          right: "clamp(8px, 2vw, 20px)",
           zIndex: 40,
           background: "linear-gradient(145deg, rgba(13, 20, 16, 0.95), rgba(8, 12, 10, 0.98))",
           border: isReloading ? "1.5px solid #eab308" : currentAmmo === 0 ? "1.5px solid #ef4444" : "1.5px solid rgba(56, 189, 248, 0.4)",
           borderRadius: 14,
-          padding: "16px 22px",
+          padding: "clamp(10px, 1.5vw, 16px) clamp(14px, 2vw, 22px)",
           color: "#fff",
           fontFamily: "'Rajdhani', monospace",
-          minWidth: 260,
+          minWidth: "clamp(160px, 30vw, 260px)",
+          maxWidth: "42dvw",
           boxShadow: isReloading
             ? "0 8px 30px rgba(0,0,0,0.8), 0 0 25px rgba(234, 179, 8, 0.3)"
             : currentAmmo === 0
@@ -780,7 +784,7 @@ export function ZombieSurvivalMode() {
         <div style={{ display: "flex", alignItems: "baseline", gap: 6, margin: "6px 0" }}>
           <span
             style={{
-              fontSize: 42,
+              fontSize: "clamp(26px, 5vw, 42px)",
               fontWeight: 900,
               lineHeight: 1,
               color: currentAmmo === 0 ? "#ef4444" : currentAmmo <= 5 ? "#f97316" : "#38bdf8",
@@ -789,11 +793,11 @@ export function ZombieSurvivalMode() {
           >
             {currentAmmo}
           </span>
-          <span style={{ fontSize: 20, color: "#475569", fontWeight: 800 }}>/</span>
-          <span style={{ fontSize: 22, color: "#94a3b8", fontWeight: 800 }}>
+          <span style={{ fontSize: "clamp(14px, 2vw, 20px)", color: "#475569", fontWeight: 800 }}>/</span>
+          <span style={{ fontSize: "clamp(16px, 2.5vw, 22px)", color: "#94a3b8", fontWeight: 800 }}>
             {reserveAmmo}
           </span>
-          <span style={{ fontSize: 11, color: "#64748b", marginLeft: "auto", fontWeight: 700 }}>
+          <span style={{ fontSize: "clamp(9px, 1.2vw, 11px)", color: "#64748b", marginLeft: "auto", fontWeight: 700 }}>
             MAG: {maxAmmo}
           </span>
         </div>
@@ -835,22 +839,27 @@ export function ZombieSurvivalMode() {
       <div
         style={{
           position: "fixed",
-          bottom: 16,
+          bottom: "clamp(8px, 2vw, 16px)",
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 40,
           background: "rgba(8, 12, 18, 0.88)",
           border: "1px solid rgba(255,255,255,0.12)",
           borderRadius: 10,
-          padding: "6px 20px",
+          padding: "clamp(4px, 1vw, 6px) clamp(10px, 2vw, 20px)",
           color: "#94a3b8",
-          fontSize: 12,
+          fontSize: "clamp(9px, 1.2vw, 12px)",
           fontFamily: "'Rajdhani', monospace",
           fontWeight: 700,
           letterSpacing: "0.05em",
           boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
           userSelect: "none",
           pointerEvents: "none",
+          maxWidth: "96dvw",
+          textAlign: "center",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
         W Atas • S Bawah • A Kiri • D Kanan • Mouse Bidik • Klik Kiri Tembak • R Reload • Q Ability • 1-3 Ganti Senjata • B Toko • F Revive • ESC Menu

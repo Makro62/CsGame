@@ -26,8 +26,10 @@ export const HUD_Z = {
   modal: 1000,
 } as const;
 
-/** Outer margin used by every HUD corner so the corners line up. */
+/** Outer margin used by every HUD corner so the corners line up. Responsive via clamp. */
 export const HUD_EDGE = 16;
+/** Responsive edge: clamp(8px, 2vw, 16px) as CSS string for inline styles. */
+export const HUD_EDGE_RESPONSIVE = "clamp(8px, 2vw, 16px)";
 
 export type HudAccent = "red" | "gold" | "green" | "blue" | "amber" | "violet" | "neutral";
 
@@ -52,7 +54,7 @@ export function hudPanel(accent: HudAccent = "neutral"): CSSProperties {
   return {
     background: "linear-gradient(150deg, rgba(10, 14, 22, 0.88), rgba(17, 24, 39, 0.82))",
     border: `1px solid ${border}`,
-    borderRadius: 12,
+    borderRadius: "clamp(8px, 1.2vw, 12px)",
     backdropFilter: "blur(10px)",
     boxShadow: `0 10px 28px rgba(0, 0, 0, 0.55), 0 0 18px ${glow}`,
     fontFamily: HUD_FONT,
@@ -66,13 +68,13 @@ export function hudPill(accent: HudAccent = "neutral"): CSSProperties {
     display: "inline-flex",
     alignItems: "center",
     gap: 4,
-    padding: "3px 8px",
+    padding: "clamp(2px, 0.5vw, 3px) clamp(6px, 1vw, 8px)",
     borderRadius: 6,
     border: `1px solid ${border}`,
     background: "rgba(0, 0, 0, 0.4)",
     color: text,
     fontFamily: HUD_FONT,
-    fontSize: 10,
+    fontSize: "clamp(9px, 1.8vw, 10px)",
     fontWeight: 800,
     letterSpacing: 0.8,
     whiteSpace: "nowrap",
@@ -86,8 +88,9 @@ export function hudActionButton(accent: HudAccent = "neutral"): CSSProperties {
     ...hudPill(accent),
     pointerEvents: "auto",
     cursor: "pointer",
-    fontSize: 11,
-    padding: "6px 11px",
+    fontSize: "clamp(10px, 2vw, 11px)",
+    padding: "clamp(6px, 1.5vw, 8px) clamp(8px, 2vw, 12px)",
+    minHeight: "36px",
     fontWeight: 800,
     color: text,
     border: `1px solid ${border}`,
@@ -108,7 +111,8 @@ export function hudBannerStack(top: number): CSSProperties {
     zIndex: HUD_Z.banner,
     pointerEvents: "none",
     userSelect: "none",
-    maxWidth: "min(560px, calc(100vw - 320px))",
+    maxWidth: "min(560px, calc(100vw - 16px))",
+    width: "calc(100vw - 16px)",
     fontFamily: HUD_FONT,
   };
 }

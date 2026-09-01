@@ -39,11 +39,12 @@ export function HealthBar({
           ? '1px solid #ef4444'
           : '1px solid rgba(59, 130, 246, 0.3)',
         borderRadius: '14px',
-        padding: '12px 18px',
+        padding: 'clamp(8px, 2vw, 12px) clamp(12px, 3vw, 18px)',
         boxShadow: isCritical
           ? '0 0 20px rgba(239, 68, 68, 0.4)'
           : '0 10px 25px rgba(0, 0, 0, 0.5)',
-        minWidth: '160px',
+        minWidth: 'clamp(120px, 30vw, 160px)',
+        maxWidth: '46vw',
         fontFamily: "'Inter', monospace, sans-serif",
         color: 'white',
         userSelect: 'none',
@@ -55,7 +56,7 @@ export function HealthBar({
           <span style={{ fontSize: '18px' }}>❤️</span>
           <span
             style={{
-              fontSize: '28px',
+              fontSize: 'clamp(20px, 5vw, 28px)',
               fontWeight: 900,
               fontFamily: 'monospace',
               color: hp > 50 ? '#4ade80' : hp > 25 ? '#facc15' : '#f87171',
@@ -84,7 +85,7 @@ export function HealthBar({
       <div
         style={{
           width: '100%',
-          height: '6px',
+          height: 'clamp(4px, 1vw, 6px)',
           background: 'rgba(0, 0, 0, 0.4)',
           borderRadius: '999px',
           overflow: 'hidden',

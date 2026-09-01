@@ -496,7 +496,7 @@ export function L4DMode() {
   }
 
   return (
-    <div className="w-full h-screen bg-black relative">
+    <div className="w-full bg-black relative" style={{ height: "100dvh", width: "100dvw" }}>
       {/* Survivor Selection Screen */}
       {!survivorSelected && <L4DSurvivorSelect onSelect={handleSurvivorSelect} />}
 
@@ -521,14 +521,14 @@ export function L4DMode() {
       </Canvas>
       </div>
 
-      <div className="absolute top-3 left-3 bg-black/60 border border-white/10 rounded px-3 py-2 text-white font-mono">
-        <div className="text-lg font-bold">L4D {chapter}/4</div>
-        <div className="text-xs opacity-80">{subtitle}</div>
-        <div className="text-xs">Director {Math.round(directorIntensity)}% {hordeActive && <span className="text-red-400 animate-pulse">HORDE {Math.ceil(hordeTimer)}s</span>}</div>
-        <div className="text-xs opacity-70">Infected {infected.filter(i => !i.isDead).length} • Alive {aliveCount}/4</div>
-        {chapterState === "finale" && <div className="text-sm text-yellow-300">Finale {finaleState} {finaleTimer > 0 ? `${Math.ceil(finaleTimer)}s` : ""} {rescueVehicleArrived && "— RESCUE!"}</div>}
+      <div className="absolute bg-black/60 border border-white/10 rounded px-3 py-2 text-white font-mono" style={{ top: "clamp(8px, 2vw, 12px)", left: "clamp(8px, 2vw, 12px)", maxWidth: "42dvw" }}>
+        <div className="text-lg font-bold" style={{ fontSize: "clamp(14px, 2vw, 18px)" }}>L4D {chapter}/4</div>
+        <div className="text-xs opacity-80" style={{ fontSize: "clamp(10px, 1.2vw, 12px)" }}>{subtitle}</div>
+        <div className="text-xs" style={{ fontSize: "clamp(10px, 1.2vw, 12px)" }}>Director {Math.round(directorIntensity)}% {hordeActive && <span className="text-red-400 animate-pulse">HORDE {Math.ceil(hordeTimer)}s</span>}</div>
+        <div className="text-xs opacity-70" style={{ fontSize: "clamp(10px, 1.2vw, 12px)" }}>Infected {infected.filter(i => !i.isDead).length} • Alive {aliveCount}/4</div>
+        {chapterState === "finale" && <div className="text-sm text-yellow-300" style={{ fontSize: "clamp(11px, 1.5vw, 14px)" }}>Finale {finaleState} {finaleTimer > 0 ? `${Math.ceil(finaleTimer)}s` : ""} {rescueVehicleArrived && "— RESCUE!"}</div>}
       </div>
-      <div style={{ position: "fixed", top: 14, right: 16, zIndex: 40, display: "flex", gap: 8 }}>
+      <div style={{ position: "fixed", top: "clamp(8px, 2vw, 14px)", right: "clamp(8px, 2vw, 16px)", zIndex: 40, display: "flex", gap: "clamp(4px, 1vw, 8px)" }}>
         <button
           onClick={() => window.dispatchEvent(new CustomEvent("openSettings"))}
           style={{
@@ -600,10 +600,10 @@ export function L4DMode() {
         </button>
       </div>
 
-      <div className="absolute bottom-3 left-3 flex gap-2">
+      <div className="absolute flex gap-2" style={{ bottom: "clamp(8px, 2vw, 12px)", left: "clamp(8px, 2vw, 12px)", maxWidth: "58dvw" }}>
         {survivors.map(s => (
-          <div key={s.id} className={`px-3 py-2 rounded border text-xs font-mono ${s.isDead ? "bg-red-900 border-red-600 text-white/50" : s.isDowned ? "bg-yellow-900 border-yellow-600 text-white" : "bg-black/60 border-white/20 text-white"}`}>
-            <div className="font-bold">{s.name} {s.id === "survivor_0" && "(YOU)"}</div>
+          <div key={s.id} className={`px-3 py-2 rounded border font-mono ${s.isDead ? "bg-red-900 border-red-600 text-white/50" : s.isDowned ? "bg-yellow-900 border-yellow-600 text-white" : "bg-black/60 border-white/20 text-white"}`} style={{ fontSize: "clamp(10px, 1.3vw, 12px)", minWidth: "clamp(70px, 12vw, 100px)" }}>
+            <div className="font-bold" style={{ fontSize: "clamp(10px, 1.4vw, 12px)" }}>{s.name} {s.id === "survivor_0" && "(YOU)"}</div>
             <div>HP {Math.ceil(s.hp)}/{s.maxHp}</div>
             {s.isDowned && <div className="text-yellow-300 animate-pulse">DOWNED {Math.ceil(s.downedTimer)}s</div>}
             {s.grabbedBy && <div className="text-green-300">SMOKER!</div>}
@@ -611,10 +611,10 @@ export function L4DMode() {
           </div>
         ))}
       </div>
-      <div className="absolute bottom-3 right-3 bg-black/60 border border-white/10 rounded px-3 py-2 text-white font-mono text-right">
-        <div className="text-lg">{(activeWeapon ?? "—").toUpperCase()}</div>
-        <div className="text-2xl">{currentAmmo} <span className="text-sm opacity-60">/ {reserveAmmo}</span></div>
-        <div className="text-white/60 text-xs">WASD • LMB • RMB ADS • R reload • F revive • Q ability</div>
+      <div className="absolute bg-black/60 border border-white/10 rounded px-3 py-2 text-white font-mono text-right" style={{ bottom: "clamp(8px, 2vw, 12px)", right: "clamp(8px, 2vw, 12px)", minWidth: "clamp(120px, 30vw, 160px)", maxWidth: "42dvw" }}>
+        <div className="text-lg" style={{ fontSize: "clamp(14px, 2vw, 18px)" }}>{(activeWeapon ?? "—").toUpperCase()}</div>
+        <div className="text-2xl" style={{ fontSize: "clamp(18px, 3vw, 24px)" }}>{currentAmmo} <span className="text-sm opacity-60" style={{ fontSize: "clamp(11px, 1.5vw, 14px)" }}>/ {reserveAmmo}</span></div>
+        <div className="text-white/60 text-xs" style={{ fontSize: "clamp(9px, 1.2vw, 12px)" }}>WASD • LMB • RMB ADS • R reload • F revive • Q ability</div>
         <div className={`mt-1 text-xs font-bold ${abilityCooldownRemaining <= 0 ? "text-emerald-400" : "text-white/40"}`}>
           [Q] {L4D_ABILITY_LABEL[selectedSurvivorDef.ability] ?? selectedSurvivorDef.ability}
           {abilityCooldownRemaining > 0

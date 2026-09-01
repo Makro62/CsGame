@@ -81,6 +81,8 @@ export function isInFov(
   to: Point2D,
   fov = Math.PI * 0.75
 ): boolean {
+  if (!Number.isFinite(from.rotationY) || !Number.isFinite(fov) || fov <= 0) return false;
+  if (fov >= Math.PI * 2) return true;
   const angleToTarget = Math.atan2(to.x - from.x, to.z - from.z);
   let diff = angleToTarget - from.rotationY;
   while (diff > Math.PI) diff -= Math.PI * 2;
@@ -89,7 +91,8 @@ export function isInFov(
 }
 
 export function fireIntervalMs(weaponKey: string, fireRate: number): number {
-  return weaponKey === "awp" ? 1400 : 1000 / Math.max(1, fireRate);
+  if (!Number.isFinite(fireRate) || fireRate <= 0) return 1000;
+  return weaponKey === "awp" ? 1400 : 1000 / fireRate;
 }
 
 export function resolveBotShot(opts: {
@@ -143,9 +146,11 @@ export function steerAroundObstacles(
 }
 
 export function clampToMap(p: Point2D): Point2D {
+  const x = Number.isFinite(p.x) ? p.x : 0;
+  const z = Number.isFinite(p.z) ? p.z : 0;
   return {
-    x: Math.max(MAP_BOUNDARY.minX + 1, Math.min(MAP_BOUNDARY.maxX - 1, p.x)),
-    z: Math.max(MAP_BOUNDARY.minZ + 1, Math.min(MAP_BOUNDARY.maxZ - 1, p.z)),
+    x: Math.max(MAP_BOUNDARY.minX + 1, Math.min(MAP_BOUNDARY.maxX - 1, x)),
+    z: Math.max(MAP_BOUNDARY.minZ + 1, Math.min(MAP_BOUNDARY.maxZ - 1, z)),
   };
 }
 
@@ -224,6 +229,8 @@ export function botPath(lane: BotLane, team: "T" | "CT"): Point2D[] {
 }
 
 export function nextWaypointIndex(pos: Point2D, path: Point2D[], index: number): number {
+  if (!path.length) return 0;
+  if (!Number.isFinite(index)) return 0;
   let i = Math.max(0, Math.min(index, path.length - 1));
   const wp = path[i];
   if (Math.hypot(wp.x - pos.x, wp.z - pos.z) < 2.2 && i < path.length - 1) i += 1;

@@ -4,7 +4,7 @@ import {
   consumeScreenShake,
   resetScreenShake,
   peekScreenShakeAmplitude,
-} from "./screenShake";
+} from "@src/game/effects/screenShake";
 
 describe("screenShake", () => {
   beforeEach(() => resetScreenShake());

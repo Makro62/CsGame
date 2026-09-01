@@ -146,7 +146,7 @@ export function HUDLayout() {
     <>
       {/* Top bar - Score & Round info */}
       {isCompetitive && (
-        <div className="fixed top-0 left-0 right-0 flex justify-center items-center gap-4 px-6 py-3 z-[100] pointer-events-none">
+        <div className="fixed top-0 left-0 right-0 flex justify-center items-center z-[100] pointer-events-none" style={{ gap: "clamp(8px, 2vw, 16px)", padding: "clamp(6px, 1vh, 12px) clamp(8px, 2vw, 24px)" }}>
           {/* Score panels */}
           <ScorePanel
             isDefusal={isDefusal}
@@ -233,9 +233,9 @@ export function HUDLayout() {
       )}
 
       {/* Bottom HUD */}
-      <div className="fixed bottom-0 left-0 right-0 flex justify-between items-end px-6 py-4 z-[100] pointer-events-none">
+      <div className="fixed bottom-0 left-0 right-0 flex justify-between items-end z-[100] pointer-events-none" style={{ padding: "clamp(8px, 2vw, 16px) clamp(8px, 2vw, 24px)", gap: "clamp(8px, 2vw, 16px)" }}>
         {/* Left side - Health, Armor, Money */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col" style={{ gap: "clamp(4px, 1vw, 6px)", maxWidth: "46dvw" }}>
           <HealthBar
             hp={displayHp}
             armor={displayArmor}
@@ -251,7 +251,7 @@ export function HUDLayout() {
         </div>
 
         {/* Right side - Weapon Slots & Ammo Counter */}
-        <div className="flex flex-col gap-2 items-end">
+        <div className="flex flex-col items-end" style={{ gap: "clamp(4px, 1vw, 8px)", maxWidth: "46dvw" }}>
           <WeaponSlots slots={weaponSlots} />
           {activeWeapon && (
             <AmmoCounter
@@ -268,14 +268,14 @@ export function HUDLayout() {
 
       {/* Kill feed - top right */}
       {isCompetitive && (
-        <div className="fixed top-20 right-4 z-[100] pointer-events-none">
+        <div className="fixed z-[100] pointer-events-none" style={{ top: "clamp(60px, 10vh, 80px)", right: "clamp(8px, 2vw, 16px)" }}>
           <KillFeed events={killFeedEvents} />
         </div>
       )}
 
       {/* Network monitor in multiplayer (top right under killfeed) */}
       {isMultiplayer && (
-        <div className="fixed top-4 right-4 z-[100] pointer-events-none opacity-80 hover:opacity-100 transition-opacity">
+        <div className="fixed z-[100] pointer-events-none opacity-80 hover:opacity-100 transition-opacity" style={{ top: "clamp(8px, 2vw, 16px)", right: "clamp(8px, 2vw, 16px)" }}>
           <NetworkMonitor
             ping={ping}
             fps={fps}
@@ -332,8 +332,8 @@ function ScorePanel({
   if (side === 'left') {
     if (isDefusal) {
       return (
-        <GlassPanel className="px-5 py-1.5 min-w-[80px] text-center">
-          <span className="text-xl font-black font-display text-counter">
+        <GlassPanel className="px-5 py-1.5 text-center" style={{ minWidth: "clamp(60px, 15vw, 80px)" }}>
+          <span className="font-black font-display text-counter" style={{ fontSize: "clamp(16px, 2.5vw, 20px)" }}>
             CT {teamBlueScore}
           </span>
         </GlassPanel>
@@ -341,8 +341,8 @@ function ScorePanel({
     }
     if (isFfa && ffaTop) {
       return (
-        <GlassPanel className="px-5 py-1.5">
-          <span className="text-sm font-bold text-text-primary">
+        <GlassPanel className="px-5 py-1.5" style={{ maxWidth: "36dvw" }}>
+          <span className="font-bold text-text-primary" style={{ fontSize: "clamp(11px, 1.5vw, 14px)" }}>
             TOP {ffaTop.name}: {ffaTop.score}
           </span>
         </GlassPanel>
@@ -350,8 +350,8 @@ function ScorePanel({
     }
     if (isTdm) {
       return (
-        <GlassPanel className="px-5 py-1.5 min-w-[80px] text-center">
-          <span className="text-xl font-black font-display text-terrorist">
+        <GlassPanel className="px-5 py-1.5 text-center" style={{ minWidth: "clamp(60px, 15vw, 80px)" }}>
+          <span className="font-black font-display text-terrorist" style={{ fontSize: "clamp(16px, 2.5vw, 20px)" }}>
             T {teamRedScore}
           </span>
         </GlassPanel>
@@ -363,8 +363,8 @@ function ScorePanel({
   // Right side
   if (isDefusal) {
     return (
-      <GlassPanel className="px-5 py-1.5 min-w-[80px] text-center">
-        <span className="text-xl font-black font-display text-terrorist">
+      <GlassPanel className="px-5 py-1.5 text-center" style={{ minWidth: "clamp(60px, 15vw, 80px)" }}>
+        <span className="font-black font-display text-terrorist" style={{ fontSize: "clamp(16px, 2.5vw, 20px)" }}>
           {teamRedScore} T
         </span>
       </GlassPanel>
@@ -373,14 +373,14 @@ function ScorePanel({
   if (isFfa) {
     return (
       <GlassPanel className="px-5 py-1.5" variant="dark">
-        <span className="text-sm font-bold text-accent-cyan">FFA</span>
+        <span className="font-bold text-accent-cyan" style={{ fontSize: "clamp(11px, 1.5vw, 14px)" }}>FFA</span>
       </GlassPanel>
     )
   }
   if (isTdm) {
     return (
-      <GlassPanel className="px-5 py-1.5 min-w-[80px] text-center">
-        <span className="text-xl font-black font-display text-counter">
+      <GlassPanel className="px-5 py-1.5 text-center" style={{ minWidth: "clamp(60px, 15vw, 80px)" }}>
+        <span className="font-black font-display text-counter" style={{ fontSize: "clamp(16px, 2.5vw, 20px)" }}>
           CT {teamBlueScore}
         </span>
       </GlassPanel>

@@ -28,9 +28,10 @@ export function AmmoCounter({
         backdropFilter: 'blur(16px)',
         border: '1px solid rgba(59, 130, 246, 0.3)',
         borderRadius: '14px',
-        padding: '12px 20px',
+        padding: 'clamp(8px, 2vw, 12px) clamp(12px, 3vw, 18px)',
         boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-        minWidth: '160px',
+        minWidth: 'clamp(120px, 30vw, 160px)',
+        maxWidth: '46vw',
         fontFamily: "'Inter', monospace, sans-serif",
         color: 'white',
         userSelect: 'none',
@@ -61,7 +62,7 @@ export function AmmoCounter({
           <>
             <span
               style={{
-                fontSize: '32px',
+                fontSize: 'clamp(24px, 6vw, 32px)',
                 fontWeight: 900,
                 fontFamily: 'monospace',
                 color: isReloading
@@ -91,7 +92,7 @@ export function AmmoCounter({
           style={{
             marginTop: '8px',
             width: '100%',
-            height: '4px',
+            height: 'clamp(4px, 1vw, 6px)',
             background: 'rgba(0, 0, 0, 0.4)',
             borderRadius: '999px',
             overflow: 'hidden',

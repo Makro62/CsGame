@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@src/*": ["client/src/*"],
+      "@cs-game/shared": ["shared"],
+      "@cs-game/shared/*": ["shared/*"]
+    }
+  },
+  "include": ["client/src/**/*", "test/**/*", "shared/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

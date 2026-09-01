@@ -7,12 +7,15 @@ export function HitMarker() {
   const [killed, setKilled] = useState(false);
 
   useEffect(() => {
-    const off = gameEvents.on("hitMarker", (data) => {
+    const onHit = (data: { headshot: boolean; killed?: boolean }) => {
       setHeadshot(data.headshot);
       setKilled(!!data.killed);
       setShow(true);
-    });
-    return off;
+    };
+    gameEvents.on("hitMarker", onHit);
+    return () => {
+      gameEvents.off("hitMarker", onHit);
+    };
   }, []);
 
   useEffect(() => {

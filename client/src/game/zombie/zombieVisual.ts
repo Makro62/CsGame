@@ -3,7 +3,8 @@ import { ZOMBIE_TYPES } from "@cs-game/shared";
 
 /** Visual / hitbox scale. Matches the humanoid rig, not the old capsule. */
 export function zombieVisualScale(type: ZombieType): number {
-  return ZOMBIE_TYPES[type].scale;
+  const entry = ZOMBIE_TYPES[type as keyof typeof ZOMBIE_TYPES];
+  return entry?.scale ?? 1;
 }
 
 /** Half-width of torso + arms in XZ, matching the box rig. */

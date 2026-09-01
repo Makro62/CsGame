@@ -246,21 +246,23 @@ export const useGameStore = create<GameState>()((set, get) => {
     },
 
     loadBestTime: () => {
-      const saved = localStorage.getItem('training_best_time')
-      if (saved) {
-        const time = parseFloat(saved)
-        if (!isNaN(time) && isFinite(time)) {
-          set(state => ({
-            stats: { ...state.stats, bestTime: time },
-          }))
+      try {
+        const saved = localStorage.getItem('training_best_time')
+        if (saved) {
+          const time = parseFloat(saved)
+          if (!isNaN(time) && isFinite(time)) {
+            set(state => ({
+              stats: { ...state.stats, bestTime: time },
+            }))
+          }
         }
-      }
+      } catch { /* private browsing / sandbox */ }
     },
 
     saveBestTime: () => {
       const { timer, stats } = get()
       if (timer < stats.bestTime) {
-        localStorage.setItem('training_best_time', timer.toString())
+        try { localStorage.setItem('training_best_time', timer.toString()) } catch { /* private browsing */ }
         set(state => ({
           stats: { ...state.stats, bestTime: timer },
         }))

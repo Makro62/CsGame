@@ -1,10 +1,9 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { mkPlayer, DIFFICULTIES, botBuy, defaultLoadout } from "./BotAI";
-import { executeLocalBuy } from "./EconomySystem";
-import { executeLocalShoot } from "./CombatSystem";
-import { tickRound } from "./RoundManager";
-import { useOffline5v5Store } from "../../stores/useOffline5v5Store";
-import type { LocalPlayer } from "./types";
+import { mkPlayer, DIFFICULTIES, botBuy, defaultLoadout } from "@src/game/offline/BotAI";
+import { executeLocalBuy } from "@src/game/offline/EconomySystem";
+import { executeLocalShoot } from "@src/game/offline/CombatSystem";
+import { useOffline5v5Store } from "@src/stores/useOffline5v5Store";
+import type { LocalPlayer } from "@src/game/offline/types";
 
 describe("5v5 Offline Modular Subsystems", () => {
   beforeEach(() => {

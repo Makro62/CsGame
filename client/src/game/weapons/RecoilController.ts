@@ -116,6 +116,10 @@ export class RecoilController {
   }
 
   fire(): { offsetX: number; offsetY: number } {
+    if (this.pattern.length === 0) {
+      return { offsetX: 0, offsetY: 0 }
+    }
+
     const now = performance.now()
     const timeSinceLastFire = now - this.lastFireTime
 
@@ -212,7 +216,7 @@ export function getSpreadRadius(
     airborne: 6.0,
   }
 
-  const base = baseSpread[weapon] || 0.02
+  const base = baseSpread[weapon] ?? 0.02
   const mult = movementMultiplier[movementState] || 1
   const sprayBonus = sprayCount * 0.003
 

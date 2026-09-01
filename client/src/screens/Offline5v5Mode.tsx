@@ -279,7 +279,7 @@ export function Offline5v5Mode() {
   const ActiveMap = MapComp;
 
   return (
-    <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "#0a0e14" }}>
+    <div style={{ width: "100dvw", height: "100dvh", position: "relative", overflow: "hidden", background: "#0a0e14" }}>
       <Canvas shadows camera={{ fov: 75, position: [0, 5, -22] }}>
         <color attach="background" args={["#0e1520"]} />
         <fog attach="fog" args={["#0e1520", 48, 110]} />
@@ -301,27 +301,28 @@ export function Offline5v5Mode() {
       <div
         style={{
           position: "fixed",
-          top: 14,
+          top: "clamp(8px, 2vw, 14px)",
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 40,
           background: "linear-gradient(180deg, rgba(15,23,42,0.95), rgba(8,12,22,0.92))",
           border: "1px solid rgba(255,255,255,0.15)",
           borderRadius: 12,
-          padding: "6px 20px",
+          padding: "clamp(4px, 1vw, 6px) clamp(12px, 2vw, 20px)",
           color: "#fff",
           fontFamily: "'Rajdhani', monospace",
           display: "flex",
-          gap: 20,
+          gap: "clamp(10px, 2vw, 20px)",
           alignItems: "center",
           boxShadow: "0 8px 30px rgba(0,0,0,0.6)",
           userSelect: "none",
+          maxWidth: "96dvw",
         }}
       >
         {/* T Side Team Status */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: "#ef4444", fontWeight: 900, fontSize: 16 }}>T</span>
-          <span style={{ color: "#f87171", fontWeight: 900, fontSize: 22, minWidth: 24, textAlign: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "clamp(6px, 1vw, 10px)" }}>
+          <span style={{ color: "#ef4444", fontWeight: 900, fontSize: "clamp(12px, 2vw, 16px)" }}>T</span>
+          <span style={{ color: "#f87171", fontWeight: 900, fontSize: "clamp(16px, 3vw, 22px)", minWidth: 24, textAlign: "center" }}>
             {teamRedScore}
           </span>
           <div style={{ display: "flex", gap: 4 }}>
@@ -341,26 +342,26 @@ export function Offline5v5Mode() {
         </div>
 
         {/* Center Round Timer & Bomb Indicator */}
-        <div style={{ textAlign: "center", minWidth: 100, borderLeft: "1px solid rgba(255,255,255,0.1)", borderRight: "1px solid rgba(255,255,255,0.1)", padding: "0 14px" }}>
+        <div style={{ textAlign: "center", minWidth: "clamp(80px, 15vw, 100px)", borderLeft: "1px solid rgba(255,255,255,0.1)", borderRight: "1px solid rgba(255,255,255,0.1)", padding: "0 clamp(8px, 1.5vw, 14px)" }}>
           {bombPlanted ? (
-            <div style={{ color: "#facc15", fontWeight: 900, fontSize: 14, animation: "pulseBtnGlow 1s infinite" }}>
+            <div style={{ color: "#facc15", fontWeight: 900, fontSize: "clamp(11px, 1.8vw, 14px)", animation: "pulseBtnGlow 1s infinite" }}>
               💣 {bombSite ? `SITE ${bombSite}` : "BOMB"} ({Math.ceil(bombTimeLeft)}s)
             </div>
           ) : (
-            <div style={{ color: "#38bdf8", fontWeight: 900, fontSize: 18 }}>
+            <div style={{ color: "#38bdf8", fontWeight: 900, fontSize: "clamp(14px, 2.5vw, 18px)" }}>
               {(() => {
                 const t = phase === "buy" ? buyPhaseTimeLeft : roundTimeLeft;
                 return `${Math.floor(t / 60)}:${Math.floor(t % 60).toString().padStart(2, "0")}`;
               })()}
             </div>
           )}
-          <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1 }}>
+          <div style={{ fontSize: "clamp(8px, 1.2vw, 10px)", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1 }}>
             ROUND {roundNumber} • {phase === "buy" ? "BUY TIME" : phase}
           </div>
         </div>
 
         {/* CT Side Team Status */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "clamp(6px, 1vw, 10px)" }}>
           <div style={{ display: "flex", gap: 4 }}>
             {ctPlayers.map((cp, idx) => (
               <div
@@ -375,15 +376,15 @@ export function Offline5v5Mode() {
               />
             ))}
           </div>
-          <span style={{ color: "#60a5fa", fontWeight: 900, fontSize: 22, minWidth: 24, textAlign: "center" }}>
+          <span style={{ color: "#60a5fa", fontWeight: 900, fontSize: "clamp(16px, 3vw, 22px)", minWidth: 24, textAlign: "center" }}>
             {teamBlueScore}
           </span>
-          <span style={{ color: "#3b82f6", fontWeight: 900, fontSize: 16 }}>CT</span>
+          <span style={{ color: "#3b82f6", fontWeight: 900, fontSize: "clamp(12px, 2vw, 16px)" }}>CT</span>
         </div>
       </div>
 
       {/* ── Top Right: Standardized Tactical Action Buttons ── */}
-      <div style={{ position: "fixed", top: 14, right: 16, zIndex: 40, display: "flex", gap: 8 }}>
+      <div style={{ position: "fixed", top: "clamp(8px, 2vw, 14px)", right: "clamp(8px, 2vw, 16px)", zIndex: 40, display: "flex", gap: "clamp(4px, 1vw, 8px)" }}>
         <button
           onClick={openSettings}
           style={{
@@ -441,35 +442,36 @@ export function Offline5v5Mode() {
           <div
             style={{
               position: "fixed",
-              bottom: 16,
-              left: 16,
+              bottom: "clamp(8px, 2vw, 16px)",
+              left: "clamp(8px, 2vw, 16px)",
               zIndex: 40,
               background: "linear-gradient(145deg, rgba(15,23,42,0.92), rgba(8,12,22,0.95))",
               border: "1.5px solid rgba(255,255,255,0.12)",
               borderRadius: 12,
-              padding: "10px 18px",
+              padding: "clamp(6px, 1.5vw, 10px) clamp(10px, 2vw, 18px)",
               color: "#fff",
               fontFamily: "'Rajdhani', monospace",
-              minWidth: 150,
+              minWidth: "clamp(120px, 30vw, 150px)",
+              maxWidth: "32dvw",
               boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "clamp(4px, 1vw, 8px)", marginBottom: 4 }}>
               <span
                 style={{
                   color: me.hp > 60 ? "#4ade80" : me.hp > 25 ? "#facc15" : "#ef4444",
                   fontWeight: 900,
-                  fontSize: 24,
+                  fontSize: "clamp(18px, 3vw, 24px)",
                 }}
               >
                 {Math.ceil(me.hp)}
               </span>
-              <span style={{ color: "#94a3b8", fontSize: 12, fontWeight: 700 }}>HP</span>
+              <span style={{ color: "#94a3b8", fontSize: "clamp(10px, 1.5vw, 12px)", fontWeight: 700 }}>HP</span>
             </div>
             {me.armor > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ color: "#60a5fa", fontSize: 15, fontWeight: 800 }}>{me.armor}</span>
-                <span style={{ color: "#94a3b8", fontSize: 11 }}>{me.hasHelmet ? "Kevlar + Helmet" : "Kevlar"}</span>
+                <span style={{ color: "#60a5fa", fontSize: "clamp(12px, 1.8vw, 15px)", fontWeight: 800 }}>{me.armor}</span>
+                <span style={{ color: "#94a3b8", fontSize: "clamp(9px, 1.2vw, 11px)" }}>{me.hasHelmet ? "Kevlar + Helmet" : "Kevlar"}</span>
               </div>
             )}
           </div>
@@ -478,26 +480,27 @@ export function Offline5v5Mode() {
           <div
             style={{
               position: "fixed",
-              bottom: 16,
-              right: 16,
+              bottom: "clamp(8px, 2vw, 16px)",
+              right: "clamp(8px, 2vw, 16px)",
               zIndex: 40,
               background: "linear-gradient(145deg, rgba(15,23,42,0.92), rgba(8,12,22,0.95))",
               border: "1.5px solid rgba(255,255,255,0.12)",
               borderRadius: 12,
-              padding: "10px 18px",
+              padding: "clamp(6px, 1.5vw, 10px) clamp(10px, 2vw, 18px)",
               color: "#fff",
               fontFamily: "'Rajdhani', monospace",
               textAlign: "right",
-              minWidth: 150,
+              minWidth: "clamp(120px, 30vw, 150px)",
+              maxWidth: "32dvw",
               boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
             }}
           >
-            <div style={{ color: "#38bdf8", fontSize: 13, fontWeight: 900, marginBottom: 2, textTransform: "uppercase", letterSpacing: 1 }}>
+            <div style={{ color: "#38bdf8", fontSize: "clamp(10px, 1.5vw, 13px)", fontWeight: 900, marginBottom: 2, textTransform: "uppercase", letterSpacing: 1 }}>
               {me.currentWeapon}
             </div>
             <div>
-              <span style={{ color: "#facc15", fontSize: 24, fontWeight: 900 }}>{me.ammo}</span>{" "}
-              <span style={{ color: "#94a3b8", fontSize: 14 }}>/ {me.reserveAmmo}</span>
+              <span style={{ color: "#facc15", fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 900 }}>{me.ammo}</span>{" "}
+              <span style={{ color: "#94a3b8", fontSize: "clamp(11px, 1.5vw, 14px)" }}>/ {me.reserveAmmo}</span>
             </div>
           </div>
 
@@ -505,17 +508,17 @@ export function Offline5v5Mode() {
           <div
             style={{
               position: "fixed",
-              bottom: 16,
+              bottom: "clamp(8px, 2vw, 16px)",
               left: "50%",
               transform: "translateX(-50%)",
               zIndex: 40,
               background: "linear-gradient(145deg, rgba(15,23,42,0.92), rgba(8,12,22,0.95))",
               border: "1.5px solid rgba(74,222,128,0.4)",
               borderRadius: 10,
-              padding: "6px 16px",
+              padding: "clamp(4px, 1vw, 6px) clamp(10px, 2vw, 16px)",
               color: "#4ade80",
               fontFamily: "'Rajdhani', monospace",
-              fontSize: 16,
+              fontSize: "clamp(12px, 2vw, 16px)",
               fontWeight: 900,
               boxShadow: "0 0 16px rgba(74,222,128,0.2)",
             }}
@@ -528,17 +531,17 @@ export function Offline5v5Mode() {
             <div
               style={{
                 position: "fixed",
-                bottom: 56,
+                bottom: "clamp(48px, 8vh, 56px)",
                 left: "50%",
                 transform: "translateX(-50%)",
                 zIndex: 40,
                 background: "rgba(234,179,8,0.25)",
                 border: "1.5px solid #eab308",
                 borderRadius: 8,
-                padding: "6px 16px",
+                padding: "clamp(4px, 1vw, 6px) clamp(10px, 2vw, 16px)",
                 color: "#facc15",
                 fontFamily: "'Rajdhani', monospace",
-                fontSize: 13,
+                fontSize: "clamp(11px, 1.5vw, 13px)",
                 fontWeight: 900,
               }}
             >
@@ -550,17 +553,17 @@ export function Offline5v5Mode() {
             <div
               style={{
                 position: "fixed",
-                bottom: 56,
+                bottom: "clamp(48px, 8vh, 56px)",
                 left: "50%",
                 transform: "translateX(-50%)",
                 zIndex: 40,
                 background: "rgba(59,130,246,0.25)",
                 border: "1.5px solid #60a5fa",
                 borderRadius: 8,
-                padding: "6px 16px",
+                padding: "clamp(4px, 1vw, 6px) clamp(10px, 2vw, 16px)",
                 color: "#93c5fd",
                 fontFamily: "'Rajdhani', monospace",
-                fontSize: 13,
+                fontSize: "clamp(11px, 1.5vw, 13px)",
                 fontWeight: 900,
               }}
             >

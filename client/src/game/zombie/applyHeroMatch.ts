@@ -3,6 +3,9 @@ import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
 import type { HeroDefinition } from "./heroes";
 
 export function applyHeroToMatch(hero: HeroDefinition, opts?: { silent?: boolean }) {
+  if (!hero || !hero.stats || !hero.primaryWeapon || !hero.secondaryWeapon || !hero.knifeWeapon) return;
+  if (!Number.isFinite(hero.stats.maxHp) || hero.stats.maxHp <= 0) return;
+  if (!Number.isFinite(hero.stats.armor) || hero.stats.armor < 0) return;
   const ws = useWeaponStore.getState();
   ws.setInfiniteAmmo(false);
   ws.resetUpgrades();

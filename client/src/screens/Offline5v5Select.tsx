@@ -82,10 +82,10 @@ export function Offline5v5Select({ onSelect, onBack }: Offline5v5SelectProps) {
 
   return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 200,
+      position: "fixed", inset: 0, zIndex: 200, height: "100dvh", width: "100dvw",
       background: "linear-gradient(135deg, #0a0e14 0%, #1a1f2e 50%, #0a0e14 100%)",
       display: "flex", flexDirection: "column",
-      fontFamily: "'Rajdhani', monospace",
+      fontFamily: "'Rajdhani', monospace", overflow: "hidden",
     }}>
       {/* Header */}
       <div style={{ textAlign: "center", padding: "24px 20px 16px" }}>
@@ -108,13 +108,13 @@ export function Offline5v5Select({ onSelect, onBack }: Offline5v5SelectProps) {
 
         {/* Step 0: Team Selection */}
         {step === 0 && (
-          <div style={{ display: "flex", gap: 32 }}>
+          <div style={{ display: "flex", gap: "clamp(12px, 2vw, 32px)" }}>
             {(["CT", "T"] as const).map((team) => (
               <div
                 key={team}
                 onClick={() => handleTeamSelect(team)}
                 style={{
-                  width: 300, padding: "40px 30px", borderRadius: 20, cursor: "pointer",
+                  width: "clamp(200px, 40vw, 300px)", maxWidth: "92vw", padding: "clamp(20px, 3vw, 40px) clamp(16px, 2.5vw, 30px)", borderRadius: 20, cursor: "pointer",
                   background: team === "CT"
                     ? "linear-gradient(155deg, rgba(37,99,235,0.2), rgba(15,23,42,0.95))"
                     : "linear-gradient(155deg, rgba(239,68,68,0.2), rgba(15,23,42,0.95))",
@@ -146,13 +146,13 @@ export function Offline5v5Select({ onSelect, onBack }: Offline5v5SelectProps) {
 
         {/* Step 1: Map Selection */}
         {step === 1 && (
-          <div style={{ display: "flex", gap: 24 }}>
+          <div style={{ display: "flex", gap: "clamp(12px, 2vw, 24px)" }}>
             {MAPS.map((map) => (
               <div
                 key={map.id}
                 onClick={() => handleMapSelect(map.id)}
                 style={{
-                  width: 280, padding: "24px 20px", borderRadius: 16, cursor: "pointer",
+                  width: "clamp(200px, 40vw, 280px)", maxWidth: "92vw", padding: "clamp(16px, 2vw, 24px) clamp(14px, 2vw, 20px)", borderRadius: 16, cursor: "pointer",
                   background: "linear-gradient(155deg, rgba(30,41,59,0.85), rgba(15,23,42,0.95))",
                   border: "1.5px solid rgba(255,255,255,0.15)",
                   transition: "all 0.2s ease",

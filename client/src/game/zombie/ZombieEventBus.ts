@@ -19,8 +19,8 @@ export class ZombieEventBus {
   }
 
   emit(ev: ZombieEvent) {
-    for (const h of this.handlers) {
-      h(ev);
+    for (const h of [...this.handlers]) {
+      try { h(ev); } catch { /* one handler must not break others */ }
     }
   }
 

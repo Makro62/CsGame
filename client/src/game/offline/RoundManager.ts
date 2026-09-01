@@ -383,5 +383,6 @@ export function resetForRound(
     roundTimeLeft: ROUND.activePhaseDuration,
     players,
     activeReloads: new Map(),
+    killFeed: [],
   });
 }

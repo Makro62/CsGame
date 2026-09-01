@@ -57,6 +57,7 @@ export function purchaseOrEquipSurvivalWeapon(
     return "equipped";
   }
 
+  if (!Number.isFinite(cost) || cost < 0) return "cant_afford";
   if (st.player.points < cost) return "cant_afford";
   if (cost > 0) st.addPoints(-cost);
   st.addPurchasedWeapon(id);

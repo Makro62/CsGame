@@ -72,22 +72,22 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   },
 
   setMusicVolume: (value: number) => {
-    localStorage.setItem("musicVolume", value.toString());
+    setStorage("musicVolume", value.toString());
     set({ musicVolume: value });
   },
 
   setCrosshairColor: (color: string) => {
-    localStorage.setItem("crosshairColor", color);
+    setStorage("crosshairColor", color);
     set({ crosshairColor: color });
   },
 
   setCrosshairSize: (size: number) => {
-    localStorage.setItem("crosshairSize", size.toString());
+    setStorage("crosshairSize", size.toString());
     set({ crosshairSize: size });
   },
 
   setCrosshairStyle: (style: 'dot' | 'cross' | 'dynamic') => {
-    localStorage.setItem("crosshairStyle", style);
+    setStorage("crosshairStyle", style);
     set({ crosshairStyle: style });
   },
 }));

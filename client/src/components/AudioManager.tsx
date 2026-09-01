@@ -1,6 +1,4 @@
-// @ts-nocheck
-import { useEffect, useRef } from 'react'
-import { useNetworkStore } from '../stores/useNetworkStore'
+import { useEffect } from 'react'
 import { useSettingsStore } from '../stores/useSettingsStore'
 
 function getEffectiveVolume(): number {
@@ -330,13 +328,9 @@ import { gameEvents } from '../lib/gameEvents'
 import { triggerScreenShake, resetScreenShake } from '../game/effects/screenShake'
 
 export function AudioManager() {
-  const hitMarker = useNetworkStore((s) => s.hitMarker)
-  const killFeed = useNetworkStore((s) => s.killFeed)
   const mode = useGameStore((s) => s.mode)
   const masterVolume = useSettingsStore((s) => s.masterVolume)
   const musicVolume = useSettingsStore((s) => s.musicVolume)
-  const lastKillLen = useRef(0)
-  const lastHitTime = useRef(0)
 
   useEffect(() => {
     function onFirstInteract() {
@@ -367,30 +361,24 @@ export function AudioManager() {
 
   // Offline hitmarker / kill confirm (5v5, Survival, L4D, training)
   useEffect(() => {
-    const offHit = gameEvents.on("hitMarker", (data) => {
+    const onHit = (data: { headshot: boolean; killed?: boolean }) => {
       if (data.killed) Sound.killConfirm()
       else if (data.headshot) Sound.headshot()
       else Sound.hitmarker()
-    })
-    const offDmg = gameEvents.on("playerHitFeedback", () => {
+    }
+    const onDmg = () => {
       triggerScreenShake(0.08)
-    })
+    }
     const onBoomer = () => triggerScreenShake(0.22)
+    gameEvents.on("hitMarker", onHit)
+    gameEvents.on("playerHitFeedback", onDmg)
     window.addEventListener("l4dBoomerPop", onBoomer)
     return () => {
-      offHit()
-      offDmg()
+      gameEvents.off("hitMarker", onHit)
+      gameEvents.off("playerHitFeedback", onDmg)
       window.removeEventListener("l4dBoomerPop", onBoomer)
     }
   }, [])
-
-  // Play kill confirm sound
-  useEffect(() => {
-    if (killFeed.length > lastKillLen.current) {
-      Sound.killConfirm()
-    }
-    lastKillLen.current = killFeed.length
-  }, [killFeed])
 
   return null
 }

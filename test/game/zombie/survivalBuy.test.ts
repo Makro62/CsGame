@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { WEAPONS } from "@cs-game/shared";
-import { useZombieStore } from "../../stores/useZombieStore";
-import { useWeaponStore } from "../../stores/useWeaponStore";
-import { purchaseOrEquipSurvivalWeapon } from "./survivalBuy";
+import { useZombieStore } from "@src/stores/useZombieStore";
+import { useWeaponStore } from "@src/stores/useWeaponStore";
+import { purchaseOrEquipSurvivalWeapon } from "@src/game/zombie/survivalBuy";
 
 function startStarterLoadout() {
   useZombieStore.getState().resetGame(true);

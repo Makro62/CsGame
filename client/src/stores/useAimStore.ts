@@ -17,6 +17,13 @@ export const useAimStore = create<AimState>((set) => ({
   yaw: 0,
   pos: new THREE.Vector3(0,0,-30),
   cursorNdc: { x: 0, y: 0 },
-  setAim: (origin, direction, yaw, pos) => set({ origin: origin.clone(), direction: direction.clone(), yaw, pos: pos.clone() }),
-  setCursorNdc: (x, y) => set({ cursorNdc: { x, y } }),
+  setAim: (origin, direction, yaw, pos) => {
+    if (!origin || !direction || !pos || typeof (origin as THREE.Vector3).clone !== "function") return;
+    if (!Number.isFinite(yaw)) return;
+    set({ origin: origin.clone(), direction: direction.clone(), yaw, pos: pos.clone() });
+  },
+  setCursorNdc: (x, y) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    set({ cursorNdc: { x, y } });
+  },
 }));

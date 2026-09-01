@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { applySwitchAmmo } from "./weaponAmmo";
+import { applySwitchAmmo } from "@src/stores/weaponAmmo";
 import { WEAPONS } from "@cs-game/shared";
-import { weaponDisplay } from "../game/weapons/weaponDisplay";
+import { weaponDisplay } from "@src/game/weapons/weaponDisplay";
 
 describe("applySwitchAmmo", () => {
   it("keeps each slot's reserve when swapping 1 ↔ 2", () => {

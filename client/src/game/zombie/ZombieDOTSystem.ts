@@ -20,8 +20,9 @@ export class ZombieDOTSystem {
     const dtMs = dt * 1000;
     for (let i = this.activeDots.length - 1; i >= 0; i--) {
       const dot = this.activeDots[i];
+      const actualDtMs = Math.min(dtMs, dot.remainingMs);
+      onDamage(dot.dps * (actualDtMs / 1000));
       dot.remainingMs -= dtMs;
-      onDamage(dot.dps * dt);
       if (dot.remainingMs <= 0) {
         this.activeDots.splice(i, 1);
       }

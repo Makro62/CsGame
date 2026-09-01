@@ -87,13 +87,22 @@ export const useZombieStore = create<ZombieGameState>((set, get) => ({
   removePowerUp: (id) => set({ powerUps: get().powerUps.filter(p => p.id !== id) }),
   addLoot: (p) => set({ loot: [...get().loot, p] }),
   removeLoot: (id) => set({ loot: get().loot.filter(p => p.id !== id) }),
-  setPlayer: (fn) => set((s) => ({ player: fn({...s.player}) })),
+  setPlayer: (fn) => set((s) => {
+    const prev = s.player;
+    const next = fn({ ...prev, activePowerUps: new Map(prev.activePowerUps), weaponTiers: { ...prev.weaponTiers }, perks: [...prev.perks] });
+    // Ensure Map/Object refs are fresh even if fn mutated the clone
+    if (next.activePowerUps === prev.activePowerUps) next.activePowerUps = new Map(next.activePowerUps);
+    if (next.weaponTiers === prev.weaponTiers) next.weaponTiers = { ...next.weaponTiers };
+    return { player: next };
+  }),
   addPoints: (amount) => {
+    if (!Number.isFinite(amount)) return;
     const double = amount > 0 && get().player.activePowerUps.has("double_points");
     const pts = double ? amount * 2 : amount;
     set(s => ({ player: { ...s.player, points: s.player.points + pts } }));
   },
   upgradeWeaponTier: (weapon, cost) => {
+    if (!Number.isFinite(cost) || cost < 0) return false;
     const currentPoints = get().player.points;
     if (currentPoints < cost) return false;
     const currentTier = get().player.weaponTiers[weapon] ?? 0;
@@ -111,6 +120,7 @@ export const useZombieStore = create<ZombieGameState>((set, get) => ({
     return true;
   },
   addPerk: (perk, cost) => {
+    if (!Number.isFinite(cost) || cost < 0) return false;
     const currentPoints = get().player.points;
     if (currentPoints < cost) return false;
     if (get().player.perks.includes(perk)) return false;

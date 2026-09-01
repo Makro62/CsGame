@@ -153,7 +153,7 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 200,
-      height: "100dvh", width: "100vw",
+      height: "100dvh", width: "100dvw",
       background: "#050510",
       display: "flex", flexDirection: "column",
       fontFamily: "'Rajdhani', monospace",
@@ -197,7 +197,7 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
       {/* Main content */}
       <div style={{
         flex: 1, minHeight: 0, display: "grid",
-        gridTemplateColumns: "minmax(200px, 18vw) minmax(280px, 1fr) minmax(200px, 18vw)",
+        gridTemplateColumns: "minmax(clamp(120px, 18vw, 220px), 18vw) minmax(clamp(180px, 30vw, 280px), 1fr) minmax(clamp(120px, 18vw, 220px), 18vw)",
         gap: "clamp(12px, 1.4vw, 24px)", padding: "0 clamp(12px, 2vw, 30px)",
         maxWidth: "min(1480px, 100%)", width: "100%",
         margin: "0 auto", position: "relative", zIndex: 1,

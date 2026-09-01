@@ -9,7 +9,7 @@ import {
   nextWaypointIndex,
   roleForBotId,
   stepToward,
-} from "../offline/offlineCombat";
+} from "@src/game/offline/offlineCombat";
 
 function blocked(x: number, z: number): boolean {
   return MAP_OBSTACLES.some(
