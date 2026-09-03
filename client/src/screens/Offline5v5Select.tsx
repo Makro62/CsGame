@@ -3,6 +3,7 @@ import { Canvas } from "@react-three/fiber";
 import { MAPS } from "../game/map/MapRegistry";
 import { getAgentsForTeam } from "../game/offline/agents";
 import { MinecraftCharacter } from "../game/player/MinecraftCharacter";
+import { FitCharacterCamera, PreviewTurntable } from "../game/player/CharacterPreview";
 
 // ── Step Indicator ──
 function StepIndicator({ step, labels }: { step: number; labels: string[] }) {
@@ -237,22 +238,31 @@ export function Offline5v5Select({ onSelect, onBack }: Offline5v5SelectProps) {
                     backgroundSize: "40px 40px",
                     transform: "perspective(500px) rotateX(60deg)", transformOrigin: "bottom", opacity: 0.4,
                   }} />
-                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 40 }}>
-                    <Canvas camera={{ position: [0, 1.8, 4], fov: 35 }} style={{ width: "100%", height: "100%" }} gl={{ antialias: true, alpha: true }}>
-                      <ambientLight intensity={0.8} />
-                      <directionalLight position={[3, 5, 2]} intensity={1.2} />
-                      <pointLight position={[0, 2, 2]} color={previewAgent.accentColor} intensity={0.6} distance={6} />
-                      <MinecraftCharacter
-                        team={selectedTeam!}
-                        holdWeapon
-                        heroColor={previewAgent.armorColor}
-                        heroAccent={previewAgent.accentColor}
-                        bodyStyle={previewAgent.id}
-                      />
+                  <div style={{ position: "absolute", inset: 0 }}>
+                    <Canvas
+                      key={previewAgent.id}
+                      camera={{ position: [0, 1.05, 5.1], fov: 34, near: 0.1, far: 40 }}
+                      style={{ width: "100%", height: "100%", display: "block" }}
+                      gl={{ antialias: true, alpha: true }}
+                    >
+                      <FitCharacterCamera />
+                      <ambientLight intensity={0.85} />
+                      <directionalLight position={[3, 5, 3]} intensity={1.2} />
+                      <directionalLight position={[-3, 3, -2]} intensity={0.4} color="#60a5fa" />
+                      <pointLight position={[0, 2, 2]} color={previewAgent.accentColor} intensity={0.8} distance={6} />
+                      <PreviewTurntable>
+                        <MinecraftCharacter
+                          team={selectedTeam!}
+                          holdWeapon
+                          heroColor={previewAgent.armorColor}
+                          heroAccent={previewAgent.accentColor}
+                          bodyStyle={previewAgent.id}
+                        />
+                      </PreviewTurntable>
                     </Canvas>
                   </div>
                   {/* Agent name overlay */}
-                  <div style={{ position: "absolute", bottom: 16, left: 20, zIndex: 10 }}>
+                  <div style={{ position: "absolute", bottom: 16, left: 20, zIndex: 10, pointerEvents: "none" }}>
                     <div style={{ fontSize: 28, fontWeight: 900, color: previewAgent.accentColor, textShadow: `0 0 20px ${previewAgent.accentColor}88` }}>
                       {previewAgent.name}
                     </div>

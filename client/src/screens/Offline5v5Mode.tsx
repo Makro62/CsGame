@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
 import { getMapById } from "../game/map/MapRegistry";
+import { ensureProcedural5v5, PROCEDURAL_5V5_ID } from "../game/map/ProceduralMapRegistry";
 import { PlayerController } from "../game/player/PlayerController";
 import { WeaponModel } from "../game/weapons/WeaponModel";
 import { ShootingSystem } from "../game/weapons/ShootingSystem";
@@ -132,6 +133,7 @@ export function Offline5v5Mode() {
   const [paused, setPaused] = useState(false);
 
   const handleFullSelect = useCallback((team: "T" | "CT", mapId: string, agentId: string) => {
+    if (mapId === PROCEDURAL_5V5_ID) ensureProcedural5v5();
     setSelectedTeam(team);
     setSelectedMapId(mapId);
     setSelectedAgentId(agentId);

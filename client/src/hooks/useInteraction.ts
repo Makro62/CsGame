@@ -2,6 +2,17 @@ import { useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useCallback, useState } from "react";
 
+interface InteractiveUserData {
+  skipShot?: boolean;
+  isZombie?: boolean;
+  interactiveType?: string;
+  onInteract?: () => void;
+}
+
+function userDataOf(obj: THREE.Object3D): InteractiveUserData {
+  return obj.userData as InteractiveUserData;
+}
+
 export function useInteraction(maxDistance = 3.5) {
   const { camera, scene } = useThree();
   const raycaster = new THREE.Raycaster();
@@ -13,11 +24,12 @@ export function useInteraction(maxDistance = 3.5) {
 
     let foundTarget: THREE.Object3D | null = null;
     for (const hit of intersects) {
-      if ((hit.object as any).userData?.skipShot || (hit.object as any).userData?.isZombie) continue;
+      const hitData = userDataOf(hit.object);
+      if (hitData.skipShot || hitData.isZombie) continue;
       if (hit.distance <= maxDistance) {
         let obj: THREE.Object3D | null = hit.object;
         while (obj) {
-          if ((obj as any).userData?.interactiveType) {
+          if (userDataOf(obj).interactiveType) {
             foundTarget = obj;
             break;
           }
@@ -30,9 +42,8 @@ export function useInteraction(maxDistance = 3.5) {
   });
 
   const interact = useCallback(() => {
-    if (target && (target as any).userData?.onInteract) {
-      (target as any).userData.onInteract();
-    }
+    const onInteract = target ? userDataOf(target).onInteract : undefined;
+    if (onInteract) onInteract();
   }, [target]);
 
   return { target, interact };

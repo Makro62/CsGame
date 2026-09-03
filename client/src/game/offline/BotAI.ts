@@ -5,7 +5,6 @@ import {
   SPAWN,
   DEFAULT_PISTOL,
   isMeleeWeapon,
-  BOMB_SITES,
   getSpawnForMap,
 } from "@cs-game/shared";
 import {
@@ -16,6 +15,7 @@ import {
   botPath,
   nextWaypointIndex,
   resolveBotShot,
+  resolveBombSites,
   roleForBotId,
   laneForRole,
   type BotLane,
@@ -24,6 +24,7 @@ import {
 import { navigateTo, resetBotNav, spawnJitter } from "./botNav";
 import { getWeaponStats } from "./EconomySystem";
 import { safeDiv } from "../../lib/numericGuards";
+import { getProceduralMapData } from "../map/ProceduralMapRegistry";
 import type {
   LocalPlayer,
   BombState,
@@ -198,7 +199,7 @@ export function botThink(
 
   if (bot.team === "T" && bot.hasBomb && !bombState.bombPlanted) {
     const siteKey = (bot.plantSite === "B" ? "B" : "A") as "A" | "B";
-    const site = BOMB_SITES[siteKey];
+    const site = resolveBombSites()[siteKey];
     if (distToBombSite(bot, siteKey) <= site.radius) {
       bot.isPlanting = true;
       bot.plantProgress = 0;
@@ -228,7 +229,7 @@ export function botThink(
 
   if (bombState.bombPlanted) {
     const siteKey = plantedSite(bombState);
-    const site = BOMB_SITES[siteKey];
+    const site = resolveBombSites()[siteKey];
     const toSite = distToBombSite(bot, siteKey);
     const closeThreat = nearestEnemy(bot, players, 9);
 
@@ -265,7 +266,7 @@ export function botThink(
   if (!tgt) {
     if (bot.team === "CT" && !bombState.bombPlanted) {
       const laneSite = bot.botLane === "B" ? "B" : bot.botLane === "A" ? "A" : nearestHoldSite(bot);
-      const site = BOMB_SITES[laneSite];
+      const site = resolveBombSites()[laneSite];
       if (distToBombSite(bot, laneSite) < 6) {
         bot.botState = "hold";
         bot.botTargetId = null;
@@ -479,8 +480,17 @@ export function mkPlayer(
     try { effectiveMap = useGameStore.getState().currentMap; } catch { effectiveMap = "container_yard"; }
   }
   if (!effectiveMap) effectiveMap = "container_yard";
-  const spawnMap = (() => { try { return getSpawnForMap(effectiveMap); } catch { return SPAWN; } })();
-  const sp = (spawnMap as Record<string, { x: number; y: number; z: number }>)[team] || SPAWN[team];
+
+  // Check procedural map registry first, then fall back to shared helpers
+  let sp: { x: number; y: number; z: number };
+  const proc = getProceduralMapData(effectiveMap);
+  if (proc) {
+    const procSpawn = proc.spawns[team];
+    sp = { x: procSpawn.x, y: 0, z: procSpawn.z };
+  } else {
+    const spawnMap = (() => { try { return getSpawnForMap(effectiveMap); } catch { return SPAWN; } })();
+    sp = (spawnMap as Record<string, { x: number; y: number; z: number }>)[team] || SPAWN[team];
+  }
   const pistol = DEFAULT_PISTOL[team];
   const pStats = getWeaponStats(pistol);
   const diffCfg = DIFFICULTIES[difficulty] || DIFFICULTIES.medium;

@@ -140,7 +140,36 @@ export function ZombieArcadeController() {
 
   return (
     <group ref={groupRef}>
-      <MinecraftCharacter team="CT" holdWeapon weaponType={hero.weaponType} motionRef={motionRef} isDead={isDead} heroColor={hero.armorColor} heroAccent={hero.accentColor} bodyStyle={hero.id} />
+      <spotLight
+        position={[0.15, 1.1, 0.3]}
+        angle={0.68}
+        penumbra={0.45}
+        intensity={2.8}
+        distance={26}
+        color="#fef9c3"
+      >
+        <object3D attach="target" position={[0.15, 0.2, 14]} />
+      </spotLight>
+
+      {/* Local player illumination so the character is always crisp and visible */}
+      <pointLight position={[0, 1.8, 0]} intensity={1.4} distance={14} color="#f1f5f9" />
+
+      {/* Subtle tactical floor indicator under player */}
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.55, 0.68, 24]} />
+        <meshBasicMaterial color={hero.accentColor} transparent opacity={0.6} />
+      </mesh>
+
+      <MinecraftCharacter
+        team="CT"
+        holdWeapon
+        weaponType={hero.weaponType}
+        motionRef={motionRef}
+        isDead={isDead}
+        heroColor={hero.armorColor}
+        heroAccent={hero.accentColor}
+        bodyStyle={hero.id}
+      />
     </group>
   );
 }

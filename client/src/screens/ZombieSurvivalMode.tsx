@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Canvas } from "@react-three/fiber";
+import { Physics } from "@react-three/rapier";
 import { zombieEngine } from "../game/zombie/ZombieEngine";
 import { ZombieArcadeController } from "../game/player/ZombieArcadeController";
 import { InstancedZombieRenderer } from "../game/zombie/InstancedZombieRenderer";
@@ -313,23 +314,28 @@ export function ZombieSurvivalMode() {
 
       <div id={ZOMBIE_CANVAS_ID} className="w-full h-full">
       <Canvas camera={{ position: [0, 5, 10], fov: 65 }} shadows>
-        <color attach="background" args={["#050505"]} />
-        <fog attach="fog" args={["#050505", 5, 35]} />
-        <ambientLight intensity={0.05} />
+        <color attach="background" args={["#0a0e17"]} />
+        <fog attach="fog" args={["#0a0e17", 45, 95]} />
+        <ambientLight intensity={0.75} color="#cbd5e1" />
+        <hemisphereLight args={["#60a5fa", "#1e293b", 0.6]} />
         <directionalLight
-          position={[10, 20, 5]}
-          intensity={0.3}
-          color="#4a5a7a"
+          position={[20, 32, 16]}
+          intensity={1.5}
+          color="#f8fafc"
           castShadow
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
-          shadow-camera-far={80}
-          shadow-camera-left={-40}
-          shadow-camera-right={40}
-          shadow-camera-top={40}
-          shadow-camera-bottom={-40}
+          shadow-camera-far={90}
+          shadow-camera-left={-45}
+          shadow-camera-right={45}
+          shadow-camera-top={45}
+          shadow-camera-bottom={-45}
+          shadow-bias={-0.0005}
         />
-        <SurvivalArena />
+        <directionalLight position={[-16, 20, -12]} intensity={0.45} color="#38bdf8" />
+        <Physics gravity={[0, -9.81, 0]}>
+          <SurvivalArena />
+        </Physics>
         <ZombieArcadeController />
         <InstancedZombieRenderer />
         <PowerUpField />

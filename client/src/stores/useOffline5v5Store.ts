@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { ROUND, ECONOMY, getBombSitesForMap } from "@cs-game/shared";
+import { ROUND, ECONOMY } from "@cs-game/shared";
+import { resolveBombSites } from "../game/offline/offlineCombat";
 import { mkPlayer, assignBombCarrier, resetBotNav } from "../game/offline/BotAI";
 import { getWeaponStats, executeLocalBuy } from "../game/offline/EconomySystem";
 import { executeLocalShoot } from "../game/offline/CombatSystem";
@@ -155,7 +156,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     const me = s.players.get("local");
     if (!me || me.isDead || me.team !== "T" || !me.hasBomb || s.bombPlanted) return;
 
-    const bombSites = getBombSitesForMap(s.currentMap);
+    const bombSites = resolveBombSites();
     const resolved = site === "B" || site === "A" ? site : (() => {
       const dA = Math.hypot(me.x - bombSites.A.x, me.z - bombSites.A.z);
       const dB = Math.hypot(me.x - bombSites.B.x, me.z - bombSites.B.z);
@@ -185,7 +186,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     const me = s.players.get("local");
     if (!me || me.isDead || me.team !== "CT" || !s.bombPlanted) return;
 
-    const bombSites = getBombSitesForMap(s.currentMap);
+    const bombSites = resolveBombSites();
     let bombX = s.bombDropX;
     let bombZ = s.bombDropZ;
     if (s.bombPlanted && s.bombSite) {

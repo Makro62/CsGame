@@ -1,5 +1,6 @@
 import { BOMB_SITES, MAP_BOUNDARY, MAP_OBSTACLES, SPAWN, type MapObstacle, getObstaclesForMap, getBoundaryForMap, getBombSitesForMap } from "@cs-game/shared";
 import { useGameStore } from "../../stores/useGameStore";
+import { getProceduralMapData } from "../map/ProceduralMapRegistry";
 
 interface Point2D {
   x: number;
@@ -24,6 +25,8 @@ function resolveObstacles(obstacles: readonly MapObstacle[] | undefined): readon
   try {
     const mapId = getCurrentMapId();
     if (mapId === "dust" || mapId === "ravenpoint") return getObstaclesForMap(mapId) as unknown as readonly MapObstacle[];
+    const proc = getProceduralMapData(mapId);
+    if (proc) return proc.obstacles;
   } catch {
     /* store may be uninitialized outside React */
   }
@@ -34,16 +37,20 @@ function resolveBoundary(): typeof MAP_BOUNDARY {
   try {
     const mapId = getCurrentMapId();
     if (mapId === "dust" || mapId === "ravenpoint") return getBoundaryForMap(mapId) as typeof MAP_BOUNDARY;
+    const proc = getProceduralMapData(mapId);
+    if (proc) return proc.bounds as typeof MAP_BOUNDARY;
   } catch {
     /* store may be uninitialized outside React */
   }
   return MAP_BOUNDARY;
 }
 
-function resolveBombSites(): typeof BOMB_SITES {
+export function resolveBombSites(): typeof BOMB_SITES {
   try {
     const mapId = getCurrentMapId();
     if (mapId === "dust" || mapId === "ravenpoint") return getBombSitesForMap(mapId) as typeof BOMB_SITES;
+    const proc = getProceduralMapData(mapId);
+    if (proc) return proc.bombSites as typeof BOMB_SITES;
   } catch {
     /* store may be uninitialized outside React */
   }

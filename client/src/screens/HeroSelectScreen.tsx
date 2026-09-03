@@ -269,7 +269,7 @@ export function HeroSelectScreen({ onSelect }: { onSelect: () => void }) {
             <div style={{ position: "absolute", inset: 0 }}>
               <Canvas
                 key={hero.id}
-                camera={{ position: [0, 1.02, 4.5], fov: 32, near: 0.1, far: 40 }}
+                camera={{ position: [0, 1.05, 5.1], fov: 34, near: 0.1, far: 40 }}
                 style={{ width: "100%", height: "100%", display: "block" }}
                 gl={{ antialias: true, alpha: true }}
               >

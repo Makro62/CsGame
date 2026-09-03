@@ -4,6 +4,8 @@ import {
   pushOutOfObstacles,
   stepToward,
 } from "./offlineCombat";
+import { useGameStore } from "../../stores/useGameStore";
+import { getProceduralMapData } from "../map/ProceduralMapRegistry";
 
 interface Point2D {
   x: number;
@@ -234,9 +236,24 @@ export function navigateTo(
 }
 
 export function spawnJitter(team: "T" | "CT"): Point2D {
-  const base = team === "T"
-    ? { x: -22, z: 0 }
-    : { x: 22, z: 0 };
+  // Check procedural map registry first
+  let base: Point2D;
+  try {
+    const mapId = useGameStore.getState().currentMap || "container_yard";
+    const proc = getProceduralMapData(mapId);
+    if (proc) {
+      const spawn = proc.spawns[team];
+      base = { x: spawn.x, z: spawn.z };
+    } else {
+      base = team === "T"
+        ? { x: -22, z: 0 }
+        : { x: 22, z: 0 };
+    }
+  } catch {
+    base = team === "T"
+      ? { x: -22, z: 0 }
+      : { x: 22, z: 0 };
+  }
   for (let n = 0; n < 14; n++) {
     const p = pushOutOfObstacles({
       x: base.x + (Math.random() - 0.5) * 4,

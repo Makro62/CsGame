@@ -85,7 +85,7 @@ function Props() {
             position={[x, sy / 2, z]}
             size={[sx, sy, sz]}
             color={color}
-            materialType={mat as any}
+            materialType={mat}
           />
         );
       })}

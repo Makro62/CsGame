@@ -1365,3 +1365,7 @@ export function getBoundaryForMap(mapId: string) {
   return MAP_BOUNDARY
 }
 
+// ─── Procedural Systems ──────────────────────────────────────────
+export * from "./proceduralRng"
+export * from "./proceduralMaps"
+

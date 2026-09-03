@@ -18,6 +18,7 @@ import { consumeScreenShake } from '../effects/screenShake'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
 import { useGameStore } from '../../stores/useGameStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { getProceduralMapData } from '../map/ProceduralMapRegistry'
 import { useWeaponStore } from '../../stores/useWeaponStore'
 import { useOffline5v5Store } from '../../screens/Offline5v5Store'
 import { useL4DStore } from '../../stores/useL4DStore'
@@ -186,6 +187,13 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
         TOTAL_HEIGHT / 2 + 0.01,
         TRAINING_ARENA.spawn.z,
       ]
+    }
+    const mapId = useGameStore.getState().currentMap || 'container_yard';
+    const proc = getProceduralMapData(mapId);
+    if (proc) {
+      const team = (useOffline5v5Store.getState().players.get('local')?.team ?? 'T') as 'T' | 'CT';
+      const spawn = proc.spawns[team];
+      return [spawn.x, TOTAL_HEIGHT / 2 + 0.01, spawn.z];
     }
     return [SPAWN.T.x, TOTAL_HEIGHT / 2 + 0.01, SPAWN.T.z]
   })

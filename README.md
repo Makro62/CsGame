@@ -17,7 +17,7 @@ Lawan 9 bot, tim **T** vs **CT**.
 
 - **T**: tanam C4 di site A atau B, atau eliminasi CT.
 - **CT**: jinakkan C4, atau eliminasi T sebelum bom terpasang.
-- Peta: **Container Yard** dan **DE_RAVENPOINT** (80×100 m, dua site, mid). Alias map lama `dust` diarahkan ke Ravenpoint.
+- Peta: **Container Yard**, **DE_RAVENPOINT**, dan **Procedural Arena** (layout acak per match). Alias map lama `dust` diarahkan ke Ravenpoint.
 - Ekonomi + buy menu **[B]** di fase beli.
 - Bot: pathfinding, cover, rotasi site, plant/defuse.
 

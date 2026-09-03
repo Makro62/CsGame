@@ -12,14 +12,32 @@ const BARREL_H = 1.0;
 
 function makeYardTexture(): THREE.Texture {
   const c = document.createElement("canvas");
-  c.width = 64;
-  c.height = 64;
+  c.width = 128;
+  c.height = 128;
   const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#1a1f2a";
-  ctx.fillRect(0, 0, 64, 64);
-  ctx.strokeStyle = "rgba(239,68,68,0.08)";
+  // Industrial concrete slab
+  ctx.fillStyle = "#334155";
+  ctx.fillRect(0, 0, 128, 128);
+
+  // Subtle concrete texture noise
+  for (let i = 0; i < 400; i++) {
+    const x = Math.random() * 128;
+    const y = Math.random() * 128;
+    const shade = Math.random() > 0.5 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.12)";
+    ctx.fillStyle = shade;
+    ctx.fillRect(x, y, 2, 2);
+  }
+
+  // Grid / expansion joints
+  ctx.strokeStyle = "#1e293b";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, 0, 128, 128);
+
+  // Subtle inner highlight
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
   ctx.lineWidth = 1;
-  ctx.strokeRect(0, 0, 64, 64);
+  ctx.strokeRect(2, 2, 124, 124);
+
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
@@ -86,11 +104,11 @@ export function SurvivalArena() {
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow userData={{ skipShot: true }}>
         <planeGeometry args={[80, 80]} />
-        <meshStandardMaterial color="#0f1115" roughness={1} />
+        <meshStandardMaterial color="#1e293b" roughness={0.9} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow userData={{ skipShot: true }}>
         <planeGeometry args={[44, 44]} />
-        <meshStandardMaterial map={yard} roughness={0.95} />
+        <meshStandardMaterial map={yard} roughness={0.7} metalness={0.1} />
       </mesh>
 
       {obstacles.map((obs, i) => {
@@ -102,16 +120,16 @@ export function SurvivalArena() {
           return (
             <mesh key={i} position={[cx, BARREL_H / 2, cz]} castShadow receiveShadow>
               <cylinderGeometry args={[w * 0.48, w * 0.52, BARREL_H, 12]} />
-              <meshStandardMaterial color="#6b3a1a" roughness={0.55} metalness={0.22} />
+              <meshStandardMaterial color="#9a3412" roughness={0.4} metalness={0.35} />
             </mesh>
           );
         }
         const h = obs.kind === "crate" ? CRATE_H : WALL_H;
-        const color = obs.kind === "crate" ? "#3d2817" : "#1c2333";
+        const color = obs.kind === "crate" ? "#78350f" : "#334155";
         return (
           <mesh key={i} position={[cx, h / 2, cz]} castShadow receiveShadow>
             <boxGeometry args={[w, h, d]} />
-            <meshStandardMaterial color={color} roughness={obs.kind === "crate" ? 0.9 : 0.7} metalness={obs.kind === "crate" ? 0.05 : 0.15} />
+            <meshStandardMaterial color={color} roughness={obs.kind === "crate" ? 0.75 : 0.5} metalness={obs.kind === "crate" ? 0.05 : 0.25} />
           </mesh>
         );
       })}
@@ -145,27 +163,35 @@ export function SurvivalArena() {
         <group key={`gate-${i}`}>
           <mesh position={[x + (z === 0 ? 0 : -3.5), 1.7, z + (x === 0 ? 0 : -3.5)]} castShadow>
             <boxGeometry args={[0.55, 3.4, 0.55]} />
-            <meshStandardMaterial color="#1c2333" metalness={0.4} roughness={0.6} />
+            <meshStandardMaterial color="#334155" metalness={0.4} roughness={0.6} />
           </mesh>
           <mesh position={[x + (z === 0 ? 0 : 3.5), 1.7, z + (x === 0 ? 0 : 3.5)]} castShadow>
             <boxGeometry args={[0.55, 3.4, 0.55]} />
-            <meshStandardMaterial color="#1c2333" metalness={0.4} roughness={0.6} />
+            <meshStandardMaterial color="#334155" metalness={0.4} roughness={0.6} />
           </mesh>
         </group>
       ))}
 
-      <ambientLight intensity={isHorde ? 0.08 : 0.18} color={isHorde ? "#ff1a1a" : "#0a0f1e"} />
-      <hemisphereLight intensity={isHorde ? 0.1 : 0.35} color={isHorde ? "#ff0000" : "#1e293b"} groundColor="#020208" />
-      <FlickeringNeonLight position={[-10, 3, 8]} color={isHorde ? "#ff0000" : "#a0e8ff"} />
-      <FlickeringNeonLight position={[10, 3, -8]} color={isHorde ? "#ff0000" : "#ffcc88"} />
-      <pointLight position={[0, 8, 0]} intensity={isHorde ? 0.4 : 0.9} distance={28} color={isHorde ? "#ff0000" : "#1e3a5f"} castShadow />
+      {/* Atmospheric Neon & Floodlights */}
+      <FlickeringNeonLight position={[-10, 3, 8]} color={isHorde ? "#ff0000" : "#38bdf8"} />
+      <FlickeringNeonLight position={[10, 3, -8]} color={isHorde ? "#ff0000" : "#f59e0b"} />
+
+      {/* Main facility high-bay light */}
+      <pointLight position={[0, 8, 0]} intensity={isHorde ? 1.8 : 2.5} distance={38} color={isHorde ? "#ef4444" : "#f1f5f9"} castShadow />
+
+      {/* Perimeter bunker lights */}
+      <pointLight position={[0, 4.5, 18]} intensity={1.2} distance={20} color="#bae6fd" />
+      <pointLight position={[0, 4.5, -18]} intensity={1.2} distance={20} color="#bae6fd" />
+      <pointLight position={[18, 4.5, 0]} intensity={1.2} distance={20} color="#bae6fd" />
+      <pointLight position={[-18, 4.5, 0]} intensity={1.2} distance={20} color="#bae6fd" />
+
       <mesh position={[0, 0.02, -10]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[1.2, 1.8, 16]} />
-        <meshBasicMaterial color="#7f1d1d" transparent opacity={0.35} />
+        <meshBasicMaterial color="#ef4444" transparent opacity={0.45} />
       </mesh>
       <mesh position={[8, 0.02, 6]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.8, 1.2, 12]} />
-        <meshBasicMaterial color="#7f1d1d" transparent opacity={0.25} />
+        <meshBasicMaterial color="#ef4444" transparent opacity={0.4} />
       </mesh>
     </group>
   );
