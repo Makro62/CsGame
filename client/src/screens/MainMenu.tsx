@@ -102,7 +102,7 @@ const MODES: ModeCard[] = [
     image: zombieThumb,
     charArt: zombieCharArt,
     iconType: "biohazard",
-    features: ["Kamera isometric, mouse aim", "Courtyard kiting, bunker sudut, shop antar wave"],
+    features: ["Kamera isometric, mouse aim", "Kiting courtyard & shop antar wave"],
     highlights: [
       { icon: "biohazard", text: "Horde masuk dari 4 gerbang, kiting di lapangan" },
       { icon: "ammo", text: "Pickup senjata, HP, ammo + shop antar wave" },
@@ -118,8 +118,8 @@ const MODES: ModeCard[] = [
   {
     id: "l4d",
     title: "SURVIVOR CAMPAIGN",
-    tagline: "Bersihkan zombie per wilayah bersama 3 teman. Satu senjata, buka peta baru.",
-    badge: "SOLO + 3 BOT · OFFLINE",
+    tagline: "Bersihkan zombie per wilayah bersama 3 teman.",
+    badge: "SOLO · 3 BOT",
     accent: "#10b981",
     accentSoft: "rgba(16, 185, 129,",
     accentGlow: "rgba(16, 185, 129, 0.4)",
@@ -128,12 +128,10 @@ const MODES: ModeCard[] = [
     iconType: "skull",
     features: [
       "Satu senjata, 3 teman AI, revive [F]",
-      "Habisi semua zombie di satu wilayah → gerbang wilayah berikutnya terbuka",
-      "4 peta berantai: Koridor → Gudang → Lorong → Pad Evakuasi",
+      "Clear wilayah untuk buka gerbang berikutnya",
     ],
     highlights: [
-      { icon: "biohazard", text: "Clear area seperti Zombie Survival" },
-      { icon: "ammo", text: "Hanya AK-47 — tanpa ganti senjata" },
+      { icon: "biohazard", text: "Clear wilayah, buka gerbang berikutnya" },
       { icon: "shield", text: "3 bot teammate ikut tembak & revive" },
     ],
     controls: [
@@ -167,9 +165,18 @@ const KEYFRAMES = `
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-@keyframes scanlines {
-  0% { background-position: 0 0; }
-  100% { background-position: 0 100%; }
+@keyframes headerScan {
+  0% { transform: translateX(-120%); opacity: 0; }
+  20% { opacity: 0.55; }
+  100% { transform: translateX(220%); opacity: 0; }
+}
+@keyframes statusBlink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px #4ade80; }
+  50% { opacity: 0.45; box-shadow: 0 0 2px #4ade80; }
+}
+@keyframes logoPulse {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.55)); }
+  50% { filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.95)); }
 }
 `;
 
@@ -205,7 +212,7 @@ export function MainMenu() {
   };
 
   return (
-    <div style={styles.root}>
+    <div className="tactical-scroll" style={styles.root}>
       <style>{KEYFRAMES}</style>
 
       {/* Ambient background volumetric glow */}
@@ -247,73 +254,77 @@ export function MainMenu() {
       <div style={styles.container}>
         {/* Top Header */}
         <header style={styles.header}>
-          <div style={styles.logoRow}>
-            {/* Custom Crosshair SVG Icon matching the reference */}
-            <div style={styles.logoIconWrap}>
-              <svg width="34" height="34" viewBox="0 0 34 34" fill="none" style={styles.crosshairSvg}>
-                <circle
-                  cx="17"
-                  cy="17"
-                  r="13.5"
-                  stroke="#38bdf8"
-                  strokeWidth="1.8"
-                  strokeDasharray="4 2"
-                />
-                <circle cx="17" cy="17" r="7" stroke="#38bdf8" strokeWidth="1.4" opacity="0.75" />
-                <line x1="17" y1="1" x2="17" y2="7" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
-                <line x1="17" y1="27" x2="17" y2="33" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
-                <line x1="1" y1="17" x2="7" y2="17" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
-                <line x1="27" y1="17" x2="33" y2="17" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
-                <circle cx="17" cy="17" r="2" fill="#38bdf8" />
-              </svg>
-            </div>
-            <h1 style={styles.title}>CS WEB FPS</h1>
-          </div>
+          <div style={styles.headerPlate}>
+            <div style={styles.headerTopLine} />
+            <div style={styles.headerScanBar} />
+            <div style={styles.headerCornerTL} />
+            <div style={styles.headerCornerBR} />
 
-          {/* Nickname input & Settings button top right */}
-          <div style={styles.headerRight}>
-            <div style={styles.nickGroup}>
-              <span style={styles.nickLabel}>NICKNAME</span>
-              <input
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                maxLength={16}
-                placeholder="Player"
-                style={styles.nickInput}
-              />
+            <div style={styles.logoRow}>
+              <div style={styles.logoBadge}>
+                <svg width="28" height="28" viewBox="0 0 34 34" fill="none" style={styles.crosshairSvg}>
+                  <circle cx="17" cy="17" r="13.5" stroke="#38bdf8" strokeWidth="1.8" strokeDasharray="4 2" />
+                  <circle cx="17" cy="17" r="7" stroke="#7dd3fc" strokeWidth="1.4" opacity="0.8" />
+                  <line x1="17" y1="1" x2="17" y2="7" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="17" y1="27" x2="17" y2="33" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="1" y1="17" x2="7" y2="17" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="27" y1="17" x2="33" y2="17" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx="17" cy="17" r="2.2" fill="#7dd3fc" />
+                </svg>
+              </div>
+              <div style={styles.logoTextCol}>
+                <div style={styles.logoEyebrow}>TACTICAL OPS // V2.6.4</div>
+                <h1 style={styles.title}>
+                  CS <span style={styles.titleAccent}>WEB</span> FPS
+                </h1>
+              </div>
             </div>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('openSettings'))}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95))',
-                border: '1px solid rgba(56, 189, 248, 0.4)',
-                borderRadius: 8,
-                padding: '8px 16px',
-                color: '#38bdf8',
-                fontSize: 13,
-                fontWeight: 800,
-                letterSpacing: '0.08em',
-                fontFamily: "'Rajdhani', monospace",
-                cursor: 'pointer',
-                boxShadow: '0 0 12px rgba(56, 189, 248, 0.15)',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#38bdf8';
-                e.currentTarget.style.boxShadow = '0 0 20px rgba(56, 189, 248, 0.35)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.4)';
-                e.currentTarget.style.boxShadow = '0 0 12px rgba(56, 189, 248, 0.15)';
-              }}
-            >
-              <span style={{ fontSize: 16 }}>⚙️</span>
-              <span>PENGATURAN</span>
-            </button>
+
+            <div style={styles.headerStatus}>
+              <div style={styles.statusChip}>
+                <span style={styles.statusDot} />
+                SYS READY
+              </div>
+              <div style={styles.statusChipMuted}>OFFLINE</div>
+              <div style={{ ...styles.statusChipMuted, color: activeMode.accent, borderColor: `${activeMode.accent}66` }}>
+                {activeMode.title}
+              </div>
+            </div>
+
+            <div style={styles.headerRight}>
+              <div style={styles.nickGroup}>
+                <span style={styles.nickLabel}>OPERATOR ID</span>
+                <div style={styles.nickField}>
+                  <span style={styles.nickHash}>#</span>
+                  <input
+                    type="text"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    maxLength={16}
+                    placeholder="Player"
+                    style={styles.nickInput}
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("openSettings"))}
+                style={styles.settingsBtn}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#38bdf8";
+                  e.currentTarget.style.boxShadow = "0 0 22px rgba(56, 189, 248, 0.4)";
+                  e.currentTarget.style.color = "#e0f2fe";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(56, 189, 248, 0.45)";
+                  e.currentTarget.style.boxShadow = "0 0 12px rgba(56, 189, 248, 0.18)";
+                  e.currentTarget.style.color = "#38bdf8";
+                }}
+              >
+                <span style={{ fontSize: 15, lineHeight: 1 }}>⚙</span>
+                <span>PENGATURAN</span>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -399,7 +410,7 @@ export function MainMenu() {
                         {mode.features.map((feat, fIdx) => (
                           <div key={fIdx} style={styles.cardBulletItem}>
                             <span style={styles.bulletArrow}>›</span>
-                            <span>{feat}</span>
+                            <span style={styles.cardBulletText}>{feat}</span>
                           </div>
                         ))}
                       </div>
@@ -539,6 +550,7 @@ export function MainMenu() {
 const styles: Record<string, CSSProperties> = {
   root: {
     width: "100%",
+    height: "100dvh",
     minHeight: "100dvh",
     overflowY: "auto",
     overflowX: "hidden",
@@ -609,149 +621,363 @@ const styles: Record<string, CSSProperties> = {
     padding: "clamp(16px, 2.2vh, 32px) clamp(20px, 3.5vw, 64px)",
     display: "flex",
     flexDirection: "column",
-    gap: "clamp(14px, 1.8vh, 26px)",
-    minHeight: "100dvh",
+    gap: 16,
+    flex: 1,
+    minHeight: 0,
     overflowX: "hidden",
     boxSizing: "border-box",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
   },
   header: {
     display: "flex",
+    alignItems: "stretch",
+    flexShrink: 0,
+  },
+  headerPlate: {
+    position: "relative",
+    width: "100%",
+    display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: "clamp(8px, 1.5vw, 16px)",
-    paddingBottom: "4px",
+    gap: 16,
+    minHeight: 72,
+    padding: "16px 18px 16px 16px",
+    overflow: "hidden",
+    boxSizing: "border-box",
+    background:
+      "linear-gradient(105deg, rgba(10, 18, 32, 0.92) 0%, rgba(8, 14, 26, 0.78) 55%, rgba(12, 22, 38, 0.9) 100%)",
+    border: "1px solid rgba(56, 189, 248, 0.28)",
+    clipPath: "polygon(18px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 18px) 100%, 0 100%, 0 14px)",
+    boxShadow: "0 8px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(125, 211, 252, 0.12)",
+    backdropFilter: "blur(10px)",
+  },
+  headerTopLine: {
+    position: "absolute",
+    top: 0,
+    left: 18,
+    right: 0,
+    height: 2,
+    background: "linear-gradient(90deg, #38bdf8 0%, rgba(56,189,248,0.15) 70%, transparent 100%)",
+    boxShadow: "0 0 12px rgba(56,189,248,0.7)",
+    pointerEvents: "none",
+  },
+  headerScanBar: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 70,
+    background: "linear-gradient(90deg, transparent, rgba(56,189,248,0.12), transparent)",
+    animation: "headerScan 4.8s linear infinite",
+    pointerEvents: "none",
+  },
+  headerCornerTL: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    width: 12,
+    height: 12,
+    borderTop: "2px solid #38bdf8",
+    borderLeft: "2px solid #38bdf8",
+    pointerEvents: "none",
+    opacity: 0.85,
+  },
+  headerCornerBR: {
+    position: "absolute",
+    right: 10,
+    bottom: 8,
+    width: 12,
+    height: 12,
+    borderBottom: "2px solid #38bdf8",
+    borderRight: "2px solid #38bdf8",
+    pointerEvents: "none",
+    opacity: 0.7,
   },
   logoRow: {
     display: "flex",
     alignItems: "center",
-    gap: "12px",
+    gap: 12,
+    minWidth: 0,
+    flexShrink: 0,
+  },
+  logoBadge: {
+    width: 46,
+    height: 46,
+    display: "grid",
+    placeItems: "center",
+    background: "radial-gradient(circle at 40% 35%, rgba(56,189,248,0.22), rgba(8,15,28,0.95))",
+    border: "1px solid rgba(56,189,248,0.55)",
+    clipPath: "polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%)",
+    animation: "logoPulse 2.8s ease-in-out infinite",
+    flexShrink: 0,
+  },
+  logoTextCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 1,
+    minWidth: 0,
+  },
+  logoEyebrow: {
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: "0.22em",
+    color: "#38bdf8",
+    fontFamily: "'Rajdhani', sans-serif",
   },
   logoIconWrap: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    filter: "drop-shadow(0 0 8px rgba(56, 189, 248, 0.65))",
   },
   crosshairSvg: {
     display: "block",
   },
   title: {
-    fontSize: "clamp(20px, 1.6vw, 28px)",
+    fontSize: "clamp(18px, 1.7vw, 26px)",
     fontWeight: 800,
-    letterSpacing: "0.14em",
+    letterSpacing: "0.12em",
     margin: 0,
     fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
-    color: "#ffffff",
-    textShadow: "0 0 12px rgba(56, 189, 248, 0.4)",
+    color: "#f8fafc",
+    lineHeight: 1.05,
+    textShadow: "0 0 16px rgba(56, 189, 248, 0.35)",
+  },
+  titleAccent: {
+    color: "#38bdf8",
+    textShadow: "0 0 18px rgba(56, 189, 248, 0.7)",
+  },
+  headerStatus: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+    height: 36,
+  },
+  statusChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    height: 32,
+    padding: "0 12px",
+    boxSizing: "border-box",
+    border: "1px solid rgba(74, 222, 128, 0.4)",
+    background: "rgba(22, 101, 52, 0.18)",
+    color: "#86efac",
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: "0.14em",
+    fontFamily: "'Rajdhani', sans-serif",
+    clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: "50%",
+    background: "#4ade80",
+    animation: "statusBlink 1.6s ease-in-out infinite",
+    flexShrink: 0,
+  },
+  statusChipMuted: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 32,
+    padding: "0 12px",
+    boxSizing: "border-box",
+    border: "1px solid rgba(148, 163, 184, 0.28)",
+    background: "rgba(15, 23, 42, 0.55)",
+    color: "#cbd5e1",
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: "0.14em",
+    fontFamily: "'Rajdhani', sans-serif",
+    clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+    whiteSpace: "nowrap",
   },
   headerRight: {
     display: "flex",
     alignItems: "center",
-    gap: "12px",
+    gap: 10,
+    flexShrink: 0,
+    height: 36,
   },
   nickGroup: {
+    position: "relative",
     display: "flex",
     flexDirection: "column",
     alignItems: "flex-start",
-    gap: "4px",
+    height: 36,
   },
   nickLabel: {
-    fontSize: "10px",
-    letterSpacing: "0.18em",
-    fontWeight: 700,
-    color: "#718096",
+    position: "absolute",
+    left: 0,
+    top: -12,
+    fontSize: 9,
+    letterSpacing: "0.2em",
+    fontWeight: 800,
+    color: "#64748b",
     fontFamily: "'Rajdhani', sans-serif",
+    lineHeight: 1,
+    pointerEvents: "none",
+  },
+  nickField: {
+    display: "flex",
+    alignItems: "center",
+    height: 36,
+    boxSizing: "border-box",
+    background: "rgba(6, 12, 22, 0.9)",
+    border: "1px solid rgba(56, 189, 248, 0.35)",
+    clipPath: "polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)",
+    boxShadow: "inset 0 0 12px rgba(56,189,248,0.08)",
+  },
+  nickHash: {
+    display: "flex",
+    alignItems: "center",
+    height: "100%",
+    padding: "0 0 0 12px",
+    color: "#38bdf8",
+    fontFamily: "'JetBrains Mono', monospace",
+    fontWeight: 700,
+    fontSize: 13,
+    lineHeight: 1,
   },
   nickInput: {
-    background: "#0c1322",
-    border: "1px solid #1e293b",
-    borderRadius: "6px",
+    background: "transparent",
+    border: "none",
     color: "#ffffff",
     fontFamily: "'JetBrains Mono', monospace",
     fontWeight: 600,
-    fontSize: "clamp(11px, 1.5vw, 13px)",
-    padding: "7px 12px",
-    width: "clamp(120px, 20vw, 150px)",
+    fontSize: 13,
+    height: "100%",
+    padding: "0 12px 0 6px",
+    width: 132,
     outline: "none",
-    boxShadow: "inset 0 1px 3px rgba(0,0,0,0.5)",
-    transition: "border-color 0.2s, box-shadow 0.2s",
+    lineHeight: "36px",
+    boxSizing: "border-box",
+  },
+  settingsBtn: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    height: 36,
+    boxSizing: "border-box",
+    background: "linear-gradient(135deg, rgba(14, 116, 144, 0.25), rgba(15, 23, 42, 0.95))",
+    border: "1px solid rgba(56, 189, 248, 0.45)",
+    clipPath: "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
+    padding: "0 16px",
+    color: "#38bdf8",
+    fontSize: 12,
+    fontWeight: 800,
+    letterSpacing: "0.1em",
+    fontFamily: "'Rajdhani', monospace",
+    cursor: "pointer",
+    boxShadow: "0 0 12px rgba(56, 189, 248, 0.18)",
+    transition: "all 0.15s ease",
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+    flexShrink: 0,
   },
   mainLayout: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.28fr) minmax(clamp(200px, 30vw, 360px), 1fr)",
-    gap: "clamp(16px, 2vw, 36px)",
+    gridTemplateColumns: "minmax(0, 1.22fr) minmax(0, 0.78fr)",
+    gap: 16,
     alignItems: "stretch",
     flex: 1,
+    minHeight: 0,
   },
   leftCol: {
     display: "flex",
     flexDirection: "column",
-    gap: "10px",
+    gap: 10,
+    minHeight: 0,
+    height: "100%",
   },
   rightCol: {
     display: "flex",
     flexDirection: "column",
-    gap: "10px",
+    gap: 10,
+    minHeight: 0,
+    height: "100%",
   },
   colTitle: {
-    fontSize: "clamp(16px, 1.2vw, 20px)",
+    fontSize: 18,
     fontWeight: 800,
     letterSpacing: "0.08em",
     color: "#ffffff",
     margin: 0,
+    height: 24,
+    lineHeight: "24px",
+    flexShrink: 0,
     fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
   },
   cardGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: "clamp(12px, 1.4vw, 22px)",
+    gridTemplateRows: "repeat(2, minmax(0, 1fr))",
+    gap: 16,
     flex: 1,
+    minHeight: 0,
   },
   modeCard: {
-    borderRadius: "10px",
+    borderRadius: 10,
     border: "1px solid",
     backgroundColor: "#0a0f1c",
     backgroundImage: "linear-gradient(170deg, #0d1526 0%, #070c18 100%)",
-    padding: "clamp(12px, 1.2vw, 18px)",
+    padding: 16,
     textAlign: "left",
     cursor: "pointer",
     display: "flex",
     flexDirection: "column",
-    gap: "clamp(6px, 0.8vh, 12px)",
+    gap: 8,
     transition: "all 0.22s ease-in-out",
     userSelect: "none",
     position: "relative",
     overflow: "hidden",
+    minHeight: 0,
+    height: "100%",
+    boxSizing: "border-box",
   },
   cardTopRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    flexShrink: 0,
+    height: 28,
   },
   cardIconBox: {
-    width: "28px",
-    height: "28px",
+    width: 28,
+    height: 28,
     display: "grid",
     placeItems: "center",
-    borderRadius: "5px",
+    borderRadius: 5,
     border: "1px solid",
+    boxSizing: "border-box",
+    flexShrink: 0,
   },
   cardPillBadge: {
-    fontSize: "clamp(8.5px, 1.5vw, 9.5px)",
+    fontSize: 9,
     fontWeight: 700,
     letterSpacing: "0.08em",
     color: "#cbd5e1",
     border: "1px solid rgba(255, 255, 255, 0.2)",
     background: "rgba(10, 16, 28, 0.65)",
-    padding: "2px 8px",
-    borderRadius: "10px",
+    padding: "0 8px",
+    height: 22,
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 10,
     fontFamily: "'Rajdhani', sans-serif",
+    boxSizing: "border-box",
+    whiteSpace: "nowrap",
   },
   cardThumbWrap: {
     width: "100%",
-    height: "clamp(90px, 12vh, 150px)",
-    borderRadius: "6px",
+    flex: 1,
+    minHeight: 72,
+    borderRadius: 6,
     overflow: "hidden",
     position: "relative",
     backgroundColor: "#050811",
@@ -771,35 +997,57 @@ const styles: Record<string, CSSProperties> = {
   cardTextContent: {
     display: "flex",
     flexDirection: "column",
-    gap: "4px",
+    gap: 4,
+    flexShrink: 0,
   },
   cardTitle: {
-    fontSize: "clamp(14px, 1vw, 17px)",
+    fontSize: 15,
     fontWeight: 800,
     letterSpacing: "0.06em",
     margin: 0,
     color: "#ffffff",
     fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
+    lineHeight: "20px",
+    height: 20,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   cardTagline: {
-    fontSize: "clamp(11px, 0.85vw, 13px)",
+    fontSize: 12,
     color: "#94a3b8",
     margin: 0,
     lineHeight: 1.35,
+    height: "2.7em",
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
   },
   cardBullets: {
     display: "flex",
     flexDirection: "column",
-    gap: "3px",
-    marginTop: "4px",
+    gap: 4,
+    height: 36,
+    overflow: "hidden",
   },
   cardBulletItem: {
-    fontSize: "clamp(10.5px, 0.8vw, 12.5px)",
+    fontSize: 12,
     color: "#718096",
     display: "flex",
     alignItems: "center",
-    gap: "5px",
-    lineHeight: 1.3,
+    gap: 5,
+    lineHeight: 1,
+    height: 16,
+    overflow: "hidden",
+    minWidth: 0,
+  },
+  cardBulletText: {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    minWidth: 0,
+    flex: 1,
   },
   bulletArrow: {
     color: "#64748b",
@@ -808,16 +1056,17 @@ const styles: Record<string, CSSProperties> = {
   },
   previewPanel: {
     flex: 1,
-    borderRadius: "12px",
-    border: "1.5px solid",
+    minHeight: 0,
+    borderRadius: 10,
+    border: "1px solid",
     backgroundColor: "rgba(9, 14, 26, 0.94)",
     backgroundImage: "linear-gradient(165deg, rgba(13, 21, 38, 0.96) 0%, rgba(7, 11, 20, 0.98) 100%)",
-    padding: "clamp(20px, 2.2vw, 36px)",
+    padding: 16,
     display: "flex",
     flexDirection: "column",
     position: "relative",
     overflow: "hidden",
-    minHeight: "clamp(440px, 55vh, 720px)",
+    boxSizing: "border-box",
     transition: "border-color 0.3s, box-shadow 0.3s",
   },
   charArtWrap: {
@@ -854,8 +1103,9 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 2,
     display: "flex",
     flexDirection: "column",
-    gap: "clamp(12px, 1.4vh, 20px)",
+    gap: 12,
     height: "100%",
+    minHeight: 0,
   },
   previewHeader: {
     display: "flex",
@@ -863,30 +1113,36 @@ const styles: Record<string, CSSProperties> = {
     gap: "4px",
   },
   previewTitle: {
-    fontSize: "clamp(20px, 1.6vw, 30px)",
+    fontSize: 24,
     fontWeight: 800,
     letterSpacing: "0.08em",
     margin: 0,
     fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
     textShadow: "0 0 10px rgba(0,0,0,0.5)",
+    lineHeight: "28px",
+    height: 28,
   },
   previewTagline: {
-    fontSize: "clamp(12px, 0.9vw, 15px)",
+    fontSize: 13,
     color: "#cbd5e1",
     margin: 0,
+    lineHeight: "20px",
+    minHeight: 20,
   },
   highlightList: {
     display: "flex",
     flexDirection: "column",
-    gap: "clamp(6px, 0.8vh, 10px)",
+    gap: 8,
   },
   highlightItem: {
     display: "flex",
     alignItems: "center",
-    gap: "8px",
-    fontSize: "clamp(11.5px, 0.85vw, 14px)",
+    gap: 8,
+    fontSize: 13,
     color: "#e2e8f0",
     fontWeight: 500,
+    height: 20,
+    minWidth: 0,
   },
   highlightIcon: {
     fontSize: "14px",
@@ -897,6 +1153,10 @@ const styles: Record<string, CSSProperties> = {
   },
   highlightText: {
     textShadow: "0 1px 3px rgba(0,0,0,0.8)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    minWidth: 0,
   },
   mapSelectContainer: {
     display: "flex",
@@ -964,19 +1224,20 @@ const styles: Record<string, CSSProperties> = {
   },
   launchBtn: {
     width: "100%",
-    padding: "clamp(12px, 1.4vh, 18px) clamp(20px, 1.8vw, 32px)",
-    borderRadius: "8px",
+    height: 48,
+    padding: "0 20px",
+    borderRadius: 8,
     border: "1px solid",
     color: "#ffffff",
     fontFamily: "'Rajdhani', 'Chakra Petch', sans-serif",
-    fontSize: "clamp(14px, 1.1vw, 17px)",
+    fontSize: 15,
     fontWeight: 800,
     letterSpacing: "0.14em",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "10px",
+    gap: 10,
     transition: "all 0.2s ease",
     textShadow: "0 1px 4px rgba(0,0,0,0.6)",
     boxSizing: "border-box",
@@ -990,9 +1251,11 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: "4px",
+    paddingTop: 0,
     flexWrap: "wrap",
-    gap: "12px",
+    gap: 12,
+    flexShrink: 0,
+    minHeight: 28,
   },
   footerKeyHints: {
     display: "flex",

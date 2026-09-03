@@ -48,7 +48,7 @@ export function ChatBox() {
       {/* Messages */}
       <div
         className={cn(
-          'max-h-[200px] overflow-y-auto mb-2 transition-opacity',
+          'tactical-scroll max-h-[200px] overflow-y-auto mb-2 transition-opacity',
           isOpen ? 'opacity-100' : 'opacity-70'
         )}
       >

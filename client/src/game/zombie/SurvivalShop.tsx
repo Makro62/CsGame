@@ -3,7 +3,7 @@ import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
 import { useZombieStore } from "../../stores/useZombieStore";
 import { refillAllAmmo } from "./ZombieEngine";
 import { Sound } from "../../components/AudioManager";
-import { weaponDisplay } from "../weapons/weaponDisplay";
+import { weaponDisplay } from "../characterWeaponKit";
 import { purchaseOrEquipSurvivalWeapon } from "./survivalBuy";
 import { GameModal, ModalBody, ModalHeader } from "../../ui/components/overlays/GameModal";
 import { HUD_Z, overlayButton } from "../../ui/hudTheme";
@@ -123,7 +123,7 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
 
         {/* Tab Content: Weapons */}
         {activeTab === "weapons" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, overflowY: "auto", maxHeight: 330, paddingRight: 4 }}>
+          <div className="tactical-scroll" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, overflowY: "auto", maxHeight: 330, paddingRight: 8 }}>
             {SHOP_WEAPONS.map(w => {
               const isEquipped = activeWeapon === w.id;
               const isOwned = purchasedWeapons.includes(w.id);
@@ -191,7 +191,7 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
 
         {/* Tab Content: Tier Upgrades (Pack-A-Punch) */}
         {activeTab === "upgrades" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", maxHeight: 330 }}>
+          <div className="tactical-scroll" style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", maxHeight: 330, paddingRight: 8 }}>
             <div
               style={{
                 background: "linear-gradient(135deg, rgba(202, 138, 4, 0.2), rgba(161, 98, 7, 0.1))",
@@ -255,7 +255,7 @@ export function SurvivalShop({ open, onClose }: { open: boolean; onClose: () => 
 
         {/* Tab Content: Perks & Gear */}
         {activeTab === "perks" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", maxHeight: 330 }}>
+          <div className="tactical-scroll" style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", maxHeight: 330, paddingRight: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: "#c084fc", letterSpacing: "0.08em" }}>PERKS PERMANEN</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
               {SHOP_PERKS.map(p => {

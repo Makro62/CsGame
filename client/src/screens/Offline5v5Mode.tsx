@@ -2,35 +2,43 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { useLocation } from "wouter";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
-import { getMapById } from "../game/map/MapRegistry";
-import { ensureProcedural5v5, PROCEDURAL_5V5_ID } from "../game/map/ProceduralMapRegistry";
-import { PlayerController } from "../game/player/PlayerController";
-import { WeaponModel } from "../game/weapons/WeaponModel";
-import { ShootingSystem } from "../game/weapons/ShootingSystem";
-import { ReloadSystem } from "../game/weapons/ReloadSystem";
-import { GrenadeSystem } from "../game/weapons/GrenadeSystem";
-import { Crosshair } from "../components/Crosshair";
-import { BuyMenu } from "../components/BuyMenu";
-import { DamageVignette } from "../components/DamageVignette";
-import { DeathScreen } from "../components/DeathScreen";
-import SniperScope from "../components/SniperScope";
-import { ADSOpticSight } from "../components/ADSOpticSight";
-import { FlashEffect } from "../components/FlashEffect";
-import { TracerManager } from "../game/effects/TracerManager";
-import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
-import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
-import { useGameStore } from "../stores/useGameStore";
-import { useWeaponStore } from "../stores/useWeaponStore";
 import { useOffline5v5Store } from "./Offline5v5Store";
-import { TacticalBotModel } from "../game/player/TacticalBotModel";
-import { distToBombSite, nearestBombSite, resolveBombSites } from "../game/offline/offlineCombat";
-import { CalloutLabels } from "../game/map/CalloutLabels";
 import { Offline5v5Select } from "./Offline5v5Select";
-import { getAgent } from "../game/offline/agents";
-import { PauseMenu } from "../ui/components/overlays/PauseMenu";
-import { InGameChrome } from "../ui/components/overlays/InGameChrome";
-import { GameModal, ModalBody, ModalHeader, OverlayButton } from "../ui/components/overlays/GameModal";
-import { HUD_Z } from "../ui/hudTheme";
+import {
+  getMapById,
+  ensureProcedural5v5,
+  PROCEDURAL_5V5_ID,
+  PlayerController,
+  WeaponModel,
+  TacticalBotModel,
+  ShootingSystem,
+  ReloadSystem,
+  GrenadeSystem,
+  Crosshair,
+  BuyMenu,
+  DamageVignette,
+  DeathScreen,
+  SniperScope,
+  ADSOpticSight,
+  FlashEffect,
+  TracerManager,
+  ClickToPlayOverlay,
+  useWeaponSwitch,
+  useGameStore,
+  useWeaponStore,
+  distToBombSite,
+  nearestBombSite,
+  resolveBombSites,
+  CalloutLabels,
+  getAgent,
+  PauseMenu,
+  InGameChrome,
+  GameModal,
+  ModalBody,
+  ModalHeader,
+  OverlayButton,
+  HUD_Z,
+} from "../game/offline/offline5v5Kit";
 
 function RemoteBots() {
   const players = useOffline5v5Store((s) => s.players);

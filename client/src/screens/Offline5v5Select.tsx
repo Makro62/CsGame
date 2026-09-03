@@ -2,8 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { MAPS } from "../game/map/MapRegistry";
 import { getAgentsForTeam } from "../game/offline/agents";
-import { MinecraftCharacter } from "../game/player/MinecraftCharacter";
-import { FitCharacterCamera, PreviewTurntable } from "../game/player/CharacterPreview";
+import { MinecraftCharacter, FitCharacterCamera, PreviewTurntable } from "../game/characterWeaponKit";
 
 // ── Step Indicator ──
 function StepIndicator({ step, labels }: { step: number; labels: string[] }) {

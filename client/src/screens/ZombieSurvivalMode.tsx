@@ -2,35 +2,42 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
-import { zombieEngine } from "../game/zombie/ZombieEngine";
-import { ZombieArcadeController } from "../game/player/ZombieArcadeController";
-import { InstancedZombieRenderer } from "../game/zombie/InstancedZombieRenderer";
-import { PowerUpField } from "../game/zombie/PowerUpRenderer";
-import { LootRenderer } from "../game/zombie/LootRenderer";
-import { SurvivalArena } from "../game/zombie/SurvivalArena";
-import { SurvivalShop } from "../game/zombie/SurvivalShop";
-import { DownedOverlay } from "../components/DownedOverlay";
-import { ShootingSystem } from "../game/weapons/ShootingSystem";
-import { ReloadSystem } from "../game/weapons/ReloadSystem";
-import { TracerManager } from "../game/effects/TracerManager";
-import { DamageVignette } from "../components/DamageVignette";
-import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
 import { HeroSelectScreen } from "./HeroSelectScreen";
-import { useZombieStore } from "../stores/useZombieStore";
-import { useGameStore } from "../stores/useGameStore";
-import { useHeroStore } from "../stores/useHeroStore";
-import { useAimStore } from "../stores/useAimStore";
-import { useWeaponStore } from "../stores/useWeaponStore";
-import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
-import { type WeaponKey } from "../stores/useWeaponStore";
-import { weaponDisplay } from "../game/weapons/weaponDisplay";
-import { equipSurvivalWeapon } from "../game/zombie/survivalBuy";
-import { applyHeroToMatch } from "../game/zombie/applyHeroMatch";
-import { findRepairableBarricade, findNearestDoor } from "../game/zombie/survivalLayout";
-import { PauseMenu } from "../ui/components/overlays/PauseMenu";
-import { InGameChrome } from "../ui/components/overlays/InGameChrome";
-import { GameModal, ModalBody, ModalHeader, OverlayButton } from "../ui/components/overlays/GameModal";
-import { HUD_Z, hudActionButton } from "../ui/hudTheme";
+import {
+  zombieEngine,
+  ZombieArcadeController,
+  InstancedZombieRenderer,
+  PowerUpField,
+  LootRenderer,
+  SurvivalArena,
+  SurvivalShop,
+  DownedOverlay,
+  ShootingSystem,
+  ReloadSystem,
+  TracerManager,
+  DamageVignette,
+  ClickToPlayOverlay,
+  useZombieStore,
+  useGameStore,
+  useHeroStore,
+  useAimStore,
+  useWeaponStore,
+  type WeaponKey,
+  useWeaponSwitch,
+  weaponDisplay,
+  equipSurvivalWeapon,
+  applyHeroToMatch,
+  findRepairableBarricade,
+  findNearestDoor,
+  PauseMenu,
+  InGameChrome,
+  GameModal,
+  ModalBody,
+  ModalHeader,
+  OverlayButton,
+  HUD_Z,
+  hudActionButton,
+} from "../game/zombie/zombieKit";
 
 const ZOMBIE_CANVAS_ID = "zombie-survival-canvas";
 const SHIELD_ARMOR_BONUS = 40;
@@ -632,7 +639,7 @@ export function ZombieSurvivalMode() {
         </div>
 
         {/* List of Purchased Weapons */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+        <div className="tactical-scroll" style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto", paddingRight: 6 }}>
           {purchasedWeapons.map((wId) => {
             const info = weaponDisplay(wId);
             const isActive = activeWeapon === wId;

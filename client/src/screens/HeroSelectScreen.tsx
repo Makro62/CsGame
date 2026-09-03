@@ -2,8 +2,7 @@ import { useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { useHeroStore } from "../stores/useHeroStore";
 import { HEROES, HERO_IDS, type HeroDefinition } from "../game/zombie/heroes";
-import { MinecraftCharacter } from "../game/player/MinecraftCharacter";
-import { FitCharacterCamera, PreviewTurntable } from "../game/player/CharacterPreview";
+import { MinecraftCharacter, FitCharacterCamera, PreviewTurntable } from "../game/characterWeaponKit";
 
 function RadarChart({ hero }: { hero: HeroDefinition }) {
   const stats = hero.stats;
@@ -221,7 +220,7 @@ export function HeroSelectScreen({ onSelect }: { onSelect: () => void }) {
         position: "relative",
         zIndex: 1,
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0, overflowY: "auto" }}>
+        <div className="tactical-scroll" style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0, overflowY: "auto" }}>
           {HERO_IDS.map((id) => (
             <HeroCard
               key={id}
@@ -353,7 +352,7 @@ export function HeroSelectScreen({ onSelect }: { onSelect: () => void }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0, overflowY: "auto" }}>
+        <div className="tactical-scroll" style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 0, overflowY: "auto" }}>
           <div style={{ background: "rgba(20,20,40,0.5)", backdropFilter: "blur(10px)", border: "1px solid rgba(0,212,255,0.2)", borderRadius: 16, padding: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 900, color: hero.accentColor, letterSpacing: 2, marginBottom: 12, textTransform: "uppercase" }}>
               STAT RADAR

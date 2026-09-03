@@ -42,11 +42,11 @@ export interface CharacterLook {
 
 const DEFAULT_LOOK: CharacterLook = {
   scale: 1,
-  torso: [0.48, 0.76, 0.28],
-  vest: [0.52, 0.5, 0.32],
-  armW: 0.18,
-  legW: 0.2,
-  shoulder: 0.34,
+  torso: [0.46, 0.78, 0.26],
+  vest: [0.50, 0.52, 0.30],
+  armW: 0.17,
+  legW: 0.19,
+  shoulder: 0.32,
   skin: "#d4a574",
   pants: "#374151",
   shoes: "#111827",

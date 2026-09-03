@@ -1,34 +1,44 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
-import { PlayerController } from "../game/player/PlayerController";
-import { WeaponModel } from "../game/weapons/WeaponModel";
-import { ShootingSystem } from "../game/weapons/ShootingSystem";
-import { ReloadSystem } from "../game/weapons/ReloadSystem";
-import { TracerManager } from "../game/effects/TracerManager";
-import { Crosshair } from "../components/Crosshair";
-import SniperScope from "../components/SniperScope";
-import { ADSOpticSight } from "../components/ADSOpticSight";
-import { DamageVignette } from "../components/DamageVignette";
-import { ClickToPlayOverlay } from "../components/ClickToPlayOverlay";
-import { gameEvents } from "../lib/gameEvents";
-import { useL4DStore } from "../stores/useL4DStore";
-import { L4DDirector } from "../game/l4d/L4DDirector";
-import { L4DCampaignMap } from "../game/l4d/L4DCampaignMap";
-import { L4D_SAFE_Z, L4D_ZONES, L4D_CAMPAIGN_WEAPON, clampL4DInfected, l4dRoughLos, getL4DZone } from "../game/l4d/l4dLayout";
-import { useGameStore } from "../stores/useGameStore";
-import { useWeaponStore } from "../stores/useWeaponStore";
 import { WEAPONS } from "@cs-game/shared";
-import { useWeaponSwitch } from "../hooks/useWeaponSwitch";
-import { InfectedFigure } from "../game/zombie/HumanoidFigures";
-import { MinecraftCharacter } from "../game/player/MinecraftCharacter";
 import { L4DSurvivorSelect } from "./L4DSurvivorSelect";
-import { PauseMenu } from "../ui/components/overlays/PauseMenu";
-import { InGameChrome } from "../ui/components/overlays/InGameChrome";
-import { GameModal, ModalBody, ModalHeader, OverlayButton } from "../ui/components/overlays/GameModal";
-import { HUD_Z } from "../ui/hudTheme";
-import { getL4DSurvivor } from "../game/l4d/l4dSurvivors";
-import type { L4DSurvivorDef } from "../game/l4d/l4dSurvivors";
+import {
+  PlayerController,
+  WeaponModel,
+  MinecraftCharacter,
+  ShootingSystem,
+  ReloadSystem,
+  TracerManager,
+  Crosshair,
+  SniperScope,
+  ADSOpticSight,
+  DamageVignette,
+  ClickToPlayOverlay,
+  gameEvents,
+  useL4DStore,
+  L4DDirector,
+  L4DCampaignMap,
+  L4D_SAFE_Z,
+  L4D_ZONES,
+  L4D_CAMPAIGN_WEAPON,
+  clampL4DInfected,
+  l4dRoughLos,
+  getL4DZone,
+  useGameStore,
+  useWeaponStore,
+  useWeaponSwitch,
+  InfectedFigure,
+  PauseMenu,
+  InGameChrome,
+  GameModal,
+  ModalBody,
+  ModalHeader,
+  OverlayButton,
+  HUD_Z,
+  getL4DSurvivor,
+  type L4DSurvivorDef,
+} from "../game/l4d/l4dKit";
 
 function applyL4DSurvivorStats(survivor: L4DSurvivorDef) {
   useL4DStore.setState(s => ({
@@ -156,7 +166,7 @@ function SurvivorBots({ survivorDefs }: { survivorDefs: Record<string, L4DSurviv
               limbSwingSpeed={s.isDowned || firing ? 0 : 6}
               holdWeapon={!s.isDowned}
               weaponType="rifle"
-              weaponScale={2.7}
+              weaponScale={1}
               muzzleUntil={s.shootingUntil}
               heroColor={def?.armorColor}
               heroAccent={def?.accentColor}
@@ -358,9 +368,6 @@ export function L4DMode() {
 
   useEffect(() => {
     useGameStore.getState().setMode("l4d");
-    return () => {
-      useGameStore.getState().setMode("menu");
-    };
   }, []);
 
   useEffect(() => {
@@ -449,11 +456,17 @@ export function L4DMode() {
     setPaused(true);
   }, []);
 
+  const hasLockedRef = useRef(false);
   useEffect(() => {
     const onPointerLockChange = () => {
       if (!survivorSelectedRef.current) return;
       const locked = !!document.pointerLockElement;
-      if (!locked && !isGameOver && !isVictory) setPaused(true);
+      if (locked) {
+        hasLockedRef.current = true;
+        setPaused(false);
+        return;
+      }
+      if (hasLockedRef.current && !isGameOver && !isVictory) setPaused(true);
     };
     document.addEventListener("pointerlockchange", onPointerLockChange);
     return () => document.removeEventListener("pointerlockchange", onPointerLockChange);
@@ -486,10 +499,6 @@ export function L4DMode() {
     survivorSelectedRef.current = true;
     setSelectedSurvivorId(id);
     setSurvivorSelected(true);
-    lockL4DCanvas();
-    setTimeout(() => {
-      lockL4DCanvas();
-    }, 120);
   }, []);
 
   // Build survivor defs map for bot colors
@@ -510,10 +519,12 @@ export function L4DMode() {
     }
   }
 
+  if (!survivorSelected) {
+    return <L4DSurvivorSelect onSelect={handleSurvivorSelect} onBack={handleBack} />;
+  }
+
   return (
-    <div className="w-full bg-black relative" style={{ height: "100dvh", width: "100dvw" }}>
-      {/* Survivor Selection Screen */}
-      {!survivorSelected && <L4DSurvivorSelect onSelect={handleSurvivorSelect} />}
+    <div className="w-full bg-black relative overflow-hidden" style={{ height: "100dvh", width: "100%" }}>
 
       <div
         id={L4D_CANVAS_ID}
@@ -606,8 +617,8 @@ export function L4DMode() {
         </GameModal>
       )}
       <ClickToPlayOverlay
-        onLock={() => {}}
-        suppressed={isGameOver || isVictory || paused || !survivorSelected}
+        onLock={() => setPaused(false)}
+        suppressed={isGameOver || isVictory || paused}
         canvasSelector={`#${L4D_CANVAS_ID} canvas`}
       />
       {paused && !isGameOver && !isVictory && (

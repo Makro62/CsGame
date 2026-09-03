@@ -1,0 +1,65 @@
+/* Tactical scrollbar — thin cyan accent, matches HUD panels */
+
+#root,
+#root *,
+.tactical-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.55) rgba(6, 12, 22, 0.55);
+}
+
+.tactical-scroll {
+  scrollbar-gutter: stable;
+}
+
+#root::-webkit-scrollbar,
+#root *::-webkit-scrollbar,
+.tactical-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+#root::-webkit-scrollbar-track,
+#root *::-webkit-scrollbar-track,
+.tactical-scroll::-webkit-scrollbar-track {
+  margin: 6px 0;
+  background: rgba(6, 12, 22, 0.55);
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.08);
+}
+
+#root::-webkit-scrollbar-thumb,
+#root *::-webkit-scrollbar-thumb,
+.tactical-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(56, 189, 248, 0.72) 0%,
+    rgba(14, 116, 144, 0.88) 100%
+  );
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.28);
+}
+
+#root::-webkit-scrollbar-thumb:hover,
+#root *::-webkit-scrollbar-thumb:hover,
+.tactical-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(125, 211, 252, 0.88) 0%,
+    rgba(56, 189, 248, 0.92) 100%
+  );
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+}
+
+#root::-webkit-scrollbar-thumb:active,
+#root *::-webkit-scrollbar-thumb:active,
+.tactical-scroll::-webkit-scrollbar-thumb:active {
+  background: #38bdf8;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.65);
+}
+
+#root::-webkit-scrollbar-corner,
+#root *::-webkit-scrollbar-corner,
+.tactical-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}

@@ -1,28 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
-import { HUDLayout } from "../../ui/components/hud/HUDLayout";
-import { PlayerController } from "../player/PlayerController";
-import { WeaponModel } from "../weapons/WeaponModel";
-import { ShootingSystem } from "../weapons/ShootingSystem";
-import { ReloadSystem } from "../weapons/ReloadSystem";
-import { Crosshair } from "../../components/Crosshair";
-import { ClickToPlayOverlay } from "../../components/ClickToPlayOverlay";
-import { AudioManager } from "../../components/AudioManager";
-import SniperScope from "../../components/SniperScope";
-import { ADSOpticSight } from "../../components/ADSOpticSight";
-import { PauseMenu } from "../../ui/components/overlays/PauseMenu";
-import { AimTrainer, AimTrainerUI } from "./AimTrainer";
-import { RecoilPractice, RecoilPracticeUI } from "./RecoilPractice";
-import { TrainingArena } from "./TrainingArena";
-import { useWeaponStore, WeaponKey } from "../../stores/useWeaponStore";
-import { useGameStore } from "../../stores/useGameStore";
-import { TracerManager } from "../effects/TracerManager";
-import { useWeaponSwitch } from "../../hooks/useWeaponSwitch";
-import { GrenadeSystem } from "../weapons/GrenadeSystem";
-import { FlashEffect } from "../../components/FlashEffect";
-import { HUD_FONT, HUD_MONO, hudPanel } from "../../ui/hudTheme";
-import { TRAINING_PANEL_Z } from "./trainingHud";
+import {
+  HUDLayout,
+  PlayerController,
+  WeaponModel,
+  ShootingSystem,
+  ReloadSystem,
+  Crosshair,
+  ClickToPlayOverlay,
+  AudioManager,
+  SniperScope,
+  ADSOpticSight,
+  PauseMenu,
+  AimTrainer,
+  AimTrainerUI,
+  RecoilPractice,
+  RecoilPracticeUI,
+  TrainingArena,
+  useWeaponStore,
+  type WeaponKey,
+  useGameStore,
+  TracerManager,
+  useWeaponSwitch,
+  GrenadeSystem,
+  FlashEffect,
+  HUD_FONT,
+  HUD_MONO,
+  hudPanel,
+  TRAINING_PANEL_Z,
+} from "./trainingKit";
 
 /** The nav bar owns the top edge, so it stays above the drill panels. */
 const TRAINING_NAV_Z = TRAINING_PANEL_Z + 50;

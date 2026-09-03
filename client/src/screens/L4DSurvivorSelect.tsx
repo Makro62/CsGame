@@ -1,8 +1,7 @@
 import { useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { L4D_SURVIVORS, L4D_SURVIVOR_IDS, type L4DSurvivorDef, getL4DSurvivor } from "../game/l4d/l4dSurvivors";
-import { MinecraftCharacter } from "../game/player/MinecraftCharacter";
-import { FitCharacterCamera, PreviewTurntable } from "../game/player/CharacterPreview";
+import { MinecraftCharacter, FitCharacterCamera, PreviewTurntable } from "../game/characterWeaponKit";
 
 // ── Radar Chart SVG ──
 function RadarChart({ survivor }: { survivor: L4DSurvivorDef }) {
@@ -136,9 +135,10 @@ function SurvivorCard({ survivor, selected, onClick }: {
 // ── Main Survivor Select Screen ──
 interface L4DSurvivorSelectProps {
   onSelect: (survivorId: string) => void;
+  onBack?: () => void;
 }
 
-export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
+export function L4DSurvivorSelect({ onSelect, onBack }: L4DSurvivorSelectProps) {
   const [selectedId, setSelectedId] = useState("coach");
   const previewSurvivor = L4D_SURVIVORS[selectedId] ?? getL4DSurvivor(selectedId);
 
@@ -153,11 +153,12 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 200,
-      height: "100dvh", width: "100dvw",
+      height: "100%", width: "100%",
       background: "#050510",
       display: "flex", flexDirection: "column",
       fontFamily: "'Rajdhani', monospace",
       overflow: "hidden",
+      boxSizing: "border-box",
     }}>
       {/* Grid background */}
       <div style={{
@@ -173,6 +174,22 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
         background: "radial-gradient(circle at 30% 40%, rgba(74,222,128,0.06) 0%, transparent 50%), radial-gradient(circle at 70% 60%, rgba(34,197,94,0.04) 0%, transparent 50%)",
         pointerEvents: "none",
       }} />
+
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            position: "absolute", top: 16, left: 16, zIndex: 3,
+            background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)",
+            color: "#e2e8f0", borderRadius: 8, padding: "8px 14px",
+            fontFamily: "'Rajdhani', monospace", fontWeight: 800, letterSpacing: 1,
+            cursor: "pointer",
+          }}
+        >
+          ← MENU
+        </button>
+      )}
 
       {/* Header */}
       <div style={{ textAlign: "center", padding: "clamp(10px, 1.6vh, 22px) 16px clamp(6px, 1vh, 12px)", position: "relative", zIndex: 1, flexShrink: 0 }}>
@@ -196,14 +213,15 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
 
       {/* Main content */}
       <div style={{
-        flex: 1, minHeight: 0, display: "grid",
-        gridTemplateColumns: "minmax(clamp(120px, 18vw, 220px), 18vw) minmax(clamp(180px, 30vw, 280px), 1fr) minmax(clamp(120px, 18vw, 220px), 18vw)",
+        flex: 1, minHeight: 0, minWidth: 0, display: "grid",
+        gridTemplateColumns: "minmax(0, 240px) minmax(0, 1fr) minmax(0, 260px)",
         gap: "clamp(12px, 1.4vw, 24px)", padding: "0 clamp(12px, 2vw, 30px)",
         maxWidth: "min(1480px, 100%)", width: "100%",
         margin: "0 auto", position: "relative", zIndex: 1,
+        boxSizing: "border-box", overflow: "hidden",
       }}>
         {/* Left: Survivor cards */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overflowY: "auto" }}>
+        <div className="tactical-scroll" style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 0, minWidth: 0, overflowY: "auto" }}>
           {L4D_SURVIVOR_IDS.map((id) => (
             <SurvivorCard
               key={id}
@@ -219,7 +237,7 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
           background: "rgba(20,20,40,0.5)", backdropFilter: "blur(10px)",
           border: "1px solid rgba(74,222,128,0.2)", borderRadius: 20,
           overflow: "hidden", position: "relative", display: "flex", flexDirection: "column",
-          minHeight: 0,
+          minHeight: 0, minWidth: 0,
         }}>
           <div style={{
             flex: 1, minHeight: 0, position: "relative",
@@ -317,7 +335,7 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
         </div>
 
         {/* Right: Radar + Details */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overflowY: "auto" }}>
+        <div className="tactical-scroll" style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 0, minWidth: 0, overflowY: "auto" }}>
           <div style={{
             background: "rgba(20,20,40,0.5)", backdropFilter: "blur(10px)",
             border: "1px solid rgba(74,222,128,0.2)", borderRadius: 16, padding: 20,

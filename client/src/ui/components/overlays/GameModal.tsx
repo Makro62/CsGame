@@ -81,7 +81,7 @@ export function ModalHeader({
 
 export function ModalBody({ children }: { children: ReactNode }) {
   return (
-    <div style={{ padding: 20, overflowY: "auto", flex: 1, minHeight: 0 }}>
+    <div className="tactical-scroll" style={{ padding: "20px 16px 20px 20px", overflowY: "auto", flex: 1, minHeight: 0 }}>
       {children}
     </div>
   );

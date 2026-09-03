@@ -7,7 +7,8 @@ import { useGameStore } from "../../stores/useGameStore";
 import { useHeroStore } from "../../stores/useHeroStore";
 import { useAimStore } from "../../stores/useAimStore";
 import { zombieEngine } from "../zombie/ZombieEngine";
-import { MinecraftCharacter } from "./MinecraftCharacter";
+import { useWeaponStore } from "../../stores/useWeaponStore";
+import { MinecraftCharacter, weaponCategoryFromId } from "../characterWeaponKit";
 import { SURVIVAL_BOUNDS, pushOutSurvival } from "../zombie/survivalLayout";
 import { arcadeScreenMove } from "./arcadeScreenMove";
 import { consumeScreenShake } from "../effects/screenShake";
@@ -34,6 +35,8 @@ export function ZombieArcadeController() {
   const groupRef = useRef<THREE.Group>(null);
   const motionRef = useRef({ moving: false, sprinting: false });
   const hero = useHeroStore(s => s.hero);
+  const activeWeapon = useWeaponStore(s => s.activeWeapon);
+  const weaponType = weaponCategoryFromId(activeWeapon);
   const lockedNdc = useRef({ x: 0, y: 0 });
   const pointerRef = useRef(pointer);
   pointerRef.current = pointer;
@@ -163,7 +166,7 @@ export function ZombieArcadeController() {
       <MinecraftCharacter
         team="CT"
         holdWeapon
-        weaponType={hero.weaponType}
+        weaponType={weaponType}
         motionRef={motionRef}
         isDead={isDead}
         heroColor={hero.armorColor}

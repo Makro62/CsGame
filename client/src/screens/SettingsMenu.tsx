@@ -151,13 +151,15 @@ export default function SettingsMenu() {
 
         {/* Scrollable Content Body */}
         <div
+          className="tactical-scroll"
           style={{
-            padding: '16px 20px',
+            padding: '16px 14px 16px 20px',
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
             gap: 16,
             flex: 1,
+            minHeight: 0,
           }}
         >
           {/* Mouse & Aim Section */}

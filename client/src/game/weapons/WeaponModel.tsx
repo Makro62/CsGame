@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
@@ -18,6 +18,7 @@ import {
   TEC9_HANDS,
   AUTOPISTOL_HANDS,
 } from './weaponRig'
+import { FpsKarambitModel } from './weaponGeometries'
 
 const weaponAnimator = new WeaponAnimator()
 
@@ -147,10 +148,6 @@ export function WeaponModel() {
       weaponAnimator.addKick(recoilOffset.x, recoilOffset.y, 0)
     }
 
-    const isKnife = activeWeapon === 'knife' || activeWeapon === 'combatknife'
-    const swingAngle = isKnife ? swingProgress.current * 1.2 : 0
-    const swingY = isKnife ? swingProgress.current * 0.15 : 0
-
     if (swingProgress.current > 0) {
       swingProgress.current *= Math.exp(-9.75 * dt)
       if (swingProgress.current < 0.01) swingProgress.current = 0
@@ -177,11 +174,11 @@ export function WeaponModel() {
 
     const adsDamp = 1 - adsFactor * 0.78
     const posX = THREE.MathUtils.lerp(basePos[0], adsPos[0], adsFactor) + weaponAnimator.position.x * adsDamp
-    const posY = THREE.MathUtils.lerp(basePos[1], adsPos[1], adsFactor) + weaponAnimator.position.y * adsDamp + swingY
+    const posY = THREE.MathUtils.lerp(basePos[1], adsPos[1], adsFactor) + weaponAnimator.position.y * adsDamp
     const posZ = THREE.MathUtils.lerp(basePos[2], adsPos[2], adsFactor) + weaponAnimator.position.z * adsDamp
 
     const targetRot = (ADS_ROTATIONS as Record<string, [number, number, number]>)[activeWeapon] || [0, 0, 0]
-    const rotX = THREE.MathUtils.lerp(baseRot[0], targetRot[0], adsFactor) + weaponAnimator.rotation.x * adsDamp + swingAngle
+    const rotX = THREE.MathUtils.lerp(baseRot[0], targetRot[0], adsFactor) + weaponAnimator.rotation.x * adsDamp
     const rotY = THREE.MathUtils.lerp(baseRot[1], targetRot[1], adsFactor) + weaponAnimator.rotation.y * adsDamp
     const rotZ = THREE.MathUtils.lerp(baseRot[2], targetRot[2], adsFactor) + weaponAnimator.rotation.z * adsDamp
 
@@ -210,8 +207,9 @@ export function WeaponModel() {
         {activeWeapon === 'glock' && (dualWield ? <GlockDualModel /> : <GlockModel />)}
         {activeWeapon === 'tec9' && (dualWield ? <Tec9DualModel /> : <Tec9Model />)}
         {activeWeapon === 'autopistol' && (dualWield ? <AutoPistolDualModel /> : <AutoPistolModel />)}
-        {activeWeapon === 'knife' && <KnifeModel />}
-        {activeWeapon === 'combatknife' && <CombatKnifeModel />}
+        {(activeWeapon === 'knife' || activeWeapon === 'combatknife') && (
+          <DualKarambitModel tactical={activeWeapon === 'combatknife'} />
+        )}
         {activeWeapon === 'he' && <GrenadeModel type="he" />}
         {activeWeapon === 'smoke' && <GrenadeModel type="smoke" />}
         {activeWeapon === 'flash' && <GrenadeModel type="flash" />}
@@ -1172,11 +1170,17 @@ function MP5Model() {
         <cylinderGeometry args={[0.014, 0.014, 0.04, 10]} />
         <meshStandardMaterial color="#2a2a2a" metalness={0.6} roughness={0.35} />
       </mesh>
-      {/* Muzzle — tri-lug */}
+      {/* Muzzle — SD-style integral suppressor */}
       <mesh position={[0, 0.005, -0.33]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.012, 0.011, 0.03, 10]} />
-        <meshStandardMaterial color="#3a3a3a" metalness={0.6} roughness={0.35} />
+        <cylinderGeometry args={[0.013, 0.012, 0.08, 12]} />
+        <meshStandardMaterial color="#1a1a1a" metalness={0.65} roughness={0.32} />
       </mesh>
+      {/* Suppressor end cap */}
+      <mesh position={[0, 0.005, -0.375]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.011, 0.013, 0.012, 12]} />
+        <meshStandardMaterial color="#2a2a2a" metalness={0.6} roughness={0.35} />
+      </mesh>
+      {/* Old tri-lug replaced by SD can */}
       {/* Front sight hood */}
       <mesh position={[0, 0.035, -0.22]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.012, 0.012, 0.02, 8]} />
@@ -1485,24 +1489,24 @@ function GlockDualModel() {
 function Tec9Model() {
   return (
     <group>
-      {/* Receiver — cylindrical upper */}
-      <mesh position={[0, 0.008, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.018, 0.018, 0.22, 10]} />
+      {/* Upper receiver — stamped box */}
+      <mesh position={[0, 0.012, -0.02]}>
+        <boxGeometry args={[0.034, 0.032, 0.2]} />
         <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.35} />
       </mesh>
-      {/* Receiver — squared lower */}
+      {/* Lower receiver */}
       <mesh position={[0, -0.012, 0.02]}>
-        <boxGeometry args={[0.032, 0.02, 0.18]} />
+        <boxGeometry args={[0.032, 0.022, 0.17]} />
         <meshStandardMaterial color="#2a2a2a" metalness={0.5} roughness={0.4} />
       </mesh>
-      {/* Barrel — short, threaded */}
+      {/* Barrel — short, inside shroud */}
       <mesh position={[0, 0.008, -0.2]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.008, 0.008, 0.12, 8]} />
+        <cylinderGeometry args={[0.007, 0.007, 0.1, 8]} />
         <meshStandardMaterial color="#111111" metalness={0.7} roughness={0.3} />
       </mesh>
       {/* Barrel shroud / perforated jacket */}
       <mesh position={[0, 0.008, -0.14]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.013, 0.013, 0.1, 8]} />
+        <cylinderGeometry args={[0.014, 0.014, 0.11, 10]} />
         <meshStandardMaterial color="#2a2a2a" metalness={0.5} roughness={0.4} />
       </mesh>
       {/* Barrel shroud holes — Symmetrical on Left and Right */}
@@ -1650,113 +1654,91 @@ function Tec9DualModel() {
 function AutoPistolModel() {
   return (
     <group>
-      {/* Slide — extended for full-auto */}
+      {/* Slide — Glock 18C profile, ported for full-auto */}
       <mesh position={[0, 0.012, 0]}>
-        <boxGeometry args={[0.034, 0.045, 0.21]} />
-        <meshStandardMaterial color="#3a3a3a" metalness={0.5} roughness={0.4} />
+        <boxGeometry args={[0.028, 0.032, 0.19]} />
+        <meshStandardMaterial color="#222428" metalness={0.62} roughness={0.38} />
+      </mesh>
+      {/* Slide crown */}
+      <mesh position={[0, 0.026, 0]}>
+        <boxGeometry args={[0.022, 0.004, 0.188]} />
+        <meshStandardMaterial color="#2a2c30" metalness={0.65} roughness={0.35} />
       </mesh>
       {/* Slide serrations */}
-      {[0, 1, 2, 3].map(i => (
-        <mesh key={`serr-${i}`} position={[0, 0.012, 0.05 + i * 0.012]}>
-          <boxGeometry args={[0.035, 0.046, 0.006]} />
-          <meshStandardMaterial color="#444444" />
+      {[0, 1, 2, 3, 4].map(i => (
+        <mesh key={`aserr-${i}`} position={[0, 0.012, 0.05 + i * 0.008]}>
+          <boxGeometry args={[0.029, 0.03, 0.004]} />
+          <meshStandardMaterial color="#181a1d" metalness={0.65} roughness={0.4} />
         </mesh>
       ))}
-      {/* Barrel — extended */}
-      <mesh position={[0, 0.012, -0.15]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.007, 0.007, 0.09, 8]} />
-        <meshStandardMaterial color="#1a1a1a" metalness={0.7} roughness={0.3} />
+      {/* Compensator cuts — top ports */}
+      {[0, 1].map(i => (
+        <mesh key={`port-${i}`} position={[0, 0.028, -0.14 - i * 0.018]}>
+          <boxGeometry args={[0.018, 0.006, 0.012]} />
+          <meshStandardMaterial color="#111214" />
+        </mesh>
+      ))}
+      {/* Barrel */}
+      <mesh position={[0, 0.012, -0.12]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.007, 0.007, 0.06, 10]} />
+        <meshStandardMaterial color="#1f242d" metalness={0.8} roughness={0.25} />
       </mesh>
       {/* Muzzle */}
-      <mesh position={[0, 0.012, -0.2]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.01, 0.009, 0.02, 8]} />
-        <meshStandardMaterial color="#555555" metalness={0.6} roughness={0.35} />
+      <mesh position={[0, 0.012, -0.155]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.008, 0.007, 0.012, 10]} />
+        <meshStandardMaterial color="#111214" metalness={0.7} roughness={0.3} />
       </mesh>
-      {/* Compensator ports — for full-auto control */}
-      <mesh position={[0, 0.02, -0.195]}>
-        <boxGeometry args={[0.02, 0.012, 0.015]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      {/* Frame — polymer */}
-      <mesh position={[0, -0.015, 0.01]}>
-        <boxGeometry args={[0.032, 0.02, 0.17]} />
-        <meshStandardMaterial color="#4a4a4a" roughness={0.6} />
-      </mesh>
-      {/* Trigger guard */}
-      <mesh position={[0, -0.035, 0.03]}>
-        <boxGeometry args={[0.028, 0.015, 0.045]} />
-        <meshStandardMaterial color="#444444" roughness={0.6} />
-      </mesh>
-      {/* Trigger */}
-      <mesh position={[0, -0.03, 0.03]} rotation={[0.3, 0, 0]}>
-        <boxGeometry args={[0.004, 0.018, 0.004]} />
-        <meshStandardMaterial color="#666666" />
-      </mesh>
-      {/* Grip — ergonomic, polymer */}
-      <mesh position={[0, -0.065, 0.06]} rotation={[0.28, 0, 0]}>
-        <boxGeometry args={[0.03, 0.065, 0.032]} />
-        <meshStandardMaterial color="#3a3a3a" roughness={0.6} />
-      </mesh>
-      {/* Grip texturing — Symmetrical Left and Right */}
-      <mesh position={[0.016, -0.065, 0.06]} rotation={[0.28, 0, 0]}>
-        <boxGeometry args={[0.003, 0.05, 0.026]} />
-        <meshStandardMaterial color="#555555" />
-      </mesh>
-      <mesh position={[-0.016, -0.065, 0.06]} rotation={[0.28, 0, 0]}>
-        <boxGeometry args={[0.003, 0.05, 0.026]} />
-        <meshStandardMaterial color="#555555" />
-      </mesh>
-      {/* Extended magazine */}
-      <mesh position={[0, -0.1, 0.07]} rotation={[0.28, 0, 0]}>
-        <boxGeometry args={[0.024, 0.055, 0.028]} />
-        <meshStandardMaterial color="#3a3a3a" metalness={0.4} roughness={0.45} />
-      </mesh>
-      {/* Magazine base pad */}
-      <mesh position={[0, -0.135, 0.075]} rotation={[0.28, 0, 0]}>
-        <boxGeometry args={[0.028, 0.012, 0.032]} />
-        <meshStandardMaterial color="#4a4a4a" />
-      </mesh>
-      {/* Rear sight */}
-      <mesh position={[0, 0.04, 0.04]}>
-        <boxGeometry args={[0.022, 0.012, 0.012]} />
-        <meshStandardMaterial color="#666666" />
-      </mesh>
-      {/* Front sight */}
-      <mesh position={[0, 0.04, -0.08]}>
-        <boxGeometry args={[0.006, 0.012, 0.006]} />
-        <meshStandardMaterial color="#666666" />
-      </mesh>
-      {/* Fire selector — Symmetrical Left and Right */}
-      <mesh position={[-0.018, 0.01, 0.04]}>
-        <boxGeometry args={[0.005, 0.01, 0.025]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      <mesh position={[0.018, 0.01, 0.04]}>
-        <boxGeometry args={[0.005, 0.01, 0.025]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      {/* Slide lock — Symmetrical Left and Right */}
-      <mesh position={[-0.018, 0.0, 0.02]}>
-        <boxGeometry args={[0.005, 0.008, 0.03]} />
-        <meshStandardMaterial color="#444444" />
-      </mesh>
-      <mesh position={[0.018, 0.0, 0.02]}>
-        <boxGeometry args={[0.005, 0.008, 0.03]} />
-        <meshStandardMaterial color="#444444" />
-      </mesh>
-      {/* Magazine release — Symmetrical Left and Right */}
-      <mesh position={[-0.017, -0.02, 0.02]}>
-        <boxGeometry args={[0.005, 0.01, 0.012]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      <mesh position={[0.017, -0.02, 0.02]}>
-        <boxGeometry args={[0.005, 0.01, 0.012]} />
-        <meshStandardMaterial color="#333333" />
+      {/* Frame */}
+      <mesh position={[0, -0.01, 0.005]}>
+        <boxGeometry args={[0.026, 0.016, 0.155]} />
+        <meshStandardMaterial color="#1a1c1e" roughness={0.7} />
       </mesh>
       {/* Accessory rail */}
-      <mesh position={[0, -0.022, -0.04]}>
-        <boxGeometry args={[0.028, 0.006, 0.04]} />
-        <meshStandardMaterial color="#4a4a4a" />
+      <mesh position={[0, -0.018, -0.04]}>
+        <boxGeometry args={[0.022, 0.005, 0.04]} />
+        <meshStandardMaterial color="#25272a" roughness={0.65} />
+      </mesh>
+      {/* Trigger guard */}
+      <mesh position={[0, -0.026, 0.025]}>
+        <boxGeometry args={[0.022, 0.014, 0.04]} />
+        <meshStandardMaterial color="#1f2124" roughness={0.65} />
+      </mesh>
+      {/* Trigger */}
+      <mesh position={[0, -0.022, 0.024]} rotation={[0.3, 0, 0]}>
+        <boxGeometry args={[0.004, 0.016, 0.004]} />
+        <meshStandardMaterial color="#475569" metalness={0.6} roughness={0.3} />
+      </mesh>
+      {/* Grip */}
+      <mesh position={[0, -0.055, 0.052]} rotation={[0.26, 0, 0]}>
+        <boxGeometry args={[0.025, 0.062, 0.034]} />
+        <meshStandardMaterial color="#161719" roughness={0.75} />
+      </mesh>
+      {/* Extended magazine */}
+      <mesh position={[0, -0.088, 0.062]} rotation={[0.26, 0, 0]}>
+        <boxGeometry args={[0.022, 0.048, 0.028]} />
+        <meshStandardMaterial color="#3a3a3a" metalness={0.4} roughness={0.45} />
+      </mesh>
+      <mesh position={[0, -0.118, 0.068]} rotation={[0.26, 0, 0]}>
+        <boxGeometry args={[0.026, 0.01, 0.032]} />
+        <meshStandardMaterial color="#18191b" roughness={0.7} />
+      </mesh>
+      {/* Sights */}
+      <mesh position={[0, 0.029, 0.078]}>
+        <boxGeometry args={[0.018, 0.008, 0.01]} />
+        <meshStandardMaterial color="#111214" />
+      </mesh>
+      <mesh position={[0, 0.029, -0.078]}>
+        <boxGeometry args={[0.004, 0.008, 0.008]} />
+        <meshStandardMaterial color="#111214" />
+      </mesh>
+      <mesh position={[0, 0.031, -0.076]}>
+        <boxGeometry args={[0.0025, 0.0025, 0.002]} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.6} />
+      </mesh>
+      {/* Slide stop */}
+      <mesh position={[-0.0145, 0.002, 0.015]}>
+        <boxGeometry args={[0.003, 0.006, 0.022]} />
+        <meshStandardMaterial color="#2d3035" metalness={0.7} roughness={0.3} />
       </mesh>
     </group>
   )
@@ -1799,211 +1781,60 @@ function AutoPistolDualModel() {
   )
 }
 
-// ─── Knife ──────────────────────────────────────────────────────
-// Standard combat knife — drop point blade, cylindrical handle
-// Blade built from a 2D shape extruded thin so the profile actually tapers.
-function makeBladeGeometry(
-  bladeLength: number,
-  bladeWidth: number,
-  tipSlope: number
-): THREE.ExtrudeGeometry {
-  const w = bladeWidth / 2
-  const shape = new THREE.Shape()
-  // Start at the guard (handle side)
-  shape.moveTo(-w, 0)
-  shape.lineTo(w, 0)
-  // Up along the cutting edge side
-  shape.lineTo(w * 0.82, bladeLength * tipSlope) // start tapering
-  shape.lineTo(0, bladeLength) // tip
-  // Down the spine side
-  shape.lineTo(-w * 0.9, bladeLength * 0.72)
-  shape.lineTo(-w, 0)
-  shape.closePath()
+// ─── Karambit (dual, left + right) ────────────────────────────────
 
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.016,
-    bevelEnabled: true,
-    bevelThickness: 0.003,
-    bevelSize: 0.003,
-    bevelSegments: 2,
+const KARAMBIT_HANDS = [
+  { side: -1 as const, position: [-0.22, -0.03, 0.04] as [number, number, number], rotation: [0.32, 0.52, 0.9] as [number, number, number] },
+  { side: 1 as const, position: [0.22, -0.03, 0.04] as [number, number, number], rotation: [0.32, -0.52, -0.9] as [number, number, number] },
+]
+
+function DualKarambitModel({ tactical = false }: { tactical?: boolean }) {
+  const handRefs = useRef<Array<THREE.Group | null>>([])
+  const slashes = useRef([0, 0])
+  const nextHand = useRef(1)
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (e.button !== 0 || !document.pointerLockElement) return
+      const index = nextHand.current === 1 ? 1 : 0
+      slashes.current[index] = 1
+      nextHand.current = nextHand.current === 1 ? -1 : 1
+    }
+    window.addEventListener("mousedown", onDown)
+    return () => window.removeEventListener("mousedown", onDown)
+  }, [])
+
+  useFrame((_, dt) => {
+    KARAMBIT_HANDS.forEach((hand, index) => {
+      const group = handRefs.current[index]
+      if (!group) return
+      const s = THREE.MathUtils.damp(slashes.current[index], 0, 9, dt)
+      slashes.current[index] = s < 0.01 ? 0 : s
+      group.position.set(
+        hand.position[0] + s * 0.05 * hand.side,
+        hand.position[1] - s * 0.05,
+        hand.position[2] - s * 0.12,
+      )
+      group.rotation.set(
+        hand.rotation[0] + s * 1.15,
+        hand.rotation[1],
+        hand.rotation[2] - s * 0.85 * hand.side,
+      )
+    })
   })
-  geo.rotateX(-Math.PI / 2) // lay flat along XY → XZ
-  geo.translate(0, 0.012, 0)
-  return geo
-}
 
-function KnifeModel() {
-  const bladeGeo = useMemo(() => makeBladeGeometry(0.16, 0.034, 0.62), [])
   return (
     <group>
-      {/* Blade — extruded drop point */}
-      <mesh geometry={bladeGeo} position={[0, 0.095, 0.008]}>
-        <meshStandardMaterial color="#D8D8D8" metalness={0.95} roughness={0.06} />
-      </mesh>
-      {/* Blade spine — darker top edge */}
-      <mesh position={[-0.0085, 0.015, 0.008]}>
-        <boxGeometry args={[0.009, 0.014, 0.005]} />
-        <meshStandardMaterial color="#9a9a9a" metalness={0.85} roughness={0.15} />
-      </mesh>
-      {/* Blueing stripe down blade */}
-      <mesh position={[0, 0.05, 0.008]} rotation={[0, 0, 0]}>
-        <boxGeometry args={[0.018, 0.11, 0.018]} />
-        <meshStandardMaterial color="#77aaff" metalness={0.95} roughness={0.1} transparent opacity={0.25} />
-      </mesh>
-      {/* Fuller (blood groove) — dark line */}
-      <mesh position={[0.004, 0.055, 0.008]}>
-        <boxGeometry args={[0.004, 0.1, 0.01]} />
-        <meshStandardMaterial color="#667788" metalness={0.9} roughness={0.15} />
-      </mesh>
-      {/* Crossguard */}
-      <mesh position={[0, 0.012, 0.008]}>
-        <boxGeometry args={[0.05, 0.018, 0.024]} />
-        <meshStandardMaterial color="#3c3c3c" metalness={0.6} roughness={0.35} />
-      </mesh>
-      {/* Crossguard quillons — flared */}
-      <mesh position={[0.026, 0.012, 0.008]}>
-        <boxGeometry args={[0.014, 0.02, 0.02]} />
-        <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.35} />
-      </mesh>
-      <mesh position={[-0.026, 0.012, 0.008]}>
-        <boxGeometry args={[0.014, 0.02, 0.02]} />
-        <meshStandardMaterial color="#4a4a4a" metalness={0.6} roughness={0.35} />
-      </mesh>
-      {/* Handle — cylindrical, tapered butt */}
-      <mesh position={[0, -0.055, 0.008]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.016, 0.016, 0.105, 10]} />
-        <meshStandardMaterial color="#141414" roughness={0.6} />
-      </mesh>
-      {/* Handle lanyard grooves */}
-      {[0, 1, 2, 3].map(i => (
-        <mesh key={`groove-${i}`} position={[0, -0.045 - i * 0.014, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.0175, 0.0175, 0.012, 10]} />
-          <meshStandardMaterial color="#2a2a2a" roughness={0.7} />
-        </mesh>
+      {KARAMBIT_HANDS.map((hand, index) => (
+        <group
+          key={`karambit-${hand.side}`}
+          ref={el => { handRefs.current[index] = el }}
+          position={hand.position}
+          rotation={hand.rotation}
+        >
+          <FpsKarambitModel flip={hand.side === 1} tactical={tactical} />
+        </group>
       ))}
-      {/* Handle wrap — paracord texture lines */}
-      {[0, 1, 2, 3, 4].map(i => (
-        <mesh key={`wrap-${i}`} position={[0, -0.055 + i * 0.018, 0.004]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.017, 0.017, 0.008, 10]} />
-          <meshStandardMaterial color="#1f1f1f" roughness={0.7} />
-        </mesh>
-      ))}
-      {/* Pommel — steel cap */}
-      <mesh position={[0, -0.112, 0.008]}>
-        <boxGeometry args={[0.022, 0.016, 0.026]} />
-        <meshStandardMaterial color="#555555" metalness={0.7} roughness={0.3} />
-      </mesh>
-      {/* Pommel lanyard hole */}
-      <mesh position={[0, -0.115, 0.008]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.004, 0.004, 0.028, 6]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-    </group>
-  )
-}
-
-// ─── Combat Knife ───────────────────────────────────────────────
-// Tactical combat knife — tanto style angular blade, G10 scales
-function makeTantoGeometry(bladeLength: number, bladeWidth: number): THREE.ExtrudeGeometry {
-  const w = bladeWidth / 2
-  const shape = new THREE.Shape()
-  shape.moveTo(-w, 0)
-  shape.lineTo(w, 0)
-  // Straight cutting edge, then a jog up to the chisel tip
-  shape.lineTo(w * 0.8, bladeLength * 0.82)
-  shape.lineTo(w * 0.35, bladeLength * 0.92)
-  shape.lineTo(w * 0.35, bladeLength) // chisel point
-  shape.lineTo(0, bladeLength)
-  // Straight spine down
-  shape.lineTo(-w * 0.88, bladeLength * 0.75)
-  shape.lineTo(-w * 0.9, 0)
-  shape.closePath()
-
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.02,
-    bevelEnabled: true,
-    bevelThickness: 0.004,
-    bevelSize: 0.004,
-    bevelSegments: 2,
-  })
-  geo.rotateX(-Math.PI / 2)
-  geo.translate(0, 0.012, 0.012)
-  return geo
-}
-
-function CombatKnifeModel() {
-  const bladeGeo = useMemo(() => makeTantoGeometry(0.17, 0.038), [])
-  return (
-    <group>
-      {/* Blade — extruded tanto */}
-      <mesh geometry={bladeGeo} position={[0, 0.1, 0.01]}>
-        <meshStandardMaterial color="#C8C8C8" metalness={0.92} roughness={0.07} />
-      </mesh>
-      {/* Blade spine — serrated top edge */}
-      <mesh position={[-0.011, 0.02, 0.01]}>
-        <boxGeometry args={[0.011, 0.018, 0.006]} />
-        <meshStandardMaterial color="#8a8a8a" metalness={0.85} roughness={0.15} />
-      </mesh>
-      {/* Serrated false edge teeth */}
-      {[0, 1, 2, 3].map(i => (
-        <mesh key={`tooth-${i}`} position={[-0.0145, 0.055 + i * 0.022, 0.01]}>
-          <boxGeometry args={[0.003, 0.01, 0.008]} />
-          <meshStandardMaterial color="#777777" metalness={0.8} roughness={0.15} />
-        </mesh>
-      ))}
-      {/* Fuller — dark groove */}
-      <mesh position={[0.003, 0.06, 0.01]}>
-        <boxGeometry args={[0.004, 0.1, 0.01]} />
-        <meshStandardMaterial color="#5a5a5a" metalness={0.8} roughness={0.2} />
-      </mesh>
-      {/* Guard — tactical one-piece */}
-      <mesh position={[0, 0.014, 0.01]}>
-        <boxGeometry args={[0.058, 0.02, 0.026]} />
-        <meshStandardMaterial color="#2f2f2f" metalness={0.6} roughness={0.3} />
-      </mesh>
-      {/* Guard finger flange */}
-      <mesh position={[0.029, 0.014, 0.01]}>
-        <boxGeometry args={[0.012, 0.024, 0.022]} />
-        <meshStandardMaterial color="#3a3a3a" metalness={0.55} roughness={0.35} />
-      </mesh>
-      {/* Handle — G10 scales with jimped thumb plate */}
-      <mesh position={[0, -0.055, 0.012]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.018, 0.017, 0.115, 10]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.62} />
-      </mesh>
-      {/* Handle hex texture — faceted */}
-      <mesh position={[0, -0.055, 0.012]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.016, 0.015, 0.115, 6]} />
-        <meshStandardMaterial color="#242424" roughness={0.62} />
-      </mesh>
-      {/* Jimping — thumb serrations behind guard */}
-      {[0, 1, 2, 3].map(i => (
-        <mesh key={`jimp-${i}`} position={[0, -0.015 - i * 0.008, 0.004]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.0205, 0.0205, 0.006, 10]} />
-          <meshStandardMaterial color="#0d0d0d" roughness={0.7} />
-        </mesh>
-      ))}
-      {/* Handle wrap lines */}
-      {[0, 1, 2, 3].map(i => (
-        <mesh key={`wrap-${i}`} position={[0, -0.075 + i * 0.02, 0.004]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.0185, 0.0185, 0.008, 10]} />
-          <meshStandardMaterial color="#262626" roughness={0.7} />
-        </mesh>
-      ))}
-      {/* Lanyard hole */}
-      <mesh position={[0, -0.115, 0.012]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.005, 0.005, 0.032, 6]} />
-        <meshStandardMaterial color="#333333" />
-      </mesh>
-      {/* Pommel — glass breaker tip */}
-      <mesh position={[0, -0.118, 0.012]}>
-        <boxGeometry args={[0.02, 0.014, 0.03]} />
-        <meshStandardMaterial color="#4a4a4a" metalness={0.7} roughness={0.3} />
-      </mesh>
-      <mesh position={[0, -0.128, 0.012]}>
-        <boxGeometry args={[0.009, 0.01, 0.009]} />
-        <meshStandardMaterial color="#5a5a5a" metalness={0.75} roughness={0.3} />
-      </mesh>
     </group>
   )
 }
@@ -2031,14 +1862,20 @@ function GrenadeModel({ type }: { type: 'he' | 'smoke' | 'flash' }) {
         <meshStandardMaterial color={mainColor} roughness={0.6} metalness={0.2} />
       </mesh>
 
-      {/* Body Ribs / Texture Grooves for HE Pineapple effect */}
+      {/* Body Ribs / pineapple segments for HE */}
       {type === 'he' &&
-        [-0.025, 0, 0.025].map((y, idx) => (
-          <mesh key={`rib-${idx}`} position={[0, y, 0]}>
-            <torusGeometry args={[0.039, 0.003, 8, 16]} />
-            <meshStandardMaterial color="#1f3d1b" roughness={0.7} />
-          </mesh>
-        ))}
+        [-0.025, 0, 0.025].flatMap((y, idx) =>
+          [0, 1, 2, 3, 4, 5].map(seg => (
+            <mesh
+              key={`seg-${idx}-${seg}`}
+              position={[Math.cos((seg * Math.PI) / 3) * 0.039, y, Math.sin((seg * Math.PI) / 3) * 0.039]}
+              rotation={[0, (seg * Math.PI) / 3, 0]}
+            >
+              <boxGeometry args={[0.008, 0.014, 0.006]} />
+              <meshStandardMaterial color="#1f3d1b" roughness={0.7} />
+            </mesh>
+          ))
+        )}
 
       {/* Identification Stripe */}
       <mesh position={[0, 0.02, 0]}>

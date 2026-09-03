@@ -1,4 +1,18 @@
 import { useRef, useEffect, useMemo, useState } from "react";
+import {
+  ThirdPersonKarambit,
+  ThirdPersonPistol,
+  ThirdPersonSmg,
+  ThirdPersonAk47,
+  ThirdPersonM4,
+  ThirdPersonAwp,
+} from "../weapons/weaponGeometries";
+import {
+  THIRD_PERSON_ARM_POSES,
+  TACTICAL_ELBOW_POSES,
+  TACTICAL_WEAPON_ATTACH,
+  weaponCategoryFromId,
+} from "./thirdPersonWeaponRig";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -21,107 +35,110 @@ interface TacticalBotModelProps {
   };
 }
 
-function BotWeaponMesh({ weapon = "ak47", isFiring = false }: { weapon?: string; isFiring?: boolean }) {
+function BotWeaponMesh({
+  weapon = "ak47",
+  isFiring = false,
+  muzzleZ = 0.48,
+}: {
+  weapon?: string;
+  isFiring?: boolean;
+  muzzleZ?: number;
+}) {
   const w = weapon.toLowerCase();
 
   if (w.includes("awp")) {
     return (
-      <group position={[0, 0, 0.28]} rotation={[0.12, 0, 0]}>
-        <mesh position={[0, -0.02, -0.12]}>
-          <boxGeometry args={[0.055, 0.08, 0.38]} />
-          <meshStandardMaterial color="#2d4a22" roughness={0.6} />
-        </mesh>
-        <mesh position={[0, 0.015, 0.14]}>
-          <boxGeometry args={[0.06, 0.07, 0.3]} />
-          <meshStandardMaterial color="#1a1a1a" roughness={0.4} metalness={0.8} />
-        </mesh>
-        <mesh position={[0, 0.02, 0.46]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.016, 0.02, 0.42, 8]} />
-          <meshStandardMaterial color="#111" metalness={0.9} />
-        </mesh>
-        <mesh position={[0, 0.09, 0.1]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.028, 0.024, 0.26, 8]} />
-          <meshStandardMaterial color="#111" metalness={0.8} />
-        </mesh>
-        {isFiring && <MuzzleFlash z={0.7} />}
+      <group>
+        <ThirdPersonAwp />
+        {isFiring && <MuzzleFlash z={muzzleZ} />}
       </group>
     );
   }
 
-  if (w.includes("ak47")) {
+  if (w.includes("ak47") || w.includes("ak-")) {
     return (
-      <group position={[0, 0, 0.22]} rotation={[0.1, 0, 0]}>
-        <mesh position={[0, -0.03, -0.12]}>
-          <boxGeometry args={[0.05, 0.07, 0.22]} />
-          <meshStandardMaterial color="#6b3d1f" roughness={0.7} />
-        </mesh>
-        <mesh position={[0, 0.01, 0.08]}>
-          <boxGeometry args={[0.055, 0.065, 0.24]} />
-          <meshStandardMaterial color="#222" metalness={0.8} roughness={0.3} />
-        </mesh>
-        <mesh position={[0, -0.1, 0.06]} rotation={[0.35, 0, 0]}>
-          <boxGeometry args={[0.038, 0.14, 0.055]} />
-          <meshStandardMaterial color="#1a1a1a" metalness={0.7} />
-        </mesh>
-        <mesh position={[0, 0.015, 0.36]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.014, 0.016, 0.22, 8]} />
-          <meshStandardMaterial color="#111" metalness={0.9} />
-        </mesh>
-        {isFiring && <MuzzleFlash z={0.5} />}
+      <group>
+        <ThirdPersonAk47 />
+        {isFiring && <MuzzleFlash z={muzzleZ} />}
       </group>
     );
   }
 
-  if (w.includes("m4a1") || w.includes("mp5")) {
+  if (w.includes("m4a1") || w.includes("m4")) {
     return (
-      <group position={[0, 0, 0.2]} rotation={[0.1, 0, 0]}>
-        <mesh position={[0, -0.015, -0.1]}>
-          <boxGeometry args={[0.042, 0.065, 0.18]} />
-          <meshStandardMaterial color="#1e293b" metalness={0.5} />
+      <group>
+        <ThirdPersonM4 />
+        {isFiring && <MuzzleFlash z={muzzleZ} />}
+      </group>
+    );
+  }
+
+  if (w.includes("mp5")) {
+    return (
+      <group>
+        <ThirdPersonSmg />
+        {isFiring && <MuzzleFlash z={muzzleZ * 0.88} scale={0.85} />}
+      </group>
+    );
+  }
+
+  if (w.includes("arccaster")) {
+    return (
+      <group position={[0, 0, 0.2]} rotation={[0.08, 0, 0]}>
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={[0.055, 0.07, 0.32]} />
+          <meshStandardMaterial color="#0f172a" metalness={0.85} roughness={0.2} />
         </mesh>
-        <mesh position={[0, 0.01, 0.06]}>
-          <boxGeometry args={[0.05, 0.06, 0.2]} />
-          <meshStandardMaterial color="#0f172a" metalness={0.8} />
+        <mesh position={[0.03, 0.01, -0.12]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.012, 0.012, 0.14, 10]} />
+          <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2} />
         </mesh>
-        <mesh position={[0, -0.09, 0.05]}>
-          <boxGeometry args={[0.034, 0.12, 0.048]} />
-          <meshStandardMaterial color="#334155" metalness={0.7} />
+        <mesh position={[-0.03, 0.01, -0.12]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.012, 0.012, 0.14, 10]} />
+          <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2} />
         </mesh>
-        <mesh position={[0, 0.012, 0.34]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.02, 0.02, 0.2, 8]} />
-          <meshStandardMaterial color="#0f172a" metalness={0.85} />
-        </mesh>
-        {isFiring && <MuzzleFlash z={0.46} />}
+        {isFiring && <MuzzleFlash z={0.38} scale={1.2} />}
       </group>
     );
   }
 
   if (w.includes("deagle") || w.includes("glock") || w.includes("tec9") || w.includes("autopistol") || w.includes("pistol")) {
     return (
-      <group position={[0.02, -0.02, 0.08]} rotation={[0.15, 0, 0]}>
-        <mesh position={[0, -0.05, -0.01]} rotation={[0.3, 0, 0]}>
-          <boxGeometry args={[0.038, 0.09, 0.042]} />
-          <meshStandardMaterial color="#111827" roughness={0.8} />
+      <group>
+        <ThirdPersonPistol heavy={w.includes("deagle")} />
+        {isFiring && <MuzzleFlash z={muzzleZ} scale={0.7} />}
+      </group>
+    );
+  }
+
+  if (w.includes("he") || w.includes("smoke") || w.includes("flash") || w.includes("grenade")) {
+    const color = w.includes("he") ? "#2d5a27" : w.includes("smoke") ? "#4b5563" : "#1e293b";
+    const stripe = w.includes("he") ? "#ef4444" : w.includes("smoke") ? "#f8fafc" : "#38bdf8";
+    return (
+      <group position={[0.02, 0, 0.06]} rotation={[0.5, 0, 0]}>
+        <mesh>
+          <cylinderGeometry args={[0.028, 0.028, 0.07, 12]} />
+          <meshStandardMaterial color={color} roughness={0.6} />
         </mesh>
-        <mesh position={[0, 0.015, 0.04]}>
-          <boxGeometry args={[0.04, 0.04, 0.15]} />
-          <meshStandardMaterial color={w.includes("deagle") ? "#cbd5e1" : "#1e293b"} metalness={0.85} roughness={0.2} />
+        <mesh position={[0, 0.018, 0]}>
+          <cylinderGeometry args={[0.029, 0.029, 0.01, 12]} />
+          <meshStandardMaterial color={stripe} />
         </mesh>
-        {isFiring && <MuzzleFlash z={0.14} scale={0.7} />}
+      </group>
+    );
+  }
+
+  if (w.includes("knife") || w.includes("combatknife")) {
+    return (
+      <group>
+        <ThirdPersonKarambit tactical={w.includes("combat")} scale={0.95} />
       </group>
     );
   }
 
   return (
-    <group position={[0.02, 0, 0.06]} rotation={[0.5, 0, 0]}>
-      <mesh position={[0, -0.03, 0]}>
-        <boxGeometry args={[0.03, 0.08, 0.03]} />
-        <meshStandardMaterial color="#1c1917" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 0.05, 0.02]}>
-        <boxGeometry args={[0.012, 0.12, 0.035]} />
-        <meshStandardMaterial color="#94a3b8" metalness={0.95} roughness={0.1} />
-      </mesh>
+    <group>
+      <ThirdPersonAk47 />
     </group>
   );
 }
@@ -230,8 +247,12 @@ export function TacticalBotModel({
     currentWeapon.includes("ak") ||
     currentWeapon.includes("m4") ||
     currentWeapon.includes("awp") ||
-    currentWeapon.includes("mp5");
-  const knife = currentWeapon.includes("knife");
+    currentWeapon.includes("mp5") ||
+    currentWeapon.includes("arccaster");
+  const weaponCategory = weaponCategoryFromId(currentWeapon);
+  const armPose = THIRD_PERSON_ARM_POSES[weaponCategory];
+  const elbowPose = TACTICAL_ELBOW_POSES[weaponCategory];
+  const weaponAttach = TACTICAL_WEAPON_ATTACH[weaponCategory];
 
   useFrame((_, delta) => {
     const damp = 1 - Math.exp(-12 * delta);
@@ -258,6 +279,8 @@ export function TacticalBotModel({
     if (leftKneeRef.current) leftKneeRef.current.rotation.x = isMoving ? Math.max(0, -walk) * 0.45 : 0.08;
     if (rightKneeRef.current) rightKneeRef.current.rotation.x = isMoving ? Math.max(0, walk) * 0.45 : 0.08;
 
+    const kick = isFiring ? armPose.fireKick : 0;
+
     if (isPlanting || isDefusing) {
       if (rightArmRef.current) rightArmRef.current.rotation.set(-0.85, 0.1, 0.25);
       if (leftArmRef.current) leftArmRef.current.rotation.set(-0.85, -0.1, -0.25);
@@ -266,21 +289,23 @@ export function TacticalBotModel({
       return;
     }
 
-    if (rifle) {
-      if (rightArmRef.current) rightArmRef.current.rotation.set(-0.42, 0.18, 0.38);
-      if (leftArmRef.current) leftArmRef.current.rotation.set(-0.55, -0.32, -0.42);
-      if (rightElbowRef.current) rightElbowRef.current.rotation.set(-1.05, 0, 0.08);
-      if (leftElbowRef.current) leftElbowRef.current.rotation.set(-0.95, 0, -0.06);
-    } else if (knife) {
-      if (rightArmRef.current) rightArmRef.current.rotation.set(-0.35, 0.25, 0.35);
-      if (leftArmRef.current) leftArmRef.current.rotation.set(0.12, 0, 0.08);
-      if (rightElbowRef.current) rightElbowRef.current.rotation.set(-0.55, 0, 0);
-      if (leftElbowRef.current) leftElbowRef.current.rotation.set(-0.15, 0, 0);
-    } else {
-      if (rightArmRef.current) rightArmRef.current.rotation.set(-0.38, 0.08, 0.22);
-      if (leftArmRef.current) leftArmRef.current.rotation.set(0.08 + walk * 0.2, 0, 0.12);
-      if (rightElbowRef.current) rightElbowRef.current.rotation.set(-1.15, 0, 0);
-      if (leftElbowRef.current) leftElbowRef.current.rotation.set(-0.2, 0, 0);
+    const [rx, ry, rz] = armPose.right;
+    const [lx, ly, lz] = armPose.left;
+    if (rightArmRef.current) {
+      rightArmRef.current.rotation.set(rx - kick, ry, rz);
+    }
+    if (leftArmRef.current) {
+      leftArmRef.current.rotation.set(
+        lx + (rifle ? 0 : walk * 0.15),
+        ly,
+        lz,
+      );
+    }
+    if (rightElbowRef.current) {
+      rightElbowRef.current.rotation.set(...elbowPose.right);
+    }
+    if (leftElbowRef.current) {
+      leftElbowRef.current.rotation.set(...elbowPose.left);
     }
   });
 
@@ -370,8 +395,8 @@ export function TacticalBotModel({
               <boxGeometry args={[0.07, 0.08, 0.08]} />
               <meshStandardMaterial color="#c9956c" roughness={0.7} />
             </mesh>
-            <group position={[0.02, -0.28, 0.04]}>
-              <BotWeaponMesh weapon={currentWeapon} isFiring={isFiring} />
+            <group position={weaponAttach.position}>
+              <BotWeaponMesh weapon={currentWeapon} isFiring={isFiring} muzzleZ={weaponAttach.muzzleZ} />
             </group>
           </group>
         </group>
