@@ -212,6 +212,25 @@ function MinecraftWeapon({ weaponType, team }: { weaponType: string; team: strin
   return <MinecraftRifle team={team} />;
 }
 
+function MuzzleFlash({ until }: { until: number }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (ref.current) ref.current.visible = Date.now() < until;
+  });
+  return (
+    <group ref={ref} position={[0, 0.01, -0.32]} visible={false}>
+      <mesh>
+        <sphereGeometry args={[0.045, 8, 8]} />
+        <meshBasicMaterial color="#ffe08a" />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <coneGeometry args={[0.05, 0.14, 8]} />
+        <meshBasicMaterial color="#fb923c" transparent opacity={0.85} />
+      </mesh>
+    </group>
+  );
+}
+
 // ============================================================================
 // Minecraft Character Props
 // ============================================================================
@@ -225,6 +244,8 @@ interface MinecraftCharacterProps {
   limbSwingSpeed?: number;
   holdWeapon?: boolean;
   weaponType?: "rifle" | "pistol" | "knife";
+  weaponScale?: number;
+  muzzleUntil?: number;
   motionRef?: MutableRefObject<{ moving: boolean; sprinting: boolean }>;
   playerId?: string;
   heroColor?: string;
@@ -245,6 +266,8 @@ export function MinecraftCharacter({
   limbSwingSpeed = 0,
   holdWeapon = false,
   weaponType = "rifle",
+  weaponScale = 1,
+  muzzleUntil = 0,
   motionRef,
   playerId,
   heroColor,
@@ -287,18 +310,20 @@ export function MinecraftCharacter({
     const moving = motionRef?.current.moving ?? limbSwingSpeed > 0;
     const speed = limbSwingSpeed > 0 ? limbSwingSpeed : sprinting ? 10 : 6;
     const amplitude = isCrouching ? 0.4 : sprinting ? 0.8 : 0.5;
+    const firing = Date.now() < muzzleUntil;
+    const aimPose = holdWeapon ? (firing ? -1.35 : -1.15) : 0;
 
-    if (moving || sprinting) {
+    if ((moving || sprinting) && !firing) {
       const time = performance.now() / 1000;
       const swing = Math.sin(time * speed) * amplitude;
 
       if (leftArmRef.current) leftArmRef.current.rotation.x = swing;
-      if (rightArmRef.current) rightArmRef.current.rotation.x = holdWeapon ? -1.15 : -swing;
+      if (rightArmRef.current) rightArmRef.current.rotation.x = holdWeapon ? aimPose : -swing;
       if (leftLegRef.current) leftLegRef.current.rotation.x = -swing;
       if (rightLegRef.current) rightLegRef.current.rotation.x = swing;
     } else {
-      if (leftArmRef.current) leftArmRef.current.rotation.x = 0;
-      if (rightArmRef.current) rightArmRef.current.rotation.x = holdWeapon ? -1.15 : 0;
+      if (leftArmRef.current) leftArmRef.current.rotation.x = firing ? 0.25 : 0;
+      if (rightArmRef.current) rightArmRef.current.rotation.x = aimPose;
       if (leftLegRef.current) leftLegRef.current.rotation.x = 0;
       if (rightLegRef.current) rightLegRef.current.rotation.x = 0;
     }
@@ -392,8 +417,9 @@ export function MinecraftCharacter({
           <meshStandardMaterial color={skinColor} opacity={opacity} transparent />
         </mesh>
         {holdWeapon && (
-          <group position={[0, -0.68, -0.02]}>
+          <group position={[0, -0.68, -0.02]} scale={weaponScale}>
             <MinecraftWeapon weaponType={weaponType} team={team} />
+            <MuzzleFlash until={muzzleUntil} />
           </group>
         )}
       </group>

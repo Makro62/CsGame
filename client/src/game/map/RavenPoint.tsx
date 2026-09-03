@@ -1,9 +1,8 @@
 import { RigidBody, CuboidCollider } from "@react-three/rapier";
 import {
   RAVENPOINT_AREAS,
-  RAVENPOINT_PROPS,
+  RAVENPOINT_OBSTACLES,
   RAVENPOINT_BOMB_SITES,
-  RAVENPOINT_BOUNDS,
   RAVENPOINT_SPAWN,
 } from "@cs-game/shared";
 import { StaticBox, FloorZone, SiteMarker, SpawnZone } from "./MapHelpers";
@@ -55,37 +54,22 @@ function AreaFloors() {
   );
 }
 
-function PerimeterWalls() {
-  const { minX, maxX, minZ, maxZ } = RAVENPOINT_BOUNDS;
-  const h = 6;
-  const t = 1;
+function Colliders() {
   return (
     <group>
-      <StaticBox position={[0, h / 2, minZ]} size={[maxX - minX, h, t]} color={COLORS.wall} materialType="concrete" />
-      <StaticBox position={[0, h / 2, maxZ]} size={[maxX - minX, h, t]} color={COLORS.wall} materialType="concrete" />
-      <StaticBox position={[minX, h / 2, 0]} size={[t, h, maxZ - minZ]} color={COLORS.wall} materialType="concrete" />
-      <StaticBox position={[maxX, h / 2, 0]} size={[t, h, maxZ - minZ]} color={COLORS.wall} materialType="concrete" />
-    </group>
-  );
-}
-
-function Props() {
-  return (
-    <group>
-      {RAVENPOINT_PROPS.map((prop) => {
-        const [x, , z] = prop.position;
-        const [sx, sy, sz] = prop.size;
-        const isBarrel = prop.type === "barrel";
-        const isPillar = prop.type === "pillar";
-        const color = isBarrel ? "#5a3a1a" : isPillar ? COLORS.wall : COLORS.wood;
-        const mat = isBarrel ? "metal" : isPillar ? "concrete" : "wood";
+      {RAVENPOINT_OBSTACLES.map((obs) => {
+        const sx = obs.maxX - obs.minX;
+        const sy = obs.maxY - obs.minY;
+        const sz = obs.maxZ - obs.minZ;
+        const color =
+          obs.material === "wood" ? COLORS.wood : obs.material === "metal" ? COLORS.metal : COLORS.wall;
         return (
           <StaticBox
-            key={prop.id}
-            position={[x, sy / 2, z]}
+            key={obs.id}
+            position={[(obs.minX + obs.maxX) / 2, (obs.minY + obs.maxY) / 2, (obs.minZ + obs.maxZ) / 2]}
             size={[sx, sy, sz]}
             color={color}
-            materialType={mat}
+            materialType={obs.material}
           />
         );
       })}
@@ -145,8 +129,7 @@ export function RavenPoint() {
 
       <Ground />
       <AreaFloors />
-      <PerimeterWalls />
-      <Props />
+      <Colliders />
       <BombSites />
       <SpawnAreas />
     </group>

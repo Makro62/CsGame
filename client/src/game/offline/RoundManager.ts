@@ -1,6 +1,6 @@
-import { ROUND, ECONOMY, SPAWN } from "@cs-game/shared";
+import { ROUND, ECONOMY } from "@cs-game/shared";
 import { sanitizeTickDt } from "../../lib/numericGuards";
-import { botPath, laneForRole, roleForBotId, stepToward } from "./offlineCombat";
+import { botPath, laneForRole, resolveTeamSpawn, roleForBotId, stepToward } from "./offlineCombat";
 import { botBuy, botThink, defaultLoadout, refillAmmo, assignBombCarrier, resetBotNav } from "./BotAI";
 import { spawnJitter } from "./botNav";
 import { getWeaponStats } from "./EconomySystem";
@@ -346,9 +346,9 @@ export function resetForRound(
     cloned.grenadeSmoke = 0;
     cloned.grenadeFlash = 0;
 
-    const sp = SPAWN[cloned.team as keyof typeof SPAWN];
+    const sp = resolveTeamSpawn(state.currentMap, cloned.team);
     if (cloned.isBot) {
-      const pos = spawnJitter(cloned.team);
+      const pos = spawnJitter(cloned.team, state.currentMap);
       cloned.x = pos.x;
       cloned.z = pos.z;
     } else {

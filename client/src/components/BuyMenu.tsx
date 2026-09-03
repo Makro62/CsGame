@@ -4,12 +4,12 @@ import { useNetworkStore } from "../stores/useNetworkStore";
 import {
   WEAPONS,
   GEAR,
-  BUY_ZONE,
   PRIMARY_WEAPONS,
   SECONDARY_WEAPONS,
   type BuyFailReason,
 } from "@cs-game/shared";
 import { gameEvents } from "../lib/gameEvents";
+import { inBuyZone as playerInBuyZone } from "../game/offline/offlineCombat";
 import { useGameStore } from "../stores/useGameStore";
 import { useOffline5v5Store } from "../screens/Offline5v5Store";
 import { useWeaponStore } from "../stores/useWeaponStore";
@@ -269,13 +269,8 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
     return () => clearTimeout(timer);
   }, [feedback]);
 
-  const buyZone = BUY_ZONE[localTeam as keyof typeof BUY_ZONE];
-  let inBuyZone = true;
-  if (buyZone) {
-    const dx = localX - buyZone.x;
-    const dz = localZ - buyZone.z;
-    inBuyZone = Math.sqrt(dx * dx + dz * dz) <= buyZone.radius;
-  }
+  const teamKey = localTeam === "CT" ? "CT" : "T";
+  const inBuyZone = playerInBuyZone(teamKey, localX, localZ);
 
   const ownedLabel = (item: BuyItem): string | null => {
     switch (item.id) {
@@ -334,14 +329,10 @@ export function BuyMenu({ onClose }: { onClose: () => void }) {
         // Read fresh state from stores to avoid stale closures
         const state = readBuyView();
         if (item.team && item.team !== state.team) return;
-        const zone = BUY_ZONE[state.team as keyof typeof BUY_ZONE];
-        if (zone) {
-          const dx = state.x - zone.x;
-          const dz = state.z - zone.z;
-          if (Math.sqrt(dx * dx + dz * dz) > zone.radius) {
-            setFeedback({ text: FAIL_MESSAGES.outside_buy_zone, ok: false });
-            return;
-          }
+        const hotkeyTeam = state.team === "CT" ? "CT" : "T";
+        if (!playerInBuyZone(hotkeyTeam, state.x, state.z)) {
+          setFeedback({ text: FAIL_MESSAGES.outside_buy_zone, ok: false });
+          return;
         }
         if (state.money < item.price) {
           setFeedback({ text: FAIL_MESSAGES.no_money, ok: false });

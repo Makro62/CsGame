@@ -2,10 +2,8 @@ import { Sound } from "../../components/AudioManager";
 import { useGameStore } from "../../stores/useGameStore";
 import { gameEvents } from "../../lib/gameEvents";
 import {
-  SPAWN,
   DEFAULT_PISTOL,
   isMeleeWeapon,
-  getSpawnForMap,
 } from "@cs-game/shared";
 import {
   distToBombSite,
@@ -16,15 +14,16 @@ import {
   nextWaypointIndex,
   resolveBotShot,
   resolveBombSites,
+  resolveTeamSpawn,
   roleForBotId,
   laneForRole,
+  spawnCameraYaw,
   type BotLane,
   type BotRole,
 } from "./offlineCombat";
 import { navigateTo, resetBotNav, spawnJitter } from "./botNav";
 import { getWeaponStats } from "./EconomySystem";
 import { safeDiv } from "../../lib/numericGuards";
-import { getProceduralMapData } from "../map/ProceduralMapRegistry";
 import type {
   LocalPlayer,
   BombState,
@@ -139,7 +138,7 @@ function alliesNearSite(
   return n;
 }
 
-function nearestEnemy(
+export function nearestEnemy(
   bot: LocalPlayer,
   players: Map<string, LocalPlayer>,
   maxDist = bot.botViewDist,
@@ -180,7 +179,7 @@ export function botThink(
   if (hpRatio < 0.3 && !bombState.bombPlanted) {
     bot.botState = "retreat";
     const path = botPath(bot.botLane, bot.team);
-    const back = path[0] ?? SPAWN[bot.team];
+    const back = path[0] ?? resolveTeamSpawn(undefined, bot.team);
     walkTo(bot, back, bot.botSpeed * 0.75, dt);
     return patch;
   }
@@ -362,6 +361,7 @@ function fireAt(
   queueReload: ((botId: string, duration: number) => void) | undefined,
   addPatch: (extra: BombPatch) => void,
 ) {
+  if (tgt.team === bot.team || tgt.id === bot.id) return;
   if (bot.isReloading) return;
   const dd = dist(bot, tgt);
   const ws = getWeaponStats(bot.currentWeapon);
@@ -463,10 +463,6 @@ function fireAt(
   }
 }
 
-function spawnYaw(team: "T" | "CT"): number {
-  return team === "T" ? 0 : Math.PI;
-}
-
 export function mkPlayer(
   id: string,
   team: "T" | "CT",
@@ -481,22 +477,13 @@ export function mkPlayer(
   }
   if (!effectiveMap) effectiveMap = "container_yard";
 
-  // Check procedural map registry first, then fall back to shared helpers
-  let sp: { x: number; y: number; z: number };
-  const proc = getProceduralMapData(effectiveMap);
-  if (proc) {
-    const procSpawn = proc.spawns[team];
-    sp = { x: procSpawn.x, y: 0, z: procSpawn.z };
-  } else {
-    const spawnMap = (() => { try { return getSpawnForMap(effectiveMap); } catch { return SPAWN; } })();
-    sp = (spawnMap as Record<string, { x: number; y: number; z: number }>)[team] || SPAWN[team];
-  }
+  const sp = resolveTeamSpawn(effectiveMap, team);
   const pistol = DEFAULT_PISTOL[team];
   const pStats = getWeaponStats(pistol);
   const diffCfg = DIFFICULTIES[difficulty] || DIFFICULTIES.medium;
   const role: BotRole = isBot ? roleForBotId(id) : "support";
   const lane: BotLane = isBot ? laneForRole(role, id) : "mid";
-  const pos = isBot ? spawnJitter(team) : { x: sp.x, z: sp.z };
+  const pos = isBot ? spawnJitter(team, effectiveMap) : { x: sp.x, z: sp.z };
   const speedMul = role === "entry" ? 1.12 : role === "flanker" ? 0.92 : 1;
   const viewMul = role === "flanker" ? 1.25 : role === "entry" ? 0.9 : 1;
 
@@ -505,7 +492,7 @@ export function mkPlayer(
     x: pos.x,
     y: 0,
     z: pos.z,
-    rotationY: spawnYaw(team),
+    rotationY: spawnCameraYaw(team, effectiveMap),
     hp: 100,
     isDead: false,
     team,

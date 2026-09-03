@@ -2,10 +2,10 @@ import { MAP_BOUNDARY } from "@cs-game/shared";
 import {
   isPointBlocked,
   pushOutOfObstacles,
+  resolveTeamSpawn,
   stepToward,
 } from "./offlineCombat";
 import { useGameStore } from "../../stores/useGameStore";
-import { getProceduralMapData } from "../map/ProceduralMapRegistry";
 
 interface Point2D {
   x: number;
@@ -18,7 +18,25 @@ const ORIGIN_Z = MAP_BOUNDARY.minZ + 1;
 const GRID_W = Math.floor((MAP_BOUNDARY.maxX - 1 - ORIGIN_X) / CELL) + 1;
 const GRID_H = Math.floor((MAP_BOUNDARY.maxZ - 1 - ORIGIN_Z) / CELL) + 1;
 
-const WALKABLE: boolean[][] = buildWalkable();
+let cachedWalkableMap = "";
+let WALKABLE: boolean[][] = [];
+
+function currentNavMapId(): string {
+  try {
+    return useGameStore.getState().currentMap || "container_yard";
+  } catch {
+    return "container_yard";
+  }
+}
+
+function ensureWalkable(): boolean[][] {
+  const mapId = currentNavMapId();
+  if (WALKABLE.length && cachedWalkableMap === mapId) return WALKABLE;
+  cachedWalkableMap = mapId;
+  pathCache.clear();
+  WALKABLE = buildWalkable();
+  return WALKABLE;
+}
 
 function cellWorld(i: number, j: number): Point2D {
   return { x: ORIGIN_X + i * CELL, z: ORIGIN_Z + j * CELL };
@@ -41,15 +59,15 @@ function buildWalkable(): boolean[][] {
   return grid;
 }
 
-function nearestWalkableCell(i: number, j: number): { i: number; j: number } {
-  if (WALKABLE[i]?.[j]) return { i, j };
+function nearestWalkableCell(i: number, j: number, walkable: boolean[][]): { i: number; j: number } {
+  if (walkable[i]?.[j]) return { i, j };
   for (let r = 1; r <= 8; r++) {
     for (let di = -r; di <= r; di++) {
       for (let dj = -r; dj <= r; dj++) {
         if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
         const ni = i + di;
         const nj = j + dj;
-        if (WALKABLE[ni]?.[nj]) return { i: ni, j: nj };
+        if (walkable[ni]?.[nj]) return { i: ni, j: nj };
       }
     }
   }
@@ -79,10 +97,11 @@ function cacheKey(a: { i: number; j: number }, b: { i: number; j: number }): str
   return `${a.i},${a.j}>${b.i},${b.j}`;
 }
 
-/** Grid A* on Container Yard. Paths are cached; blocked cells are never returned. */
+/** Grid A* on the current 5v5 map. Paths are cached; blocked cells are never returned. */
 export function findGridPath(from: Point2D, to: Point2D): Point2D[] {
-  const start = nearestWalkableCell(worldCell(from.x, from.z).i, worldCell(from.x, from.z).j);
-  const goal = nearestWalkableCell(worldCell(to.x, to.z).i, worldCell(to.x, to.z).j);
+  const walkable = ensureWalkable();
+  const start = nearestWalkableCell(worldCell(from.x, from.z).i, worldCell(from.x, from.z).j, walkable);
+  const goal = nearestWalkableCell(worldCell(to.x, to.z).i, worldCell(to.x, to.z).j, walkable);
   const key = cacheKey(start, goal);
   const cached = pathCache.get(key);
   if (cached) return cached;
@@ -130,8 +149,8 @@ export function findGridPath(from: Point2D, to: Point2D): Point2D[] {
     for (const [di, dj, cost] of NEIGHBORS) {
       const ni = ci + di;
       const nj = cj + dj;
-      if (!WALKABLE[ni]?.[nj]) continue;
-      if (di !== 0 && dj !== 0 && (!WALKABLE[ci + di]?.[cj] || !WALKABLE[ci]?.[cj + dj])) continue;
+      if (!walkable[ni]?.[nj]) continue;
+      if (di !== 0 && dj !== 0 && (!walkable[ci + di]?.[cj] || !walkable[ci]?.[cj + dj])) continue;
       const nid = idx(ni, nj);
       const ng = g[current] + cost;
       if (ng >= g[nid]) continue;
@@ -235,25 +254,16 @@ export function navigateTo(
   return next;
 }
 
-export function spawnJitter(team: "T" | "CT"): Point2D {
-  // Check procedural map registry first
-  let base: Point2D;
-  try {
-    const mapId = useGameStore.getState().currentMap || "container_yard";
-    const proc = getProceduralMapData(mapId);
-    if (proc) {
-      const spawn = proc.spawns[team];
-      base = { x: spawn.x, z: spawn.z };
-    } else {
-      base = team === "T"
-        ? { x: -22, z: 0 }
-        : { x: 22, z: 0 };
+export function spawnJitter(team: "T" | "CT", mapId?: string): Point2D {
+  let resolved = mapId;
+  if (!resolved) {
+    try {
+      resolved = useGameStore.getState().currentMap || "container_yard";
+    } catch {
+      resolved = "container_yard";
     }
-  } catch {
-    base = team === "T"
-      ? { x: -22, z: 0 }
-      : { x: 22, z: 0 };
   }
+  const base = resolveTeamSpawn(resolved, team);
   for (let n = 0; n < 14; n++) {
     const p = pushOutOfObstacles({
       x: base.x + (Math.random() - 0.5) * 4,

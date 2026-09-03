@@ -2,6 +2,8 @@
 // L4D Survivor Definitions
 // ============================================================================
 
+import { L4D_CAMPAIGN_WEAPON } from "./l4dLayout";
+
 export interface L4DSurvivorStats {
   maxHp: number;
   speed: number;
@@ -35,7 +37,7 @@ export const L4D_SURVIVORS: Record<string, L4DSurvivorDef> = {
     abilityCooldown: 30,
     description: "Pemimpin yang kuat dengan HP tinggi. Mampu memulihkan HP seluruh tim dengan ability Rally.",
     stats: { maxHp: 120, speed: 4.8, armor: 15, damage: 30, accuracy: 70 },
-    primaryWeapon: "ak47",
+    primaryWeapon: L4D_CAMPAIGN_WEAPON,
     secondaryWeapon: "deagle",
     knifeWeapon: "knife",
     armorColor: "#2d5a1e",
@@ -50,7 +52,7 @@ export const L4D_SURVIVORS: Record<string, L4DSurvivorDef> = {
     abilityCooldown: 25,
     description: "Support yang tangguh. Mampu menyembuhkan diri sendiri dan memberikan armor kepada tim.",
     stats: { maxHp: 100, speed: 5.2, armor: 10, damage: 25, accuracy: 85 },
-    primaryWeapon: "m4a1",
+    primaryWeapon: L4D_CAMPAIGN_WEAPON,
     secondaryWeapon: "glock",
     knifeWeapon: "knife",
     armorColor: "#5a1e4a",
@@ -65,7 +67,7 @@ export const L4D_SURVIVORS: Record<string, L4DSurvivorDef> = {
     abilityCooldown: 20,
     description: "Pengintai cepat dengan speed tinggi. Mampu berlari lebih cepat untuk menghindari bahaya.",
     stats: { maxHp: 90, speed: 6.0, armor: 5, damage: 22, accuracy: 80 },
-    primaryWeapon: "mp5",
+    primaryWeapon: L4D_CAMPAIGN_WEAPON,
     secondaryWeapon: "glock",
     knifeWeapon: "knife",
     armorColor: "#5a4a1e",
@@ -80,7 +82,7 @@ export const L4D_SURVIVORS: Record<string, L4DSurvivorDef> = {
     abilityCooldown: 22,
     description: "Penjudi yang beruntung. Damage tembakan bisa memberikan bonus damage secara acak.",
     stats: { maxHp: 100, speed: 5.4, armor: 8, damage: 28, accuracy: 90 },
-    primaryWeapon: "arccaster",
+    primaryWeapon: L4D_CAMPAIGN_WEAPON,
     secondaryWeapon: "tec9",
     knifeWeapon: "knife",
     armorColor: "#1e3a5f",
@@ -94,3 +96,5 @@ export const L4D_SURVIVOR_IDS = Object.keys(L4D_SURVIVORS);
 export function getL4DSurvivor(id: string): L4DSurvivorDef {
   return L4D_SURVIVORS[id] ?? L4D_SURVIVORS.coach;
 }
+
+export { L4D_CAMPAIGN_WEAPON };

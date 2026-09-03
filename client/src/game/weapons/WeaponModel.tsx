@@ -160,7 +160,7 @@ export function WeaponModel() {
     adsProgress.current = THREE.MathUtils.lerp(
       adsProgress.current,
       isADS && !isReloading && !isSwitching ? 1 : 0,
-      1 - Math.exp(-14 * dt)
+      1 - Math.exp(-18 * dt)
     )
     const adsFactor = adsProgress.current
 

@@ -1,16 +1,46 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Switch, Route, useLocation, Redirect } from 'wouter'
 import { MainMenu } from './screens/MainMenu'
-import { TrainingRange } from './game/training/TrainingRange'
-import { ZombieSurvivalMode } from './screens/ZombieSurvivalMode'
-import { Offline5v5Mode } from './screens/Offline5v5Mode'
-import { L4DMode } from './screens/L4DMode'
 import { AudioManager } from './components/AudioManager'
 import { HitMarker } from './components/HitMarker'
 import { DamageIndicator } from './components/DamageIndicator'
 import SettingsMenu from './screens/SettingsMenu'
 import { useGameStore } from './stores/useGameStore'
 import './index.css'
+
+const TrainingRange = lazy(() =>
+  import('./game/training/TrainingRange').then((m) => ({ default: m.TrainingRange })),
+)
+const Offline5v5Mode = lazy(() =>
+  import('./screens/Offline5v5Mode').then((m) => ({ default: m.Offline5v5Mode })),
+)
+const ZombieSurvivalMode = lazy(() =>
+  import('./screens/ZombieSurvivalMode').then((m) => ({ default: m.ZombieSurvivalMode })),
+)
+const L4DMode = lazy(() =>
+  import('./screens/L4DMode').then((m) => ({ default: m.L4DMode })),
+)
+
+function ModeFallback() {
+  return (
+    <div
+      style={{
+        width: '100dvw',
+        height: '100dvh',
+        background: '#0a0e14',
+        color: '#94a3b8',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'Rajdhani, sans-serif',
+        fontWeight: 700,
+        letterSpacing: 2,
+      }}
+    >
+      MEMUAT…
+    </div>
+  )
+}
 
 function SyncModeToURL() {
   const [location, setLocation] = useLocation()
@@ -57,10 +87,10 @@ function GameRoutes() {
   const [location] = useLocation()
 
   // Render the right component based on URL — all offline
-  if (location === '/training') return <TrainingRange />
-  if (location === '/offline5v5') return <Offline5v5Mode />
-  if (location === '/zombie') return <ZombieSurvivalMode />
-  if (location === '/l4d') return <L4DMode />
+  if (location === '/training') return <Suspense fallback={<ModeFallback />}><TrainingRange /></Suspense>
+  if (location === '/offline5v5') return <Suspense fallback={<ModeFallback />}><Offline5v5Mode /></Suspense>
+  if (location === '/zombie') return <Suspense fallback={<ModeFallback />}><ZombieSurvivalMode /></Suspense>
+  if (location === '/l4d') return <Suspense fallback={<ModeFallback />}><L4DMode /></Suspense>
   return <MainMenu />
 }
 

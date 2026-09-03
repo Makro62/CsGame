@@ -83,9 +83,45 @@ export function StaticCylinder({
   );
 }
 
-// ============================================================================
-// Floor Zone Indicator (visual-only, no collider)
-// ============================================================================
+export function VisualBox({
+  position,
+  size,
+  color,
+  materialType = "default",
+}: Pick<BoxProps, "position" | "size" | "color" | "materialType">) {
+  const preset = MATERIAL_PRESETS[materialType ?? "default"];
+  return (
+    <mesh position={position} userData={{ skipShot: true }} castShadow receiveShadow>
+      <boxGeometry args={size} />
+      <meshStandardMaterial
+        color={color}
+        roughness={preset.roughness}
+        metalness={preset.metalness}
+      />
+    </mesh>
+  );
+}
+
+export function VisualCylinder({
+  position,
+  radius,
+  height,
+  color,
+  materialType = "iron",
+  segments = 16,
+}: CylinderProps) {
+  const preset = MATERIAL_PRESETS[materialType];
+  return (
+    <mesh position={position} userData={{ skipShot: true }} castShadow receiveShadow>
+      <cylinderGeometry args={[radius, radius, height, segments]} />
+      <meshStandardMaterial
+        color={color}
+        roughness={preset.roughness}
+        metalness={preset.metalness}
+      />
+    </mesh>
+  );
+}
 
 export type FloorZoneProps = {
   position: [number, number, number];

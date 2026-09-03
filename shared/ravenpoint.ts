@@ -54,7 +54,7 @@ export const RAVENPOINT_AREAS: RavenArea[] = [
   { id: "AREA_T_SPAWN", name: "T Spawn", type: "spawn_t", x1: -16, z1: 30, x2: 16, z2: 42, wallHeight: 4 },
   { id: "AREA_CT_SPAWN", name: "CT Spawn", type: "spawn_ct", x1: -16, z1: -42, x2: 16, z2: -30, wallHeight: 4 },
   { id: "AREA_MID", name: "Mid", type: "corridor", x1: -4, z1: -30, x2: 4, z2: 30, wallHeight: 5 },
-  { id: "AREA_CT_ROTATE", name: "CT Rotate", type: "corridor", x1: -26, z1: -28, x2: 26, z2: -22, wallHeight: 4 },
+  { id: "AREA_CT_ROTATE", name: "CT Rotate", type: "corridor", x1: -26, z1: -30, x2: 26, z2: -22, wallHeight: 4 },
   { id: "AREA_CT_APPROACH_EAST", name: "CT Approach East", type: "corridor", x1: 16, z1: -36, x2: 26, z2: -28, wallHeight: 4 },
   { id: "AREA_CT_APPROACH_WEST", name: "CT Approach West", type: "corridor", x1: -26, z1: -36, x2: -16, z2: -28, wallHeight: 4 },
   { id: "AREA_A_RAMP", name: "A Ramp", type: "corridor", x1: 16, z1: -28, x2: 26, z2: -16, wallHeight: 4 },
@@ -94,12 +94,12 @@ export const RAVENPOINT_PROPS: RavenProp[] = [
   { id: "BConn_Box", type: "crate", position: [-7, 0, -6], size: [1.5, 1.5, 1.5] },
   { id: "CT_RotateBox", type: "crate", position: [0, 0, -25], size: [1.5, 1.5, 1.5] },
   { id: "A_Platform", type: "platform", position: [32, 0, -6], size: [5, 1, 4] },
-  { id: "A_Default", type: "crate", position: [26, 0, -8], size: [2, 2, 2] },
+  { id: "A_Default", type: "crate", position: [22, 0, -4], size: [2, 2, 2] },
   { id: "A_Ninja", type: "crate", position: [16, 0, -14], size: [1.2, 1.2, 1.2] },
   { id: "A_Pillar", type: "pillar", position: [14, 0, -4], size: [1.5, 3.5, 1.5] },
   { id: "A_Green", type: "crate", position: [34, 0, -14], size: [2, 1.5, 1] },
   { id: "B_Platform", type: "platform", position: [-32, 0, -6], size: [5, 1, 4] },
-  { id: "B_Default", type: "crate", position: [-26, 0, -8], size: [2, 2, 2] },
+  { id: "B_Default", type: "crate", position: [-22, 0, -4], size: [2, 2, 2] },
   { id: "B_Ninja", type: "crate", position: [-16, 0, -14], size: [1.2, 1.2, 1.2] },
   { id: "B_Pillar", type: "pillar", position: [-14, 0, -4], size: [1.5, 3.5, 1.5] },
   { id: "B_Green", type: "crate", position: [-34, 0, -14], size: [2, 1.5, 1] },
@@ -139,23 +139,76 @@ function rpBox(id: string, material: "wood" | "metal" | "concrete", cx: number, 
   return { id, material, minX: cx - sx / 2, maxX: cx + sx / 2, minY: cy - sy / 2, maxY: cy + sy / 2, minZ: cz - sz / 2, maxZ: cz + sz / 2 }
 }
 
+function inAnyArea(x: number, z: number, areas: readonly RavenArea[]): boolean {
+  for (const a of areas) {
+    if (x >= a.x1 && x < a.x2 && z >= a.z1 && z < a.z2) return true
+  }
+  return false
+}
+
+/** Solid buildings in the gaps between walkable corridors so player + bots share the same layout. */
+export function buildRavenpointFillWalls(
+  areas: readonly RavenArea[] = RAVENPOINT_AREAS,
+  bounds = RAVENPOINT_BOUNDS,
+): RavenMapObstacle[] {
+  const minX = Math.floor(bounds.minX)
+  const maxX = Math.ceil(bounds.maxX)
+  const minZ = Math.floor(bounds.minZ)
+  const maxZ = Math.ceil(bounds.maxZ)
+  const w = maxX - minX
+  const h = maxZ - minZ
+  const solid = new Uint8Array(w * h)
+  for (let z = minZ; z < maxZ; z++) {
+    for (let x = minX; x < maxX; x++) {
+      if (!inAnyArea(x, z, areas)) solid[(z - minZ) * w + (x - minX)] = 1
+    }
+  }
+  const seen = new Uint8Array(w * h)
+  const walls: RavenMapObstacle[] = []
+  let n = 0
+  for (let z = minZ; z < maxZ; z++) {
+    for (let x = minX; x < maxX; x++) {
+      const i = (z - minZ) * w + (x - minX)
+      if (!solid[i] || seen[i]) continue
+      let bw = 1
+      while (x + bw < maxX && solid[i + bw] && !seen[i + bw]) bw++
+      let bh = 1
+      outer: while (z + bh < maxZ) {
+        for (let dx = 0; dx < bw; dx++) {
+          const j = (z + bh - minZ) * w + (x - minX) + dx
+          if (!solid[j] || seen[j]) break outer
+        }
+        bh++
+      }
+      for (let dz = 0; dz < bh; dz++) {
+        for (let dx = 0; dx < bw; dx++) {
+          seen[(z + dz - minZ) * w + (x - minX) + dx] = 1
+        }
+      }
+      walls.push(rpBox(`rp_fill_${n++}`, "concrete", x + bw / 2, 2, z + bh / 2, bw, 4, bh))
+    }
+  }
+  return walls
+}
+
+export function isRavenpointWalkable(x: number, z: number): boolean {
+  return inAnyArea(x, z, RAVENPOINT_AREAS)
+}
+
 export const RAVENPOINT_OBSTACLES: readonly RavenMapObstacle[] = [
-  // Perimeter
-  rpBox("rp_wall_north", "concrete", 0, 3, -50, 80, 6, 1),
-  rpBox("rp_wall_south", "concrete", 0, 3, 50, 80, 6, 1),
-  rpBox("rp_wall_west", "concrete", -40, 3, 0, 1, 6, 100),
-  rpBox("rp_wall_east", "concrete", 40, 3, 0, 1, 6, 100),
-  // Props
-  ...RAVENPOINT_PROPS.map(p => rpBox(`rp_${p.id}`, p.type === "barrel" ? "metal" : p.type === "pillar" ? "concrete" : "wood", p.position[0], p.size[1] / 2, p.position[2], p.size[0], p.size[1], p.size[2])),
-  // Mid low wall (special)
-  // Additional corridor walls for strict corridors (auto-generated would be better, but manual for now)
-  rpBox("rp_mid_west", "concrete", -6, 2, 0, 0.8, 4, 60),
-  rpBox("rp_mid_east", "concrete", 6, 2, 0, 0.8, 4, 60),
-  // Site A/B back walls
-  rpBox("rp_site_a_north", "concrete", 23, 2, -16, 26, 4, 0.8),
-  rpBox("rp_site_b_north", "concrete", -23, 2, -16, 26, 4, 0.8),
-  rpBox("rp_site_a_south", "concrete", 23, 2, 0, 26, 4, 0.8),
-  rpBox("rp_site_b_south", "concrete", -23, 2, 0, 26, 4, 0.8),
+  ...buildRavenpointFillWalls(),
+  ...RAVENPOINT_PROPS.map((p) =>
+    rpBox(
+      `rp_${p.id}`,
+      p.type === "barrel" ? "metal" : p.type === "pillar" ? "concrete" : "wood",
+      p.position[0],
+      p.size[1] / 2,
+      p.position[2],
+      p.size[0],
+      p.size[1],
+      p.size[2],
+    ),
+  ),
 ] as const
 
 // ─── Callouts ───────────────────────────────────────────────────

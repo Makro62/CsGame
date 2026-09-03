@@ -28,6 +28,15 @@ function getArcadeAim() {
   return useAimStore.getState();
 }
 
+function emitOfflineHitMarker(targetId: string | null, headshot: boolean, killed: boolean) {
+  if (!targetId) return;
+  const players = useOffline5v5Store.getState().players;
+  const me = players.get("local");
+  const victim = players.get(targetId);
+  if (!me || !victim || victim.team === me.team) return;
+  gameEvents.emit("hitMarker", { headshot, killed });
+}
+
 function shotIgnored(obj: THREE.Object3D) {
   let current: THREE.Object3D | null = obj;
   while (current) {
@@ -476,7 +485,7 @@ export function ShootingSystem() {
           current = current.parent;
         }
         const killed = useOffline5v5Store.getState().localShoot(targetId, false);
-        if (targetId) gameEvents.emit("hitMarker", { headshot: false, killed });
+        emitOfflineHitMarker(targetId, false, killed);
       } else if (gameMode !== "training") {
         // offline: no network melee
       }
@@ -672,9 +681,7 @@ export function ShootingSystem() {
           current = current.parent;
         }
         const killed = useOffline5v5Store.getState().localShoot(targetId, isHead);
-        if (targetId) {
-          gameEvents.emit("hitMarker", { headshot: isHead, killed });
-        }
+        emitOfflineHitMarker(targetId, isHead, killed);
       }
 
       if (gameMode === "l4d") {

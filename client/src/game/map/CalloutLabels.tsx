@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
-import { MAP_CALLOUTS, DUST_CALLOUTS, type MapCallout } from "@cs-game/shared";
+import { MAP_CALLOUTS, RAVENPOINT_CALLOUTS, type MapCallout } from "@cs-game/shared";
 import { getProceduralMapData } from "./ProceduralMapRegistry";
 
 // Cache canvas textures per label (zero external assets)
@@ -30,7 +30,7 @@ function makeCalloutTexture(label: string): THREE.Texture {
 }
 
 function getCalloutsForMap(mapId: string): readonly MapCallout[] {
-  if (mapId === "dust") return DUST_CALLOUTS;
+  if (mapId === "dust" || mapId === "ravenpoint") return RAVENPOINT_CALLOUTS;
   const proc = getProceduralMapData(mapId);
   if (proc) return proc.callouts;
   return MAP_CALLOUTS;

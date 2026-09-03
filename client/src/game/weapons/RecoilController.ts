@@ -130,7 +130,7 @@ export class RecoilController {
     const bulletIndex = Math.min(this.bulletsFired, this.pattern.length - 1)
     const [offsetX, offsetY] = this.pattern[bulletIndex]
 
-    this.currentOffset.set(offsetX * 0.9, offsetY * 0.82)
+    this.currentOffset.set(offsetX, offsetY)
     this.bulletsFired++
     this.lastFireTime = now
 
@@ -141,13 +141,12 @@ export class RecoilController {
     const now = performance.now()
     const timeSinceLastFire = now - this.lastFireTime
 
-    if (timeSinceLastFire > 40) {
-      const recoverySpeed = 7.5
+    // Hold the spray point while the burst is alive. Recovering at 40ms was
+    // dropping the sight between shots, so the pattern never actually climbed.
+    if (timeSinceLastFire > 260) {
+      const recoverySpeed = 4.2
       const t = 1 - Math.exp(-recoverySpeed * (deltaTime || 0.016))
       this.currentOffset.lerp(new THREE.Vector2(0, 0), t)
-    }
-
-    if (timeSinceLastFire > 260) {
       this.bulletsFired = 0
     }
 
@@ -181,8 +180,9 @@ export function getMovementState(
   if (!input) return 'idle'
   if (input.airborne) return 'airborne'
   if (input.slide) return 'slide'
-  if (input.sprint) return 'sprint'
-  if (input.forward || input.backward || input.left || input.right) return 'walk'
+  const moving = input.forward || input.backward || input.left || input.right
+  if (input.sprint && moving) return 'sprint'
+  if (moving) return 'walk'
   return 'idle'
 }
 
@@ -193,32 +193,41 @@ export function getSpreadRadius(
   isADS: boolean,
   sprayCount: number
 ): number {
-  if (isADS) return 0
-
   const baseSpread: Record<string, number> = {
-    ak47: 0.02,
-    m4a1: 0.018,
+    ak47: 0.016,
+    m4a1: 0.014,
     awp: 0.5,
-    deagle: 0.025,
-    mp5: 0.022,
-    glock: 0.018,
-    tec9: 0.028,
-    autopistol: 0.02,
+    deagle: 0.02,
+    mp5: 0.018,
+    glock: 0.015,
+    tec9: 0.022,
+    autopistol: 0.016,
     knife: 0,
     combatknife: 0,
   }
 
-  const movementMultiplier: Record<string, number> = {
+  const hipfireMult: Record<string, number> = {
     idle: 1,
-    walk: 2.2,
-    sprint: 4.0,
-    slide: 4.5,
-    airborne: 6.0,
+    walk: 1.45,
+    sprint: 2.15,
+    slide: 2.4,
+    airborne: 3.0,
   }
 
-  const base = baseSpread[weapon] ?? 0.02
-  const mult = movementMultiplier[movementState] || 1
-  const sprayBonus = sprayCount * 0.003
+  const adsMult: Record<string, number> = {
+    idle: 0.22,
+    walk: 0.38,
+    sprint: 0.62,
+    slide: 0.7,
+    airborne: 0.85,
+  }
+
+  const base = baseSpread[weapon] ?? 0.016
+  if (base === 0) return 0
+  if (isADS && weapon === "awp") return 0
+
+  const mult = (isADS ? adsMult[movementState] : hipfireMult[movementState]) || 1
+  const sprayBonus = sprayCount * (isADS ? 0.0012 : 0.0024)
 
   return base * mult + sprayBonus
 }

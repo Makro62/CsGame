@@ -23,8 +23,7 @@ import { useGameStore } from "../stores/useGameStore";
 import { useWeaponStore } from "../stores/useWeaponStore";
 import { useOffline5v5Store } from "./Offline5v5Store";
 import { TacticalBotModel } from "../game/player/TacticalBotModel";
-import { BOMB_SITES } from "@cs-game/shared";
-import { distToBombSite, nearestBombSite } from "../game/offline/offlineCombat";
+import { distToBombSite, nearestBombSite, resolveBombSites } from "../game/offline/offlineCombat";
 import { CalloutLabels } from "../game/map/CalloutLabels";
 import { Offline5v5Select } from "./Offline5v5Select";
 import { getAgent } from "../game/offline/agents";
@@ -126,42 +125,22 @@ export function Offline5v5Mode() {
   const me = useOffline5v5Store((s) => s.players.get("local"));
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<"T" | "CT" | null>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [showSelection, setShowSelection] = useState(true);
   const MapComp = selectedMapId ? getMapById(selectedMapId).component : null;
-  const inited = useRef(false);
   const [paused, setPaused] = useState(false);
 
   const handleFullSelect = useCallback((team: "T" | "CT", mapId: string, agentId: string) => {
     if (mapId === PROCEDURAL_5V5_ID) ensureProcedural5v5();
-    setSelectedTeam(team);
-    setSelectedMapId(mapId);
-    setSelectedAgentId(agentId);
-    useGameStore.getState().setCurrentMap(mapId);
-    setShowSelection(false);
-  }, []);
-
-  // Player lists for top header status
-  const allPlayers = Array.from(players.values());
-  const tPlayers = allPlayers.filter((p) => p.team === "T");
-  const ctPlayers = allPlayers.filter((p) => p.team === "CT");
-
-  useEffect(() => {
-    if (!selectedMapId || !selectedTeam || !selectedAgentId || inited.current) return;
-    inited.current = true;
     useGameStore.getState().setMode("offline5v5");
-    useGameStore.getState().setCurrentMap(selectedMapId);
-    initMatch(nickname || "Player", selectedTeam, "medium", selectedMapId);
-    // Apply agent name and colors to local player
-    const agentDef = getAgent(selectedAgentId);
-    useOffline5v5Store.setState(s => {
+    useGameStore.getState().setCurrentMap(mapId);
+    initMatch(nickname || "Player", team, "medium", mapId);
+    const agentDef = getAgent(agentId);
+    useOffline5v5Store.setState((s) => {
       const local = s.players.get("local");
-      if (local) {
-        const updated = new Map(s.players);
-        updated.set("local", { ...local, nickname: agentDef.name });
-        return { players: updated };
-      }
-      return {};
+      if (!local) return {};
+      const updated = new Map(s.players);
+      updated.set("local", { ...local, nickname: agentDef.name });
+      return { players: updated };
     });
     const me = useOffline5v5Store.getState().players.get("local");
     const ws = useWeaponStore.getState();
@@ -170,7 +149,15 @@ export function Offline5v5Mode() {
       ws.syncLoadout({ primary: me.primaryWeapon, secondary: me.secondaryWeapon, knife: me.knifeSlot });
       if (me.currentWeapon) ws.equipWeapon(me.currentWeapon as never);
     }
-  }, [selectedMapId, selectedTeam, selectedAgentId, initMatch, nickname]);
+    setSelectedTeam(team);
+    setSelectedMapId(mapId);
+    setShowSelection(false);
+  }, [initMatch, nickname]);
+
+  // Player lists for top header status
+  const allPlayers = Array.from(players.values());
+  const tPlayers = allPlayers.filter((p) => p.team === "T");
+  const ctPlayers = allPlayers.filter((p) => p.team === "CT");
 
   useEffect(() => {
     const onPointerLockChange = () => {
@@ -200,9 +187,7 @@ export function Offline5v5Mode() {
     setPaused(false);
     setSelectedMapId(null);
     setSelectedTeam(null);
-    setSelectedAgentId(null);
     setShowSelection(true);
-    inited.current = false;
     useOffline5v5Store.setState({
       phase: "buy",
       roundNumber: 1,
@@ -264,10 +249,8 @@ export function Offline5v5Mode() {
   }, [paused, buyMenuOpen, closeBuyMenu, resume]);
 
   const rematch = useCallback(() => {
-    inited.current = false;
     setSelectedMapId(null);
     setSelectedTeam(null);
-    setSelectedAgentId(null);
     setShowSelection(true);
   }, []);
 
@@ -292,7 +275,7 @@ export function Offline5v5Mode() {
         <fog attach="fog" args={["#0e1520", 48, 110]} />
         <Physics gravity={[0, -9.81, 0]}>
           <ActiveMap />
-          <PlayerController />
+          <PlayerController key={`${selectedTeam}-${selectedMapId}-${roundNumber}`} />
           <RemoteBots />
           <WeaponModel />
         </Physics>
@@ -486,7 +469,8 @@ export function Offline5v5Mode() {
           </div>
 
           {/* Bomb / defuse prompt — only when the action is actually available */}
-          {me.hasBomb && me.team === "T" && !bombPlanted && distToBombSite(me, nearestBombSite(me)) <= BOMB_SITES[nearestBombSite(me)].radius && (
+          {/* Bomb / defuse prompt — only when the action is actually available */}
+          {me.hasBomb && me.team === "T" && !bombPlanted && distToBombSite(me, nearestBombSite(me)) <= resolveBombSites()[nearestBombSite(me)].radius && (
             <div
               style={{
                 position: "fixed",
@@ -508,7 +492,7 @@ export function Offline5v5Mode() {
             </div>
           )}
 
-          {me.team === "CT" && bombPlanted && !me.isDefusing && distToBombSite(me, (bombSite === "B" ? "B" : "A")) <= BOMB_SITES[bombSite === "B" ? "B" : "A"].radius && (
+          {me.team === "CT" && bombPlanted && !me.isDefusing && distToBombSite(me, (bombSite === "B" ? "B" : "A")) <= resolveBombSites()[bombSite === "B" ? "B" : "A"].radius && (
             <div
               style={{
                 position: "fixed",

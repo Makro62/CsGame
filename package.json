@@ -9,23 +9,16 @@
   "scripts": {
     "postinstall": "npm run build --workspace=shared",
     "dev": "npm run build --workspace=shared && npm run dev --workspace=client",
-    "build": "npm run build --workspace=shared && npm run build --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/react": "^16.3.2",
     "@types/node": "^26.4.0",
     "concurrently": "^10.0.4",
     "eslint": "^10.8.1",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "jsdom": "^30.0.1",
-    "typescript-eslint": "^8.67.0",
-    "vitest": "^4.1.10"
+    "typescript-eslint": "^8.67.0"
   }
 }

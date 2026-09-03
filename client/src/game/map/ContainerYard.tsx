@@ -1,6 +1,6 @@
 import { RigidBody, CuboidCollider } from "@react-three/rapier";
-import { BOMB_SITES, BUY_ZONE, MAP_BOUNDARY, MAP_OBSTACLES, type MapObstacle } from "@cs-game/shared";
-import { StaticBox, StaticCylinder, FloorZone, SiteMarker, SpawnZone } from "./MapHelpers";
+import { BOMB_SITES, BUY_ZONE, MAP_BOUNDARY, MAP_OBSTACLES, SPAWN, type MapObstacle } from "@cs-game/shared";
+import { StaticBox, FloorZone, SiteMarker, SpawnZone, VisualBox, VisualCylinder } from "./MapHelpers";
 
 // ============================================================================
 // Color Palette - Industrial Container Yard
@@ -117,8 +117,8 @@ function FloorZones() {
       />
       <SiteMarker x={BOMB_SITES.A.x} z={BOMB_SITES.A.z} color="#ef4444" letter="A" />
       <SiteMarker x={BOMB_SITES.B.x} z={BOMB_SITES.B.z} color="#3b82f6" letter="B" />
-      <SpawnZone position={[BUY_ZONE.T.x, 0.03, BUY_ZONE.T.z]} color={COLORS.t} radius={BUY_ZONE.T.radius} />
-      <SpawnZone position={[BUY_ZONE.CT.x, 0.03, BUY_ZONE.CT.z]} color={COLORS.ct} radius={BUY_ZONE.CT.radius} />
+      <SpawnZone position={[SPAWN.T.x, 0.03, SPAWN.T.z]} color={COLORS.t} radius={BUY_ZONE.T.radius} />
+      <SpawnZone position={[SPAWN.CT.x, 0.03, SPAWN.CT.z]} color={COLORS.ct} radius={BUY_ZONE.CT.radius} />
     </group>
   );
 }
@@ -165,75 +165,26 @@ function Ground() {
 function DecorativeElements() {
   return (
     <group>
-      {/* T Spawn Area Decorations */}
-      <StaticCylinder position={[-24, 0.3, -6]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
-      <StaticCylinder position={[-24, 0.3, 6]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
-      <StaticBox position={[-23, 0.15, -7.5]} size={[0.8, 0.3, 0.4]} color={COLORS.wood.dark} materialType="wood" />
-      <StaticBox position={[-23, 0.15, 7.5]} size={[0.6, 0.3, 0.6]} color={COLORS.metal.light} materialType="metal" />
+      <VisualCylinder position={[-24, 0.3, -6]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
+      <VisualCylinder position={[-24, 0.3, 6]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
+      <VisualBox position={[-23, 0.15, -7.5]} size={[0.8, 0.3, 0.4]} color={COLORS.wood.dark} materialType="wood" />
+      <VisualBox position={[-23, 0.15, 7.5]} size={[0.6, 0.3, 0.6]} color={COLORS.metal.light} materialType="metal" />
 
-      {/* Mid Area Decorations */}
-      <StaticCylinder position={[-8, 0.3, 0]} radius={0.3} height={0.6} color={COLORS.container.yellow} materialType="metal" />
-      <StaticCylinder position={[8, 0.3, 0]} radius={0.3} height={0.6} color={COLORS.container.green} materialType="metal" />
-      <StaticBox position={[0, 0.15, -2]} size={[0.6, 0.3, 0.4]} color={COLORS.metal.rust} materialType="metal" />
-      <StaticBox position={[0, 0.15, 2]} size={[0.4, 0.3, 0.6]} color={COLORS.wood.medium} materialType="wood" />
+      <VisualCylinder position={[-8, 0.3, 0]} radius={0.3} height={0.6} color={COLORS.container.yellow} materialType="metal" />
+      <VisualCylinder position={[8, 0.3, 0]} radius={0.3} height={0.6} color={COLORS.container.green} materialType="metal" />
+      <VisualBox position={[0, 0.15, -2]} size={[0.6, 0.3, 0.4]} color={COLORS.metal.rust} materialType="metal" />
+      <VisualBox position={[0, 0.15, 2]} size={[0.4, 0.3, 0.6]} color={COLORS.wood.medium} materialType="wood" />
 
-      {/* Site A Area Decorations */}
-      <StaticCylinder position={[12, 0.3, -16]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
-      <StaticCylinder position={[18, 0.3, -12]} radius={0.25} height={0.6} color={COLORS.container.orange} materialType="metal" />
-      <StaticBox position={[14, 0.15, -17]} size={[0.6, 0.3, 0.4]} color={COLORS.wood.dark} materialType="wood" />
-      <StaticBox position={[22, 0.15, -17]} size={[0.4, 0.3, 0.6]} color={COLORS.metal.light} materialType="metal" />
+      <VisualCylinder position={[-14, 0.3, -16]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
+      <VisualBox position={[-10, 0.15, -17]} size={[0.6, 0.3, 0.4]} color={COLORS.wood.dark} materialType="wood" />
 
-      {/* Site B Area Decorations */}
-      <StaticCylinder position={[12, 0.3, 16]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
-      <StaticCylinder position={[18, 0.3, 12]} radius={0.25} height={0.6} color={COLORS.container.yellow} materialType="metal" />
-      <StaticBox position={[14, 0.15, 17]} size={[0.6, 0.3, 0.4]} color={COLORS.wood.medium} materialType="wood" />
-      <StaticBox position={[22, 0.15, 17]} size={[0.4, 0.3, 0.6]} color={COLORS.metal.dark} materialType="metal" />
+      <VisualCylinder position={[14, 0.3, 16]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
+      <VisualBox position={[16, 0.15, 17]} size={[0.6, 0.3, 0.4]} color={COLORS.wood.medium} materialType="wood" />
 
-      {/* CT Spawn Area Decorations */}
-      <StaticCylinder position={[24, 0.3, -6]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
-      <StaticCylinder position={[24, 0.3, 6]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
-      <StaticBox position={[23, 0.15, -7.5]} size={[0.8, 0.3, 0.4]} color={COLORS.wood.dark} materialType="wood" />
-      <StaticBox position={[23, 0.15, 7.5]} size={[0.6, 0.3, 0.6]} color={COLORS.metal.medium} materialType="metal" />
-
-      {/* Scattered debris */}
-      <StaticBox position={[-18, 0.08, -3]} size={[0.4, 0.16, 0.25]} color={COLORS.metal.light} materialType="metal" />
-      <StaticBox position={[18, 0.08, 3]} size={[0.3, 0.16, 0.4]} color={COLORS.wood.medium} materialType="wood" />
-      <StaticBox position={[-5, 0.08, -8]} size={[0.35, 0.16, 0.35]} color={COLORS.metal.rust} materialType="metal" />
-      <StaticBox position={[5, 0.08, 8]} size={[0.4, 0.16, 0.3]} color={COLORS.wood.dark} materialType="wood" />
-    </group>
-  );
-}
-
-// ============================================================================
-// Container Stacks - Visual variety with stacked containers
-// ============================================================================
-function ContainerStacks() {
-  return (
-    <group>
-      {/* T Side - Blue container stack */}
-      <StaticBox position={[-22, 2.5, -6]} size={[6, 2.5, 3]} color={COLORS.container.blue} materialType="metal" />
-      <StaticBox position={[-22, 0, -6]} size={[6, 2.5, 3]} color={COLORS.container.blueDark} materialType="metal" />
-
-      {/* T Side - Red container stack */}
-      <StaticBox position={[-22, 2.5, 6]} size={[6, 2.5, 3]} color={COLORS.container.red} materialType="metal" />
-      <StaticBox position={[-22, 0, 6]} size={[6, 2.5, 3]} color={COLORS.container.redDark} materialType="metal" />
-
-      {/* CT Side - Green container stack */}
-      <StaticBox position={[22, 2.5, -6]} size={[6, 2.5, 3]} color={COLORS.container.green} materialType="metal" />
-      <StaticBox position={[22, 0, -6]} size={[6, 2.5, 3]} color={COLORS.container.greenDark} materialType="metal" />
-
-      {/* CT Side - Yellow container stack */}
-      <StaticBox position={[22, 2.5, 6]} size={[6, 2.5, 3]} color={COLORS.container.yellow} materialType="metal" />
-      <StaticBox position={[22, 0, 6]} size={[6, 2.5, 3]} color={COLORS.container.yellowDark} materialType="metal" />
-
-      {/* Mid - Orange container */}
-      <StaticBox position={[-10, 1.25, 0]} size={[4, 2.5, 2.5]} color={COLORS.container.orange} materialType="metal" />
-
-      {/* Site A - Blue container */}
-      <StaticBox position={[18, 1.25, -16]} size={[5, 2.5, 2.5]} color={COLORS.container.blue} materialType="metal" />
-
-      {/* Site B - Red container */}
-      <StaticBox position={[18, 1.25, 16]} size={[5, 2.5, 2.5]} color={COLORS.container.red} materialType="metal" />
+      <VisualCylinder position={[24, 0.3, -6]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
+      <VisualCylinder position={[24, 0.3, 6]} radius={0.25} height={0.6} color={COLORS.metal.rust} materialType="metal" />
+      <VisualBox position={[23, 0.15, -7.5]} size={[0.8, 0.3, 0.4]} color={COLORS.wood.dark} materialType="wood" />
+      <VisualBox position={[23, 0.15, 7.5]} size={[0.6, 0.3, 0.6]} color={COLORS.metal.medium} materialType="metal" />
     </group>
   );
 }
@@ -262,7 +213,6 @@ export function ContainerYard() {
       <directionalLight position={[-18, 22, -14]} intensity={0.32} color="#93c5fd" />
 
       <Ground />
-      <ContainerStacks />
       {MAP_OBSTACLES.map((obs) => (
         <Obstacle key={obs.id} obs={obs} />
       ))}

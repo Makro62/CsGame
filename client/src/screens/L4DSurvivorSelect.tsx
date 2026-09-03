@@ -179,7 +179,7 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
         <div style={{
           fontSize: 11, fontWeight: 900, letterSpacing: 4, color: "#64748b", marginBottom: 4, textTransform: "uppercase",
         }}>
-          LEFT 4 DEAD CAMPAIGN
+          SURVIVOR CAMPAIGN
         </div>
         <h1 style={{
           fontSize: "clamp(1.6rem, 4.2vh, 2.6rem)", fontWeight: 900,
@@ -190,7 +190,7 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
           PILIH SURVIVOR
         </h1>
         <div style={{ fontSize: "clamp(11px, 1.4vh, 14px)", color: "rgba(255,255,255,0.5)", letterSpacing: 3, marginTop: 4 }}>
-          PILIH KARAKTER SEBELUM MEMULAI CAMPAIGN
+          1 SENJATA · 3 TEMAN · BUKA WILAYAH BARU SETELAH CLEAR
         </div>
       </div>
 
@@ -353,9 +353,7 @@ export function L4DSurvivorSelect({ onSelect }: L4DSurvivorSelectProps) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                { slot: "PRIMARY", weapon: previewSurvivor.primaryWeapon.toUpperCase(), icon: "🔫" },
-                { slot: "SECONDARY", weapon: previewSurvivor.secondaryWeapon.toUpperCase(), icon: "🔫" },
-                { slot: "MELEE", weapon: previewSurvivor.knifeWeapon.toUpperCase(), icon: "🗡️" },
+                { slot: "SENJATA", weapon: previewSurvivor.primaryWeapon.toUpperCase(), icon: "🔫" },
               ].map((w) => (
                 <div key={w.slot} style={{
                   display: "flex", alignItems: "center", gap: 10,

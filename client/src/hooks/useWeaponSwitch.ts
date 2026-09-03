@@ -12,12 +12,14 @@ function isTyping(): boolean {
   )
 }
 
-export function useWeaponSwitch(opts?: { buyMenu?: boolean }) {
+export function useWeaponSwitch(opts?: { buyMenu?: boolean; lockLoadout?: boolean }) {
   const [buyMenuOpen, setBuyMenuOpen] = useState(false)
   const buyMenuOpenRef = useRef(false)
   buyMenuOpenRef.current = buyMenuOpen
   const buyEnabledRef = useRef(true)
   buyEnabledRef.current = opts?.buyMenu !== false
+  const lockLoadoutRef = useRef(false)
+  lockLoadoutRef.current = opts?.lockLoadout === true
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -41,6 +43,8 @@ export function useWeaponSwitch(opts?: { buyMenu?: boolean }) {
         return
       }
 
+      if (lockLoadoutRef.current) return
+
       if (e.code === 'Digit1' || e.code === 'Numpad1') {
         useWeaponStore.getState().switchToSlot(1)
       } else if (e.code === 'Digit2' || e.code === 'Numpad2') {
@@ -53,7 +57,7 @@ export function useWeaponSwitch(opts?: { buyMenu?: boolean }) {
     }
 
     function handleWheel(e: WheelEvent) {
-      if (buyMenuOpenRef.current || isTyping()) return
+      if (buyMenuOpenRef.current || isTyping() || lockLoadoutRef.current) return
 
       const state = useWeaponStore.getState()
       const order: Array<1 | 2 | 3> = [1, 2, 3]

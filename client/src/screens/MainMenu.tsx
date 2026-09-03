@@ -117,8 +117,8 @@ const MODES: ModeCard[] = [
   },
   {
     id: "l4d",
-    title: "LEFT 4 DEAD – CAMPAIGN",
-    tagline: "First-person campaign 4 survivor, Director AI, rescue.",
+    title: "SURVIVOR CAMPAIGN",
+    tagline: "Bersihkan zombie per wilayah bersama 3 teman. Satu senjata, buka peta baru.",
     badge: "SOLO + 3 BOT · OFFLINE",
     accent: "#10b981",
     accentSoft: "rgba(16, 185, 129,",
@@ -127,14 +127,14 @@ const MODES: ModeCard[] = [
     charArt: survivorCharArt,
     iconType: "skull",
     features: [
-      "FPS: Safe Room → Traverse → Finale Rescue",
-      "Special: Hunter pin, Smoker grab, Boomer bile, Tank, Witch",
-      "Director horde, crescendo, 3 bot teammate",
+      "Satu senjata, 3 teman AI, revive [F]",
+      "Habisi semua zombie di satu wilayah → gerbang wilayah berikutnya terbuka",
+      "4 peta berantai: Koridor → Gudang → Lorong → Pad Evakuasi",
     ],
     highlights: [
-      { icon: "target", text: "First-person, 4 chapter linear campaign" },
-      { icon: "biohazard", text: "Hunter / Smoker / Boomer / Tank / Witch" },
-      { icon: "shield", text: "Bot revive & rescue vehicle finale" },
+      { icon: "biohazard", text: "Clear area seperti Zombie Survival" },
+      { icon: "ammo", text: "Hanya AK-47 — tanpa ganti senjata" },
+      { icon: "shield", text: "3 bot teammate ikut tembak & revive" },
     ],
     controls: [
       { key: "WASD", label: "gerak" },

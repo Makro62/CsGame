@@ -1,4 +1,4 @@
-import { BOMB_SITES, MAP_BOUNDARY, MAP_OBSTACLES, SPAWN, type MapObstacle, getObstaclesForMap, getBoundaryForMap, getBombSitesForMap } from "@cs-game/shared";
+import { BOMB_SITES, MAP_BOUNDARY, MAP_OBSTACLES, SPAWN, BUY_ZONE, type MapObstacle, getObstaclesForMap, getBoundaryForMap, getBombSitesForMap, getSpawnForMap, getBuyZoneForMap } from "@cs-game/shared";
 import { useGameStore } from "../../stores/useGameStore";
 import { getProceduralMapData } from "../map/ProceduralMapRegistry";
 
@@ -57,6 +57,26 @@ export function resolveBombSites(): typeof BOMB_SITES {
   return BOMB_SITES;
 }
 
+export function resolveBuyZone(team: "T" | "CT"): { x: number; y?: number; z: number; radius: number } {
+  try {
+    const mapId = getCurrentMapId();
+    const proc = getProceduralMapData(mapId);
+    if (proc) {
+      const sp = proc.spawns[team];
+      return { x: sp.x, z: sp.z, radius: 12 };
+    }
+    return getBuyZoneForMap(mapId)[team];
+  } catch {
+    /* store may be uninitialized outside React */
+  }
+  return BUY_ZONE[team];
+}
+
+export function inBuyZone(team: "T" | "CT", x: number, z: number): boolean {
+  const zone = resolveBuyZone(team);
+  return Math.hypot(x - zone.x, z - zone.z) <= zone.radius;
+}
+
 function hitsObstacle(p: Point2D, obstacles: readonly MapObstacle[] = MAP_OBSTACLES, pad = BODY): boolean {
   const obs = resolveObstacles(obstacles);
   return obs.some(
@@ -108,6 +128,7 @@ export function hasLineOfSight(
   const distance = Math.hypot(dx, dz);
   if (distance <= 0.001) return true;
 
+  const obsList = resolveObstacles(obstacles);
   const steps = Math.max(1, Math.ceil(distance * 2));
   const stepX = dx / steps;
   const stepZ = dz / steps;
@@ -115,7 +136,7 @@ export function hasLineOfSight(
   for (let i = 1; i < steps; i++) {
     const cx = from.x + stepX * i;
     const cz = from.z + stepZ * i;
-    for (const obs of obstacles) {
+    for (const obs of obsList) {
       if (cx >= obs.minX && cx <= obs.maxX && cz >= obs.minZ && cz <= obs.maxZ) {
         return false;
       }
@@ -273,7 +294,72 @@ export const BOT_PATHS: Record<BotLane, { T: Point2D[]; CT: Point2D[] }> = {
   },
 };
 
+const RAVENPOINT_BOT_PATHS: Record<BotLane, { T: Point2D[]; CT: Point2D[] }> = {
+  A: {
+    T: [
+      { x: 0, z: 36 },
+      { x: 21, z: 28 },
+      { x: 21, z: 6 },
+      { x: 26, z: -8 },
+    ],
+    CT: [
+      { x: 0, z: -36 },
+      { x: 21, z: -32 },
+      { x: 21, z: -20 },
+      { x: 26, z: -8 },
+    ],
+  },
+  mid: {
+    T: [
+      { x: 0, z: 36 },
+      { x: 0, z: 16 },
+      { x: 0, z: 4 },
+      { x: 0, z: -16 },
+    ],
+    CT: [
+      { x: 0, z: -36 },
+      { x: 0, z: -16 },
+      { x: 0, z: 4 },
+      { x: 0, z: 16 },
+    ],
+  },
+  B: {
+    T: [
+      { x: 0, z: 36 },
+      { x: -21, z: 28 },
+      { x: -21, z: 6 },
+      { x: -26, z: -8 },
+    ],
+    CT: [
+      { x: 0, z: -36 },
+      { x: -21, z: -32 },
+      { x: -21, z: -20 },
+      { x: -26, z: -8 },
+    ],
+  },
+};
+
 export function botPath(lane: BotLane, team: "T" | "CT"): Point2D[] {
+  const mapId = getCurrentMapId();
+  if (mapId === "dust" || mapId === "ravenpoint") return RAVENPOINT_BOT_PATHS[lane][team];
+  try {
+    const proc = getProceduralMapData(mapId);
+    if (proc) {
+      const spawn = proc.spawns[team];
+      const site =
+        lane === "B" ? proc.bombSites.B : lane === "A" ? proc.bombSites.A : {
+          x: (proc.bombSites.A.x + proc.bombSites.B.x) / 2,
+          z: (proc.bombSites.A.z + proc.bombSites.B.z) / 2,
+        };
+      return [
+        { x: spawn.x, z: spawn.z },
+        { x: (spawn.x + site.x) / 2, z: (spawn.z + site.z) / 2 },
+        { x: site.x, z: site.z },
+      ];
+    }
+  } catch {
+    /* registry may be empty outside a match */
+  }
   return BOT_PATHS[lane][team];
 }
 
@@ -311,16 +397,18 @@ export function hideBehindCover(
 ): Point2D | null {
   let best: Point2D | null = null;
   let bestScore = Infinity;
-  for (const obs of obstacles) {
+  const obsList = resolveObstacles(obstacles);
+  for (const obs of obsList) {
     if (obs.maxY - obs.minY > 6) continue;
+    const hx = obs.maxX - obs.minX;
+    const hz = obs.maxZ - obs.minZ;
+    if (hx > 8 || hz > 8) continue;
     const cx = (obs.minX + obs.maxX) / 2;
     const cz = (obs.minZ + obs.maxZ) / 2;
     const toThreatX = threat.x - cx;
     const toThreatZ = threat.z - cz;
     const len = Math.hypot(toThreatX, toThreatZ);
     if (len < 0.4) continue;
-    const hx = obs.maxX - obs.minX;
-    const hz = obs.maxZ - obs.minZ;
     const standoff = Math.max(hx, hz) * 0.5 + 1.35;
     const hide = {
       x: cx - (toThreatX / len) * standoff,
@@ -339,14 +427,35 @@ export function hideBehindCover(
   return best;
 }
 
+/** Spawn of a team on the current 5v5 map (procedural, Ravenpoint, or yard). */
+export function resolveTeamSpawn(mapId: string | undefined, team: "T" | "CT"): Point2D {
+  const id = mapId || "container_yard";
+  try {
+    const proc = getProceduralMapData(id);
+    if (proc) return { x: proc.spawns[team].x, z: proc.spawns[team].z };
+  } catch {
+    /* registry may be empty outside a match */
+  }
+  try {
+    const spawnMap = getSpawnForMap(id);
+    const sp = spawnMap[team];
+    if (sp) return { x: sp.x, z: sp.z };
+  } catch {
+    /* shared helper may be unavailable in isolated tests */
+  }
+  const fallback = SPAWN[team];
+  return { x: fallback.x, z: fallback.z };
+}
+
 /** Camera/player yaw (Three.js YXZ, -Z forward) facing a point. */
 export function cameraYawTowards(from: Point2D, to: Point2D): number {
   return Math.atan2(-(to.x - from.x), -(to.z - from.z));
 }
 
-export function spawnCameraYaw(team: "T" | "CT"): number {
-  const from = SPAWN[team];
-  const to = team === "T" ? SPAWN.CT : SPAWN.T;
+export function spawnCameraYaw(team: "T" | "CT", mapId?: string): number {
+  const id = mapId || getCurrentMapId();
+  const from = resolveTeamSpawn(id, team);
+  const to = resolveTeamSpawn(id, team === "T" ? "CT" : "T");
   return cameraYawTowards(from, to);
 }
 

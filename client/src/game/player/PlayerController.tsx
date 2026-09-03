@@ -8,20 +8,20 @@ import {
 } from '@react-three/rapier'
 import * as THREE from 'three'
 import { KinematicCharacterController } from '@dimforge/rapier3d-compat'
-import { PHYSICS, SPAWN, MAP_OBSTACLES, MAP_BOUNDARY, DUST_MAP_BOUNDARY, isMeleeWeapon, isGrenadeWeapon } from '@cs-game/shared'
-import { spawnCameraYaw } from '../offline/offlineCombat'
+import { PHYSICS, MAP_OBSTACLES, isMeleeWeapon, isGrenadeWeapon } from '@cs-game/shared'
+import { resolveTeamSpawn, spawnCameraYaw } from '../offline/offlineCombat'
 import { TRAINING_ARENA } from '../training/TrainingArena'
-import { SURVIVAL_BOUNDS } from '../zombie/survivalLayout'
-import { L4D_BOUNDS, L4D_SAFE_Z } from '../l4d/l4dLayout'
+import { L4D_SAFE_Z, clampL4DWalkable } from '../l4d/l4dLayout'
 import { updateAudioListener, Sound } from '../../components/AudioManager'
 import { consumeScreenShake } from '../effects/screenShake'
 import { usePlayerInput } from '../../hooks/usePlayerInput'
 import { useGameStore } from '../../stores/useGameStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
-import { getProceduralMapData } from '../map/ProceduralMapRegistry'
 import { useWeaponStore } from '../../stores/useWeaponStore'
 import { useOffline5v5Store } from '../../screens/Offline5v5Store'
 import { useL4DStore } from '../../stores/useL4DStore'
+import { getPlayableBounds } from './playableBounds'
+import { isSprinting, resolveMoveSpeed, stepMoveVelocity } from './movementFeel'
 
 const EYE_HEIGHT_STAND = 0.8
 const EYE_HEIGHT_CROUCH = 0.4
@@ -45,35 +45,6 @@ const _lookEuler = new THREE.Euler()
 
 const POINTER_LOCK_SENSITIVITY = 0.002
 const PITCH_LIMIT = 1.55
-
-// Each mode has its own playable area, so the clamp must follow the mode.
-// Values are inset by the capsule radius so the player never clips a wall.
-type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number }
-
-const DUST_BOUNDS: Bounds = {
-  minX: DUST_MAP_BOUNDARY.minX + 0.8,
-  maxX: DUST_MAP_BOUNDARY.maxX - 0.8,
-  minZ: DUST_MAP_BOUNDARY.minZ + 0.8,
-  maxZ: DUST_MAP_BOUNDARY.maxZ - 0.8,
-}
-
-const MODE_BOUNDS: Record<string, Bounds> = {
-  offline5v5: { minX: MAP_BOUNDARY.minX + 0.8, maxX: MAP_BOUNDARY.maxX - 0.8, minZ: MAP_BOUNDARY.minZ + 0.8, maxZ: MAP_BOUNDARY.maxZ - 0.8 },
-  offline5v5_dust: DUST_BOUNDS,
-  training: {
-    minX: TRAINING_ARENA.minX + 0.8,
-    maxX: TRAINING_ARENA.maxX - 0.8,
-    minZ: TRAINING_ARENA.minZ + 0.8,
-    maxZ: TRAINING_ARENA.maxZ - 0.8,
-  },
-  zombie: { minX: SURVIVAL_BOUNDS.minX, maxX: SURVIVAL_BOUNDS.maxX, minZ: SURVIVAL_BOUNDS.minZ, maxZ: SURVIVAL_BOUNDS.maxZ },
-  l4d: { minX: L4D_BOUNDS.minX, maxX: L4D_BOUNDS.maxX, minZ: L4D_BOUNDS.minZ, maxZ: L4D_BOUNDS.maxZ },
-}
-
-function getBounds(mode: string, mapId?: string): Bounds {
-  if (mode === 'offline5v5' && mapId === 'dust') return MODE_BOUNDS.offline5v5_dust
-  return MODE_BOUNDS[mode] ?? MODE_BOUNDS.offline5v5
-}
 
 // Ray vs AABB slab test for wall jump detection (fixed: inv = 1/d, not d/len)
 function rayVsAABB(
@@ -189,13 +160,9 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
       ]
     }
     const mapId = useGameStore.getState().currentMap || 'container_yard';
-    const proc = getProceduralMapData(mapId);
-    if (proc) {
-      const team = (useOffline5v5Store.getState().players.get('local')?.team ?? 'T') as 'T' | 'CT';
-      const spawn = proc.spawns[team];
-      return [spawn.x, TOTAL_HEIGHT / 2 + 0.01, spawn.z];
-    }
-    return [SPAWN.T.x, TOTAL_HEIGHT / 2 + 0.01, SPAWN.T.z]
+    const team = (useOffline5v5Store.getState().players.get('local')?.team ?? 'T') as 'T' | 'CT';
+    const spawn = resolveTeamSpawn(mapId, team);
+    return [spawn.x, TOTAL_HEIGHT / 2 + 0.01, spawn.z]
   })
 
   const rigidBodyRef = useRef<RapierRigidBody>(null)
@@ -230,40 +197,6 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
 
   // Wall Jump
   const lastWallJumpTime = useRef(0)
-
-  // ADS: hold right mouse button (with guards for reload, switch, and weapon)
-  useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      if (e.button === 2) {
-        const state = useWeaponStore.getState()
-        if (
-          state.activeWeapon &&
-          !state.isReloading &&
-          !state.isSwitching &&
-          !isMeleeWeapon(state.activeWeapon) &&
-          !isGrenadeWeapon(state.activeWeapon)
-        ) {
-          state.setADS(true)
-          if (!grounded.current) {
-            adsPressedInAir.current = true
-          }
-        }
-      }
-    }
-    const handleMouseUp = (e: MouseEvent) => {
-      if (e.button === 2) {
-        useWeaponStore.getState().setADS(false)
-        adsPressedInAir.current = false
-      }
-    }
-
-    window.addEventListener('mousedown', handleMouseDown)
-    window.addEventListener('mouseup', handleMouseUp)
-    return () => {
-      window.removeEventListener('mousedown', handleMouseDown)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [])
 
   // Mouse look keeps its own yaw/pitch so weapon recoil can be layered on top
   // without the recoil kick feeding back into the player's own aim.
@@ -317,7 +250,7 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
 
   useFrame(() => {
     if (!controllerRef.current) {
-      controllerRef.current = world.createCharacterController(0.01)
+      controllerRef.current = world.createCharacterController(mode === 'l4d' ? 0.12 : 0.08)
       controllerRef.current.enableAutostep(0.5, 0.3, true)
       controllerRef.current.enableSnapToGround(1.0)
     }
@@ -346,6 +279,8 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
     // Menus and click-to-play release the pointer lock. Freeze look-driven
     // movement so pause actually pauses instead of letting WASD keep walking.
     if (!document.pointerLockElement) {
+      if (useWeaponStore.getState().isADS) useWeaponStore.getState().setADS(false)
+      adsPressedInAir.current = false
       const rbFrozen = rigidBodyRef.current
       if (rbFrozen) {
         const pos = rbFrozen.translation()
@@ -390,7 +325,8 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
 
       if (mode === 'offline5v5') {
         const team = useOffline5v5Store.getState().players.get("local")?.team ?? 'T'
-        lookYaw.current = spawnCameraYaw(team)
+        const mapId = useGameStore.getState().currentMap || 'container_yard'
+        lookYaw.current = spawnCameraYaw(team, mapId)
         applyLook()
       }
       if (mode === 'l4d') {
@@ -431,12 +367,33 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
 
     const isDiagonal =
       (input.forward || input.backward) && (input.left || input.right)
-    const strafeMult = isDiagonal ? STRAFE_MULT : 1.0
+    const csTactical = mode === 'offline5v5' || mode === 'l4d'
+    const weaponState = useWeaponStore.getState()
+    const canAds = !!(
+      weaponState.activeWeapon &&
+      !weaponState.isReloading &&
+      !weaponState.isSwitching &&
+      !isMeleeWeapon(weaponState.activeWeapon) &&
+      !isGrenadeWeapon(weaponState.activeWeapon)
+    )
+    const wantAds = input.ads && canAds
+    if (wantAds && !grounded.current && !weaponState.isADS) {
+      adsPressedInAir.current = true
+    }
+    if (weaponState.isADS !== wantAds) weaponState.setADS(wantAds)
 
-    // Determine speed
-    let targetSpeed: number = WALK_SPEED
-    if (input.sprint) targetSpeed = SPRINT_SPEED
-    if (input.crouch) targetSpeed = PHYSICS.crouchSpeed as number
+    const moving = direction.lengthSq() > 0.001
+    const sprinting = isSprinting(input.sprint, moving, wantAds, input.crouch)
+    const strafeMult = !csTactical && isDiagonal ? STRAFE_MULT : 1.0
+
+    let targetSpeed = resolveMoveSpeed({
+      walkSpeed: WALK_SPEED,
+      sprintSpeed: SPRINT_SPEED,
+      crouchSpeed: PHYSICS.crouchSpeed as number,
+      sprinting,
+      crouching: input.crouch,
+      aiming: wantAds,
+    })
 
     const l4dSpeed = mode === "l4d" ? useL4DStore.getState().survivors[0]?.speed : undefined;
     if (l4dSpeed) {
@@ -460,44 +417,22 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
       targetSpeed = THREE.MathUtils.lerp(SPRINT_SPEED, slideEndSpeed, slideProgress)
     }
 
-    // 5v5 is CS-like: walk / sprint / crouch / jump only. Parkour stays in training.
-    const csTactical = mode === 'offline5v5' || mode === 'l4d'
-
-    // Calculate desired velocity XZ with smoother acceleration / deceleration
-    const desiredMove = new THREE.Vector2()
-    if (direction.lengthSq() > 0.001) {
-      direction.normalize()
-      desiredMove.set(
-        direction.x * targetSpeed * strafeMult,
-        direction.z * targetSpeed * strafeMult
-      )
-      const accel = grounded.current ? (csTactical ? 16 : 10) : (csTactical ? 3 : 5)
-      moveVelocityRef.current.lerp(desiredMove, 1 - Math.exp(-accel * dt))
-    } else {
-      const decel = grounded.current ? (csTactical ? 18 : 14) : 6
-      moveVelocityRef.current.lerp(
-        new THREE.Vector2(0, 0),
-        1 - Math.exp(-decel * dt)
-      )
-    }
+    // Calculate desired velocity XZ. Accel and stop are one lerp — extra
+    // friction on top of that was capping walk well below the authored speed.
+    if (moving) direction.normalize()
+    const desiredX = moving ? direction.x * targetSpeed * strafeMult : 0
+    const desiredZ = moving ? direction.z * targetSpeed * strafeMult : 0
+    const nextVel = stepMoveVelocity(
+      moveVelocityRef.current.x,
+      moveVelocityRef.current.y,
+      desiredX,
+      desiredZ,
+      dt,
+      grounded.current,
+      csTactical,
+    )
+    moveVelocityRef.current.set(nextVel.x, nextVel.z)
     velocityXZ.copy(moveVelocityRef.current)
-
-    // Apply friction — always when grounded (Physics Bible Table 4.2); air = 0
-    let friction: number = PHYSICS.friction.walk
-    if (input.sprint) friction = PHYSICS.friction.sprint
-    if (slideState.current.active) friction = PHYSICS.friction.slide
-    if (!grounded.current) friction = PHYSICS.friction.air
-
-    if (friction > 0 && grounded.current) {
-      const frictionFactor = Math.max(0, 1 - friction * dt)
-      velocityXZ.multiplyScalar(frictionFactor)
-      moveVelocityRef.current.multiplyScalar(frictionFactor)
-    }
-
-    if (velocityXZ.length() < 0.06) {
-      velocityXZ.set(0, 0)
-      moveVelocityRef.current.set(0, 0)
-    }
 
     // Air strafing
     if (!csTactical && !grounded.current && direction.lengthSq() > 0.001) {
@@ -659,7 +594,8 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
       }
     }
 
-    if (!input.jump && velocityY.current > 0) {
+    // Variable jump height stays in training. 5v5 / L4D keep a full tap-jump.
+    if (!csTactical && !input.jump && velocityY.current > 0) {
       velocityY.current *= 0.88
     }
 
@@ -712,9 +648,18 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
 
     // Keep the player inside the playable area of the current mode
     const currentMap = useGameStore.getState().currentMap
-    const bounds = getBounds(mode, currentMap)
+    const bounds = getPlayableBounds(mode, currentMap)
     _currentPos.x = THREE.MathUtils.clamp(_currentPos.x, bounds.minX, bounds.maxX)
     _currentPos.z = THREE.MathUtils.clamp(_currentPos.z, bounds.minZ, bounds.maxZ)
+    if (mode === 'l4d') {
+      const walked = clampL4DWalkable(
+        _currentPos.x,
+        _currentPos.z,
+        useL4DStore.getState().unlockedZones,
+      )
+      _currentPos.x = walked.x
+      _currentPos.z = walked.z
+    }
 
     // Ground detection
     if (velocityY.current > 0) {
@@ -753,7 +698,7 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
       backward: input.backward,
       left: input.left,
       right: input.right,
-      sprint: input.sprint,
+      sprint: sprinting,
       slide: slideState.current.active,
       airborne: !grounded.current,
     })
@@ -777,7 +722,7 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
     // Smooth camera height transition — dt-based (frame-rate independent)
     const bobOffset =
       grounded.current && speed > 0.5 && !slideState.current.active
-        ? Math.sin(headBob.current) * (input.sprint ? 0.045 : 0.03)
+        ? Math.sin(headBob.current) * (sprinting ? 0.045 : 0.03)
         : 0
     camera.position.y = THREE.MathUtils.lerp(
       camera.position.y,
@@ -785,29 +730,26 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
       1 - Math.exp(-12 * dt)
     )
 
-    // Smooth FOV transition: AWP=22 (sniper scope), Rifles=46 (optic zoom), Pistols=54, Sprint=80, Normal=75
-    const weaponState = useWeaponStore.getState()
-    const isAiming = input.ads || weaponState.isADS
-    const targetFov = isAiming
+    const targetFov = wantAds
       ? (weaponState.activeWeapon === 'awp'
           ? 22
           : weaponState.activeWeapon === 'ak47' || weaponState.activeWeapon === 'm4a1' || weaponState.activeWeapon === 'mp5'
-          ? 46
-          : 54)
-      : input.sprint ? 80 : 75
+          ? 52
+          : 58)
+      : sprinting ? 78 : 75
     if (camera instanceof THREE.PerspectiveCamera) {
-      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-12 * dt))
+      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-18 * dt))
       camera.updateProjectionMatrix()
     }
 
     // Head bobbing
     if (grounded.current && speed > 0.5 && !slideState.current.active) {
-      const bobSpeed = input.sprint ? 12 : 6
+      const bobSpeed = sprinting ? 12 : 6
       headBob.current += dt * bobSpeed
       const phase = Math.sin(headBob.current)
       if (phase > 0.85 && footstepReady.current) {
         footstepReady.current = false
-        Sound.footstep(input.sprint ? 'sprint' : input.crouch ? 'crouch' : 'walk')
+        Sound.footstep(sprinting ? 'sprint' : input.crouch ? 'crouch' : 'walk')
       } else if (phase < 0) {
         footstepReady.current = true
       }
@@ -855,6 +797,9 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
           if (d > 1.4) {
             _currentPos.x += (dx / d) * 2.5 * dt
             _currentPos.z += (dz / d) * 2.5 * dt
+            const walked = clampL4DWalkable(_currentPos.x, _currentPos.z, st.unlockedZones)
+            _currentPos.x = walked.x
+            _currentPos.z = walked.z
             rb.setNextKinematicTranslation({ x: _currentPos.x, y: _currentPos.y, z: _currentPos.z })
             camera.position.x = _currentPos.x
             camera.position.z = _currentPos.z
