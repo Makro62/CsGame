@@ -1,6 +1,5 @@
 import { useMemo, useRef, useEffect } from "react";
 import * as THREE from "three";
-import { RigidBody, CuboidCollider } from "@react-three/rapier";
 import { SURVIVAL_BARRICADES, getSurvivalObstacles } from "./survivalLayout";
 import { BarricadeWindow } from "./interactives/BarricadeWindow";
 import { useZombieStore } from "../../stores/useZombieStore";
@@ -49,20 +48,17 @@ function FlickeringNeonLight({ position, color = "#a0e8ff" }: { position: [numbe
   const lightRef = useRef<THREE.PointLight>(null);
 
   useEffect(() => {
-    let raf = 0;
-    const flicker = () => {
+    const interval = setInterval(() => {
       if (lightRef.current) {
-        lightRef.current.intensity = Math.random() > 0.08 ? 1.8 : 0.15;
+        lightRef.current.intensity = Math.random() > 0.08 ? 1.6 : 0.4;
       }
-      raf = requestAnimationFrame(flicker);
-    };
-    flicker();
-    return () => cancelAnimationFrame(raf);
+    }, 150);
+    return () => clearInterval(interval);
   }, []);
 
   return (
     <group position={position}>
-      <pointLight ref={lightRef} color={color} distance={14} intensity={1.5} castShadow />
+      <pointLight ref={lightRef} color={color} distance={14} intensity={1.5} />
       <mesh>
         <boxGeometry args={[1.5, 0.1, 0.1]} />
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} />
@@ -74,20 +70,14 @@ function FlickeringNeonLight({ position, color = "#a0e8ff" }: { position: [numbe
 function Catwalk() {
   return (
     <group>
-      <RigidBody type="fixed" position={[0, 3, -10]} colliders={false}>
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[12, 0.2, 3]} />
-          <meshStandardMaterial color="#2a3441" metalness={0.6} roughness={0.4} />
-        </mesh>
-        <CuboidCollider args={[6, 0.1, 1.5]} />
-      </RigidBody>
-      <RigidBody type="fixed" position={[0, 1.5, -6]} rotation={[0, 0, 0]} colliders={false}>
-        <mesh castShadow rotation={[Math.PI / 6, 0, 0]}>
-          <boxGeometry args={[1.2, 3, 0.2]} />
-          <meshStandardMaterial color="#3a4556" metalness={0.5} />
-        </mesh>
-        <CuboidCollider args={[0.6, 1.5, 0.2]} rotation={[Math.PI / 6, 0, 0]} />
-      </RigidBody>
+      <mesh castShadow receiveShadow position={[0, 3, -10]}>
+        <boxGeometry args={[12, 0.2, 3]} />
+        <meshStandardMaterial color="#2a3441" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh castShadow position={[0, 1.5, -6]} rotation={[Math.PI / 6, 0, 0]}>
+        <boxGeometry args={[1.2, 3, 0.2]} />
+        <meshStandardMaterial color="#3a4556" metalness={0.5} />
+      </mesh>
     </group>
   );
 }
@@ -366,7 +356,7 @@ function HelipadProps() {
       })}
 
       {/* Powerful Helipad Floodlights */}
-      <pointLight position={[0, 9, 0]} color="#fef08a" distance={35} intensity={2.8} castShadow />
+      <pointLight position={[0, 9, 0]} color="#fef08a" distance={35} intensity={2.8} />
 
       {/* Sandbag Fortification Barriers */}
       <mesh position={[-12, 0.8, -8]} castShadow receiveShadow>
@@ -489,7 +479,7 @@ export function SurvivalArena() {
       {/* Sector 1 Courtyard Lights */}
       <FlickeringNeonLight position={[-10, 3, 8]} color={isHorde ? "#ff0000" : "#38bdf8"} />
       <FlickeringNeonLight position={[10, 3, 8]} color={isHorde ? "#ff0000" : "#f59e0b"} />
-      <pointLight position={[0, 8, 8]} intensity={isHorde ? 1.8 : 2.5} distance={38} color={isHorde ? "#ef4444" : "#f1f5f9"} castShadow />
+      <pointLight position={[0, 8, 8]} intensity={isHorde ? 1.8 : 2.5} distance={38} color={isHorde ? "#ef4444" : "#f1f5f9"} />
       <pointLight position={[0, 4.5, 18]} intensity={1.2} distance={20} color="#bae6fd" />
 
       {/* Sector 2 Lab Lights */}

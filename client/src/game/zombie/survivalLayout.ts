@@ -246,6 +246,9 @@ export const STAGE3_OBSTACLES: SurvivalObstacle[] = [
   crate(8, -72, 1.0),
 ];
 
+let _cachedObsKey = "";
+let _cachedObsList: SurvivalObstacle[] = [];
+
 export function getSurvivalObstacles(
   unlockedDoors: string[] = [],
   gate1Open?: boolean,
@@ -263,6 +266,9 @@ export function getSurvivalObstacles(
       if (g2 === undefined) g2 = false;
     }
   }
+
+  const key = `${unlockedDoors.join(",")}|${g1}|${g2}`;
+  if (key === _cachedObsKey && _cachedObsList.length > 0) return _cachedObsList;
 
   let obs = [...SURVIVAL_OBSTACLES];
   if (unlockedDoors.includes("door_lab")) obs = obs.concat(LAB_OBSTACLES);
@@ -288,18 +294,13 @@ export function getSurvivalObstacles(
     obs = obs.concat(STAGE3_OBSTACLES);
   }
 
+  _cachedObsKey = key;
+  _cachedObsList = obs;
   return obs;
 }
 
 export function pushOutSurvival(x: number, z: number, radius: number, obstacles?: SurvivalObstacle[]): { x: number; z: number } {
-  const obsList = obstacles ?? (() => {
-    try {
-      const s = useZombieStore.getState();
-      return getSurvivalObstacles(s.unlockedDoors, s.gate1Open, s.gate2Open);
-    } catch {
-      return SURVIVAL_OBSTACLES;
-    }
-  })();
+  const obsList = obstacles ?? getSurvivalObstacles();
   let px = x;
   let pz = z;
   for (const obs of obsList) {
@@ -317,6 +318,63 @@ export function pushOutSurvival(x: number, z: number, radius: number, obstacles?
     }
   }
   return { x: px, z: pz };
+}
+
+/**
+ * Axis-separated sliding move against obstacles.
+ * Prevents getting stuck when running diagonally into walls or corners.
+ */
+export function slideMoveSurvival(
+  x: number,
+  z: number,
+  vx: number,
+  vz: number,
+  dt: number,
+  radius: number,
+  obstacles?: SurvivalObstacle[],
+): { x: number; z: number; vx: number; vz: number } {
+  const obsList = obstacles ?? getSurvivalObstacles();
+  let px = x + vx * dt;
+  let pz = z;
+  let outVx = vx;
+  let outVz = vz;
+
+  // 1. Resolve X movement
+  for (const obs of obsList) {
+    const cx = Math.max(obs.minX, Math.min(px, obs.maxX));
+    const cz = Math.max(obs.minZ, Math.min(pz, obs.maxZ));
+    const dx = px - cx;
+    const dz = pz - cz;
+    const dist = Math.hypot(dx, dz);
+    if (dist < radius) {
+      if (dist > 1e-5) {
+        px += (dx / dist) * (radius - dist);
+      } else {
+        px = vx >= 0 ? obs.minX - radius : obs.maxX + radius;
+      }
+      outVx = 0;
+    }
+  }
+
+  // 2. Resolve Z movement
+  pz = z + vz * dt;
+  for (const obs of obsList) {
+    const cx = Math.max(obs.minX, Math.min(px, obs.maxX));
+    const cz = Math.max(obs.minZ, Math.min(pz, obs.maxZ));
+    const dx = px - cx;
+    const dz = pz - cz;
+    const dist = Math.hypot(dx, dz);
+    if (dist < radius) {
+      if (dist > 1e-5) {
+        pz += (dz / dist) * (radius - dist);
+      } else {
+        pz = vz >= 0 ? obs.minZ - radius : obs.maxZ + radius;
+      }
+      outVz = 0;
+    }
+  }
+
+  return { x: px, z: pz, vx: outVx, vz: outVz };
 }
 
 function slabEnter(

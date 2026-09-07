@@ -6,16 +6,17 @@ import { useZombieStore } from "../../stores/useZombieStore";
 import { useGameStore } from "../../stores/useGameStore";
 import { useHeroStore } from "../../stores/useHeroStore";
 import { useAimStore } from "../../stores/useAimStore";
+import { useSettingsStore } from "../../stores/useSettingsStore";
 import { zombieEngine } from "../zombie/ZombieEngine";
 import { useWeaponStore } from "../../stores/useWeaponStore";
 import { MinecraftCharacter, weaponCategoryFromId } from "../characterWeaponKit";
-import { getSurvivalStageBounds, pushOutSurvival } from "../zombie/survivalLayout";
+import { getSurvivalStageBounds, slideMoveSurvival } from "../zombie/survivalLayout";
 import { arcadeScreenMove } from "./arcadeScreenMove";
 import { consumeScreenShake } from "../effects/screenShake";
 import { Sound } from "../../components/AudioManager";
 
-const BASE_WALK_SPEED = 5.4;
-const BASE_SPRINT_SPEED = 8.4;
+const BASE_WALK_SPEED = 6.2;
+const BASE_SPRINT_SPEED = 9.2;
 const PLAYER_RADIUS = 0.55;
 
 const _tGround = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -29,6 +30,7 @@ export function ZombieArcadeController() {
   const { camera, pointer, raycaster, size } = useThree();
   const { getInput } = usePlayerInput();
   const posRef = useRef(new THREE.Vector3(0, 0, 0));
+  const velRef = useRef({ x: 0, z: 0 });
   const yawRef = useRef(0);
   const pitchRef = useRef(0);
   const yawTargetRef = useRef(0);
@@ -48,15 +50,17 @@ export function ZombieArcadeController() {
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!document.pointerLockElement) return;
+      const sens = useSettingsStore.getState().sensitivity ?? 1;
       if (useZombieStore.getState().cameraPerspective === "fps") {
-        yawRef.current -= e.movementX * 0.0024;
-        pitchRef.current = THREE.MathUtils.clamp(pitchRef.current - e.movementY * 0.0024, -1.35, 1.35);
+        yawRef.current -= e.movementX * 0.0022 * sens;
+        pitchRef.current = THREE.MathUtils.clamp(pitchRef.current - e.movementY * 0.0022 * sens, -1.35, 1.35);
         return;
       }
       const nx = size.width || window.innerWidth;
       const ny = size.height || window.innerHeight;
-      lockedNdc.current.x = THREE.MathUtils.clamp(lockedNdc.current.x + e.movementX / (nx * 0.5), -0.98, 0.98);
-      lockedNdc.current.y = THREE.MathUtils.clamp(lockedNdc.current.y - e.movementY / (ny * 0.5), -0.98, 0.98);
+      const speedScale = 1.25 * sens;
+      lockedNdc.current.x = THREE.MathUtils.clamp(lockedNdc.current.x + (e.movementX * speedScale) / (nx * 0.5), -0.98, 0.98);
+      lockedNdc.current.y = THREE.MathUtils.clamp(lockedNdc.current.y - (e.movementY * speedScale) / (ny * 0.5), -0.98, 0.98);
       useAimStore.getState().setCursorNdc(lockedNdc.current.x, lockedNdc.current.y);
     };
     const onLock = () => {
@@ -106,7 +110,8 @@ export function ZombieArcadeController() {
         Math.sin(yawTargetRef.current - yawRef.current),
         Math.cos(yawTargetRef.current - yawRef.current),
       );
-      yawRef.current += deltaYaw * (1 - Math.exp(-16 * dt));
+      // Snappier rotation tracking (28 * dt)
+      yawRef.current += deltaYaw * (1 - Math.exp(-28 * dt));
     }
 
     const move = isFps
@@ -124,29 +129,49 @@ export function ZombieArcadeController() {
       : arcadeScreenMove(input.forward, input.backward, input.left, input.right);
 
     _tMove.set(move.x, 0, move.z);
-    const lenSq = _tMove.lengthSq();
-    motionRef.current.moving = lenSq > 0;
-    motionRef.current.sprinting = input.sprint && lenSq > 0;
 
     const speedFactor = hero.stats.speed / 5.4;
-    const speed = input.sprint ? BASE_SPRINT_SPEED * speedFactor : BASE_WALK_SPEED * speedFactor;
-    posRef.current.x += _tMove.x * speed * dt;
-    posRef.current.z += _tMove.z * speed * dt;
-    if (lenSq > 0) {
-      stepAccum.current += speed * dt;
-      if (stepAccum.current > (input.sprint ? 1.6 : 2.1)) {
-        stepAccum.current = 0;
-        Sound.footstep(input.sprint ? "sprint" : "walk");
-      }
-    }
+    const targetSpeed = input.sprint ? BASE_SPRINT_SPEED * speedFactor : BASE_WALK_SPEED * speedFactor;
+    const targetVx = move.x * targetSpeed;
+    const targetVz = move.z * targetSpeed;
+
+    // Smooth velocity with responsive acceleration & friction dampening
+    const accelDamp = 1 - Math.exp(-20 * dt);
+    velRef.current.x = THREE.MathUtils.lerp(velRef.current.x, targetVx, accelDamp);
+    velRef.current.z = THREE.MathUtils.lerp(velRef.current.z, targetVz, accelDamp);
+    if (Math.abs(velRef.current.x) < 0.001) velRef.current.x = 0;
+    if (Math.abs(velRef.current.z) < 0.001) velRef.current.z = 0;
+
+    // Smooth axis-separated sliding against obstacles (no snagging on walls/corners)
+    const moved = slideMoveSurvival(
+      posRef.current.x,
+      posRef.current.z,
+      velRef.current.x,
+      velRef.current.z,
+      dt,
+      PLAYER_RADIUS,
+    );
+    posRef.current.x = moved.x;
+    posRef.current.z = moved.z;
+    velRef.current.x = moved.vx;
+    velRef.current.z = moved.vz;
 
     const stageBounds = getSurvivalStageBounds(unlockedStages);
     posRef.current.x = THREE.MathUtils.clamp(posRef.current.x, stageBounds.minX, stageBounds.maxX);
     posRef.current.z = THREE.MathUtils.clamp(posRef.current.z, stageBounds.minZ, stageBounds.maxZ);
 
-    const pushed = pushOutSurvival(posRef.current.x, posRef.current.z, PLAYER_RADIUS);
-    posRef.current.x = pushed.x;
-    posRef.current.z = pushed.z;
+    const currentSpeedSq = velRef.current.x * velRef.current.x + velRef.current.z * velRef.current.z;
+    motionRef.current.moving = currentSpeedSq > 0.08;
+    motionRef.current.sprinting = input.sprint && currentSpeedSq > 0.08;
+
+    const curSpeed = Math.sqrt(currentSpeedSq);
+    if (curSpeed > 0.3) {
+      stepAccum.current += curSpeed * dt;
+      if (stepAccum.current > (input.sprint ? 1.5 : 2.0)) {
+        stepAccum.current = 0;
+        Sound.footstep(input.sprint ? "sprint" : "walk");
+      }
+    }
 
     zombieEngine.setPlayerPos(posRef.current.x, posRef.current.y, posRef.current.z);
 
@@ -167,12 +192,12 @@ export function ZombieArcadeController() {
         groupRef.current.visible = false;
       }
     } else {
-      const camLag = 1 - Math.exp(-9 * dt);
+      const camLag = 1 - Math.exp(-12 * dt);
       camera.position.x = THREE.MathUtils.lerp(camera.position.x, posRef.current.x, camLag);
       camera.position.y = THREE.MathUtils.lerp(camera.position.y, 22, camLag);
       camera.position.z = THREE.MathUtils.lerp(camera.position.z, posRef.current.z + 11, camLag);
-      camera.position.x += shake.x * 3;
-      camera.position.y += shake.y * 2;
+      camera.position.x += shake.x * 2;
+      camera.position.y += shake.y * 1.5;
       camera.lookAt(posRef.current.x, 0.45, posRef.current.z);
 
       const sin = Math.sin(yawRef.current);
