@@ -18,7 +18,7 @@ interface StubNetworkState {
   sendDefuseStart: () => void;
   sendDefuseCancel: () => void;
   sendPickupBomb: () => void;
-  sendSwitchWeapon: () => void;
+  sendSwitchWeapon: (slot?: number) => void;
   sendMelee: () => void;
   sendThrowGrenade: (payload?: unknown) => void;
   sendFFVote: () => void;

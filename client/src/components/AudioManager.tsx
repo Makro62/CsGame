@@ -100,7 +100,7 @@ function playTone(freq: number, duration: number, volume: number, type: Oscillat
 }
 
 export const Sound = {
-  gunshot(weapon: string) {
+  gunshot(weapon: string, isOccluded = false) {
     const volumes: Record<string, number> = {
       ak47: 0.7,
       m4a1: 0.55,
@@ -137,10 +137,11 @@ export const Sound = {
       knife: 0.03,
       combatknife: 0.03,
     }
-    const v = (volumes[weapon] ?? 0.5) * getEffectiveVolume()
-    const f = freqs[weapon] ?? 3000
+    const occVol = isOccluded ? 0.45 : 1.0
+    const occFreq = isOccluded ? 650 : (freqs[weapon] ?? 3000)
+    const v = (volumes[weapon] ?? 0.5) * getEffectiveVolume() * occVol
     const d = durations[weapon] ?? 0.05
-    playNoise(d, v, f)
+    playNoise(d, v, occFreq)
     // Add a tonal punch for heavier weapons
     if (weapon === 'awp' || weapon === 'deagle') {
       playTone(150, d, v * 0.4, 'sine')
@@ -269,10 +270,12 @@ export const Sound = {
     playTone(240, 0.05, 0.2 * vol, 'triangle')
   },
 
-  footstep(type: 'walk' | 'sprint' | 'crouch' = 'walk') {
-    const vol = getEffectiveVolume()
+  footstep(type: 'walk' | 'sprint' | 'crouch' = 'walk', isOccluded = false) {
+    const occVol = isOccluded ? 0.4 : 1.0
+    const vol = getEffectiveVolume() * occVol
     const baseVol = type === 'sprint' ? 0.15 : type === 'crouch' ? 0.05 : 0.1
-    const freq = type === 'sprint' ? 800 : type === 'crouch' ? 400 : 600
+    const baseFreq = type === 'sprint' ? 800 : type === 'crouch' ? 400 : 600
+    const freq = isOccluded ? Math.min(baseFreq, 380) : baseFreq
     const duration = type === 'sprint' ? 0.04 : type === 'crouch' ? 0.06 : 0.05
     playNoise(duration, baseVol * vol, freq)
   },

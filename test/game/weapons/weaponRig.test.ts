@@ -26,9 +26,12 @@ describe("weaponRig", () => {
     expect(WEAPON_ROTATIONS).toHaveProperty("knife");
   });
 
-  it("ADS_ROTATIONS has all weapons", () => {
+  it("ADS_ROTATIONS has all weapons aligned to [0, 0, 0] for straight sightlines", () => {
     expect(ADS_ROTATIONS).toHaveProperty("ak47");
     expect(ADS_ROTATIONS).toHaveProperty("awp");
+    expect(ADS_ROTATIONS.ak47).toEqual([0, 0, 0]);
+    expect(ADS_ROTATIONS.m4a1).toEqual([0, 0, 0]);
+    expect(ADS_ROTATIONS.deagle).toEqual([0, 0, 0]);
   });
 
   describe("getADSPosition", () => {

@@ -7,7 +7,11 @@ import {
 } from "../game/weapons/RecoilController";
 
 export function Crosshair() {
-  const { activeWeapon, isReloading, isSwitching, isADS, bulletsFired } = useWeaponStore();
+  const activeWeapon = useWeaponStore((s) => s.activeWeapon);
+  const isReloading = useWeaponStore((s) => s.isReloading);
+  const isSwitching = useWeaponStore((s) => s.isSwitching);
+  const isADS = useWeaponStore((s) => s.isADS);
+  const bulletsFired = useWeaponStore((s) => s.bulletsFired);
   const lastInput = useGameStore((s) => s.lastInput);
   const { crosshairColor, crosshairSize, crosshairStyle } = useSettingsStore();
 

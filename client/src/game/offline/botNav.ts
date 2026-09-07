@@ -202,6 +202,21 @@ function goalChanged(st: FollowState, goal: Point2D): boolean {
   return Math.hypot(st.gx - goal.x, st.gz - goal.z) > 1.2;
 }
 
+function applyFlankSpread(id: string, wp: Point2D, goal: Point2D): Point2D {
+  const hash = id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const factor = ((hash % 5) - 2) * 0.45; // -0.9m .. +0.9m tactical flanking spread
+  if (Math.abs(factor) < 0.1) return wp;
+  const dx = goal.x - wp.x;
+  const dz = goal.z - wp.z;
+  const len = Math.hypot(dx, dz);
+  if (len < 1.0) return wp;
+  const px = (-dz / len) * factor;
+  const pz = (dx / len) * factor;
+  const flanked = { x: wp.x + px, z: wp.z + pz };
+  if (isPointBlocked(flanked)) return wp;
+  return flanked;
+}
+
 /**
  * Walk `id` toward `goal` along a cached grid path.
  * Repaths if the destination moved or the bot has been stuck against a wall.
@@ -236,7 +251,8 @@ export function navigateTo(
     else break;
   }
 
-  const wp = st.path[Math.min(st.i, st.path.length - 1)] ?? goal;
+  const rawWp = st.path[Math.min(st.i, st.path.length - 1)] ?? goal;
+  const wp = applyFlankSpread(id, rawWp, goal);
   const next = stepToward(origin, wp, speed, dt);
   const moved = Math.hypot(next.x - st.lastX, next.z - st.lastZ);
   if (moved < 0.04) st.stuck += dt;

@@ -72,18 +72,18 @@ const ADS_DEPTH: Record<string, number> = {
 }
 
 /**
- * Natural tactical ADS rotations.
- * A slight pitch, yaw, and roll gives the weapon authentic 3D perspective and specular depth.
+ * Precision ADS rotations: aligned straight along the camera bore axis [0, 0, 0]
+ * so iron sights and optics center perfectly on the crosshair.
  */
 export const ADS_ROTATIONS: Record<string, [number, number, number]> = {
-  ak47: [0.012, -0.015, -0.024],
-  m4a1: [0.010, -0.012, -0.020],
-  mp5: [0.010, -0.012, -0.020],
-  arccaster: [0.008, -0.010, -0.018],
-  deagle: [0.018, -0.016, -0.035],
-  glock: [0.016, -0.014, -0.030],
-  tec9: [0.016, -0.014, -0.030],
-  autopistol: [0.016, -0.014, -0.030],
+  ak47: [0, 0, 0],
+  m4a1: [0, 0, 0],
+  mp5: [0, 0, 0],
+  arccaster: [0, 0, 0],
+  deagle: [0, 0, 0],
+  glock: [0, 0, 0],
+  tec9: [0, 0, 0],
+  autopistol: [0, 0, 0],
   awp: [0, 0, 0],
 }
 

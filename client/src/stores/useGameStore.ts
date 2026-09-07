@@ -60,6 +60,15 @@ interface GameState {
   setBotDifficulty: (diff: number) => void
   setBotCount: (count: number) => void
   setLastInput: (input: PlayerInputState | null) => void
+  updateLastInput: (
+    forward: boolean,
+    backward: boolean,
+    left: boolean,
+    right: boolean,
+    sprint: boolean,
+    slide: boolean,
+    airborne: boolean
+  ) => void
   setSpectatorTargetIndex: (index: number) => void
   addTarget: (target: Target) => void
   removeTarget: (id: string) => void
@@ -129,8 +138,58 @@ export const useGameStore = create<GameState>()((set, get) => {
       set({ botCount: Math.max(1, Math.min(5, count)) })
     },
 
+    updateLastInput: (
+      forward: boolean,
+      backward: boolean,
+      left: boolean,
+      right: boolean,
+      sprint: boolean,
+      slide: boolean,
+      airborne: boolean
+    ) => {
+      const current = get().lastInput;
+      if (
+        current &&
+        current.forward === forward &&
+        current.backward === backward &&
+        current.left === left &&
+        current.right === right &&
+        current.sprint === sprint &&
+        current.slide === slide &&
+        current.airborne === airborne
+      ) {
+        return;
+      }
+      if (current) {
+        current.forward = forward;
+        current.backward = backward;
+        current.left = left;
+        current.right = right;
+        current.sprint = sprint;
+        current.slide = slide;
+        current.airborne = airborne;
+        set({ lastInput: current });
+      } else {
+        set({
+          lastInput: { forward, backward, left, right, sprint, slide, airborne },
+        });
+      }
+    },
+
     setLastInput: (input: PlayerInputState | null) => {
-      set({ lastInput: input })
+      if (!input) {
+        if (get().lastInput !== null) set({ lastInput: null });
+        return;
+      }
+      get().updateLastInput(
+        input.forward,
+        input.backward,
+        input.left,
+        input.right,
+        input.sprint,
+        input.slide,
+        input.airborne
+      );
     },
 
     setSpectatorTargetIndex: (index: number) => {

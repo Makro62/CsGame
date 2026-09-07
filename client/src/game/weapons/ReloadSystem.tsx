@@ -38,6 +38,9 @@ export function ReloadSystem() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "KeyR" && activeWeapon && !isReloading) {
+        const mode = useGameStore.getState().mode;
+        if (mode === "offline5v5" && useOffline5v5Store.getState().players.get("local")?.isDead) return;
+        if (mode === "zombie" && (useZombieStore.getState().player.hp <= 0 || useZombieStore.getState().player.isDowned)) return;
         const stats = WEAPONS[activeWeapon];
         const { reserveAmmo, infiniteAmmo } = useWeaponStore.getState();
         if (stats && stats.reload > 0 && currentAmmo < maxAmmo && (infiniteAmmo || reserveAmmo > 0)) {

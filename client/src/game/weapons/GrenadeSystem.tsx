@@ -6,6 +6,8 @@ import { GRENADE } from "@cs-game/shared";
 import { useNetworkStore } from "../../stores/useNetworkStore";
 import { useWeaponStore } from "../../stores/useWeaponStore";
 import { useGameStore } from "../../stores/useGameStore";
+import { useOffline5v5Store } from "../../screens/Offline5v5Store";
+import { useZombieStore } from "../../stores/useZombieStore";
 import { gameEvents } from "../../lib/gameEvents";
 import { Sound } from "../../components/AudioManager";
 import { triggerScreenShake } from "../effects/screenShake";
@@ -175,6 +177,9 @@ export function GrenadeSystem() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === "KeyG" && !charging.current) {
+        const mode = useGameStore.getState().mode;
+        if (mode === "offline5v5" && useOffline5v5Store.getState().players.get("local")?.isDead) return;
+        if (mode === "zombie" && (useZombieStore.getState().player.hp <= 0 || useZombieStore.getState().player.isDowned)) return;
         charging.current = true;
         charge.current = 0;
         setChargingState(true);
@@ -186,6 +191,9 @@ export function GrenadeSystem() {
       if (e.code === "KeyG" && charging.current) {
         charging.current = false;
         setChargingState(false);
+        const mode = useGameStore.getState().mode;
+        if (mode === "offline5v5" && useOffline5v5Store.getState().players.get("local")?.isDead) return;
+        if (mode === "zombie" && (useZombieStore.getState().player.hp <= 0 || useZombieStore.getState().player.isDowned)) return;
         const { sendThrowGrenade } = useNetworkStore.getState();
         const { grenadeType } = useWeaponStore.getState();
 

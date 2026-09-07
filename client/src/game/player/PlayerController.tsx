@@ -264,6 +264,9 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
 
     if (effectiveIsDead) {
       // Offline death cam: freeze at death spot (no network killcam/spectator).
+      if (useWeaponStore.getState().isADS) {
+        useWeaponStore.getState().setADS(false);
+      }
       const rbDead = rigidBodyRef.current
       if (rbDead) {
         const pos = rbDead.translation()
@@ -688,16 +691,16 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
       adsPressedInAir.current = false
     }
 
-    // Update last input for weapon sway and spread
-    useGameStore.getState().setLastInput({
-      forward: input.forward,
-      backward: input.backward,
-      left: input.left,
-      right: input.right,
-      sprint: sprinting,
-      slide: slideState.current.active,
-      airborne: !grounded.current,
-    })
+    // Update last input for weapon sway and spread without GC allocations
+    useGameStore.getState().updateLastInput(
+      input.forward,
+      input.backward,
+      input.left,
+      input.right,
+      sprinting,
+      slideState.current.active,
+      !grounded.current
+    )
 
     // Update position
     rb.setNextKinematicTranslation({

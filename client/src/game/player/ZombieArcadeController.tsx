@@ -76,10 +76,15 @@ export function ZombieArcadeController() {
 
   useFrame((_, dt) => {
     const input = getInput();
-    useGameStore.getState().setLastInput({
-      forward: input.forward, backward: input.backward, left: input.left, right: input.right,
-      sprint: input.sprint, slide: false, airborne: false,
-    });
+    useGameStore.getState().updateLastInput(
+      input.forward,
+      input.backward,
+      input.left,
+      input.right,
+      input.sprint,
+      false,
+      false
+    );
 
     if (isDead) return;
 

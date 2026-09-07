@@ -261,17 +261,11 @@ function recycleShellCasing(mesh: THREE.Mesh) {
 
 export function ShootingSystem() {
   const { camera, scene } = useThree();
-  const {
-    activeWeapon,
-    isADS,
-    bulletsFired,
-    canFire,
-    updateRecoil,
-    setRecoilAim,
-    incrementBullets,
-    setLastFireTime,
-  } = useWeaponStore();
-  const { sensitivity } = useSettingsStore();
+  const activeWeapon = useWeaponStore((s) => s.activeWeapon);
+  const isADS = useWeaponStore((s) => s.isADS);
+  const sensitivity = useSettingsStore((s) => s.sensitivity);
+
+  const fovPunch = useRef(0);
 
   const recoilController = useRef<RecoilController | null>(null);
   const lastWeapon = useRef<string | null>(null);
@@ -502,6 +496,8 @@ export function ShootingSystem() {
           gameEvents.emit("hitMarker", { headshot: false, killed });
         }
       } else if (gameMode === "offline5v5") {
+        const me = useOffline5v5Store.getState().players.get("local");
+        if (!me || me.isDead) return;
         let current: THREE.Object3D | null = hit?.object ?? null;
         let targetId: string | null = null;
         while (current) {
@@ -517,17 +513,28 @@ export function ShootingSystem() {
         // offline: no network melee
       }
 
-      incrementBullets();
-      setLastFireTime(performance.now());
+      useWeaponStore.getState().incrementBullets();
+      useWeaponStore.getState().setLastFireTime(performance.now());
     },
-    [camera, scene, damageTrainingTarget, incrementBullets, setLastFireTime, spawnImpact]
+    [camera, scene, damageTrainingTarget, spawnImpact]
   );
 
   const shoot = useCallback(() => {
-    if (!activeWeapon || !canFire()) return;
+    const ws = useWeaponStore.getState();
+    if (!activeWeapon || !ws.canFire()) return;
     const gameMode = useGameStore.getState().mode;
     if (gameMode !== "training" && gameMode !== "zombie" && gameMode !== "offline5v5" && gameMode !== "l4d") return;
     // offline phases always active, no round.phase check needed (round removed for offline)
+
+    if (gameMode === "offline5v5") {
+      const me = useOffline5v5Store.getState().players.get("local");
+      if (!me || me.isDead) return;
+    }
+
+    if (gameMode === "zombie") {
+      const zp = useZombieStore.getState().player;
+      if (zp && (zp.hp <= 0 || zp.isDowned)) return;
+    }
 
     if (gameMode === "l4d") {
       const me = useL4DStore.getState().survivors[0];
@@ -580,8 +587,8 @@ export function ShootingSystem() {
       useGameStore.getState().triggerShoot();
       gameEvents.emit("weaponFired", { weapon: activeWeapon, akimboSide: side });
       Sound.gunshot(activeWeapon);
-      incrementBullets();
-      setLastFireTime(performance.now());
+      ws.incrementBullets();
+      ws.setLastFireTime(performance.now());
       return;
     }
 
@@ -634,7 +641,7 @@ export function ShootingSystem() {
       activeWeapon,
       movementState,
       isADS,
-      bulletsFired
+      useWeaponStore.getState().bulletsFired
     );
 
     spreadDir.set(
@@ -754,17 +761,17 @@ export function ShootingSystem() {
     // Play gunshot sound
     Sound.gunshot(activeWeapon);
 
-    incrementBullets();
-    setLastFireTime(performance.now());
+    // Gunshot FOV Punch for visceral recoil feel
+    const punchAmt = activeWeapon === "awp" ? 2.5 : isMeleeWeapon(activeWeapon) ? 0 : 1.2;
+    fovPunch.current = Math.min(fovPunch.current + punchAmt, 3.5);
+
+    useWeaponStore.getState().incrementBullets();
+    useWeaponStore.getState().setLastFireTime(performance.now());
   }, [
     activeWeapon,
-    canFire,
     camera,
     scene,
     isADS,
-    bulletsFired,
-    incrementBullets,
-    setLastFireTime,
     createMuzzleFlash,
     createShellCasing,
     damageTrainingTarget,
@@ -772,7 +779,23 @@ export function ShootingSystem() {
     spawnImpact,
   ]);
 
-  // Mouse down/up tracking
+  const shootRef = useRef(shoot);
+  useEffect(() => {
+    shootRef.current = shoot;
+  }, [shoot]);
+
+  // Kill confirm / hitmarker subtle FOV punch feedback
+  useEffect(() => {
+    const onHit = (data: { headshot: boolean; killed?: boolean }) => {
+      if (data.killed) fovPunch.current = Math.max(fovPunch.current, 1.8);
+    };
+    gameEvents.on("hitMarker", onHit);
+    return () => {
+      gameEvents.off("hitMarker", onHit);
+    };
+  }, []);
+
+  // Mouse down/up tracking - bound ONCE with empty dependency array []
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
@@ -782,6 +805,12 @@ export function ShootingSystem() {
           const tag = (e.target as HTMLElement | null)?.tagName;
           if (!locked && tag !== "CANVAS") return;
         } else if (!document.pointerLockElement) {
+          return;
+        }
+
+        const mode = useGameStore.getState().mode;
+        if (mode === "offline5v5" && useOffline5v5Store.getState().players.get("local")?.isDead) {
+          mouseHeld.current = false;
           return;
         }
 
@@ -803,7 +832,7 @@ export function ShootingSystem() {
           return;
         }
         mouseHeld.current = true;
-        shoot();
+        shootRef.current();
       }
     };
     const handleMouseUp = (e: MouseEvent) => {
@@ -818,13 +847,16 @@ export function ShootingSystem() {
       window.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [shoot]);
+  }, []); // Bound once: zero thrashing!
 
   // Auto-fire + recoil recovery in frame loop
   useFrame((_, frameDelta) => {
     if (!isZombieArcade() && !document.pointerLockElement) mouseHeld.current = false;
     // zombieArcade paused check via GameStore menu? keep simple
     if (isZombieArcade() && useGameStore.getState().mode==="menu") mouseHeld.current = false;
+    if (useGameStore.getState().mode === "offline5v5" && useOffline5v5Store.getState().players.get("local")?.isDead) {
+      mouseHeld.current = false;
+    }
     if (mouseHeld.current && activeWeapon) {
       shoot();
     }
@@ -845,7 +877,7 @@ export function ShootingSystem() {
     // Update recoil controller recovery with ADS-aware damping for a cleaner feel
     const { offsetX, offsetY } = controller.update(Math.min(frameDelta, 0.05));
     const recoilScale = isADS ? 0.55 : 1;
-    updateRecoil(
+    useWeaponStore.getState().updateRecoil(
       offsetX * sensitivity * recoilScale,
       offsetY * sensitivity * recoilScale
     );
@@ -855,10 +887,18 @@ export function ShootingSystem() {
     // every player regardless of their sens.
     const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 75;
     const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(fov) / 2);
-    setRecoilAim(
+    useWeaponStore.getState().setRecoilAim(
       -Math.atan(offsetX * recoilScale * tanHalfFov),
       Math.atan(offsetY * recoilScale * tanHalfFov)
     );
+
+    // Procedural FOV Punch recovery
+    if (camera instanceof THREE.PerspectiveCamera && fovPunch.current > 0.005) {
+      fovPunch.current = THREE.MathUtils.lerp(fovPunch.current, 0, 1 - Math.exp(-28 * frameDelta));
+      const baseFov = isADS ? (activeWeapon === "awp" ? 30 : 55) : 75;
+      camera.fov = baseFov + fovPunch.current;
+      camera.updateProjectionMatrix();
+    }
   });
 
   return null;

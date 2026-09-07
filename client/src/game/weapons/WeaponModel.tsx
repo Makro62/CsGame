@@ -172,7 +172,7 @@ export function WeaponModel() {
     groupRef.current.position.copy(camera.position)
     groupRef.current.quaternion.copy(camera.quaternion)
 
-    const adsDamp = 1 - adsFactor * 0.78
+    const adsDamp = 1 - adsFactor * 0.95
     const posX = THREE.MathUtils.lerp(basePos[0], adsPos[0], adsFactor) + weaponAnimator.position.x * adsDamp
     const posY = THREE.MathUtils.lerp(basePos[1], adsPos[1], adsFactor) + weaponAnimator.position.y * adsDamp
     const posZ = THREE.MathUtils.lerp(basePos[2], adsPos[2], adsFactor) + weaponAnimator.position.z * adsDamp

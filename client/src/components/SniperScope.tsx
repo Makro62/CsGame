@@ -1,103 +1,66 @@
 import type { CSSProperties } from "react";
 import { useWeaponStore } from "../stores/useWeaponStore";
+import { useOffline5v5Store } from "../screens/Offline5v5Store";
+import { useGameStore } from "../stores/useGameStore";
+import { HUD_Z } from "../ui/hudTheme";
 
 export default function SniperScope() {
   const { activeWeapon, isADS } = useWeaponStore();
+  const gameMode = useGameStore((s) => s.mode);
+  const isDead = useOffline5v5Store((s) => s.players.get("local")?.isDead ?? false);
 
   if (activeWeapon !== "awp" || !isADS) return null;
+  if (gameMode === "offline5v5" && isDead) return null;
 
   const style: CSSProperties = {
     position: "fixed",
     inset: 0,
-    zIndex: 150,
+    zIndex: HUD_Z.overlay, // 50, below PauseMenu (90)
     pointerEvents: "none",
-  };
-
-  const panelBase: CSSProperties = {
-    position: "absolute",
-    background: "rgba(0,0,0,0.92)",
+    userSelect: "none",
   };
 
   return (
     <div style={style}>
-      {/* Top panel */}
-      <div
-        style={{
-          ...panelBase,
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "calc(50vh - 30vh)",
-        }}
-      />
-      {/* Bottom panel */}
-      <div
-        style={{
-          ...panelBase,
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: "calc(50vh - 30vh)",
-        }}
-      />
-      {/* Left panel */}
-      <div
-        style={{
-          ...panelBase,
-          top: "calc(50vh - 30vh)",
-          left: 0,
-          right: "calc(50vw + 30vh)",
-          height: "60vh",
-        }}
-      />
-      {/* Right panel */}
-      <div
-        style={{
-          ...panelBase,
-          top: "calc(50vh - 30vh)",
-          left: "calc(50vw + 30vh)",
-          right: 0,
-          height: "60vh",
-        }}
-      />
-      {/* Scope lens border ring */}
-      <div
-        style={{
-          position: "absolute",
-          top: "calc(50vh - 30vh)",
-          left: "calc(50vw - 30vh)",
-          width: "60vh",
-          height: "60vh",
-          borderRadius: "50%",
-          border: "2px solid rgba(255,255,255,0.15)",
-          boxShadow: "inset 0 0 30px rgba(0,0,0,0.8)",
-        }}
-      />
-      {/* Crosshair horizontal */}
+      {/* Outer black mask with seamless circular aperture and realistic optic glass falloff */}
       <div
         style={{
           position: "absolute",
           top: "50%",
           left: "50%",
-          width: "60vh",
+          width: "68vh",
+          height: "68vh",
+          transform: "translate(-50%, -50%)",
+          borderRadius: "50%",
+          boxShadow: "0 0 0 100vmax rgba(4, 6, 12, 0.98), inset 0 0 45px 15px rgba(0, 0, 0, 0.92)",
+          border: "2px solid rgba(255, 255, 255, 0.22)",
+        }}
+      />
+      {/* Scope crosshair horizontal */}
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: "68vh",
           height: "1px",
-          background: "rgba(255,255,255,0.7)",
+          background: "rgba(255, 255, 255, 0.75)",
           transform: "translate(-50%, -50%)",
         }}
       />
-      {/* Crosshair vertical */}
+      {/* Scope crosshair vertical */}
       <div
         style={{
           position: "absolute",
           top: "50%",
           left: "50%",
           width: "1px",
-          height: "60vh",
-          background: "rgba(255,255,255,0.7)",
+          height: "68vh",
+          background: "rgba(255, 255, 255, 0.75)",
           transform: "translate(-50%, -50%)",
         }}
       />
-      {/* Center dot */}
+      {/* Scope center dot */}
       <div
         style={{
           position: "absolute",
@@ -106,13 +69,13 @@ export default function SniperScope() {
           width: "4px",
           height: "4px",
           borderRadius: "50%",
-          background: "#ff0000",
+          background: "#ef4444",
           transform: "translate(-50%, -50%)",
-          boxShadow: "0 0 4px rgba(255,0,0,0.8)",
+          boxShadow: "0 0 5px rgba(239, 68, 68, 0.9)",
         }}
       />
       {/* Mil-dot marks on horizontal line */}
-      {[-12, -6, 6, 12].map((offset) => (
+      {[-14, -7, 7, 14].map((offset) => (
         <div
           key={`h${offset}`}
           style={{
@@ -122,13 +85,13 @@ export default function SniperScope() {
             width: "2px",
             height: "2px",
             borderRadius: "50%",
-            background: "rgba(255,255,255,0.5)",
+            background: "rgba(255, 255, 255, 0.6)",
             transform: "translate(-50%, -50%)",
           }}
         />
       ))}
       {/* Mil-dot marks on vertical line */}
-      {[-12, -6, 6, 12].map((offset) => (
+      {[-14, -7, 7, 14].map((offset) => (
         <div
           key={`v${offset}`}
           style={{
@@ -138,7 +101,7 @@ export default function SniperScope() {
             width: "2px",
             height: "2px",
             borderRadius: "50%",
-            background: "rgba(255,255,255,0.5)",
+            background: "rgba(255, 255, 255, 0.6)",
             transform: "translate(-50%, -50%)",
           }}
         />

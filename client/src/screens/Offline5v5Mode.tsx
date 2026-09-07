@@ -171,7 +171,10 @@ export function Offline5v5Mode() {
     const onPointerLockChange = () => {
       const locked = !!document.pointerLockElement;
       if (!locked && !buyMenuOpen) {
-        setPaused(true);
+        const isDead = useOffline5v5Store.getState().players.get("local")?.isDead;
+        if (!isDead) {
+          setPaused(true);
+        }
       }
     };
     document.addEventListener("pointerlockchange", onPointerLockChange);
@@ -184,10 +187,24 @@ export function Offline5v5Mode() {
     }
   }, [phase, buyMenuOpen, closeBuyMenu]);
 
+  useEffect(() => {
+    if (me?.isDead) {
+      if (useWeaponStore.getState().isADS) {
+        useWeaponStore.getState().setADS(false);
+      }
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+      }
+    }
+  }, [me?.isDead]);
+
   const resume = useCallback(() => {
     setPaused(false);
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.requestPointerLock();
+    const isDead = useOffline5v5Store.getState().players.get("local")?.isDead;
+    if (!isDead) {
+      const canvas = document.querySelector("canvas");
+      if (canvas) canvas.requestPointerLock();
+    }
   }, []);
 
   const back = useCallback(() => {
@@ -230,7 +247,7 @@ export function Offline5v5Mode() {
         if (paused) {
           resume();
         } else {
-          if (document.pointerLockElement) document.exitPointerLock();
+          openPause();
         }
         return;
       }
@@ -277,7 +294,10 @@ export function Offline5v5Mode() {
   const ActiveMap = MapComp;
 
   return (
-    <div style={{ width: "100dvw", height: "100dvh", position: "relative", overflow: "hidden", background: "#0a0e14" }}>
+    <div
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ width: "100dvw", height: "100dvh", position: "relative", overflow: "hidden", background: "#0a0e14" }}
+    >
       <Canvas shadows camera={{ fov: 75, position: [0, 5, -22] }}>
         <color attach="background" args={["#0e1520"]} />
         <fog attach="fog" args={["#0e1520", 48, 110]} />
@@ -285,7 +305,7 @@ export function Offline5v5Mode() {
           <ActiveMap />
           <PlayerController key={`${selectedTeam}-${selectedMapId}-${roundNumber}`} />
           <RemoteBots />
-          <WeaponModel />
+          {!me?.isDead && <WeaponModel />}
         </Physics>
         <ShootingSystem />
         <ReloadSystem />
@@ -606,8 +626,8 @@ export function Offline5v5Mode() {
         <PauseMenu title="5V5 OFFLINE" accent="amber" onResume={resume} onQuit={back} />
       )}
 
-      {/* Click-to-play overlay — only show when NOT paused */}
-      {!paused && phase !== "matchEnd" && <ClickToPlayOverlay onLock={() => {}} suppressed={buyMenuOpen} />}
+      {/* Click-to-play overlay — only show when NOT paused and NOT dead */}
+      {!paused && !me?.isDead && phase !== "matchEnd" && <ClickToPlayOverlay onLock={() => {}} suppressed={buyMenuOpen} />}
 
       {phase === "roundEnd" && !paused && (
         <div
