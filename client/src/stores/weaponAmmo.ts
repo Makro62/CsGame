@@ -62,6 +62,7 @@ export function slotOfWeapon(
   isPrimary: boolean,
   isSecondary: boolean,
 ): AmmoSlot | null {
+  if (isPrimary && isSecondary) return null;
   if (isPrimary) return "primary";
   if (isSecondary) return "secondary";
   return "melee";

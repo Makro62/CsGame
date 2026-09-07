@@ -1,11 +1,6 @@
 import { useRef, useEffect, useMemo, useState } from "react";
 import {
-  ThirdPersonKarambit,
-  ThirdPersonPistol,
-  ThirdPersonSmg,
-  ThirdPersonAk47,
-  ThirdPersonM4,
-  ThirdPersonAwp,
+  SharedThirdPersonWeaponMesh,
 } from "../weapons/weaponGeometries";
 import {
   THIRD_PERSON_ARM_POSES,
@@ -38,124 +33,13 @@ interface TacticalBotModelProps {
 function BotWeaponMesh({
   weapon = "ak47",
   isFiring = false,
-  muzzleZ = 0.48,
+  muzzleZ,
 }: {
   weapon?: string;
   isFiring?: boolean;
   muzzleZ?: number;
 }) {
-  const w = weapon.toLowerCase();
-
-  if (w.includes("awp")) {
-    return (
-      <group>
-        <ThirdPersonAwp />
-        {isFiring && <MuzzleFlash z={muzzleZ} />}
-      </group>
-    );
-  }
-
-  if (w.includes("ak47") || w.includes("ak-")) {
-    return (
-      <group>
-        <ThirdPersonAk47 />
-        {isFiring && <MuzzleFlash z={muzzleZ} />}
-      </group>
-    );
-  }
-
-  if (w.includes("m4a1") || w.includes("m4")) {
-    return (
-      <group>
-        <ThirdPersonM4 />
-        {isFiring && <MuzzleFlash z={muzzleZ} />}
-      </group>
-    );
-  }
-
-  if (w.includes("mp5")) {
-    return (
-      <group>
-        <ThirdPersonSmg />
-        {isFiring && <MuzzleFlash z={muzzleZ * 0.88} scale={0.85} />}
-      </group>
-    );
-  }
-
-  if (w.includes("arccaster")) {
-    return (
-      <group position={[0, 0, 0.2]} rotation={[0.08, 0, 0]}>
-        <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[0.055, 0.07, 0.32]} />
-          <meshStandardMaterial color="#0f172a" metalness={0.85} roughness={0.2} />
-        </mesh>
-        <mesh position={[0.03, 0.01, -0.12]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.012, 0.012, 0.14, 10]} />
-          <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2} />
-        </mesh>
-        <mesh position={[-0.03, 0.01, -0.12]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.012, 0.012, 0.14, 10]} />
-          <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2} />
-        </mesh>
-        {isFiring && <MuzzleFlash z={0.38} scale={1.2} />}
-      </group>
-    );
-  }
-
-  if (w.includes("deagle") || w.includes("glock") || w.includes("tec9") || w.includes("autopistol") || w.includes("pistol")) {
-    return (
-      <group>
-        <ThirdPersonPistol heavy={w.includes("deagle")} />
-        {isFiring && <MuzzleFlash z={muzzleZ} scale={0.7} />}
-      </group>
-    );
-  }
-
-  if (w.includes("he") || w.includes("smoke") || w.includes("flash") || w.includes("grenade")) {
-    const color = w.includes("he") ? "#2d5a27" : w.includes("smoke") ? "#4b5563" : "#1e293b";
-    const stripe = w.includes("he") ? "#ef4444" : w.includes("smoke") ? "#f8fafc" : "#38bdf8";
-    return (
-      <group position={[0.02, 0, 0.06]} rotation={[0.5, 0, 0]}>
-        <mesh>
-          <cylinderGeometry args={[0.028, 0.028, 0.07, 12]} />
-          <meshStandardMaterial color={color} roughness={0.6} />
-        </mesh>
-        <mesh position={[0, 0.018, 0]}>
-          <cylinderGeometry args={[0.029, 0.029, 0.01, 12]} />
-          <meshStandardMaterial color={stripe} />
-        </mesh>
-      </group>
-    );
-  }
-
-  if (w.includes("knife") || w.includes("combatknife")) {
-    return (
-      <group>
-        <ThirdPersonKarambit tactical={w.includes("combat")} scale={0.95} />
-      </group>
-    );
-  }
-
-  return (
-    <group>
-      <ThirdPersonAk47 />
-    </group>
-  );
-}
-
-function MuzzleFlash({ z, scale = 1 }: { z: number; scale?: number }) {
-  return (
-    <group position={[0, 0.02, z]} scale={scale}>
-      <mesh>
-        <sphereGeometry args={[0.045, 6, 6]} />
-        <meshBasicMaterial color="#fff7ed" />
-      </mesh>
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.04]}>
-        <coneGeometry args={[0.035, 0.12, 6]} />
-        <meshBasicMaterial color="#fb923c" transparent opacity={0.8} />
-      </mesh>
-    </group>
-  );
+  return <SharedThirdPersonWeaponMesh weapon={weapon} isFiring={isFiring} muzzleZ={muzzleZ} />;
 }
 
 function createOperatorFace(team: "T" | "CT"): THREE.Texture {

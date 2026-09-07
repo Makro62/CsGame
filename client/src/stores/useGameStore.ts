@@ -176,23 +176,32 @@ export const useGameStore = create<GameState>()((set, get) => {
       // Emit event so Bot instance can react immediately
       gameEvents.emit('targetDamaged', { id, damage: amount, isHeadshot, isDead, newHp: Math.max(0, newHp) })
 
-      if (isDead) {
-        set(state => {
-          const newStats = {
-            ...state.stats,
-            kills: state.stats.kills + 1,
-            headshots: state.stats.headshots + (isHeadshot ? 1 : 0),
-          }
-          newStats.hsRate =
-            newStats.kills > 0 ? (newStats.headshots / newStats.kills) * 100 : 0
+      set(state => {
+        const headshotIncrement = isHeadshot ? 1 : 0
+        const killIncrement = isDead ? 1 : 0
+        const newStats = {
+          ...state.stats,
+          kills: state.stats.kills + killIncrement,
+          headshots: state.stats.headshots + headshotIncrement,
+        }
+        // Accurate headshot rate: relative to total shots hit, or fallback to kills
+        newStats.hsRate =
+          newStats.shotsHit > 0
+            ? (newStats.headshots / newStats.shotsHit) * 100
+            : newStats.kills > 0
+            ? (newStats.headshots / newStats.kills) * 100
+            : 0
+
+        if (isDead) {
           const { [id]: _, ...rest } = state.targets
           return { stats: newStats, targets: rest }
-        })
-      } else {
-        set(state => ({
-          targets: { ...state.targets, [id]: { ...target, hp: newHp } },
-        }))
-      }
+        } else {
+          return {
+            stats: newStats,
+            targets: { ...state.targets, [id]: { ...target, hp: newHp } },
+          }
+        }
+      })
     },
 
     resetTargets: () => {

@@ -169,7 +169,8 @@ export function pushOutL4D(x: number, z: number, radius: number): { x: number; z
         px += (dx / dist) * push;
         pz += (dz / dist) * push;
       } else if (dist < 1e-5) {
-        px += radius;
+        px = cx + radius;
+        pz = cz;
       }
     }
   }

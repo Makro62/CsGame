@@ -37,14 +37,15 @@ export function computeReloadFill(mag: number, ammo: number, reserve: number): {
   reserveAfter: number;
 } {
   const magSafe = Number.isFinite(mag) ? Math.max(0, mag) : 0;
-  const ammoSafe = Number.isFinite(ammo) ? ammo : 0;
+  const ammoSafe = Number.isFinite(ammo) ? Math.max(0, ammo) : 0;
   const reserveSafe = Number.isFinite(reserve) ? Math.max(0, reserve) : 0;
-  const needed = Math.max(0, magSafe - ammoSafe);
+  const ammoClamped = Math.min(ammoSafe, magSafe);
+  const needed = Math.max(0, magSafe - ammoClamped);
   const load = Math.min(needed, reserveSafe);
   return {
     needed,
     load,
-    ammoAfter: ammoSafe + load,
+    ammoAfter: ammoClamped + load,
     reserveAfter: reserveSafe - load,
   };
 }

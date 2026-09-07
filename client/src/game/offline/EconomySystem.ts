@@ -51,7 +51,7 @@ export function executeLocalBuy(
     return { success: true, players: updatedPlayers };
   }
 
-  if (item === "kevlar" && me.money >= GEAR.kevlar.price) {
+  if (item === "kevlar" && me.money >= GEAR.kevlar.price && me.armor < 100) {
     updatedPlayers.set("local", {
       ...me,
       armor: 100,

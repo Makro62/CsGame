@@ -25,7 +25,7 @@ const AK47_RECOIL_PATTERN: [number, number][] = [
   [-0.032, 0.01],
   [-0.031, 0.008],
   [-0.03, 0.006],
-  // Bullets 16-29: hook RIGHT per doc "7" shape
+  // Hook right — bullets 24-30
   [0.012, 0.005],
   [0.018, 0.006],
   [0.024, 0.007],
@@ -33,13 +33,6 @@ const AK47_RECOIL_PATTERN: [number, number][] = [
   [0.031, 0.009],
   [0.032, 0.01],
   [0.032, 0.011],
-  [0.031, 0.011],
-  [0.029, 0.012],
-  [0.026, 0.012],
-  [0.022, 0.012],
-  [0.017, 0.012],
-  [0.012, 0.012],
-  [0.008, 0.012],
 ]
 
 const M4A1_RECOIL_PATTERN: [number, number][] = [
@@ -120,7 +113,7 @@ export class RecoilController {
       return { offsetX: 0, offsetY: 0 }
     }
 
-    const now = performance.now()
+    const now = Date.now()
     const timeSinceLastFire = now - this.lastFireTime
 
     if (timeSinceLastFire > 260) {
@@ -138,7 +131,7 @@ export class RecoilController {
   }
 
   update(deltaTime: number): { offsetX: number; offsetY: number } {
-    const now = performance.now()
+    const now = Date.now()
     const timeSinceLastFire = now - this.lastFireTime
 
     // Hold the spray point while the burst is alive. Recovering at 40ms was

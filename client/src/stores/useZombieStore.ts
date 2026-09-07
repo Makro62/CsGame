@@ -31,6 +31,14 @@ interface PlayerState {
   perks: string[];
 }
 
+export interface StagePerkOption {
+  id: string;
+  name: string;
+  desc: string;
+  icon: string;
+  rarity: "rare" | "epic" | "legendary";
+}
+
 interface ZombieGameState {
   currentWave: number; waveState: WaveState;
   zombiesRemaining: number; totalZombiesInWave: number; interWaveTimer: number;
@@ -41,6 +49,17 @@ interface ZombieGameState {
   // Operation Blackout: Room & Doors
   unlockedDoors: string[];
   barricades: Record<string, number>; // windowId -> plank count 0..6
+
+  // Survivor Campaign Stage System
+  currentStage: number;
+  unlockedStages: number;
+  stageBreakActive: boolean;
+  stageBreakTimer: number;
+  gate1Open: boolean;
+  gate2Open: boolean;
+  stagePerks: string[];
+  stageBanner: string | null;
+  cameraPerspective: "arcade" | "fps";
 
   setWaveState: (s: WaveState) => void;
   setCurrentWave: (w: number) => void;
@@ -57,6 +76,17 @@ interface ZombieGameState {
   repairBarricade: (windowId: string) => boolean;
   damageBarricade: (windowId: string, amount?: number) => void;
   resetGame: (full?: boolean) => void;
+  toggleCameraPerspective: () => void;
+
+  // Stage Campaign Actions
+  startStageBreak: (stage: number) => void;
+  advanceToNextStage: () => void;
+  skipBreak: () => void;
+  claimStagePerk: (perkId: string) => void;
+  setStageBreakTimer: (n: number) => void;
+  setGate1Open: (open: boolean) => void;
+  setGate2Open: (open: boolean) => void;
+  setStageBanner: (b: string | null) => void;
 }
 
 const INITIAL_PLAYER: PlayerState = {
@@ -73,8 +103,18 @@ const INITIAL_STATE = {
   purchasedWeapons: ["mp5", "glock", "knife"] as string[],
   powerUps: [] as PowerUpState[],
   loot: [] as LootDrop[],
-  unlockedDoors: [] as string[],
+  unlockedDoors: ["door_lab", "door_armory", "door_catwalk", "door_bunker"] as string[],
   barricades: { win_north: 6, win_south: 6, win_east: 6, win_west: 6 } as Record<string, number>,
+  // Survivor Campaign Initial State
+  currentStage: 1,
+  unlockedStages: 1,
+  stageBreakActive: false,
+  stageBreakTimer: 0,
+  gate1Open: false,
+  gate2Open: false,
+  stagePerks: [] as string[],
+  stageBanner: null as string | null,
+  cameraPerspective: "arcade" as "arcade" | "fps",
 };
 
 export const useZombieStore = create<ZombieGameState>((set, get) => ({
@@ -166,6 +206,56 @@ export const useZombieStore = create<ZombieGameState>((set, get) => ({
     if (cur <= 0) return;
     set(s => ({ barricades: { ...s.barricades, [windowId]: Math.max(0, cur - amount) } }));
   },
+  startStageBreak: (stage) => {
+    const nextStage = stage + 1;
+    const banner = stage === 1
+      ? "STAGE 1 BERSIH! JEDA SURVIVOR • GERBANG MENUJU SEKTOR 2 TERBUKA!"
+      : "STAGE 2 BERSIH! JEDA SURVIVOR • GERBANG HELIPAD SEKTOR 3 TERBUKA!";
+    set((s) => ({
+      stageBreakActive: true,
+      stageBreakTimer: 15,
+      stageBanner: banner,
+      gate1Open: stage >= 1 ? true : s.gate1Open,
+      gate2Open: stage >= 2 ? true : s.gate2Open,
+      unlockedStages: Math.max(s.unlockedStages, nextStage),
+      player: {
+        ...s.player,
+        hp: s.player.maxHp,
+        armor: Math.min(100, s.player.armor + 30),
+      },
+    }));
+  },
+  advanceToNextStage: () => {
+    const st = get();
+    const next = Math.min(3, st.currentStage + 1);
+    set({
+      stageBreakActive: false,
+      stageBreakTimer: 0,
+      currentStage: next,
+      unlockedStages: Math.max(st.unlockedStages, next),
+      gate1Open: true,
+      gate2Open: next >= 3 ? true : st.gate2Open,
+      stageBanner: null,
+    });
+  },
+  skipBreak: () => {
+    get().advanceToNextStage();
+  },
+  claimStagePerk: (perkId) => {
+    const st = get();
+    if (st.stagePerks.includes(perkId)) return;
+    set({ stagePerks: [...st.stagePerks, perkId] });
+    if (perkId === "titan_armor") {
+      set(s => ({ player: { ...s.player, armor: 100, hp: s.player.maxHp } }));
+    }
+  },
+  setStageBreakTimer: (n) => set({ stageBreakTimer: Math.max(0, n) }),
+  setGate1Open: (gate1Open) => set({ gate1Open }),
+  setGate2Open: (gate2Open) => set({ gate2Open }),
+  setStageBanner: (stageBanner) => set({ stageBanner }),
+  toggleCameraPerspective: () => set(s => ({
+    cameraPerspective: s.cameraPerspective === "arcade" ? "fps" : "arcade",
+  })),
   resetGame: (full) => set({
     ...INITIAL_STATE,
     player: { ...INITIAL_PLAYER, activePowerUps: new Map() },

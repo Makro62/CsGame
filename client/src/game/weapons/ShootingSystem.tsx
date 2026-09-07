@@ -209,10 +209,30 @@ function getMuzzleFlashMesh(): THREE.Object3D {
   return group;
 }
 
+function disposeMuzzleFlash(obj: THREE.Object3D) {
+  obj.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.geometry?.dispose();
+      if (Array.isArray(child.material)) {
+        child.material.forEach((m) => m.dispose());
+      } else if (child.material) {
+        child.material.dispose();
+      }
+    } else if (child instanceof THREE.Light) {
+      child.dispose?.();
+    }
+  });
+  if (obj.parent) {
+    obj.parent.remove(obj);
+  }
+}
+
 function recycleMuzzleFlash(obj: THREE.Object3D) {
   obj.visible = false;
   if (muzzleFlashPool.length < MAX_MUZZLE_FLASHES) {
     muzzleFlashPool.push(obj);
+  } else {
+    disposeMuzzleFlash(obj);
   }
 }
 
@@ -366,26 +386,33 @@ export function ShootingSystem() {
     );
     casingDir.applyQuaternion(camera.quaternion);
 
-    const velocity = casingDir.clone().multiplyScalar(0.08);
-    const gravity = new THREE.Vector3(0, -0.005, 0);
-    let frames = 0;
-    const maxFrames = 60;
+    // Frame-rate independent ejection physics using real delta-time
+    const initialSpeed = 4.8; // m/s
+    const velocity = casingDir.clone().multiplyScalar(initialSpeed);
+    const gravityY = -9.8; // m/s^2 standard gravity
+    const duration = 1.0; // 1.0s lifetime before recycling
+    let elapsed = 0;
+    let lastTime = performance.now();
 
-    const animate = () => {
-      frames++;
-      velocity.add(gravity);
-      casing.position.add(velocity);
-      casing.rotation.x += 0.2;
-      casing.rotation.y += 0.15;
+    const animate = (currentTime: number) => {
+      const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
+      lastTime = currentTime;
+      elapsed += dt;
+
+      velocity.y += gravityY * dt;
+      casing.position.addScaledVector(velocity, dt);
+      casing.rotation.x += 12 * dt;
+      casing.rotation.y += 9 * dt;
 
       if (casing.position.y < 0.05) {
         casing.position.y = 0.05;
         velocity.y = -velocity.y * 0.3;
-        velocity.x *= 0.5;
-        velocity.z *= 0.5;
+        const damp = Math.pow(0.5, dt * 60);
+        velocity.x *= damp;
+        velocity.z *= damp;
       }
 
-      if (frames < maxFrames) {
+      if (elapsed < duration) {
         const rafId = requestAnimationFrame(animate);
         casingRafs.current.push(rafId);
       } else {

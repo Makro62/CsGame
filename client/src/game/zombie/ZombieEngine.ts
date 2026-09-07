@@ -7,7 +7,8 @@ import { useZombieStore, type ZombieState, type LootKind } from "../../stores/us
 import { useWeaponStore, type WeaponKey } from "../../stores/useWeaponStore";
 import { SpatialGrid } from "./SpatialGrid";
 import {
-  SURVIVAL_BOUNDS, SURVIVAL_SPAWNS, SURVIVAL_BARRICADES, pushOutSurvival, survivalLineOfSight, survivalWallDistance,
+  SURVIVAL_SPAWNS, SURVIVAL_BARRICADES, pushOutSurvival, survivalLineOfSight, survivalWallDistance,
+  getSurvivalStageBounds, getSpawnsForUnlockedStages,
 } from "./survivalLayout";
 import { zombieBodyRadius, zombieHeadRadius, zombieVisualScale } from "./zombieVisual";
 import { chaseStep, hordeSeparationFromIds, SURVIVAL_HORDE_SEP } from "./hordeMovement";
@@ -308,8 +309,9 @@ export class ZombieEngine {
     const pushed = pushOutSurvival(z.x, z.z, ZOMBIE_RADIUS);
     z.x = pushed.x;
     z.z = pushed.z;
-    z.x = THREE.MathUtils.clamp(z.x, SURVIVAL_BOUNDS.minX, SURVIVAL_BOUNDS.maxX);
-    z.z = THREE.MathUtils.clamp(z.z, SURVIVAL_BOUNDS.minZ, SURVIVAL_BOUNDS.maxZ);
+    const stageBounds = getSurvivalStageBounds(useZombieStore.getState().unlockedStages);
+    z.x = THREE.MathUtils.clamp(z.x, stageBounds.minX, stageBounds.maxX);
+    z.z = THREE.MathUtils.clamp(z.z, stageBounds.minZ, stageBounds.maxZ);
     z.rotationY = next.rotationY;
 
     const hasLos = survivalLineOfSight(z.x, z.z, this.playerX, this.playerZ);
@@ -341,14 +343,16 @@ export class ZombieEngine {
   private spawnZombie(type: ZombieType) {
     const cfg = ZOMBIE_CFG[type];
     const id = `z_${this.engineId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-    let spawn = SURVIVAL_SPAWNS[0];
+    const unlockedStages = useZombieStore.getState().unlockedStages ?? 1;
+    const stageSpawns = getSpawnsForUnlockedStages(unlockedStages);
+    let spawn = stageSpawns[0] ?? SURVIVAL_SPAWNS[0];
     let bestD = -1;
-    for (const s of SURVIVAL_SPAWNS) {
+    for (const s of stageSpawns) {
       const d = Math.hypot(s.x - this.playerX, s.z - this.playerZ);
       if (d > bestD) { bestD = d; spawn = s; }
     }
-    if (Math.random() < 0.55) {
-      spawn = SURVIVAL_SPAWNS[Math.floor(Math.random() * SURVIVAL_SPAWNS.length)];
+    if (Math.random() < 0.55 && stageSpawns.length > 0) {
+      spawn = stageSpawns[Math.floor(Math.random() * stageSpawns.length)];
     }
     const hp = cfg.hp * this.hpScale;
     const z: ZombieState = {
@@ -410,10 +414,21 @@ export class ZombieEngine {
   private onWaveComplete() {
     const store = useZombieStore.getState();
     const wave = store.currentWave;
+    const stage = store.currentStage ?? 1;
+
     store.setWaveState("buy_phase");
     store.setInterWaveTimer(WAVE_CONFIG.buyPhaseDuration);
-    store.addPoints(500 + wave * 80);
-    refillHalfReserve();
+
+    // Survivor.io Campaign: Break & Unlock new map sector after clearing stage 1 or 2
+    if (stage < 3 && typeof store.startStageBreak === "function") {
+      store.startStageBreak(stage);
+      refillAllAmmo();
+      refillHalfReserve();
+      store.addPoints(600 + wave * 100);
+    } else {
+      store.addPoints(500 + wave * 80);
+      refillHalfReserve();
+    }
   }
 
   private updatePowerUps() {
@@ -441,6 +456,9 @@ export class ZombieEngine {
       const cfg = ZOMBIE_CFG[z.type];
       let dmg = weaponDmg * (hit.headshot ? HEADSHOT_MULT : 1);
       const store = useZombieStore.getState();
+      if (store.stagePerks?.includes("hollow_point")) {
+        dmg *= 1.35;
+      }
       if (store.player.activePowerUps.has("insta_kill")) dmg = z.hp;
       z.hp -= dmg;
       const killed = z.hp <= 0;

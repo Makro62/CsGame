@@ -9,7 +9,7 @@ import { useAimStore } from "../../stores/useAimStore";
 import { zombieEngine } from "../zombie/ZombieEngine";
 import { useWeaponStore } from "../../stores/useWeaponStore";
 import { MinecraftCharacter, weaponCategoryFromId } from "../characterWeaponKit";
-import { SURVIVAL_BOUNDS, pushOutSurvival } from "../zombie/survivalLayout";
+import { getSurvivalStageBounds, pushOutSurvival } from "../zombie/survivalLayout";
 import { arcadeScreenMove } from "./arcadeScreenMove";
 import { consumeScreenShake } from "../effects/screenShake";
 import { Sound } from "../../components/AudioManager";
@@ -30,8 +30,11 @@ export function ZombieArcadeController() {
   const { getInput } = usePlayerInput();
   const posRef = useRef(new THREE.Vector3(0, 0, 0));
   const yawRef = useRef(0);
+  const pitchRef = useRef(0);
   const yawTargetRef = useRef(0);
   const isDead = useZombieStore(s => s.player.isDowned);
+  const unlockedStages = useZombieStore(s => s.unlockedStages);
+  const cameraPerspective = useZombieStore(s => s.cameraPerspective ?? "arcade");
   const groupRef = useRef<THREE.Group>(null);
   const motionRef = useRef({ moving: false, sprinting: false });
   const hero = useHeroStore(s => s.hero);
@@ -45,6 +48,11 @@ export function ZombieArcadeController() {
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!document.pointerLockElement) return;
+      if (useZombieStore.getState().cameraPerspective === "fps") {
+        yawRef.current -= e.movementX * 0.0024;
+        pitchRef.current = THREE.MathUtils.clamp(pitchRef.current - e.movementY * 0.0024, -1.35, 1.35);
+        return;
+      }
       const nx = size.width || window.innerWidth;
       const ny = size.height || window.innerHeight;
       lockedNdc.current.x = THREE.MathUtils.clamp(lockedNdc.current.x + e.movementX / (nx * 0.5), -0.98, 0.98);
@@ -75,24 +83,41 @@ export function ZombieArcadeController() {
 
     if (isDead) return;
 
-    if (document.pointerLockElement) {
-      _aimNdc.set(lockedNdc.current.x, lockedNdc.current.y);
-    } else {
-      _aimNdc.set(pointer.x, pointer.y);
-    }
-    raycaster.setFromCamera(_aimNdc, camera);
-    if (raycaster.ray.intersectPlane(_tGround, _tHit)) {
-      const dx = _tHit.x - posRef.current.x;
-      const dz = _tHit.z - posRef.current.z;
-      if (dx * dx + dz * dz > 0.04) yawTargetRef.current = Math.atan2(dx, dz);
-    }
-    const deltaYaw = Math.atan2(
-      Math.sin(yawTargetRef.current - yawRef.current),
-      Math.cos(yawTargetRef.current - yawRef.current),
-    );
-    yawRef.current += deltaYaw * (1 - Math.exp(-16 * dt));
+    const isFps = cameraPerspective === "fps";
 
-    const move = arcadeScreenMove(input.forward, input.backward, input.left, input.right);
+    if (!isFps) {
+      if (document.pointerLockElement) {
+        _aimNdc.set(lockedNdc.current.x, lockedNdc.current.y);
+      } else {
+        _aimNdc.set(pointer.x, pointer.y);
+      }
+      raycaster.setFromCamera(_aimNdc, camera);
+      if (raycaster.ray.intersectPlane(_tGround, _tHit)) {
+        const dx = _tHit.x - posRef.current.x;
+        const dz = _tHit.z - posRef.current.z;
+        if (dx * dx + dz * dz > 0.04) yawTargetRef.current = Math.atan2(dx, dz);
+      }
+      const deltaYaw = Math.atan2(
+        Math.sin(yawTargetRef.current - yawRef.current),
+        Math.cos(yawTargetRef.current - yawRef.current),
+      );
+      yawRef.current += deltaYaw * (1 - Math.exp(-16 * dt));
+    }
+
+    const move = isFps
+      ? (() => {
+          // Standard FPS WASD movement along camera yaw
+          const fwd = (input.forward ? 1 : 0) - (input.backward ? 1 : 0);
+          const str = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+          const sin = Math.sin(yawRef.current);
+          const cos = Math.cos(yawRef.current);
+          const mx = sin * fwd + cos * str;
+          const mz = cos * fwd - sin * str;
+          const len = Math.hypot(mx, mz);
+          return len > 0 ? { x: mx / len, z: mz / len } : { x: 0, z: 0 };
+        })()
+      : arcadeScreenMove(input.forward, input.backward, input.left, input.right);
+
     _tMove.set(move.x, 0, move.z);
     const lenSq = _tMove.lengthSq();
     motionRef.current.moving = lenSq > 0;
@@ -110,8 +135,9 @@ export function ZombieArcadeController() {
       }
     }
 
-    posRef.current.x = THREE.MathUtils.clamp(posRef.current.x, SURVIVAL_BOUNDS.minX, SURVIVAL_BOUNDS.maxX);
-    posRef.current.z = THREE.MathUtils.clamp(posRef.current.z, SURVIVAL_BOUNDS.minZ, SURVIVAL_BOUNDS.maxZ);
+    const stageBounds = getSurvivalStageBounds(unlockedStages);
+    posRef.current.x = THREE.MathUtils.clamp(posRef.current.x, stageBounds.minX, stageBounds.maxX);
+    posRef.current.z = THREE.MathUtils.clamp(posRef.current.z, stageBounds.minZ, stageBounds.maxZ);
 
     const pushed = pushOutSurvival(posRef.current.x, posRef.current.z, PLAYER_RADIUS);
     posRef.current.x = pushed.x;
@@ -119,25 +145,42 @@ export function ZombieArcadeController() {
 
     zombieEngine.setPlayerPos(posRef.current.x, posRef.current.y, posRef.current.z);
 
-    const camLag = 1 - Math.exp(-9 * dt);
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, posRef.current.x, camLag);
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, 22, camLag);
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, posRef.current.z + 11, camLag);
     const shake = consumeScreenShake(dt);
-    camera.position.x += shake.x * 3;
-    camera.position.y += shake.y * 2;
-    camera.lookAt(posRef.current.x, 0.45, posRef.current.z);
 
-    const sin = Math.sin(yawRef.current);
-    const cos = Math.cos(yawRef.current);
-    _tOrigin.set(posRef.current.x + sin * 0.55, 0.9, posRef.current.z + cos * 0.55);
-    _tDir.set(sin, 0, cos);
-    useAimStore.getState().setAim(_tOrigin, _tDir, yawRef.current, posRef.current);
+    if (isFps) {
+      camera.position.set(posRef.current.x + shake.x * 0.4, 1.62 + shake.y * 0.3, posRef.current.z);
+      camera.rotation.order = "YXZ";
+      camera.rotation.y = yawRef.current;
+      camera.rotation.x = pitchRef.current;
+      camera.rotation.z = 0;
 
-    if (groupRef.current) {
-      groupRef.current.position.set(posRef.current.x, 0, posRef.current.z);
-      groupRef.current.rotation.y = yawRef.current;
-      groupRef.current.visible = !isDead;
+      camera.getWorldDirection(_tDir);
+      _tOrigin.set(posRef.current.x, 1.62, posRef.current.z);
+      useAimStore.getState().setAim(_tOrigin, _tDir, yawRef.current, posRef.current);
+
+      if (groupRef.current) {
+        groupRef.current.visible = false;
+      }
+    } else {
+      const camLag = 1 - Math.exp(-9 * dt);
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, posRef.current.x, camLag);
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, 22, camLag);
+      camera.position.z = THREE.MathUtils.lerp(camera.position.z, posRef.current.z + 11, camLag);
+      camera.position.x += shake.x * 3;
+      camera.position.y += shake.y * 2;
+      camera.lookAt(posRef.current.x, 0.45, posRef.current.z);
+
+      const sin = Math.sin(yawRef.current);
+      const cos = Math.cos(yawRef.current);
+      _tOrigin.set(posRef.current.x + sin * 0.55, 0.9, posRef.current.z + cos * 0.55);
+      _tDir.set(sin, 0, cos);
+      useAimStore.getState().setAim(_tOrigin, _tDir, yawRef.current, posRef.current);
+
+      if (groupRef.current) {
+        groupRef.current.position.set(posRef.current.x, 0, posRef.current.z);
+        groupRef.current.rotation.y = yawRef.current;
+        groupRef.current.visible = !isDead;
+      }
     }
   });
 
@@ -167,6 +210,7 @@ export function ZombieArcadeController() {
         team="CT"
         holdWeapon
         weaponType={weaponType}
+        currentWeapon={activeWeapon}
         motionRef={motionRef}
         isDead={isDead}
         heroColor={hero.armorColor}

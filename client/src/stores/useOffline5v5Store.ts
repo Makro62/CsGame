@@ -33,6 +33,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
   players: new Map(),
   killFeed: [],
   activeReloads: new Map(),
+  teamLossStreak: { T: 0, CT: 0 },
 
   setDifficulty: (level: BotDifficultyLevel) => {
     set({ difficulty: level });
@@ -80,6 +81,7 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
       players,
       killFeed: [],
       activeReloads: new Map(),
+      teamLossStreak: { T: 0, CT: 0 },
     });
   },
 

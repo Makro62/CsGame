@@ -1,8 +1,9 @@
 import { MAP_BOUNDARY, DUST_MAP_BOUNDARY, RAVENPOINT_BOUNDS } from "@cs-game/shared"
 import { TRAINING_ARENA } from "../training/TrainingArena"
-import { SURVIVAL_BOUNDS } from "../zombie/survivalLayout"
+import { SURVIVAL_BOUNDS, getSurvivalStageBounds } from "../zombie/survivalLayout"
 import { L4D_BOUNDS } from "../l4d/l4dLayout"
 import { getProceduralMapData } from "../map/ProceduralMapRegistry"
+import { useZombieStore } from "../../stores/useZombieStore"
 
 export type Bounds = { minX: number; maxX: number; minZ: number; maxZ: number }
 
@@ -41,6 +42,18 @@ export function getPlayableBounds(mode: string, mapId?: string): Bounds {
       const proc = getProceduralMapData(mapId)
       if (proc) return inset(proc.bounds)
     }
+  }
+  if (mode === "zombie") {
+    try {
+      if (typeof getSurvivalStageBounds === "function") {
+        const stage = useZombieStore?.getState?.()?.unlockedStages ?? 1;
+        const sb = getSurvivalStageBounds(stage);
+        if (sb) return { minX: sb.minX, maxX: sb.maxX, minZ: sb.minZ, maxZ: sb.maxZ };
+      }
+    } catch {
+      // fallback
+    }
+    return MODE_BOUNDS.zombie;
   }
   return MODE_BOUNDS[mode] ?? YARD
 }

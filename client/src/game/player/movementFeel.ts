@@ -9,7 +9,9 @@ export function resolveMoveSpeed(params: {
   crouching: boolean
   aiming: boolean
 }): number {
-  if (params.crouching) return params.crouchSpeed
+  if (params.crouching) {
+    return params.aiming ? params.crouchSpeed * ADS_WALK_MULT : params.crouchSpeed;
+  }
   if (params.aiming) return params.walkSpeed * ADS_WALK_MULT
   if (params.sprinting) return params.sprintSpeed
   return params.walkSpeed

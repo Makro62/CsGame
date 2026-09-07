@@ -16,11 +16,13 @@ interface ShopWeapon {
 
 const SHOP_WEAPONS: ShopWeapon[] = [
   { id: "glock", cost: 0, type: "PISTOL" },
+  { id: "tec9", cost: 500, type: "MACHINE PISTOL" },
   { id: "deagle", cost: 650, type: "HEAVY PISTOL" },
   { id: "mp5", cost: 850, type: "SMG" },
   { id: "ak47", cost: 1400, type: "RIFLE" },
   { id: "m4a1", cost: 1500, type: "RIFLE" },
   { id: "awp", cost: 2600, type: "SNIPER" },
+  { id: "combatknife", cost: 1000, type: "TACTICAL MELEE" },
 ];
 
 const SHOP_PERKS = [

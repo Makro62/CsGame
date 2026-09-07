@@ -125,6 +125,7 @@ export interface OfflineGameState {
   players: Map<string, LocalPlayer>;
   killFeed: KillEvent[];
   activeReloads: Map<string, BotReloadState>;
+  teamLossStreak: { T: number; CT: number };
 
   setDifficulty: (level: BotDifficultyLevel) => void;
   initMatch: (nickname: string, team: "T" | "CT", difficulty?: BotDifficultyLevel, mapId?: string) => void;

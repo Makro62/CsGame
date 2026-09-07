@@ -26,6 +26,7 @@ export function tickRound(
       const cloned = { ...p };
       const path = botPath(cloned.botLane, cloned.team);
       const hold = path[0];
+      if (!hold) return;
       const moved = stepToward(cloned, hold, cloned.botSpeed * 0.55, dt);
       cloned.x = moved.x;
       cloned.z = moved.z;
@@ -300,8 +301,18 @@ export function endRound(
   }
 
   const players = new Map(state.players);
+  const prevStreak = state.teamLossStreak ?? { T: 0, CT: 0 };
+  const teamLossStreak = {
+    T: winner === "T" ? 0 : prevStreak.T + 1,
+    CT: winner === "CT" ? 0 : prevStreak.CT + 1,
+  };
+
   players.forEach((p, id) => {
-    const bonus = p.team === winner ? ECONOMY.roundWinBonus : ECONOMY.lossBonus1;
+    let bonus: number = ECONOMY.roundWinBonus;
+    if (p.team !== winner) {
+      const streak = p.team === "T" ? teamLossStreak.T : teamLossStreak.CT;
+      bonus = streak >= 2 ? ECONOMY.lossBonus2 : ECONOMY.lossBonus1;
+    }
     players.set(id, {
       ...p,
       money: Math.min(p.money + bonus, ECONOMY.maxMoney),
@@ -323,6 +334,7 @@ export function endRound(
     bombDropped: false,
     players,
     activeReloads: new Map(),
+    teamLossStreak,
   });
 }
 

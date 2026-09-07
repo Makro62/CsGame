@@ -23,6 +23,7 @@ import {
 } from "./offlineCombat";
 import { navigateTo, resetBotNav, spawnJitter } from "./botNav";
 import { getWeaponStats } from "./EconomySystem";
+import { applyBulletDamageToPlayer } from "./offlineDamage";
 import { safeDiv } from "../../lib/numericGuards";
 import type {
   LocalPlayer,
@@ -72,7 +73,7 @@ export function assignBombCarrier(players: Map<string, LocalPlayer>) {
     p.hasBomb = false;
   });
   const local = players.get("local");
-  if (local && local.team === "T") {
+  if (local && local.team === "T" && !local.isDead) {
     local.hasBomb = true;
     return;
   }
@@ -406,8 +407,11 @@ function fireAt(
       });
 
       if (shot.hit) {
-        const dmg = shot.headshot ? ws.headshot : ws.dmg;
-        tgt.hp = Math.max(0, tgt.hp - dmg);
+        const hpBefore = tgt.hp;
+        const updated = applyBulletDamageToPlayer(tgt, ws.dmg, ws.headshot, shot.headshot);
+        tgt.hp = updated.hp;
+        tgt.armor = updated.armor;
+        const dmg = Math.max(0, hpBefore - tgt.hp);
 
         if (tgt.id === "local") {
           try {
@@ -594,11 +598,7 @@ export function botBuy(bot: LocalPlayer) {
     }
   }
 
-  if (bot.money >= 1000 && !bot.hasHelmet) {
-    bot.armor = 100;
-    bot.hasHelmet = true;
-    bot.money -= 1000;
-  } else if (bot.money >= 650 && bot.armor < 100) {
+  if (bot.money >= 650 && bot.armor < 100) {
     bot.armor = 100;
     bot.money -= 650;
   }
@@ -613,5 +613,11 @@ export function botBuy(bot: LocalPlayer) {
       bot.ammo = deagleStats.mag;
       bot.reserveAmmo = deagleStats.reserveAmmo;
     }
+  }
+
+  if (bot.money >= 1000 && !bot.hasHelmet) {
+    bot.armor = 100;
+    bot.hasHelmet = true;
+    bot.money -= 1000;
   }
 }

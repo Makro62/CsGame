@@ -28,16 +28,18 @@ import {
   equipSurvivalWeapon,
   applyHeroToMatch,
   findRepairableBarricade,
-  findNearestDoor,
   PauseMenu,
   InGameChrome,
   GameModal,
   ModalBody,
   ModalHeader,
   OverlayButton,
-  HUD_Z,
   hudActionButton,
+  HUD_Z,
+  WeaponModel,
 } from "../game/zombie/zombieKit";
+import { SurvivorBreakModal } from "../game/zombie/SurvivorBreakModal";
+import { SURVIVAL_STAGES } from "../game/zombie/survivalLayout";
 
 const ZOMBIE_CANVAS_ID = "zombie-survival-canvas";
 const SHIELD_ARMOR_BONUS = 40;
@@ -100,6 +102,14 @@ export function ZombieSurvivalMode() {
   const hero = useHeroStore(s => s.hero);
   const abilityReady = useHeroStore(s => s.abilityReady);
   const abilityCooldownRemaining = useHeroStore(s => s.abilityCooldownRemaining);
+
+  // Survivor.io Campaign Stage State
+  const currentStage = useZombieStore(s => s.currentStage);
+  const stageBreakActive = useZombieStore(s => s.stageBreakActive);
+  const gate1Open = useZombieStore(s => s.gate1Open);
+  const gate2Open = useZombieStore(s => s.gate2Open);
+  const cameraPerspective = useZombieStore(s => s.cameraPerspective ?? "arcade");
+
   const [paused, setPaused] = useState(false);
   const [showWaveAlert, setShowWaveAlert] = useState(false);
   const [heroSelected, setHeroSelected] = useState(false);
@@ -111,6 +121,15 @@ export function ZombieSurvivalMode() {
   const buyMenuOpenRef = useRef(false);
   buyMenuOpenRef.current = buyMenuOpen;
   const reviveHeld = useRef(false);
+
+  const handleAdvanceStage = useCallback(() => {
+    const st = useZombieStore.getState();
+    st.advanceToNextStage();
+    const nextWave = st.currentWave + 1;
+    st.setCurrentWave(nextWave);
+    zombieEngine.startWave(nextWave);
+    lockZombieCanvas();
+  }, []);
 
   useEffect(() => {
     if (waveState === "wave_active" && prevWaveState.current !== "wave_active") {
@@ -138,7 +157,7 @@ export function ZombieSurvivalMode() {
       if (pausedRef.current || !heroSelectedRef.current) return;
       const st0 = useZombieStore.getState();
 
-      if (st0.waveState === "buy_phase" || st0.waveState === "wave_clear") {
+      if ((st0.waveState === "buy_phase" || st0.waveState === "wave_clear") && !st0.stageBreakActive) {
         const nt = st0.interWaveTimer - dt;
         if (nt <= 0) {
           const nextWave = st0.currentWave + 1;
@@ -150,9 +169,19 @@ export function ZombieSurvivalMode() {
         }
       }
 
+      // Survivor.io Campaign Stage Break Countdown
+      if (st0.stageBreakActive) {
+        const nt = st0.stageBreakTimer - dt;
+        if (nt <= 0) {
+          handleAdvanceStage();
+        } else {
+          useZombieStore.getState().setStageBreakTimer(nt);
+        }
+      }
+
       useHeroStore.getState().tickCooldown(dt);
 
-      if (st0.waveState === "wave_active") {
+      if (st0.waveState === "wave_active" && !st0.stageBreakActive) {
         zombieEngine.update(dt);
       }
 
@@ -240,6 +269,17 @@ export function ZombieSurvivalMode() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        if (useZombieStore.getState().stageBreakActive) {
+          e.preventDefault();
+          handleAdvanceStage();
+          return;
+        }
+      }
+      if (e.code === "KeyV") {
+        useZombieStore.getState().toggleCameraPerspective();
+        return;
+      }
       if (e.code === "KeyF") {
         reviveHeld.current = true;
         const pos = useAimStore.getState().pos;
@@ -247,11 +287,6 @@ export function ZombieSurvivalMode() {
         const repairId = findRepairableBarricade(pos.x, pos.z, zs.barricades);
         if (repairId) {
           zs.repairBarricade(repairId);
-          return;
-        }
-        const door = findNearestDoor(pos.x, pos.z, zs.unlockedDoors);
-        if (door) {
-          zs.unlockDoor(door.id, door.cost);
           return;
         }
         return;
@@ -350,6 +385,7 @@ export function ZombieSurvivalMode() {
         <ShootingSystem />
         <ReloadSystem />
         <TracerManager />
+        {cameraPerspective === "fps" && <WeaponModel />}
       </Canvas>
       </div>
       <div
@@ -481,11 +517,23 @@ export function ZombieSurvivalMode() {
       {waveState !== "game_over" && (
         <InGameChrome
           onMenu={openPause}
-          extra={betweenWaves ? (
-            <button type="button" onClick={toggleBuyMenu} style={hudActionButton("green")}>
-              ARSENAL [B]
-            </button>
-          ) : null}
+          extra={
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => useZombieStore.getState().toggleCameraPerspective()}
+                style={hudActionButton("blue")}
+                title="Ganti Sudut Pandang Kamera (V)"
+              >
+                KAMERA: {cameraPerspective.toUpperCase()} [V]
+              </button>
+              {betweenWaves && (
+                <button type="button" onClick={toggleBuyMenu} style={hudActionButton("green")}>
+                  ARSENAL [B]
+                </button>
+              )}
+            </div>
+          }
         />
       )}
 
@@ -555,6 +603,9 @@ export function ZombieSurvivalMode() {
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "clamp(10px, 1.4vw, 13px)", fontWeight: 900, letterSpacing: "0.1em" }}>
             <span style={{ color: waveState === "wave_active" ? "#ef4444" : "#84cc16", fontSize: "clamp(12px, 1.6vw, 15px)" }}>
               {waveState === "wave_active" ? "⚔️ TARGET MISI SURVIVAL" : "🛡️ PERSIAPAN PERTAHANAN"}
+            </span>
+            <span style={{ background: "rgba(132, 204, 22, 0.2)", border: "1px solid #84cc16", padding: "1px 8px", borderRadius: 4, color: "#bef264" }}>
+              SEKTOR {currentStage}/3 • {SURVIVAL_STAGES[currentStage]?.name.toUpperCase() ?? "COURTYARD"}
             </span>
             <span style={{ background: "rgba(255,255,255,0.1)", padding: "1px 8px", borderRadius: 4, color: "#facc15" }}>
               WAVE {Math.max(1, currentWave)}
@@ -829,7 +880,7 @@ export function ZombieSurvivalMode() {
           textOverflow: "ellipsis",
         }}
       >
-        W Atas • S Bawah • A Kiri • D Kanan • Mouse Bidik • Klik Kiri Tembak • R Reload • Q Ability • 1-3 Ganti Senjata • B Toko • F Revive • ESC Menu
+        W Atas • S Bawah • A Kiri • D Kanan • Mouse Bidik • Klik Kiri Tembak • R Reload • Q Ability • 1-3 Ganti Senjata • V Kamera (Arcade/FPS) • B Toko • F Barikade • ESC Menu
       </div>
 
       {waveState === "game_over" && (
@@ -846,6 +897,60 @@ export function ZombieSurvivalMode() {
           </ModalBody>
         </GameModal>
       )}
+
+      {/* Waypoint Alert Banner when Gate opens */}
+      {gate1Open && currentStage === 1 && !stageBreakActive && (
+        <div
+          style={{
+            position: "fixed",
+            top: "clamp(64px, 12vh, 82px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 45,
+            background: "linear-gradient(90deg, rgba(22, 163, 74, 0.95), rgba(34, 197, 94, 0.98))",
+            border: "1.5px solid #4ade80",
+            padding: "6px 22px",
+            borderRadius: 20,
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 900,
+            letterSpacing: "0.08em",
+            boxShadow: "0 0 25px rgba(34, 197, 94, 0.6)",
+            pointerEvents: "none",
+            fontFamily: "'Rajdhani', monospace",
+          }}
+        >
+          🔓 BLAST GATE 01 TERBUKA! MAJU KE UTARA MENUJU LAB BIO-TECH ⬆️
+        </div>
+      )}
+
+      {gate2Open && currentStage === 2 && !stageBreakActive && (
+        <div
+          style={{
+            position: "fixed",
+            top: "clamp(64px, 12vh, 82px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 45,
+            background: "linear-gradient(90deg, rgba(202, 138, 4, 0.95), rgba(234, 179, 8, 0.98))",
+            border: "1.5px solid #fde047",
+            padding: "6px 22px",
+            borderRadius: 20,
+            color: "#051103",
+            fontSize: 13,
+            fontWeight: 900,
+            letterSpacing: "0.08em",
+            boxShadow: "0 0 25px rgba(234, 179, 8, 0.6)",
+            pointerEvents: "none",
+            fontFamily: "'Rajdhani', monospace",
+          }}
+        >
+          🔓 BLAST GATE 02 TERBUKA! MAJU KE UTARA MENUJU HELIPAD EVAKUASI ⬆️
+        </div>
+      )}
+
+      {/* Survivor.io Break Modal */}
+      {stageBreakActive && <SurvivorBreakModal onAdvance={handleAdvanceStage} />}
 
       <SurvivalShop open={buyMenuOpen && betweenWaves} onClose={closeBuyMenu} />
       <DamageVignette />

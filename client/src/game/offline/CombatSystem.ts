@@ -1,4 +1,5 @@
 import { getWeaponStats } from "./EconomySystem";
+import { applyBulletDamageToPlayer } from "./offlineDamage";
 import type { LocalPlayer, KillEvent } from "./types";
 
 export interface ShootResult {
@@ -39,9 +40,12 @@ export function executeLocalShoot(
   if (targetId) {
     const victim = players.get(targetId);
     if (victim && !victim.isDead && victim.team !== me.team) {
-      const newVictim = { ...victim };
-      const dmg = headshot ? ws.headshot : ws.dmg;
-      newVictim.hp = Math.max(0, newVictim.hp - dmg);
+      const newVictim = applyBulletDamageToPlayer(
+        victim,
+        ws.dmg,
+        ws.headshot,
+        headshot,
+      );
       didHitEnemy = true;
 
       if (newVictim.hp <= 0) {

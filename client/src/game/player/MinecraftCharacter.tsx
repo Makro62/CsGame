@@ -4,16 +4,13 @@ import * as THREE from "three";
 import { getCharacterLook } from "./characterLooks";
 import { CharacterGear } from "./CharacterGear";
 import {
-  ThirdPersonAk47,
-  ThirdPersonM4,
-  ThirdPersonPistol,
-  ThirdPersonKarambit,
+  SharedThirdPersonWeaponMesh,
 } from "../weapons/weaponGeometries";
 import {
   BLOCKY_WEAPON_ATTACH,
   THIRD_PERSON_ARM_POSES,
   weaponCategoryFromType,
-  type ThirdPersonWeaponCategory,
+  weaponCategoryFromId,
 } from "./thirdPersonWeaponRig";
 
 function createFaceTexture(team: string, accent?: string, skin = "#d4a574"): THREE.Texture {
@@ -63,56 +60,6 @@ function createHelmetTexture(team: string, accent?: string): THREE.Texture {
   return texture;
 }
 
-function MinecraftRifle({ team }: { team: string }) {
-  const isCt = team !== "T";
-  return (
-    <group rotation={[0.08, 0, 0]} scale={0.92}>
-      {isCt ? <ThirdPersonM4 /> : <ThirdPersonAk47 />}
-    </group>
-  );
-}
-
-function MinecraftPistol({ team }: { team: string }) {
-  return (
-    <group rotation={[0.1, 0, 0]} scale={0.95}>
-      <ThirdPersonPistol heavy={team === "T"} />
-    </group>
-  );
-}
-
-function MinecraftKnife() {
-  return (
-    <group scale={0.9}>
-      <ThirdPersonKarambit />
-    </group>
-  );
-}
-
-function MinecraftWeapon({ weaponType, team }: { weaponType: ThirdPersonWeaponCategory; team: string }) {
-  if (weaponType === "knife") return <MinecraftKnife />;
-  if (weaponType === "pistol") return <MinecraftPistol team={team} />;
-  return <MinecraftRifle team={team} />;
-}
-
-function MuzzleFlash({ until, z }: { until: number; z: number }) {
-  const ref = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (ref.current) ref.current.visible = Date.now() < until;
-  });
-  return (
-    <group ref={ref} position={[0, 0.01, z]} visible={false}>
-      <mesh>
-        <sphereGeometry args={[0.045, 8, 8]} />
-        <meshBasicMaterial color="#ffe08a" />
-      </mesh>
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <coneGeometry args={[0.05, 0.14, 8]} />
-        <meshBasicMaterial color="#fb923c" transparent opacity={0.85} />
-      </mesh>
-    </group>
-  );
-}
-
 interface MinecraftCharacterProps {
   team: "T" | "CT" | string;
   isSprinting?: boolean;
@@ -122,6 +69,7 @@ interface MinecraftCharacterProps {
   limbSwingSpeed?: number;
   holdWeapon?: boolean;
   weaponType?: "rifle" | "pistol" | "knife";
+  currentWeapon?: string | null;
   weaponScale?: number;
   muzzleUntil?: number;
   motionRef?: MutableRefObject<{ moving: boolean; sprinting: boolean }>;
@@ -140,6 +88,7 @@ export function MinecraftCharacter({
   limbSwingSpeed = 0,
   holdWeapon = false,
   weaponType = "rifle",
+  currentWeapon,
   weaponScale = 1,
   muzzleUntil = 0,
   motionRef,
@@ -155,7 +104,7 @@ export function MinecraftCharacter({
   const bodyRef = useRef<THREE.Group>(null);
 
   const look = getCharacterLook(bodyStyle);
-  const category = weaponCategoryFromType(weaponType);
+  const category = currentWeapon ? weaponCategoryFromId(currentWeapon) : weaponCategoryFromType(weaponType);
   const armPose = THIRD_PERSON_ARM_POSES[category];
   const weaponAttach = BLOCKY_WEAPON_ATTACH[category];
 
@@ -334,8 +283,10 @@ export function MinecraftCharacter({
             rotation={weaponAttach.rotation}
             scale={weaponScale * weaponAttach.scale}
           >
-            <MinecraftWeapon weaponType={category} team={team} />
-            <MuzzleFlash until={muzzleUntil} z={weaponAttach.muzzleZ} />
+            <SharedThirdPersonWeaponMesh
+              weapon={currentWeapon ?? (category === "knife" ? "combatknife" : category === "pistol" ? (team === "T" ? "glock" : "deagle") : (team === "T" ? "ak47" : "m4a1"))}
+              isFiring={Date.now() < muzzleUntil}
+            />
           </group>
         )}
       </group>

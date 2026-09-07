@@ -1,5 +1,7 @@
 /** Shared third-person weapon category, arm poses, and attachment offsets. */
 
+import { isGrenadeWeapon } from "@cs-game/shared";
+
 export type ThirdPersonWeaponCategory = "rifle" | "pistol" | "knife";
 
 export interface ArmPose {
@@ -91,7 +93,7 @@ export function weaponCategoryFromId(weaponId: string | null | undefined): Third
   if (w.includes("deagle") || w.includes("glock") || w.includes("tec9") || w.includes("autopistol")) {
     return "pistol";
   }
-  if (w.includes("he") || w.includes("smoke") || w.includes("flash") || w.includes("grenade")) {
+  if (isGrenadeWeapon(w) || w === "grenade") {
     return "pistol";
   }
   return "rifle";

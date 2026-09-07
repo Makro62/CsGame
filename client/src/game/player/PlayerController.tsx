@@ -46,8 +46,8 @@ const _lookEuler = new THREE.Euler()
 const POINTER_LOCK_SENSITIVITY = 0.002
 const PITCH_LIMIT = 1.55
 
-// Ray vs AABB slab test for wall jump detection (fixed: inv = 1/d, not d/len)
-function rayVsAABB(
+// Ray vs AABB slab test for wall jump detection (fixed: inv = 1/d, t normalized [0, 1])
+export function rayVsAABB(
   origin: { x: number; y: number; z: number },
   target: { x: number; y: number; z: number },
   box: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number }
@@ -85,8 +85,8 @@ function rayVsAABB(
     tmax = Math.min(tmax, Math.max(t1, t2))
   } else if (origin.z < box.minZ || origin.z > box.maxZ) return false
 
-  // Hit inside [0, len] along the ray
-  return tmax >= tmin && tmax >= 0 && tmin <= len
+  // Hit inside [0, 1] along the normalized ray segment from origin to target
+  return tmax >= tmin && tmax >= 0 && tmin <= 1
 }
 
 const WALK_SPEED = PHYSICS.walkSpeed as number
@@ -556,13 +556,13 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
     ) {
       const timeSinceWallJump = now - lastWallJumpTime.current
       if (timeSinceWallJump >= WALL_JUMP_COOLDOWN) {
-        // Cast rays left and right relative to camera yaw
+        // Cast rays in 4 directions relative to camera yaw (left, right, forward, backward)
         const yaw = _euler.y
         const rayDirs = [
           { x: -Math.cos(yaw), z: Math.sin(yaw) },   // left
           { x: Math.cos(yaw), z: -Math.sin(yaw) },    // right
-          { x: -Math.sin(yaw), z: -Math.cos(yaw) },   // forward-left
-          { x: Math.sin(yaw), z: Math.cos(yaw) },     // forward-right
+          { x: -Math.sin(yaw), z: -Math.cos(yaw) },   // forward
+          { x: Math.sin(yaw), z: Math.cos(yaw) },     // backward
         ]
         for (const dir of rayDirs) {
           const rayOrigin = { x: _currentPos.x, y: _currentPos.y, z: _currentPos.z }
@@ -595,8 +595,9 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
     }
 
     // Variable jump height stays in training. 5v5 / L4D keep a full tap-jump.
+    // Frame-rate independent: scaled to dt (at 60 FPS dt*60 = 1, equivalent to 0.88 decay)
     if (!csTactical && !input.jump && velocityY.current > 0) {
-      velocityY.current *= 0.88
+      velocityY.current *= Math.pow(0.88, dt * 60)
     }
 
     // Short-hop (only when ADS is pressed while in air, not when holding ADS)
@@ -685,11 +686,6 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
       grounded.current = true
       coyoteTimeRef.current = 0.12
       adsPressedInAir.current = false
-    }
-
-    // Offline: update local store only (no server)
-    if (mode === 'offline5v5') {
-      useOffline5v5Store.getState().setLocalPos(_currentPos.x, _currentPos.z, _euler.y);
     }
 
     // Update last input for weapon sway and spread

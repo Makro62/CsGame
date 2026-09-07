@@ -5,7 +5,8 @@ export const ZOMBIE_PICK_WEIGHTS: Record<ZombieType, number> = {
 };
 
 export function waveCount(wave: number): number {
-  return WAVE_CONFIG.baseZombieCount + (wave - 1) * WAVE_CONFIG.zombiesPerWave;
+  const w = Math.max(1, wave);
+  return WAVE_CONFIG.baseZombieCount + (w - 1) * WAVE_CONFIG.zombiesPerWave;
 }
 
 export function waveInterval(wave: number): number {

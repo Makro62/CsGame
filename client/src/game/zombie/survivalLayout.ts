@@ -62,6 +62,77 @@ export const SURVIVAL_ROOMS: Room[] = [
   { id: "bunker", name: "Bunker Utara", bounds: { minX: -25, maxX: -10, minZ: -10, maxZ: 10 }, unlockCost: 2000, isStartingRoom: false },
 ];
 
+// ─── Survivor.io Campaign Stage System ─────────────────────────
+export interface SurvivalStage {
+  id: number;
+  name: string;
+  subtitle: string;
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+  gateZ?: number;
+  spawns: Array<{ x: number; z: number }>;
+}
+
+export const SURVIVAL_STAGES: Record<number, SurvivalStage> = {
+  1: {
+    id: 1,
+    name: "Sektor 1: Courtyard Kota",
+    subtitle: "Kalahkan zombie awal dan bersiap membuka Gerbang Sektor 2",
+    bounds: { minX: -22, maxX: 22, minZ: -6, maxZ: 22 },
+    gateZ: -6,
+    spawns: [
+      { x: 0, z: 16 },
+      { x: -8, z: 12 },
+      { x: 8, z: 12 },
+      { x: -14, z: 6 },
+      { x: 14, z: 6 },
+      { x: 0, z: 2 },
+    ],
+  },
+  2: {
+    id: 2,
+    name: "Sektor 2: Lab Bio-Tech & Gudang",
+    subtitle: "Map baru terbuka! Jelajahi lab dan hancurkan zombie mutagen",
+    bounds: { minX: -22, maxX: 22, minZ: -42, maxZ: 22 },
+    gateZ: -42,
+    spawns: [
+      { x: 0, z: -14 },
+      { x: -10, z: -20 },
+      { x: 10, z: -20 },
+      { x: -12, z: -30 },
+      { x: 12, z: -30 },
+      { x: 0, z: -36 },
+    ],
+  },
+  3: {
+    id: 3,
+    name: "Sektor 3: Bunker Evakuasi & Helipad",
+    subtitle: "Zona pendaratan terakhir, kalahkan Boss untuk evakuasi",
+    bounds: { minX: -22, maxX: 22, minZ: -78, maxZ: 22 },
+    gateZ: -78,
+    spawns: [
+      { x: 0, z: -48 },
+      { x: -12, z: -56 },
+      { x: 12, z: -56 },
+      { x: -10, z: -66 },
+      { x: 10, z: -66 },
+      { x: 0, z: -72 },
+    ],
+  },
+};
+
+export function getSurvivalStageBounds(unlockedStages = 1): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  if (unlockedStages >= 3) return SURVIVAL_STAGES[3].bounds;
+  if (unlockedStages === 2) return SURVIVAL_STAGES[2].bounds;
+  return SURVIVAL_STAGES[1].bounds;
+}
+
+export function getSpawnsForUnlockedStages(unlockedStages = 1): Array<{ x: number; z: number }> {
+  const list: Array<{ x: number; z: number }> = [...SURVIVAL_STAGES[1].spawns];
+  if (unlockedStages >= 2) list.push(...SURVIVAL_STAGES[2].spawns);
+  if (unlockedStages >= 3) list.push(...SURVIVAL_STAGES[3].spawns);
+  return list;
+}
+
 export const DOOR_LOCATIONS = SURVIVAL_DOORS.map((d) => ({
   doorId: d.id,
   position: [d.x, d.h / 2, d.z] as [number, number, number],
@@ -150,7 +221,49 @@ const BUNKER_OBSTACLES: SurvivalObstacle[] = [
   crate(-18, 3, 0.7), crate(-14, -3, 0.7), barrel(-12, 0, 0.42),
 ];
 
-export function getSurvivalObstacles(unlockedDoors: string[] = []): SurvivalObstacle[] {
+// ─── Stage Gates & Campaign Sector Obstacles ────────────────────
+export const GATE1_OBSTACLE: SurvivalObstacle = wall(-4.5, 4.5, -6.5, -5.5);
+export const GATE2_OBSTACLE: SurvivalObstacle = wall(-4.5, 4.5, -42.5, -41.5);
+
+export const STAGE2_OBSTACLES: SurvivalObstacle[] = [
+  // Sector 2 Bio-Tech Lab internal cover
+  crate(-8, -16, 1.0),
+  crate(8, -16, 1.0),
+  barrel(-12, -24, 0.6),
+  barrel(12, -24, 0.6),
+  wall(-6, -2, -28, -27),
+  wall(2, 6, -28, -27),
+  crate(0, -34, 1.2),
+];
+
+export const STAGE3_OBSTACLES: SurvivalObstacle[] = [
+  // Sector 3 Helipad & Bunker cover
+  crate(-14, -52, 1.4),
+  crate(14, -52, 1.4),
+  wall(-16, -10, -64, -63),
+  wall(10, 16, -64, -63),
+  crate(-8, -72, 1.0),
+  crate(8, -72, 1.0),
+];
+
+export function getSurvivalObstacles(
+  unlockedDoors: string[] = [],
+  gate1Open?: boolean,
+  gate2Open?: boolean,
+): SurvivalObstacle[] {
+  let g1 = gate1Open;
+  let g2 = gate2Open;
+  if (g1 === undefined || g2 === undefined) {
+    try {
+      const s = useZombieStore.getState();
+      if (g1 === undefined) g1 = s.gate1Open ?? false;
+      if (g2 === undefined) g2 = s.gate2Open ?? false;
+    } catch {
+      if (g1 === undefined) g1 = false;
+      if (g2 === undefined) g2 = false;
+    }
+  }
+
   let obs = [...SURVIVAL_OBSTACLES];
   if (unlockedDoors.includes("door_lab")) obs = obs.concat(LAB_OBSTACLES);
   else obs.push(wall(-2, 2, 8, 9)); // closed door
@@ -160,11 +273,33 @@ export function getSurvivalObstacles(unlockedDoors: string[] = []): SurvivalObst
   else obs.push(wall(9, 10, -8, -7));
   if (unlockedDoors.includes("door_bunker")) obs = obs.concat(BUNKER_OBSTACLES);
   else obs.push(wall(-2, 2, -12, -11));
+
+  // Gate 1 (Courtyard -> Bio-Lab at Z = -6)
+  if (!g1) {
+    obs.push(GATE1_OBSTACLE);
+  } else {
+    obs = obs.concat(STAGE2_OBSTACLES);
+  }
+
+  // Gate 2 (Bio-Lab -> Helipad at Z = -42)
+  if (!g2) {
+    obs.push(GATE2_OBSTACLE);
+  } else {
+    obs = obs.concat(STAGE3_OBSTACLES);
+  }
+
   return obs;
 }
 
 export function pushOutSurvival(x: number, z: number, radius: number, obstacles?: SurvivalObstacle[]): { x: number; z: number } {
-  const obsList = obstacles ?? (() => { try { return getSurvivalObstacles(useZombieStore.getState().unlockedDoors); } catch { return SURVIVAL_OBSTACLES; } })();
+  const obsList = obstacles ?? (() => {
+    try {
+      const s = useZombieStore.getState();
+      return getSurvivalObstacles(s.unlockedDoors, s.gate1Open, s.gate2Open);
+    } catch {
+      return SURVIVAL_OBSTACLES;
+    }
+  })();
   let px = x;
   let pz = z;
   for (const obs of obsList) {
@@ -203,7 +338,14 @@ function slabEnter(
 }
 
 export function survivalLineOfSight(ox: number, oz: number, tx: number, tz: number, obstacles?: SurvivalObstacle[]): boolean {
-  const obsList = obstacles ?? (() => { try { return getSurvivalObstacles(useZombieStore.getState().unlockedDoors); } catch { return SURVIVAL_OBSTACLES; } })();
+  const obsList = obstacles ?? (() => {
+    try {
+      const s = useZombieStore.getState();
+      return getSurvivalObstacles(s.unlockedDoors, s.gate1Open, s.gate2Open);
+    } catch {
+      return SURVIVAL_OBSTACLES;
+    }
+  })();
   const dx = tx - ox;
   const dz = tz - oz;
   const dist = Math.hypot(dx, dz);
@@ -223,11 +365,12 @@ function nearestBarricadeId(
   barricades: Record<string, number>,
   maxDist: number,
   plankOk: (planks: number) => boolean,
+  missingPlanks = 0,
 ): string | null {
   let best: string | null = null;
   let bestDist = Infinity;
   for (const w of SURVIVAL_BARRICADES) {
-    const planks = barricades[w.id] ?? 6;
+    const planks = barricades[w.id] ?? missingPlanks;
     if (!plankOk(planks)) continue;
     const d = Math.hypot(x - w.x, z - w.z);
     if (d < bestDist) {
@@ -245,7 +388,7 @@ export function findNearestBarricade(
   barricades: Record<string, number>,
   maxDist = 4,
 ): string | null {
-  return nearestBarricadeId(x, z, barricades, maxDist, (planks) => planks > 0);
+  return nearestBarricadeId(x, z, barricades, maxDist, (planks) => planks > 0, 6);
 }
 
 /** Closest window the player can repair (missing at least one plank). */
@@ -255,7 +398,7 @@ export function findRepairableBarricade(
   barricades: Record<string, number>,
   maxDist = 2.5,
 ): string | null {
-  return nearestBarricadeId(x, z, barricades, maxDist, (planks) => planks < 6);
+  return nearestBarricadeId(x, z, barricades, maxDist, (planks) => planks < 6, 6);
 }
 
 export function findNearestDoor(
@@ -278,7 +421,14 @@ export function findNearestDoor(
 }
 
 export function survivalWallDistance(ox: number, oz: number, dx: number, dz: number, maxDist = 70, obstacles?: SurvivalObstacle[]): number {
-  const obsList = obstacles ?? (() => { try { return getSurvivalObstacles(useZombieStore.getState().unlockedDoors); } catch { return SURVIVAL_OBSTACLES; } })();
+  const obsList = obstacles ?? (() => {
+    try {
+      const s = useZombieStore.getState();
+      return getSurvivalObstacles(s.unlockedDoors, s.gate1Open, s.gate2Open);
+    } catch {
+      return SURVIVAL_OBSTACLES;
+    }
+  })();
   const len = Math.hypot(dx, dz);
   if (len < 1e-6) return maxDist;
   const ndx = dx / len;
