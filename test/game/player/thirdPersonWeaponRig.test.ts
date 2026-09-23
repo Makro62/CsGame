@@ -61,6 +61,10 @@ describe("thirdPersonWeaponRig", () => {
       expect(weaponCategoryFromId("autopistol")).toBe("pistol");
     });
 
+    it("returns pistol for fiveseven", () => {
+      expect(weaponCategoryFromId("fiveseven")).toBe("pistol");
+    });
+
     it("returns pistol for he grenade", () => {
       expect(weaponCategoryFromId("he")).toBe("pistol");
     });

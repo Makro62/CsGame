@@ -8,8 +8,11 @@ import {
   TACTICAL_WEAPON_ATTACH,
   weaponCategoryFromId,
 } from "./thirdPersonWeaponRig";
+import { crouchLegAngles } from "./kneeBend";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+
+const PLANT_BEND = crouchLegAngles(0.32, 0.29, 0.22);
 
 interface TacticalBotModelProps {
   id: string;
@@ -117,6 +120,11 @@ export function TacticalBotModel({
     accent: agentColors?.accent ?? defaultPalette.accent,
   };
   const face = useMemo(() => createOperatorFace(team === "T" ? "T" : "CT"), [team]);
+  const gaitSeed = useMemo(() => {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }, [id]);
 
   useEffect(() => {
     if (lastShootTime && lastShootTime !== lastShotRef.current) {
@@ -154,9 +162,23 @@ export function TacticalBotModel({
       bodyRef.current.rotation.x = THREE.MathUtils.lerp(bodyRef.current.rotation.x, 0, damp);
     }
 
-    const t = performance.now() * 0.007;
+    const freqMult = 0.9 + ((gaitSeed >> 3) % 100) / 100 * 0.2;
+    const phase = ((gaitSeed % 1000) / 1000) * Math.PI * 2;
+    const t = performance.now() * 0.007 * freqMult + phase;
     const walk = isMoving ? Math.sin(t) : 0;
     const walkAmt = isMoving ? 0.55 : 0;
+
+    if (isPlanting || isDefusing) {
+      if (leftLegRef.current) leftLegRef.current.rotation.x = PLANT_BEND.thigh;
+      if (rightLegRef.current) rightLegRef.current.rotation.x = PLANT_BEND.thigh;
+      if (leftKneeRef.current) leftKneeRef.current.rotation.x = PLANT_BEND.knee;
+      if (rightKneeRef.current) rightKneeRef.current.rotation.x = PLANT_BEND.knee;
+      if (rightArmRef.current) rightArmRef.current.rotation.set(-0.85, 0.1, 0.25);
+      if (leftArmRef.current) leftArmRef.current.rotation.set(-0.85, -0.1, -0.25);
+      if (rightElbowRef.current) rightElbowRef.current.rotation.set(-0.7, 0, 0);
+      if (leftElbowRef.current) leftElbowRef.current.rotation.set(-0.7, 0, 0);
+      return;
+    }
 
     if (leftLegRef.current) leftLegRef.current.rotation.x = -walk * walkAmt;
     if (rightLegRef.current) rightLegRef.current.rotation.x = walk * walkAmt;
@@ -164,14 +186,6 @@ export function TacticalBotModel({
     if (rightKneeRef.current) rightKneeRef.current.rotation.x = isMoving ? Math.max(0, walk) * 0.45 : 0.08;
 
     const kick = isFiring ? armPose.fireKick : 0;
-
-    if (isPlanting || isDefusing) {
-      if (rightArmRef.current) rightArmRef.current.rotation.set(-0.85, 0.1, 0.25);
-      if (leftArmRef.current) leftArmRef.current.rotation.set(-0.85, -0.1, -0.25);
-      if (rightElbowRef.current) rightElbowRef.current.rotation.set(-0.7, 0, 0);
-      if (leftElbowRef.current) leftElbowRef.current.rotation.set(-0.7, 0, 0);
-      return;
-    }
 
     const [rx, ry, rz] = armPose.right;
     const [lx, ly, lz] = armPose.left;
@@ -279,7 +293,7 @@ export function TacticalBotModel({
               <boxGeometry args={[0.07, 0.08, 0.08]} />
               <meshStandardMaterial color="#c9956c" roughness={0.7} />
             </mesh>
-            <group position={weaponAttach.position}>
+            <group position={weaponAttach.position} rotation={weaponAttach.rotation}>
               <BotWeaponMesh weapon={currentWeapon} isFiring={isFiring} muzzleZ={weaponAttach.muzzleZ} />
             </group>
           </group>
@@ -295,7 +309,7 @@ export function TacticalBotModel({
               <cylinderGeometry args={[0.06, 0.068, 0.32, 8]} />
               <meshStandardMaterial color={pants} roughness={0.86} />
             </mesh>
-            <mesh position={[0, -0.34, 0.035]} castShadow>
+            <mesh position={[0, -0.29, 0.035]} castShadow>
               <boxGeometry args={[0.12, 0.1, 0.2]} />
               <meshStandardMaterial color="#111827" roughness={0.5} />
             </mesh>
@@ -312,7 +326,7 @@ export function TacticalBotModel({
               <cylinderGeometry args={[0.06, 0.068, 0.32, 8]} />
               <meshStandardMaterial color={pants} roughness={0.86} />
             </mesh>
-            <mesh position={[0, -0.34, 0.035]} castShadow>
+            <mesh position={[0, -0.29, 0.035]} castShadow>
               <boxGeometry args={[0.12, 0.1, 0.2]} />
               <meshStandardMaterial color="#111827" roughness={0.5} />
             </mesh>

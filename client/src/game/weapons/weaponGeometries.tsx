@@ -507,13 +507,13 @@ export function SharedThirdPersonWeaponMesh({
   let mesh = <ThirdPersonAk47 />;
   let defMuzzleZ = -0.42;
 
-  if (w.includes("awp")) {
+  if (w.includes("awp") || w.includes("ssg") || w.includes("scout")) {
     mesh = <ThirdPersonAwp />;
     defMuzzleZ = -0.62;
   } else if (w.includes("ak47") || w.includes("ak-")) {
     mesh = <ThirdPersonAk47 />;
     defMuzzleZ = -0.42;
-  } else if (w.includes("m4a1") || w.includes("m4")) {
+  } else if (w.includes("m4a1") || w.includes("m4") || w.includes("aug")) {
     mesh = <ThirdPersonM4 />;
     defMuzzleZ = -0.44;
   } else if (w.includes("mp5")) {
@@ -525,7 +525,12 @@ export function SharedThirdPersonWeaponMesh({
   } else if (w.includes("tec9") || w.includes("tec-9")) {
     mesh = <ThirdPersonTec9 />;
     defMuzzleZ = -0.18;
-  } else if (w.includes("glock") || w.includes("autopistol") || w.includes("pistol")) {
+  } else if (
+    w.includes("glock") ||
+    w.includes("autopistol") ||
+    w.includes("fiveseven") ||
+    w.includes("pistol")
+  ) {
     mesh = <ThirdPersonGlock />;
     defMuzzleZ = -0.15;
   } else if (w.includes("knife") || w.includes("karambit") || w.includes("combatknife")) {

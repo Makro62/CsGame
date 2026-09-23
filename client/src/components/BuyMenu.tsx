@@ -32,10 +32,13 @@ const WEAPON_NAMES: Record<string, string> = {
   m4a1: "M4A1-S",
   awp: "AWP",
   mp5: "MP5",
+  ssg: "SSG Scout",
+  aug: "AUG",
   deagle: "Desert Eagle",
   glock: "Glock-18",
   tec9: "Tec-9",
   autopistol: "Auto Pistol",
+  fiveseven: "Five-SeveN",
   combatknife: "Combat Knife",
 };
 

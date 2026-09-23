@@ -2,6 +2,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { SpecialType } from "../../stores/useL4DStore";
+import { crouchLegAngles } from "../player/kneeBend";
 
 let _zombieFace: THREE.Texture | null = null;
 export function createZombieFaceTexture(): THREE.Texture {
@@ -58,9 +59,13 @@ export function InfectedFigure({
   const rightArm = useRef<THREE.Group>(null);
   const leftLeg = useRef<THREE.Group>(null);
   const rightLeg = useRef<THREE.Group>(null);
+  const leftKnee = useRef<THREE.Group>(null);
+  const rightKnee = useRef<THREE.Group>(null);
   const seed = useMemo(() => infectedId.split("").reduce((a, c) => a + c.charCodeAt(0), 0) * 0.017, [infectedId]);
   const ud = { infectedId, isHead: false };
   const udHead = { infectedId, isHead: true };
+  const bend = useMemo(() => crouchLegAngles(0.32, 0.32, look.crouch), [look.crouch]);
+  const legY = 0.64 - look.crouch;
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime * (attacking ? 10 : 7.2) + seed;
@@ -70,68 +75,88 @@ export function InfectedFigure({
     if (rightArm.current) {
       rightArm.current.rotation.x = type === "smoker" ? 0.9 : type === "hunter" ? 1.1 - swing * 0.2 : -swing;
     }
-    if (leftLeg.current) leftLeg.current.rotation.x = moving && !attacking ? -swing : 0.08;
-    if (rightLeg.current) rightLeg.current.rotation.x = moving && !attacking ? swing : 0.08;
+    const walking = moving && !attacking;
+    const restL = walking ? -swing : 0.08;
+    const restR = walking ? swing : 0.08;
+    if (leftLeg.current) leftLeg.current.rotation.x = bend.thigh + restL;
+    if (rightLeg.current) rightLeg.current.rotation.x = bend.thigh + restR;
+    const flexL = walking ? Math.max(0, -swing) * 0.45 : 0;
+    const flexR = walking ? Math.max(0, swing) * 0.45 : 0;
+    if (leftKnee.current) leftKnee.current.rotation.x = bend.knee + flexL;
+    if (rightKnee.current) rightKnee.current.rotation.x = bend.knee + flexR;
   });
 
   const s = look.scale;
   const fat = look.fat;
-  const y0 = -look.crouch;
 
   return (
-    <group scale={[s, s, s]} position={[0, y0, 0]} userData={ud}>
-      <group position={[0, 1.42, 0]} userData={udHead}>
-        <mesh castShadow userData={udHead}>
-          <boxGeometry args={[0.34, 0.34, 0.34]} />
-          <meshStandardMaterial color={look.skin} roughness={0.72} />
-        </mesh>
-        <mesh position={[0, -0.01, 0.175]} userData={udHead}>
-          <planeGeometry args={[0.3, 0.3]} />
-          <meshStandardMaterial map={face} roughness={0.8} />
-        </mesh>
-        {type === "witch" && (
-          <mesh position={[0, 0.22, -0.04]} userData={udHead}>
-            <boxGeometry args={[0.38, 0.18, 0.42]} />
-            <meshStandardMaterial color="#fafafa" />
+    <group scale={[s, s, s]} userData={ud}>
+      <group position={[0, -look.crouch, 0]}>
+        <group position={[0, 1.42, 0]} userData={udHead}>
+          <mesh castShadow userData={udHead}>
+            <boxGeometry args={[0.34, 0.34, 0.34]} />
+            <meshStandardMaterial color={look.skin} roughness={0.72} />
           </mesh>
-        )}
-        {type === "tank" && (
-          <mesh position={[0, 0.12, 0]} userData={udHead}>
-            <boxGeometry args={[0.42, 0.16, 0.38]} />
-            <meshStandardMaterial color="#292524" />
+          <mesh position={[0, -0.01, 0.175]} userData={udHead}>
+            <planeGeometry args={[0.3, 0.3]} />
+            <meshStandardMaterial map={face} roughness={0.8} />
           </mesh>
-        )}
-      </group>
+          {type === "witch" && (
+            <mesh position={[0, 0.22, -0.04]} userData={udHead}>
+              <boxGeometry args={[0.38, 0.18, 0.42]} />
+              <meshStandardMaterial color="#fafafa" />
+            </mesh>
+          )}
+          {type === "tank" && (
+            <mesh position={[0, 0.12, 0]} userData={udHead}>
+              <boxGeometry args={[0.42, 0.16, 0.38]} />
+              <meshStandardMaterial color="#292524" />
+            </mesh>
+          )}
+        </group>
 
-      <mesh position={[0, 0.82, 0]} castShadow userData={ud}>
-        <boxGeometry args={[0.48 * fat, 0.72, 0.28 * fat]} />
-        <meshStandardMaterial color={look.shirt} roughness={0.78} />
-      </mesh>
-
-      <group ref={leftArm} position={[-0.28 * fat - 0.08, 1.08, 0]}>
-        <mesh position={[0, -0.32, 0]} castShadow userData={ud}>
-          <boxGeometry args={[0.16, 0.64, 0.16]} />
-          <meshStandardMaterial color={look.shirt} roughness={0.75} />
+        <mesh position={[0, 0.82, 0]} castShadow userData={ud}>
+          <boxGeometry args={[0.48 * fat, 0.72, 0.28 * fat]} />
+          <meshStandardMaterial color={look.shirt} roughness={0.78} />
         </mesh>
-      </group>
-      <group ref={rightArm} position={[0.28 * fat + 0.08, 1.08, type === "smoker" ? 0.08 : 0]}>
-        <mesh position={[0, type === "smoker" ? -0.42 : -0.32, 0]} castShadow userData={ud}>
-          <boxGeometry args={[0.16, type === "smoker" ? 0.85 : 0.64, 0.16]} />
-          <meshStandardMaterial color={look.shirt} roughness={0.75} />
-        </mesh>
+
+        <group ref={leftArm} position={[-0.28 * fat - 0.08, 1.08, 0]}>
+          <mesh position={[0, -0.32, 0]} castShadow userData={ud}>
+            <boxGeometry args={[0.16, 0.64, 0.16]} />
+            <meshStandardMaterial color={look.shirt} roughness={0.75} />
+          </mesh>
+        </group>
+        <group ref={rightArm} position={[0.28 * fat + 0.08, 1.08, type === "smoker" ? 0.08 : 0]}>
+          <mesh position={[0, type === "smoker" ? -0.42 : -0.32, 0]} castShadow userData={ud}>
+            <boxGeometry args={[0.16, type === "smoker" ? 0.85 : 0.64, 0.16]} />
+            <meshStandardMaterial color={look.shirt} roughness={0.75} />
+          </mesh>
+        </group>
       </group>
 
-      <group ref={leftLeg} position={[-0.12, 0.42, 0]}>
-        <mesh position={[0, -0.32, 0]} castShadow userData={ud}>
-          <boxGeometry args={[0.2, 0.64, 0.2]} />
+      <group ref={leftLeg} position={[-0.12, legY, 0]}>
+        <mesh position={[0, -0.16, 0]} castShadow userData={ud}>
+          <boxGeometry args={[0.2, 0.32, 0.2]} />
           <meshStandardMaterial color={look.pants} roughness={0.82} />
         </mesh>
+        <group ref={leftKnee} position={[0, -0.32, 0]}>
+          <mesh position={[0, -0.16, 0]} castShadow userData={ud}>
+            <boxGeometry args={[0.2, 0.32, 0.2]} />
+            <meshStandardMaterial color={look.pants} roughness={0.82} />
+          </mesh>
+        </group>
       </group>
-      <group ref={rightLeg} position={[0.12, 0.42, 0]}>
-        <mesh position={[0, -0.32, 0]} castShadow userData={ud}>
-          <boxGeometry args={[0.2, 0.64, 0.2]} />
+      <group ref={rightLeg} position={[0.12, legY, 0]}>
+        <mesh position={[0, -0.16, 0]} castShadow userData={ud}>
+          <boxGeometry args={[0.2, 0.32, 0.2]} />
           <meshStandardMaterial color={look.pants} roughness={0.82} />
         </mesh>
+        <group ref={rightKnee} position={[0, -0.32, 0]}>
+          <mesh position={[0, -0.16, 0]} castShadow userData={ud}>
+            <boxGeometry args={[0.2, 0.32, 0.2]} />
+            <meshStandardMaterial color={look.pants} roughness={0.82} />
+          </mesh>
+        </group>
       </group>
     </group>
   );

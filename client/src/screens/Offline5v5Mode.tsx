@@ -39,6 +39,9 @@ import {
   OverlayButton,
   HUD_Z,
 } from "../game/offline/offline5v5Kit";
+import { useProgressStore } from "../stores/useProgressStore";
+import { rankTier, rankTierColor } from "../game/progress/rank";
+import { gameEvents } from "../lib/gameEvents";
 
 function RemoteBots() {
   const players = useOffline5v5Store((s) => s.players);
@@ -129,6 +132,7 @@ export function Offline5v5Mode() {
   const bombTimeLeft = useOffline5v5Store((s) => s.bombTimeLeft);
   const bombSite = useOffline5v5Store((s) => s.bombSite);
   const players = useOffline5v5Store((s) => s.players);
+  const killFeed = useOffline5v5Store((s) => s.killFeed);
   const initMatch = useOffline5v5Store((s) => s.initMatch);
   const me = useOffline5v5Store((s) => s.players.get("local"));
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
@@ -136,6 +140,64 @@ export function Offline5v5Mode() {
   const [showSelection, setShowSelection] = useState(true);
   const MapComp = selectedMapId ? getMapById(selectedMapId).component : null;
   const [paused, setPaused] = useState(false);
+  const prevPhaseRef = useRef(phase);
+  const prevScoresRef = useRef({ red: teamRedScore, blue: teamBlueScore });
+  const localTeamRef = useRef<"T" | "CT" | null>(selectedTeam);
+  const shotsFiredRef = useRef(0);
+  const shotsHitRef = useRef(0);
+  const rankPoints = useProgressStore((s) => s.rankPoints);
+  const level = useProgressStore((s) => s.level);
+
+  useEffect(() => {
+    localTeamRef.current = selectedTeam;
+  }, [selectedTeam]);
+
+  useEffect(() => {
+    const onFired = () => {
+      if (useGameStore.getState().mode !== "offline5v5") return;
+      shotsFiredRef.current += 1;
+    };
+    const onHit = () => {
+      if (useGameStore.getState().mode !== "offline5v5") return;
+      shotsHitRef.current += 1;
+    };
+    gameEvents.on("weaponFired", onFired);
+    gameEvents.on("hitMarker", onHit);
+    return () => {
+      gameEvents.off("weaponFired", onFired);
+      gameEvents.off("hitMarker", onHit);
+    };
+  }, []);
+
+  useEffect(() => {
+    const prevPhase = prevPhaseRef.current;
+    const prevScores = prevScoresRef.current;
+    const localTeam = localTeamRef.current ?? me?.team ?? null;
+    const progress = useProgressStore.getState();
+
+    if (prevPhase !== "roundEnd" && phase === "roundEnd" && localTeam) {
+      const prevLocal = localTeam === "T" ? prevScores.red : prevScores.blue;
+      const localScore = localTeam === "T" ? teamRedScore : teamBlueScore;
+      progress.recordRoundResult(localScore > prevLocal);
+    }
+
+    if (prevPhase !== "matchEnd" && phase === "matchEnd" && localTeam) {
+      const localScore = localTeam === "T" ? teamRedScore : teamBlueScore;
+      const enemyScore = localTeam === "T" ? teamBlueScore : teamRedScore;
+      progress.recordMatchResult(localScore > enemyScore);
+    }
+
+    prevPhaseRef.current = phase;
+    prevScoresRef.current = { red: teamRedScore, blue: teamBlueScore };
+  }, [phase, teamRedScore, teamBlueScore, me?.team]);
+
+  const wasDeadRef = useRef(false);
+  useEffect(() => {
+    if (me?.isDead && !wasDeadRef.current) {
+      useProgressStore.getState().recordDeath();
+    }
+    wasDeadRef.current = !!me?.isDead;
+  }, [me?.isDead]);
 
   const handleFullSelect = useCallback((team: "T" | "CT", mapId: string, agentId: string) => {
     if (mapId === PROCEDURAL_5V5_ID) ensureProcedural5v5();
@@ -629,36 +691,91 @@ export function Offline5v5Mode() {
       {/* Click-to-play overlay — only show when NOT paused and NOT dead */}
       {!paused && !me?.isDead && phase !== "matchEnd" && <ClickToPlayOverlay onLock={() => {}} suppressed={buyMenuOpen} />}
 
-      {phase === "roundEnd" && !paused && (
-        <div
-          style={{
-            position: "fixed",
-            top: 88,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 45,
-            pointerEvents: "none",
-            background: "rgba(15,23,42,0.9)",
-            border: "1px solid rgba(255,255,255,0.18)",
-            borderRadius: 10,
-            padding: "8px 22px",
-            color: "#e2e8f0",
-            fontFamily: "'Rajdhani', monospace",
-            fontWeight: 800,
-            letterSpacing: 1,
-          }}
-        >
-          RONDE SELESAI
-        </div>
-      )}
+      {phase === "roundEnd" && !paused && (() => {
+        const localName = me?.nickname ?? "";
+        const localKills = killFeed.filter((k) => k.killerName === localName).length;
+        const localHs = killFeed.filter((k) => k.killerName === localName && k.headshot).length;
+        const killCounts = new Map<string, number>();
+        for (const k of killFeed) killCounts.set(k.killerName, (killCounts.get(k.killerName) ?? 0) + 1);
+        let mvpName = localName;
+        let mvpKills = localKills;
+        for (const [name, count] of killCounts) {
+          if (count > mvpKills) {
+            mvpName = name;
+            mvpKills = count;
+          }
+        }
+        const accuracy = shotsFiredRef.current > 0
+          ? Math.round((shotsHitRef.current / shotsFiredRef.current) * 100)
+          : 0;
+        const isLocalMvp = mvpName === localName;
+        return (
+          <div
+            style={{
+              position: "fixed",
+              top: 88,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 45,
+              pointerEvents: "none",
+              background: "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(30,41,59,0.96))",
+              border: `1.5px solid ${isLocalMvp ? "#facc15" : "rgba(255,255,255,0.18)"}`,
+              borderRadius: 12,
+              padding: "10px 24px",
+              color: "#e2e8f0",
+              fontFamily: "'Rajdhani', monospace",
+              fontWeight: 800,
+              letterSpacing: 1,
+              boxShadow: isLocalMvp ? "0 0 24px rgba(250,204,21,0.35)" : "0 8px 24px rgba(0,0,0,0.5)",
+              textAlign: "center",
+              minWidth: 220,
+            }}
+          >
+            <div style={{ fontSize: 11, color: "#94a3b8", letterSpacing: 2, marginBottom: 4 }}>
+              RONDE SELESAI
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <span style={{ fontSize: 18 }}>🏆</span>
+              <div>
+                <div style={{ fontSize: 13, color: "#facc15", letterSpacing: 2 }}>MVP</div>
+                <div style={{ fontSize: 18, color: isLocalMvp ? "#fde68a" : "#e2e8f0" }}>
+                  {mvpName || "—"} · {mvpKills}K
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+              You: {localKills}K · {localHs}HS · {accuracy}% ACC
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Match Over Modal */}
       {phase === "matchEnd" && (
         <GameModal accent="blue" zIndex={HUD_Z.modal}>
           <ModalHeader eyebrow="MATCH OVER" title={`${teamRedScore} : ${teamBlueScore}`} />
           <ModalBody>
-            <div style={{ color: teamRedScore > teamBlueScore ? "#f87171" : "#60a5fa", marginBottom: 16, fontWeight: 800 }}>
+            <div style={{ color: teamRedScore > teamBlueScore ? "#f87171" : "#60a5fa", marginBottom: 8, fontWeight: 800 }}>
               {teamRedScore > teamBlueScore ? "TERRORISTS WIN" : "COUNTER-TERRORISTS WIN"}
+            </div>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 16,
+                padding: "6px 14px",
+                borderRadius: 8,
+                border: `1px solid ${rankTierColor(rankTier(rankPoints))}`,
+                background: "rgba(0,0,0,0.35)",
+                fontFamily: "'Rajdhani', monospace",
+              }}
+            >
+              <span style={{ color: rankTierColor(rankTier(rankPoints)), fontWeight: 900, letterSpacing: 1 }}>
+                {rankTier(rankPoints).toUpperCase()}
+              </span>
+              <span style={{ color: "#94a3b8", fontSize: 13 }}>{rankPoints} RP</span>
+              <span style={{ color: "#38bdf8", fontSize: 13 }}>LV {level}</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <OverlayButton variant="primary" onClick={rematch}>ULANGI</OverlayButton>

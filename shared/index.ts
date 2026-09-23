@@ -528,6 +528,26 @@ export const WEAPONS = {
     team: 'both',
     reserveAmmo: 120,
   },
+  ssg: {
+    dmg: 90,
+    headshot: 100,
+    fireRate: 1 / 1.5,
+    mag: 10,
+    reload: 3.0,
+    price: 1700,
+    team: 'both',
+    reserveAmmo: 90,
+  },
+  aug: {
+    dmg: 33,
+    headshot: 95,
+    fireRate: 10,
+    mag: 30,
+    reload: 3.3,
+    price: 3300,
+    team: 'CT',
+    reserveAmmo: 90,
+  },
   // Wonder Weapon (Mystery Box Exclusive)
   arccaster: {
     dmg: 40,
@@ -582,6 +602,17 @@ export const WEAPONS = {
     price: 500,
     team: 'CT',
     reserveAmmo: 90,
+    dualWieldable: true,
+  },
+  fiveseven: {
+    dmg: 32,
+    headshot: 90,
+    fireRate: 8,
+    mag: 20,
+    reload: 2.0,
+    price: 500,
+    team: 'CT',
+    reserveAmmo: 100,
     dualWieldable: true,
   },
   // Melee
@@ -640,8 +671,8 @@ export const WEAPONS = {
 
 export type WeaponId = keyof typeof WEAPONS
 
-export const PRIMARY_WEAPONS = ['ak47', 'm4a1', 'awp', 'mp5'] as const
-export const SECONDARY_WEAPONS = ['deagle', 'glock', 'tec9', 'autopistol'] as const
+export const PRIMARY_WEAPONS = ['ak47', 'm4a1', 'awp', 'mp5', 'ssg', 'aug'] as const
+export const SECONDARY_WEAPONS = ['deagle', 'glock', 'tec9', 'autopistol', 'fiveseven'] as const
 export const MELEE_WEAPONS = ['knife', 'combatknife'] as const
 export const GRENADE_WEAPONS = ['he', 'smoke', 'flash'] as const
 
@@ -963,7 +994,7 @@ export const GRENADE = {
   bounce: 0.4, // vertical restitution on ground
   bounceXZ: 0.6, // horizontal dampening on ground
   wallBounceDamping: 0.45, // wall collision restitution
-  groundMinY: 0.15, // ground floor plane
+  groundMinY: 0.06, // ground floor plane
   collisionOffset: 0.01, // push-out distance from obstacles
   cooldownMs: 600,
   maxThrowSpeed: 25, // anti-cheat clamp

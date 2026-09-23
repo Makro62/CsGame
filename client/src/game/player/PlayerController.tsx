@@ -22,6 +22,7 @@ import { useOffline5v5Store } from '../../screens/Offline5v5Store'
 import { useL4DStore } from '../../stores/useL4DStore'
 import { getPlayableBounds } from './playableBounds'
 import { isSprinting, resolveMoveSpeed, stepMoveVelocity } from './movementFeel'
+import { fovPunch, getBaseFov } from '../weapons/weaponRig'
 
 const EYE_HEIGHT_STAND = 0.8
 const EYE_HEIGHT_CROUCH = 0.4
@@ -270,7 +271,7 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
       const rbDead = rigidBodyRef.current
       if (rbDead) {
         const pos = rbDead.translation()
-        camera.position.set(pos.x, pos.y + 1.6, pos.z)
+        camera.position.set(pos.x, pos.y + EYE_HEIGHT_STAND, pos.z)
       }
       return
     }
@@ -729,13 +730,8 @@ export function PlayerController({ speedFactor: speedFactorProp }: PlayerControl
       1 - Math.exp(-12 * dt)
     )
 
-    const targetFov = wantAds
-      ? (weaponState.activeWeapon === 'awp'
-          ? 22
-          : weaponState.activeWeapon === 'ak47' || weaponState.activeWeapon === 'm4a1' || weaponState.activeWeapon === 'mp5'
-          ? 52
-          : 58)
-      : sprinting ? 78 : 75
+    const targetFov =
+      getBaseFov(wantAds, weaponState.activeWeapon, sprinting) + fovPunch.current
     if (camera instanceof THREE.PerspectiveCamera) {
       camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-18 * dt))
       camera.updateProjectionMatrix()

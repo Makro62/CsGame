@@ -33,9 +33,9 @@ export const L4D_CONNECTORS: Array<{ needs: number; rect: L4DRect }> = [
   // warehouse (-14..14) -> hall_b (14..44) doorway opening at x in [-5, 5]
   { needs: 3, rect: { minX: -4.55, maxX: 4.55, minZ: 11.0, maxZ: 17.0 } },
   // hall_b (x: -5..5, z: 14..44) -> side room (x: 5..28, z: 20..36) opening at z around 28 (w = 4.2)
-  { needs: 3, rect: { minX: 2.0, maxX: 9.0, minZ: 25.5, maxZ: 30.5 } },
+  { needs: 4, rect: { minX: 2.0, maxX: 9.0, minZ: 25.5, maxZ: 30.5 } },
   // hall_b (14..44) -> rescue pad (44..70) doorway opening at x in [-5, 5]
-  { needs: 4, rect: { minX: -4.55, maxX: 4.55, minZ: 41.0, maxZ: 47.0 } },
+  { needs: 5, rect: { minX: -4.55, maxX: 4.55, minZ: 41.0, maxZ: 47.0 } },
 ];
 
 export function l4dFinishZ(_chapter?: number) {
@@ -83,15 +83,26 @@ export const L4D_ZONES: readonly L4DZone[] = [
   {
     id: "hall_b",
     name: "Lorong Dalam",
-    bounds: { minX: -5, maxX: 28, minZ: 14, maxZ: 44 },
+    bounds: { minX: -5, maxX: 5, minZ: 14, maxZ: 44 },
     gateZ: L4D_ROOMS.hall_b.maxZ,
     zombieCount: 16,
     spawns: [
       { x: 0, z: 18 },
       { x: 0, z: 28 },
+      { x: 0, z: 38 },
+    ],
+  },
+  {
+    id: "side",
+    name: "Ruang Samping",
+    bounds: { minX: 5, maxX: 28, minZ: 20, maxZ: 36 },
+    gateZ: L4D_ROOMS.hall_b.maxZ,
+    zombieCount: 15,
+    spawns: [
       { x: 14, z: 26 },
       { x: 20, z: 30 },
-      { x: 0, z: 38 },
+      { x: 12, z: 32 },
+      { x: 22, z: 24 },
     ],
   },
   {
@@ -106,6 +117,21 @@ export const L4D_ZONES: readonly L4DZone[] = [
       { x: 10, z: 60 },
       { x: 0, z: 52 },
       { x: -8, z: 64 },
+    ],
+  },
+  {
+    id: "finale",
+    name: "Gelombang Terakhir",
+    bounds: { ...L4D_ROOMS.rescue },
+    gateZ: L4D_ROOMS.rescue.maxZ,
+    zombieCount: 28,
+    spawns: [
+      { x: 0, z: 48 },
+      { x: -10, z: 54 },
+      { x: 10, z: 60 },
+      { x: 0, z: 52 },
+      { x: -8, z: 64 },
+      { x: 8, z: 46 },
     ],
   },
 ];
@@ -202,11 +228,9 @@ export function l4dWalkableRooms(unlockedZones: number): L4DRect[] {
   const rooms: L4DRect[] = [innerRoom(L4D_ROOMS.safe)];
   if (unlockedZones >= 1) rooms.push(innerRoom(L4D_ROOMS.hall_a));
   if (unlockedZones >= 2) rooms.push(innerRoom(L4D_ROOMS.warehouse));
-  if (unlockedZones >= 3) {
-    rooms.push(innerRoom(L4D_ROOMS.hall_b));
-    rooms.push(innerRoom(L4D_ROOMS.side));
-  }
-  if (unlockedZones >= 4) rooms.push(innerRoom(L4D_ROOMS.rescue));
+  if (unlockedZones >= 3) rooms.push(innerRoom(L4D_ROOMS.hall_b));
+  if (unlockedZones >= 4) rooms.push(innerRoom(L4D_ROOMS.side));
+  if (unlockedZones >= 5) rooms.push(innerRoom(L4D_ROOMS.rescue));
   for (const c of L4D_CONNECTORS) {
     if (unlockedZones >= c.needs) rooms.push(c.rect);
   }
@@ -222,7 +246,7 @@ export function clampL4DWalkable(
 ): { x: number; z: number } {
   const rooms = l4dWalkableRooms(unlockedZones);
   const maxZ = l4dUnlockedMaxZ(unlockedZones);
-  let nz = Math.min(z, maxZ);
+  const nz = Math.min(z, maxZ);
   if (rooms.some(r => containsRect(r, x, nz, radius))) {
     return pushOutL4D(x, nz, radius);
   }

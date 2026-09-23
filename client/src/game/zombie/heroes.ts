@@ -2,8 +2,8 @@
 // Hero Definitions for Zombie Survival Mode
 // ============================================================================
 
-export type HeroClass = "assault" | "heavy";
-export type HeroAbility = "berserk" | "shield";
+export type HeroClass = "assault" | "heavy" | "scout";
+export type HeroAbility = "berserk" | "shield" | "dash";
 
 export interface HeroStats {
   maxHp: number;
@@ -73,6 +73,28 @@ export const HEROES: Record<string, HeroDefinition> = {
     armorColor: "#6b2121",
     accentColor: "#dc2626",
     neonColor: "#ff4444",
+    weaponType: "rifle",
+  },
+  viper: {
+    id: "viper",
+    name: "VIPER",
+    heroClass: "scout",
+    ability: "dash",
+    abilityCooldown: 12,
+    description: "Penyintas gesit dengan kecepatan tinggi. Mampu melakukan tactical dash untuk menghindari gerombolan atau mengejar posisi aman.",
+    stats: {
+      maxHp: 85,
+      speed: 6.2,
+      armor: 10,
+      damage: 22,
+      accuracy: 92,
+    },
+    primaryWeapon: "awp",
+    secondaryWeapon: "tec9",
+    knifeWeapon: "knife",
+    armorColor: "#14532d",
+    accentColor: "#22c55e",
+    neonColor: "#4ade80",
     weaponType: "rifle",
   },
 };

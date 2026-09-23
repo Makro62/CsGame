@@ -5,6 +5,8 @@ import {
   ADS_ROTATIONS,
   getADSPosition,
   getMuzzleOffset,
+  getBaseFov,
+  fovPunch,
   isAkimboWeapon,
   DEAGLE_HANDS,
   GLOCK_HANDS,
@@ -18,6 +20,9 @@ describe("weaponRig", () => {
     expect(WEAPON_POSITIONS).toHaveProperty("ak47");
     expect(WEAPON_POSITIONS).toHaveProperty("m4a1");
     expect(WEAPON_POSITIONS).toHaveProperty("awp");
+    expect(WEAPON_POSITIONS).toHaveProperty("ssg");
+    expect(WEAPON_POSITIONS).toHaveProperty("aug");
+    expect(WEAPON_POSITIONS).toHaveProperty("fiveseven");
     expect(WEAPON_POSITIONS).toHaveProperty("knife");
   });
 
@@ -29,9 +34,15 @@ describe("weaponRig", () => {
   it("ADS_ROTATIONS has all weapons aligned to [0, 0, 0] for straight sightlines", () => {
     expect(ADS_ROTATIONS).toHaveProperty("ak47");
     expect(ADS_ROTATIONS).toHaveProperty("awp");
+    expect(ADS_ROTATIONS).toHaveProperty("ssg");
+    expect(ADS_ROTATIONS).toHaveProperty("aug");
+    expect(ADS_ROTATIONS).toHaveProperty("fiveseven");
     expect(ADS_ROTATIONS.ak47).toEqual([0, 0, 0]);
     expect(ADS_ROTATIONS.m4a1).toEqual([0, 0, 0]);
     expect(ADS_ROTATIONS.deagle).toEqual([0, 0, 0]);
+    expect(ADS_ROTATIONS.ssg).toEqual([0, 0, 0]);
+    expect(ADS_ROTATIONS.aug).toEqual([0, 0, 0]);
+    expect(ADS_ROTATIONS.fiveseven).toEqual([0, 0, 0]);
   });
 
   describe("getADSPosition", () => {
@@ -69,6 +80,51 @@ describe("weaponRig", () => {
       const offset = getMuzzleOffset("deagle", 1, true);
       expect(offset).toHaveProperty("x");
     });
+
+    it("ADS muzzle differs from hip muzzle (sight-aligned barrel tip)", () => {
+      const hip = getMuzzleOffset("ak47", 1, false, false);
+      const ads = getMuzzleOffset("ak47", 1, false, true);
+      expect(ads.x).toBeCloseTo(0, 5);
+      expect(ads.z).not.toBe(hip.z);
+    });
+
+    it("ADS akimbo deagle returns a muzzle for each side", () => {
+      const right = getMuzzleOffset("deagle", 1, true, true);
+      const left = getMuzzleOffset("deagle", -1, true, true);
+      expect(right).toHaveProperty("z");
+      expect(left).toHaveProperty("z");
+      expect(left.x).not.toBe(right.x);
+    });
+  });
+
+  describe("getBaseFov", () => {
+    it("hip fire is 75", () => {
+      expect(getBaseFov(false, "ak47", false)).toBe(75);
+      expect(getBaseFov(false, null, false)).toBe(75);
+    });
+
+    it("sprint hip fire is 78", () => {
+      expect(getBaseFov(false, "ak47", true)).toBe(78);
+    });
+
+    it("ADS awp is 22", () => {
+      expect(getBaseFov(true, "awp", false)).toBe(22);
+    });
+
+    it("ADS ak47/m4a1/mp5 is 52", () => {
+      expect(getBaseFov(true, "ak47", false)).toBe(52);
+      expect(getBaseFov(true, "m4a1", false)).toBe(52);
+      expect(getBaseFov(true, "mp5", false)).toBe(52);
+    });
+
+    it("ADS other weapons is 58", () => {
+      expect(getBaseFov(true, "deagle", false)).toBe(58);
+      expect(getBaseFov(true, null, false)).toBe(58);
+    });
+  });
+
+  it("fovPunch is a shared mutable number", () => {
+    expect(typeof fovPunch.current).toBe("number");
   });
 
   describe("isAkimboWeapon", () => {

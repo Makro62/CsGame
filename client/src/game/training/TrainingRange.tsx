@@ -64,9 +64,12 @@ const WEAPON_OPTIONS: Array<{ key: WeaponKey; name: string; slot: "primary" | "s
   { key: "m4a1", name: "M4A1-S", slot: "primary" },
   { key: "awp", name: "AWP", slot: "primary" },
   { key: "mp5", name: "MP5-SD", slot: "primary" },
+  { key: "ssg", name: "SSG SCOUT", slot: "primary" },
+  { key: "aug", name: "AUG", slot: "primary" },
   { key: "deagle", name: "DESERT EAGLE", slot: "secondary" },
   { key: "glock", name: "GLOCK-18", slot: "secondary" },
   { key: "tec9", name: "TEC-9", slot: "secondary" },
+  { key: "fiveseven", name: "FIVE-SEVEN", slot: "secondary" },
   { key: "combatknife", name: "COMBAT KNIFE", slot: "knife" },
 ];
 

@@ -223,6 +223,7 @@ export function MainMenu() {
           left: "-10vw",
           background: "#0284c7",
           opacity: 0.12,
+          animation: "ambientDrift 14s ease-in-out infinite",
         }}
       />
       <div
@@ -233,6 +234,19 @@ export function MainMenu() {
           background: activeMode.accent,
           opacity: 0.14,
           transition: "background 0.5s ease",
+          animation: "ambientDrift 18s ease-in-out infinite reverse",
+        }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
+          background:
+            "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(56,189,248,0.015) 3px, rgba(56,189,248,0.015) 4px)",
+          animation: "scanlineSweep 9s linear infinite",
+          opacity: 0.5,
         }}
       />
 

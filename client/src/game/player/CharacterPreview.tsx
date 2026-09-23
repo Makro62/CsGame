@@ -2,8 +2,6 @@ import { useLayoutEffect, useRef, useEffect, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
-/** Lift so shoes sit on y=0; MinecraftCharacter feet sit slightly below origin. */
-const FOOT_LIFT = 0.32;
 const BODY_CENTER_Y = 1.05;
 
 export function FitCharacterCamera() {
@@ -83,7 +81,7 @@ export function PreviewTurntable({ children }: { children: ReactNode }) {
 
   return (
     // Start facing forward at a subtle heroic 3/4 angle
-    <group ref={ref} position={[0, FOOT_LIFT, 0]} rotation={[0, -0.15, 0]}>
+    <group ref={ref} rotation={[0, -0.15, 0]}>
       {children}
     </group>
   );

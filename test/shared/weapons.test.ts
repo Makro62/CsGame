@@ -8,10 +8,13 @@ describe("shared WEAPONS", () => {
     expect(WEAPONS).toHaveProperty("m4a1");
     expect(WEAPONS).toHaveProperty("awp");
     expect(WEAPONS).toHaveProperty("mp5");
+    expect(WEAPONS).toHaveProperty("ssg");
+    expect(WEAPONS).toHaveProperty("aug");
     expect(WEAPONS).toHaveProperty("deagle");
     expect(WEAPONS).toHaveProperty("glock");
     expect(WEAPONS).toHaveProperty("tec9");
     expect(WEAPONS).toHaveProperty("autopistol");
+    expect(WEAPONS).toHaveProperty("fiveseven");
     expect(WEAPONS).toHaveProperty("knife");
     expect(WEAPONS).toHaveProperty("combatknife");
     expect(WEAPONS).toHaveProperty("he");

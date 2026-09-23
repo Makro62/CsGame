@@ -57,7 +57,7 @@ export const TACTICAL_ELBOW_POSES: Record<ThirdPersonWeaponCategory, TacticalElb
 export const BLOCKY_WEAPON_ATTACH: Record<ThirdPersonWeaponCategory, WeaponAttach> = {
   rifle: {
     position: [0.05, -0.6, -0.1],
-    rotation: [0.12, -0.04, 0.02],
+    rotation: [-2.1398, 0.277, -3.1323],
     scale: 1,
     muzzleZ: -0.38,
   },
@@ -76,8 +76,8 @@ export const BLOCKY_WEAPON_ATTACH: Record<ThirdPersonWeaponCategory, WeaponAttac
 };
 
 export const TACTICAL_WEAPON_ATTACH: Record<ThirdPersonWeaponCategory, WeaponAttach> = {
-  rifle: { position: [0.02, -0.28, 0.04], rotation: [0, 0, 0], scale: 1, muzzleZ: 0.48 },
-  pistol: { position: [0.02, -0.28, 0.04], rotation: [0, 0, 0], scale: 1, muzzleZ: 0.14 },
+  rifle: { position: [0.02, -0.28, 0.04], rotation: [-1.0777, 0.3477, 3.1115], scale: 1, muzzleZ: -0.42 },
+  pistol: { position: [0.02, -0.28, 0.04], rotation: [0, 0, 0], scale: 1, muzzleZ: -0.16 },
   knife: { position: [0.02, -0.28, 0.04], rotation: [0, 0, 0], scale: 1, muzzleZ: 0 },
 };
 
@@ -90,7 +90,13 @@ export function weaponCategoryFromId(weaponId: string | null | undefined): Third
   if (!weaponId) return "rifle";
   const w = weaponId.toLowerCase();
   if (w.includes("knife") || w.includes("combatknife")) return "knife";
-  if (w.includes("deagle") || w.includes("glock") || w.includes("tec9") || w.includes("autopistol")) {
+  if (
+    w.includes("deagle") ||
+    w.includes("glock") ||
+    w.includes("tec9") ||
+    w.includes("autopistol") ||
+    w.includes("fiveseven")
+  ) {
     return "pistol";
   }
   if (isGrenadeWeapon(w) || w === "grenade") {

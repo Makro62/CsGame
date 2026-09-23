@@ -11,6 +11,7 @@ import {
 
 const MAX = 64;
 const BLOOD_POOL_SIZE = 48;
+const STRIDE_LENGTH = 1.3;
 
 interface BloodParticle {
   mesh: THREE.Mesh;
@@ -169,16 +170,22 @@ export function InstancedZombieRenderer() {
     for (const z of zombies) {
       if (i >= MAX || z.isDead) continue;
       const s = zombieVisualScale(z.type);
-      const swing = z.isAttacking ? Math.sin(z.animTime * 10) * 0.7 : Math.sin(z.animTime * 7.5) * 0.55;
+      let hash = 0;
+      for (let c = 0; c < z.id.length; c++) hash = (hash * 31 + z.id.charCodeAt(c)) | 0;
+      const phase = (Math.abs(hash) % 628) / 100;
+      const omega = (2 * Math.PI * Math.max(z.speed, 0.01)) / STRIDE_LENGTH;
+      const swing = z.isAttacking
+        ? Math.sin(z.animTime * 10) * 0.7
+        : Math.sin(phase + omega * z.animTime) * 0.55;
       const yaw = z.rotationY;
 
       setPart(torso, i, z.x, z.z, yaw, s, 0, 0.86, 0, 0);
-      setPart(head, i, z.x, z.z, yaw, s, 0, 1.42, 0, 0);
-      setPart(eyes, i, z.x, z.z, yaw, s, 0, 1.44, 0.165, 0);
+      setPart(head, i, z.x, z.z, yaw, s, 0, 1.37, 0, 0);
+      setPart(eyes, i, z.x, z.z, yaw, s, 0, 1.39, 0.165, 0);
       setPart(armL, i, z.x, z.z, yaw, s, -0.32, 1.16, 0, swing);
       setPart(armR, i, z.x, z.z, yaw, s, 0.32, 1.16, 0, -swing);
-      setPart(legL, i, z.x, z.z, yaw, s, -0.12, 0.65, 0, z.isAttacking ? 0.05 : -swing);
-      setPart(legR, i, z.x, z.z, yaw, s, 0.12, 0.65, 0, z.isAttacking ? 0.05 : swing);
+      setPart(legL, i, z.x, z.z, yaw, s, -0.12, 0.62, 0, z.isAttacking ? 0.05 : -swing);
+      setPart(legR, i, z.x, z.z, yaw, s, 0.12, 0.62, 0, z.isAttacking ? 0.05 : swing);
 
       const flashing = now - (hitFlash.current.get(z.id) ?? 0) < 90;
       if (flashing) {

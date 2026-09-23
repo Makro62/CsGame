@@ -135,6 +135,47 @@ export function refillHalfReserve() {
 // ── Obstacle helpers ───────────────────────────────────────────────────────
 const ZOMBIE_RADIUS = 0.55;
 
+function rayCappedCylinder(
+  ox: number, oy: number, oz: number,
+  dx: number, dy: number, dz: number,
+  cx: number, cz: number, radius: number,
+  yMin: number, yMax: number,
+): number {
+  const rx = ox - cx;
+  const rz = oz - cz;
+  const a = dx * dx + dz * dz;
+  let tMin = -Infinity;
+  let tMax = Infinity;
+
+  if (a < 1e-8) {
+    if (rx * rx + rz * rz > radius * radius) return -1;
+  } else {
+    const b = 2 * (rx * dx + rz * dz);
+    const c = rx * rx + rz * rz - radius * radius;
+    const disc = b * b - 4 * a * c;
+    if (disc < 0) return -1;
+    const sq = Math.sqrt(disc);
+    const t1 = (-b - sq) / (2 * a);
+    const t2 = (-b + sq) / (2 * a);
+    tMin = Math.max(tMin, t1);
+    tMax = Math.min(tMax, t2);
+    if (tMin > tMax) return -1;
+  }
+
+  if (Math.abs(dy) < 1e-8) {
+    if (oy < yMin || oy > yMax) return -1;
+  } else {
+    const ty1 = (yMin - oy) / dy;
+    const ty2 = (yMax - oy) / dy;
+    tMin = Math.max(tMin, Math.min(ty1, ty2));
+    tMax = Math.min(tMax, Math.max(ty1, ty2));
+    if (tMin > tMax) return -1;
+  }
+
+  if (tMax < 0) return -1;
+  return Math.max(tMin, 0);
+}
+
 // ── Engine ─────────────────────────────────────────────────────────────────
 export class ZombieEngine {
   private zombies = new Map<string, ZombieState>();
@@ -296,7 +337,7 @@ export class ZombieEngine {
         const o = this.zombies.get(id);
         return o && !o.isDead ? o : undefined;
       },
-      SURVIVAL_HORDE_SEP.radius,
+      Math.max(SURVIVAL_HORDE_SEP.radius, 2 * zombieBodyRadius(z.type)),
       SURVIVAL_HORDE_SEP.strength,
     );
 
@@ -489,7 +530,7 @@ export class ZombieEngine {
 
   private raycastZombies(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number): ArcadeShotHit[] {
     const hits: ArcadeShotHit[] = [];
-    const d = this._tDir.set(dir.x, 0, dir.z);
+    const d = this._tDir.copy(dir);
     if (d.lengthSq() < 1e-8) return hits;
     d.normalize();
     const candidates = this.grid.query(origin.x, origin.z, maxDist);
@@ -497,26 +538,31 @@ export class ZombieEngine {
     for (const id of ids) {
       const z = this.zombies.get(id);
       if (!z || z.isDead) continue;
-      const vx = z.x - origin.x;
-      const vz = z.z - origin.z;
-      const proj = vx * d.x + vz * d.z;
-      if (proj < 0.25 || proj > maxDist) continue;
-      const cx = origin.x + d.x * proj;
-      const cz = origin.z + d.z * proj;
-      const lat = Math.hypot(z.x - cx, z.z - cz);
       const scale = zombieVisualScale(z.type);
       const bodyR = zombieBodyRadius(z.type);
       const headR = zombieHeadRadius(z.type);
-      if (lat > bodyR) continue;
+      const t = rayCappedCylinder(
+        origin.x, origin.y, origin.z,
+        d.x, d.y, d.z,
+        z.x, z.z, bodyR,
+        0, 1.54 * scale,
+      );
+      if (t < 0.25 || t > maxDist) continue;
       if (!survivalLineOfSight(origin.x, origin.z, z.x, z.z)) continue;
-      const headshot = lat <= headR;
+      const vx = z.x - origin.x;
+      const vz = z.z - origin.z;
+      const hh = d.x * d.x + d.z * d.z;
+      const tproj = hh > 1e-8 ? (vx * d.x + vz * d.z) / hh : 0;
+      const lat = Math.hypot(vx - tproj * d.x, vz - tproj * d.z);
+      const impactY = origin.y + d.y * t;
+      const headshot = lat <= headR && impactY >= 0.75 * scale;
       hits.push({
         id,
-        x: z.x,
-        y: headshot ? 1.42 * scale : 0.9 * scale,
-        z: z.z,
+        x: origin.x + d.x * t,
+        y: impactY,
+        z: origin.z + d.z * t,
         headshot,
-        dist: proj,
+        dist: t,
       });
     }
     return hits.sort((a, b) => a.dist - b.dist);

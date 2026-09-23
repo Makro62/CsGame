@@ -170,9 +170,16 @@ export function resolveBotShot(opts: {
   distance: number;
   viewDistance: number;
 }): { hit: boolean; headshot: boolean } {
-  const distPenalty = Math.min(opts.distance / Math.max(opts.viewDistance, 1), 0.5);
-  const hit = Math.random() < opts.accuracy * (1 - distPenalty * 0.3);
-  return { hit, headshot: hit && Math.random() < opts.headshotRate };
+  const clamp01 = (n: number, fallback = 0) =>
+    Number.isFinite(n) ? Math.min(Math.max(n, 0), 1) : fallback;
+  const accuracy = clamp01(opts.accuracy);
+  const headshotRate = clamp01(opts.headshotRate);
+  const dist = Number.isFinite(opts.distance) ? Math.max(opts.distance, 0) : 0;
+  const view = Number.isFinite(opts.viewDistance) ? Math.max(opts.viewDistance, 1) : 1;
+  const distPenalty = Math.min(dist / view, 0.5);
+  const hitChance = accuracy >= 1 ? 1 : accuracy * (1 - distPenalty * 0.3);
+  const hit = Math.random() < hitChance;
+  return { hit, headshot: hit && Math.random() < headshotRate };
 }
 
 /** Fan-sample headings so a corner does not trap a bot in a spin. */

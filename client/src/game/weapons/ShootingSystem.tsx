@@ -1,7 +1,7 @@
 import { useRef, useCallback, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { WEAPONS, MELEE, isMeleeWeapon } from "@cs-game/shared";
+import { WEAPONS, MELEE, isMeleeWeapon, GRENADE } from "@cs-game/shared";
 import { useWeaponStore } from "../../stores/useWeaponStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { useGameStore } from "../../stores/useGameStore";
@@ -12,7 +12,7 @@ import {
 } from "./RecoilController";
 import { Sound } from "../../components/AudioManager";
 import { gameEvents } from "../../lib/gameEvents";
-import { getMuzzleOffset, isAkimboWeapon, type AkimboSide } from "./weaponRig";
+import { getMuzzleOffset, isAkimboWeapon, fovPunch, type AkimboSide } from "./weaponRig";
 import { useAimStore } from "../../stores/useAimStore";
 import { useOffline5v5Store } from "../../screens/Offline5v5Store";
 import { zombieEngine } from "../zombie/ZombieEngine";
@@ -265,8 +265,6 @@ export function ShootingSystem() {
   const isADS = useWeaponStore((s) => s.isADS);
   const sensitivity = useSettingsStore((s) => s.sensitivity);
 
-  const fovPunch = useRef(0);
-
   const recoilController = useRef<RecoilController | null>(null);
   const lastWeapon = useRef<string | null>(null);
   const mouseHeld = useRef(false);
@@ -342,7 +340,14 @@ export function ShootingSystem() {
     }
 
     _muzzleOffset
-      .copy(getMuzzleOffset(activeWeapon, side, useWeaponStore.getState().dualWield))
+      .copy(
+        getMuzzleOffset(
+          activeWeapon,
+          side,
+          useWeaponStore.getState().dualWield,
+          useWeaponStore.getState().isADS
+        )
+      )
       .applyQuaternion(camera.quaternion);
     if (isZombieArcade()) {
       flash.position.copy(shootOrigin).add(shootDirection.clone().multiplyScalar(0.4));
@@ -595,7 +600,10 @@ export function ShootingSystem() {
     if (activeWeapon === "he" || activeWeapon === "smoke" || activeWeapon === "flash") {
       camera.getWorldDirection(shootDirection);
       const origin = camera.position.clone().add(shootDirection.clone().multiplyScalar(0.4));
-      const velocity = shootDirection.clone().multiplyScalar(22).add(new THREE.Vector3(0, 3, 0));
+      const velocity = shootDirection
+        .clone()
+        .multiplyScalar(GRENADE.throwSpeed)
+        .add(new THREE.Vector3(0, GRENADE.throwUpSpeed, 0));
 
       const nadeData = {
         id: `nade-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -685,7 +693,14 @@ export function ShootingSystem() {
         ? shootOrigin.clone()
         : camera.getWorldPosition(_tempVec3);
       _muzzleOffset
-        .copy(getMuzzleOffset(activeWeapon, side, useWeaponStore.getState().dualWield))
+        .copy(
+          getMuzzleOffset(
+            activeWeapon,
+            side,
+            useWeaponStore.getState().dualWield,
+            useWeaponStore.getState().isADS
+          )
+        )
         .applyQuaternion(camera.quaternion);
       // Point blank: keep the tracer origin behind the impact point.
       if (hit.distance < _muzzleOffset.length() * 1.5) {
@@ -734,7 +749,14 @@ export function ShootingSystem() {
         ? shootOrigin.clone()
         : camera.getWorldPosition(_tempVec3);
       _muzzleOffset
-        .copy(getMuzzleOffset(activeWeapon, side, useWeaponStore.getState().dualWield))
+        .copy(
+          getMuzzleOffset(
+            activeWeapon,
+            side,
+            useWeaponStore.getState().dualWield,
+            useWeaponStore.getState().isADS
+          )
+        )
         .applyQuaternion(camera.quaternion);
       startPos.add(_muzzleOffset);
       const endPos = camera.position.clone().add(raycaster.ray.direction.clone().multiplyScalar(70));
@@ -870,10 +892,17 @@ export function ShootingSystem() {
       weaponState.resetBullets();
     }
 
+    if (fovPunch.current > 0.005) {
+      fovPunch.current = THREE.MathUtils.lerp(
+        fovPunch.current,
+        0,
+        1 - Math.exp(-28 * frameDelta)
+      );
+    }
+
     const controller = recoilController.current;
     if (!controller) return;
     if (isZombieArcade()) return;
-
     // Update recoil controller recovery with ADS-aware damping for a cleaner feel
     const { offsetX, offsetY } = controller.update(Math.min(frameDelta, 0.05));
     const recoilScale = isADS ? 0.55 : 1;
@@ -891,14 +920,6 @@ export function ShootingSystem() {
       -Math.atan(offsetX * recoilScale * tanHalfFov),
       Math.atan(offsetY * recoilScale * tanHalfFov)
     );
-
-    // Procedural FOV Punch recovery
-    if (camera instanceof THREE.PerspectiveCamera && fovPunch.current > 0.005) {
-      fovPunch.current = THREE.MathUtils.lerp(fovPunch.current, 0, 1 - Math.exp(-28 * frameDelta));
-      const baseFov = isADS ? (activeWeapon === "awp" ? 30 : 55) : 75;
-      camera.fov = baseFov + fovPunch.current;
-      camera.updateProjectionMatrix();
-    }
   });
 
   return null;

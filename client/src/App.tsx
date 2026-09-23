@@ -4,6 +4,9 @@ import { MainMenu } from './screens/MainMenu'
 import { AudioManager } from './components/AudioManager'
 import { HitMarker } from './components/HitMarker'
 import { DamageIndicator } from './components/DamageIndicator'
+import { ProgressBridge } from './components/ProgressBridge'
+import { LevelUpToast } from './components/LevelUpToast'
+import { KillingSpreeBanner } from './components/KillingSpreeBanner'
 import SettingsMenu from './screens/SettingsMenu'
 import { useGameStore } from './stores/useGameStore'
 import './index.css'
@@ -100,6 +103,9 @@ export default function App() {
       <AudioManager />
       <HitMarker />
       <DamageIndicator />
+      <ProgressBridge />
+      <LevelUpToast />
+      <KillingSpreeBanner />
       <SettingsMenu />
       <SyncModeToURL />
       <Switch>

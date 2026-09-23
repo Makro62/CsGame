@@ -130,7 +130,7 @@ describe("weaponDisplay", () => {
   });
 
   it("every weapon has stats from shared WEAPONS", () => {
-    const ids = ["ak47", "m4a1", "awp", "mp5", "deagle", "glock", "tec9", "autopistol", "knife", "combatknife"];
+    const ids = ["ak47", "m4a1", "awp", "mp5", "ssg", "aug", "deagle", "glock", "tec9", "autopistol", "fiveseven", "knife", "combatknife"];
     for (const id of ids) {
       const w = weaponDisplay(id);
       expect(w.dmg).toBeGreaterThan(0);

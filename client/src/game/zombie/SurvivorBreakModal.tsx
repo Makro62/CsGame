@@ -55,7 +55,7 @@ export function SurvivorBreakModal({ onAdvance }: SurvivorBreakModalProps) {
       claimStagePerk(id);
       try {
         Sound.deploy("mp5");
-      } catch {}
+      } catch { /* sound may not be loaded */ }
     },
     [claimStagePerk]
   );

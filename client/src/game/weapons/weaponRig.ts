@@ -15,11 +15,14 @@ export const WEAPON_POSITIONS: Record<string, [number, number, number]> = {
   m4a1: [0.20, -0.19, -0.38],
   awp: [0.22, -0.21, -0.42],
   mp5: [0.19, -0.18, -0.34],
+  ssg: [0.22, -0.21, -0.40],
+  aug: [0.20, -0.19, -0.38],
   arccaster: [0.20, -0.19, -0.36],
   deagle: [0.16, -0.16, -0.30],
   glock: [0.16, -0.16, -0.28],
   tec9: [0.16, -0.16, -0.28],
   autopistol: [0.16, -0.16, -0.28],
+  fiveseven: [0.16, -0.16, -0.28],
   knife: [0, -0.15, -0.30],
   combatknife: [0, -0.15, -0.30],
   he: [0.16, -0.17, -0.26],
@@ -32,11 +35,14 @@ export const WEAPON_ROTATIONS: Record<string, [number, number, number]> = {
   m4a1: [-0.02, -0.04, 0.02],
   awp: [-0.01, -0.03, 0.01],
   mp5: [-0.02, -0.04, 0.02],
+  ssg: [-0.01, -0.03, 0.01],
+  aug: [-0.02, -0.04, 0.02],
   arccaster: [-0.02, -0.04, 0.02],
   deagle: [-0.01, -0.03, 0.02],
   glock: [-0.01, -0.03, 0.02],
   tec9: [-0.01, -0.03, 0.02],
   autopistol: [-0.01, -0.03, 0.02],
+  fiveseven: [-0.01, -0.03, 0.02],
   knife: [0, 0, 0],
   combatknife: [0, 0, 0],
   he: [0.08, -0.04, 0.04],
@@ -52,11 +58,14 @@ const SIGHT_HEIGHT: Record<string, number> = {
   m4a1: 0.050,
   awp: 0.075,
   mp5: 0.055,
+  ssg: 0.075,
+  aug: 0.060,
   arccaster: 0.072,
   deagle: 0.058,
   glock: 0.031,
   tec9: 0.031,
   autopistol: 0.031,
+  fiveseven: 0.031,
 }
 
 const ADS_DEPTH: Record<string, number> = {
@@ -64,11 +73,14 @@ const ADS_DEPTH: Record<string, number> = {
   m4a1: -0.50,
   awp: -0.48,
   mp5: -0.44,
+  ssg: -0.48,
+  aug: -0.50,
   arccaster: -0.44,
   deagle: -0.48,
   glock: -0.48,
   tec9: -0.48,
   autopistol: -0.48,
+  fiveseven: -0.48,
 }
 
 /**
@@ -79,11 +91,14 @@ export const ADS_ROTATIONS: Record<string, [number, number, number]> = {
   ak47: [0, 0, 0],
   m4a1: [0, 0, 0],
   mp5: [0, 0, 0],
+  ssg: [0, 0, 0],
+  aug: [0, 0, 0],
   arccaster: [0, 0, 0],
   deagle: [0, 0, 0],
   glock: [0, 0, 0],
   tec9: [0, 0, 0],
   autopistol: [0, 0, 0],
+  fiveseven: [0, 0, 0],
   awp: [0, 0, 0],
 }
 
@@ -104,6 +119,7 @@ const DUAL_ADS: Record<string, [number, number, number]> = {
   glock: [0, -0.14, -0.24],
   tec9: [0, -0.14, -0.24],
   autopistol: [0, -0.14, -0.24],
+  fiveseven: [0, -0.14, -0.24],
 }
 
 /**
@@ -124,11 +140,14 @@ const BARREL_TIP: Record<string, [number, number, number]> = {
   m4a1: [0, 0, -0.53],
   awp: [0, 0.005, -0.67],
   mp5: [0, 0.005, -0.345],
+  ssg: [0, 0.005, -0.62],
+  aug: [0, 0.008, -0.50],
   arccaster: [0, 0.01, -0.42],
   deagle: [0, 0.018, -0.29],
   glock: [0, 0.012, -0.20],
   tec9: [0, 0.008, -0.28],
   autopistol: [0, 0.012, -0.21],
+  fiveseven: [0, 0.012, -0.22],
 }
 
 export const MUZZLE_OFFSETS: Record<string, THREE.Vector3> = Object.keys(
@@ -141,6 +160,15 @@ export const MUZZLE_OFFSETS: Record<string, THREE.Vector3> = Object.keys(
 }, {})
 
 const FALLBACK_MUZZLE = new THREE.Vector3(0.18, -0.14, -0.6)
+
+const ADS_MUZZLE_OFFSETS: Record<string, THREE.Vector3> = Object.keys(
+  BARREL_TIP
+).reduce<Record<string, THREE.Vector3>>((acc, id) => {
+  const ads = SINGLE_ADS[id]
+  const tip = BARREL_TIP[id]
+  acc[id] = new THREE.Vector3(ads[0] + tip[0], ads[1] + tip[1], ads[2] + tip[2])
+  return acc
+}, {})
 
 /** `1` = right hand, `-1` = left (off) hand. Only akimbo weapons fire left. */
 export type AkimboSide = 1 | -1
@@ -184,10 +212,11 @@ export const AKIMBO_HANDS: Record<string, AkimboHand[]> = {
   glock: GLOCK_HANDS,
   tec9: TEC9_HANDS,
   autopistol: AUTOPISTOL_HANDS,
+  fiveseven: AUTOPISTOL_HANDS,
 }
 
 /** Weapons that can be dual-wielded when dualWield is enabled (e.g. after Pack-a-Punch). */
-const AKIMBO_ELIGIBLE = new Set(['deagle', 'glock', 'tec9', 'autopistol'])
+const AKIMBO_ELIGIBLE = new Set(['deagle', 'glock', 'tec9', 'autopistol', 'fiveseven'])
 
 /**
  * Returns true if the weapon should fire from alternating left/right hands.
@@ -214,13 +243,41 @@ for (const [wid, hands] of Object.entries(AKIMBO_HANDS)) {
   }
 }
 
+const ADS_AKIMBO_MUZZLES = new Map<string, THREE.Vector3>()
+for (const [wid, hands] of Object.entries(AKIMBO_HANDS)) {
+  const ads = DUAL_ADS[wid]
+  if (!ads) continue
+  const tip = BARREL_TIP[wid]
+  for (const hand of hands) {
+    ADS_AKIMBO_MUZZLES.set(
+      `${wid}:${hand.side}`,
+      new THREE.Vector3(
+        ads[0] + hand.position[0] + tip[0] * hand.scale,
+        ads[1] + hand.position[1] + tip[1] * hand.scale,
+        ads[2] + hand.position[2] + tip[2] * hand.scale
+      )
+    )
+  }
+}
+
 /** Muzzle position of the barrel that is firing this shot. */
 export function getMuzzleOffset(
   weapon: string | null,
   side: AkimboSide = 1,
-  dualWield: boolean = false
+  dualWield: boolean = false,
+  ads: boolean = false
 ): THREE.Vector3 {
   if (!weapon) return FALLBACK_MUZZLE
+  if (ads) {
+    if (isAkimboWeapon(weapon, dualWield)) {
+      return (
+        ADS_AKIMBO_MUZZLES.get(`${weapon}:${side}`) ??
+        ADS_MUZZLE_OFFSETS[weapon] ??
+        FALLBACK_MUZZLE
+      )
+    }
+    return ADS_MUZZLE_OFFSETS[weapon] ?? FALLBACK_MUZZLE
+  }
   if (isAkimboWeapon(weapon, dualWield)) {
     return (
       AKIMBO_MUZZLES.get(`${weapon}:${side}`) ??
@@ -229,4 +286,16 @@ export function getMuzzleOffset(
     )
   }
   return MUZZLE_OFFSETS[weapon] ?? FALLBACK_MUZZLE
+}
+
+/** Shared FOV punch (degrees) added on top of the base FOV by the shooter. */
+export const fovPunch = { current: 0 }
+
+export function getBaseFov(ads: boolean, weapon: string | null, sprinting: boolean): number {
+  if (ads) {
+    if (weapon === 'awp') return 22
+    if (weapon === 'ak47' || weapon === 'm4a1' || weapon === 'mp5') return 52
+    return 58
+  }
+  return sprinting ? 78 : 75
 }

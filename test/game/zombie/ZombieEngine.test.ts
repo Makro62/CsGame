@@ -205,7 +205,7 @@ vi.mock("../../../client/src/game/zombie/ZombieEventBus", () => {
     zombieEvents: {
       on: vi.fn((h: any) => handlers.push(h)),
       off: vi.fn((h: any) => { const i = handlers.indexOf(h); if (i >= 0) handlers.splice(i, 1); }),
-      emit: vi.fn((ev: any) => handlers.forEach(h => { try { h(ev); } catch {} })),
+      emit: vi.fn((ev: any) => handlers.forEach(h => { try { h(ev); } catch { /* handler error */ } })),
       clear: vi.fn(() => { handlers.length = 0; }),
     },
   };
@@ -669,6 +669,36 @@ describe("ZombieEngine class", () => {
       // With pierce=true → can hit up to 2
       const result2 = engine.handleShoot(origin, dir, 200, true);
       expect(result2).not.toBeNull();
+    });
+
+    it("returns the 3D impact point on the ray", () => {
+      engine.setPlayerPos(0, 0, 0);
+      injectZombie(engine, {
+        id: "z_impact_1", type: "walker", x: 0, y: 0, z: 5, rotationY: 0,
+        hp: 100, maxHp: 100, speed: 2.5, damage: 15, isDead: false,
+        isAttacking: false, attackCooldown: 0, animTime: 0,
+      });
+      const origin = new THREE.Vector3(0, 1, 0);
+      const dir = new THREE.Vector3(0, 0, 1);
+      const result = engine.handleShoot(origin, dir, 35);
+      expect(result).not.toBeNull();
+      expect(result!.headshot).toBe(true);
+      expect(result!.x).toBeCloseTo(0, 5);
+      expect(result!.y).toBeCloseTo(1, 5);
+      expect(result!.z).toBeCloseTo(4.45, 2);
+    });
+
+    it("misses when the ray passes above the zombie", () => {
+      engine.setPlayerPos(0, 0, 0);
+      injectZombie(engine, {
+        id: "z_miss_high", type: "walker", x: 0, y: 0, z: 5, rotationY: 0,
+        hp: 100, maxHp: 100, speed: 2.5, damage: 15, isDead: false,
+        isAttacking: false, attackCooldown: 0, animTime: 0,
+      });
+      const origin = new THREE.Vector3(0, 1, 0);
+      const dir = new THREE.Vector3(0, 0.4, 1);
+      const result = engine.handleShoot(origin, dir, 35);
+      expect(result).toBeNull();
     });
   });
 

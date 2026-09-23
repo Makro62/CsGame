@@ -300,8 +300,8 @@ export function GrenadeSystem() {
             g.rotation.y += g.rotSpeed.y * stepDt;
             g.rotation.z += g.rotSpeed.z * stepDt;
 
-            if (g.position.y <= 0.15) {
-              g.position.y = 0.15;
+            if (g.position.y <= GRENADE.groundMinY) {
+              g.position.y = GRENADE.groundMinY;
               if (g.velocity.y < 0) {
                 g.velocity.y = -g.velocity.y * GRENADE.bounce;
                 g.velocity.x *= GRENADE.bounceXZ;
@@ -388,8 +388,8 @@ function PreviewArc({ powerRef }: { powerRef: MutableRefObject<number> }) {
     for (let i = 0; i < PREVIEW_POINT_COUNT; i++) {
       v.velocity.y -= 9.81 * stepDt;
       v.position.addScaledVector(v.velocity, stepDt);
-      if (v.position.y <= 0.15) {
-        v.position.y = 0.15;
+      if (v.position.y <= GRENADE.groundMinY) {
+        v.position.y = GRENADE.groundMinY;
         if (v.velocity.y < 0) {
           v.velocity.y = -v.velocity.y * GRENADE.bounce;
           v.velocity.x *= GRENADE.bounceXZ;

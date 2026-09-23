@@ -74,10 +74,11 @@ describe("heroes", () => {
   });
 
   describe("HERO_IDS", () => {
-    it("has both hero ids", () => {
+    it("has all hero ids", () => {
       expect(HERO_IDS).toContain("nova7");
       expect(HERO_IDS).toContain("titan");
-      expect(HERO_IDS).toHaveLength(2);
+      expect(HERO_IDS).toContain("viper");
+      expect(HERO_IDS).toHaveLength(3);
     });
   });
 
@@ -97,6 +98,14 @@ describe("heroes", () => {
       const h = getHero("titan");
       expect(h.id).toBe("titan");
       expect(h.name).toBe("TITAN");
+    });
+
+    it("returns viper for viper", () => {
+      const h = getHero("viper");
+      expect(h.id).toBe("viper");
+      expect(h.name).toBe("VIPER");
+      expect(h.ability).toBe("dash");
+      expect(h.heroClass).toBe("scout");
     });
   });
 });

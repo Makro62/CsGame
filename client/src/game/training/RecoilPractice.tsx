@@ -3,6 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { gameEvents } from "../../lib/gameEvents";
 import { useWeaponStore } from "../../stores/useWeaponStore";
+import { useProgressStore } from "../../stores/useProgressStore";
 import { HUD_FONT, HUD_MONO, hudPanel } from "../../ui/hudTheme";
 import { TRAINING_ARENA } from "./TrainingArena";
 import { TRAINING_PANEL_ANCHOR, TRAINING_PANEL_WIDTH } from "./trainingHud";
@@ -94,6 +95,20 @@ export function RecoilPractice() {
 export function RecoilPracticeUI() {
   const bulletsFired = useWeaponStore((s) => s.bulletsFired);
   const activeWeapon = useWeaponStore((s) => s.activeWeapon);
+  const recoilBestBurst = useProgressStore((s) => s.trainingBests.recoilBestBurst);
+  const peakRef = useRef(0);
+
+  useEffect(() => {
+    if (bulletsFired > peakRef.current) peakRef.current = bulletsFired;
+    if (bulletsFired === 0 && peakRef.current > 0) {
+      const peak = peakRef.current;
+      peakRef.current = 0;
+      const best = useProgressStore.getState().trainingBests.recoilBestBurst;
+      if (peak > best) {
+        useProgressStore.getState().recordTrainingScore("recoil", peak);
+      }
+    }
+  }, [bulletsFired]);
 
   return (
     <div style={{ ...TRAINING_PANEL_ANCHOR, fontFamily: HUD_FONT, userSelect: "none" }}>
@@ -132,7 +147,11 @@ export function RecoilPracticeUI() {
           <Row label="Weapon" value={activeWeapon?.toUpperCase() ?? "NONE"} valueColor="#fbbf24" />
           <Row label="Wall distance" value={`${WALL_DISTANCE} m`} />
           <Row label="Ammo" value="INFINITE" valueColor="#4ade80" />
-          <Row label="Bullet holes" value="10 s" />
+          <Row
+            label="Best burst"
+            value={recoilBestBurst > 0 ? `BEST ${recoilBestBurst}` : "---"}
+            valueColor={recoilBestBurst > 0 ? "#facc15" : "#94a3b8"}
+          />
         </div>
 
         <div

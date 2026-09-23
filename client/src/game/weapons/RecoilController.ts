@@ -77,6 +77,8 @@ const RECOIL_PATTERNS: Record<string, [number, number][]> = {
     [0, 0.035],
   ],
   mp5: AK47_RECOIL_PATTERN.map(([x, y]) => [x * 0.6, y * 0.6]),
+  ssg: [[0, 0.06]],
+  aug: M4A1_RECOIL_PATTERN.map(([x, y]): [number, number] => [x * 0.85, y * 0.85]),
   glock: [
     [0, 0.015],
     [0, 0.012],
@@ -94,6 +96,13 @@ const RECOIL_PATTERNS: Record<string, [number, number][]> = {
     [0, 0.01],
     [0, 0.008],
   ], // Balanced auto pistol
+  fiveseven: [
+    [0, 0.02],
+    [0, 0.016],
+    [0, 0.013],
+    [0, 0.01],
+    [0, 0.008],
+  ],
   knife: [], // No recoil
   combatknife: [], // No recoil
 }
@@ -192,9 +201,12 @@ export function getSpreadRadius(
     awp: 0.5,
     deagle: 0.02,
     mp5: 0.018,
+    ssg: 0.45,
+    aug: 0.015,
     glock: 0.015,
     tec9: 0.022,
     autopistol: 0.016,
+    fiveseven: 0.017,
     knife: 0,
     combatknife: 0,
   }

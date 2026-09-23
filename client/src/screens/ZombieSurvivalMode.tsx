@@ -33,6 +33,8 @@ import {
   WeaponModel,
 } from "../game/zombie/zombieKit";
 import { SurvivorBreakModal } from "../game/zombie/SurvivorBreakModal";
+import { useProgressStore } from "../stores/useProgressStore";
+import { XP } from "../game/progress/xp";
 
 const ZOMBIE_CANVAS_ID = "zombie-survival-canvas";
 const SHIELD_ARMOR_BONUS = 40;
@@ -107,7 +109,11 @@ export function ZombieSurvivalMode() {
     if (waveState === "wave_active" && prevWaveState.current !== "wave_active") {
       setShowWaveAlert(true);
       const timer = setTimeout(() => setShowWaveAlert(false), 4200);
+      prevWaveState.current = waveState;
       return () => clearTimeout(timer);
+    }
+    if (waveState === "wave_clear" && prevWaveState.current !== "wave_clear") {
+      useProgressStore.getState().addXp(XP.waveClear);
     }
     prevWaveState.current = waveState;
   }, [waveState]);
@@ -272,6 +278,14 @@ export function ZombieSurvivalMode() {
           } else if (heroState.hero.ability === "shield") {
             useZombieStore.setState(s => ({
               player: { ...s.player, armor: Math.min(100, s.player.armor + SHIELD_ARMOR_BONUS) },
+            }));
+          } else if (heroState.hero.ability === "dash") {
+            const aim = useAimStore.getState();
+            const dashDist = 7;
+            aim.pos.x += Math.sin(aim.yaw) * dashDist;
+            aim.pos.z += Math.cos(aim.yaw) * dashDist;
+            useZombieStore.setState(s => ({
+              player: { ...s.player, hp: Math.min(s.player.maxHp, s.player.hp + 10) },
             }));
           }
         }

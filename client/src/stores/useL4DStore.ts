@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { L4D_SAFE_Z, L4D_ZONES } from "../game/l4d/l4dLayout";
 
-type L4DChapter = 1 | 2 | 3 | 4;
+type L4DChapter = 1 | 2 | 3 | 4 | 5 | 6;
 export type SpecialType = "common" | "hunter" | "smoker" | "boomer" | "tank" | "witch";
 
 export interface L4DSurvivor {
@@ -112,7 +112,11 @@ export const useL4DStore = create<L4DState>((set, get) => ({
     if (!inf || inf.isDead) return false;
     const nhp = inf.hp - dmg;
     if (nhp <= 0) {
+      const dying = st.infected.find(x => x.id === id);
       const infected = st.infected.map(x => x.id === id ? { ...x, isDead: true, hp: 0, pinTarget: null, grabTarget: null } : x);
+      if (dying?.type === "boomer") {
+        window.dispatchEvent(new CustomEvent("l4dBoomerPop"));
+      }
       set({
         infected,
         survivors: releaseFrom(st.survivors, id),

@@ -3,6 +3,8 @@ import { Canvas } from "@react-three/fiber";
 import { MAPS } from "../game/map/MapRegistry";
 import { getAgentsForTeam } from "../game/offline/agents";
 import { MinecraftCharacter, FitCharacterCamera, PreviewTurntable } from "../game/characterWeaponKit";
+import { useProgressStore } from "../stores/useProgressStore";
+import { rankTier, rankTierColor } from "../game/progress/rank";
 
 // ── Step Indicator ──
 function StepIndicator({ step, labels }: { step: number; labels: string[] }) {
@@ -49,6 +51,10 @@ export function Offline5v5Select({ onSelect, onBack }: Offline5v5SelectProps) {
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const rankPoints = useProgressStore((s) => s.rankPoints);
+  const level = useProgressStore((s) => s.level);
+  const tier = rankTier(rankPoints);
+  const tierColor = rankTierColor(tier);
 
   const agents = useMemo(() => selectedTeam ? getAgentsForTeam(selectedTeam) : [], [selectedTeam]);
   const previewAgent = useMemo(() => {
@@ -89,6 +95,26 @@ export function Offline5v5Select({ onSelect, onBack }: Offline5v5SelectProps) {
     }}>
       {/* Header */}
       <div style={{ textAlign: "center", padding: "24px 20px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", maxWidth: 960, margin: "0 auto 8px" }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: `1px solid ${tierColor}`,
+              background: "rgba(0,0,0,0.35)",
+              fontFamily: "'Rajdhani', monospace",
+            }}
+          >
+            <span style={{ color: tierColor, fontWeight: 900, letterSpacing: 1, fontSize: 13 }}>
+              {tier.toUpperCase()}
+            </span>
+            <span style={{ color: "#94a3b8", fontSize: 12 }}>{rankPoints} RP</span>
+            <span style={{ color: "#38bdf8", fontSize: 12 }}>LV {level}</span>
+          </div>
+        </div>
         <StepIndicator step={step} labels={["Team", "Map", "Agent"]} />
         <h1 style={{
           fontSize: "2.4em", fontWeight: 900, margin: "12px 0 4px",

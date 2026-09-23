@@ -203,10 +203,13 @@ export function WeaponModel() {
         {activeWeapon === 'awp' && <AWPModel />}
         {activeWeapon === 'deagle' && (dualWield ? <DeagleDualModel /> : <DeagleModel />)}
         {activeWeapon === 'mp5' && <MP5Model />}
+        {activeWeapon === 'ssg' && <AWPModel />}
+        {activeWeapon === 'aug' && <M4A1Model />}
         {activeWeapon === 'arccaster' && <ArcCasterModel />}
         {activeWeapon === 'glock' && (dualWield ? <GlockDualModel /> : <GlockModel />)}
         {activeWeapon === 'tec9' && (dualWield ? <Tec9DualModel /> : <Tec9Model />)}
         {activeWeapon === 'autopistol' && (dualWield ? <AutoPistolDualModel /> : <AutoPistolModel />)}
+        {activeWeapon === 'fiveseven' && (dualWield ? <AutoPistolDualModel /> : <AutoPistolModel />)}
         {(activeWeapon === 'knife' || activeWeapon === 'combatknife') && (
           <DualKarambitModel tactical={activeWeapon === 'combatknife'} />
         )}

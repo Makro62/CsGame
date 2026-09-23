@@ -23,11 +23,14 @@ describe("shared constants and helpers", () => {
   describe("weapon category helpers", () => {
     it("isPrimaryWeapon", () => {
       expect(isPrimaryWeapon("ak47")).toBe(true);
+      expect(isPrimaryWeapon("ssg")).toBe(true);
+      expect(isPrimaryWeapon("aug")).toBe(true);
       expect(isPrimaryWeapon("glock")).toBe(false);
     });
 
     it("isSecondaryWeapon", () => {
       expect(isSecondaryWeapon("deagle")).toBe(true);
+      expect(isSecondaryWeapon("fiveseven")).toBe(true);
       expect(isSecondaryWeapon("ak47")).toBe(false);
     });
 

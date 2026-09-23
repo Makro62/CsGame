@@ -145,7 +145,8 @@ export const ZombieSurvivalHUD = React.memo(function ZombieSurvivalHUD({
             fontWeight: 900,
             letterSpacing: "0.05em",
           }}>
-            {hero.ability === "berserk" ? "🔥" : "🛡️"} [Q] {hero.ability === "berserk" ? "BERSERK" : "SHIELD"}
+            {hero.ability === "berserk" ? "🔥" : hero.ability === "shield" ? "🛡️" : "💨"} [Q]{" "}
+            {hero.ability === "berserk" ? "BERSERK" : hero.ability === "shield" ? "SHIELD" : "DASH"}
             {!abilityReady && ` ${Math.ceil(abilityCooldownRemaining)}s`}
           </span>
           <span style={{
@@ -231,6 +232,7 @@ export const ZombieSurvivalHUD = React.memo(function ZombieSurvivalHUD({
               boxShadow: "0 0 50px rgba(239, 68, 68, 0.7), 0 10px 40px rgba(0,0,0,0.9)",
               fontFamily: "'Rajdhani', monospace",
               backdropFilter: "blur(8px)",
+              animation: "waveBannerIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
             }}
           >
             <div style={{ fontSize: 15, fontWeight: 900, color: "#fca5a5", letterSpacing: "0.2em", marginBottom: 4 }}>

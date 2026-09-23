@@ -4,6 +4,7 @@ import { HUD_FONT, HUD_MONO, hudPanel } from "../../ui/hudTheme"
 import { Bot, type BotDifficulty, type BotBehavior } from "./Bot"
 import { TRAINING_PANEL_ANCHOR, TRAINING_PANEL_WIDTH } from "./trainingHud"
 import { gameEvents } from "../../lib/gameEvents"
+import { useProgressStore } from "../../stores/useProgressStore"
 
 // Bot zone of TrainingArena, kept clear of the firing line
 const SPAWN_RANGE = { x: [-16, 16], z: [-40, -14] }
@@ -94,6 +95,7 @@ export function AimTrainerUI() {
   const setDifficulty = useGameStore((s) => s.setBotDifficulty)
   const botCount = useGameStore((s) => s.botCount || 3)
   const setBotCount = useGameStore((s) => s.setBotCount)
+  const aimBestKills = useProgressStore((s) => s.trainingBests.aimBestKills)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Countdown timer
@@ -113,6 +115,8 @@ export function AimTrainerUI() {
         useGameStore.getState().stopTimer()
         useGameStore.getState().saveBestTime()
         useGameStore.getState().setTimer(0)
+        const finalKills = useGameStore.getState().stats.kills
+        useProgressStore.getState().recordTrainingScore("aim", finalKills)
       } else {
         useGameStore.getState().setTimer(newTime)
       }
@@ -325,6 +329,24 @@ export function AimTrainerUI() {
             <span style={{ color: "#94a3b8" }}>Best Record:</span>
             <span style={{ fontWeight: 800, color: "#fbbf24" }}>
               {stats.bestTime === Infinity ? "---" : `${stats.bestTime}s`}
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "#94a3b8" }}>Best Kills:</span>
+            <span style={{ fontWeight: 800, color: aimBestKills > 0 ? "#4ade80" : "#64748b" }}>
+              {aimBestKills > 0 ? (
+                <span style={{
+                  background: "rgba(250,204,21,0.15)",
+                  border: "1px solid rgba(250,204,21,0.5)",
+                  borderRadius: 4,
+                  padding: "0 6px",
+                  color: "#facc15",
+                  fontSize: 10,
+                  letterSpacing: 1,
+                }}>
+                  BEST {aimBestKills}
+                </span>
+              ) : "---"}
             </span>
           </div>
         </div>

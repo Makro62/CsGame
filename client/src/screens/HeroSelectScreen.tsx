@@ -322,8 +322,14 @@ export function HeroSelectScreen({ onSelect }: { onSelect: () => void }) {
             }}>
               <div style={{ fontSize: 10, color: "#64748b", fontWeight: 800, letterSpacing: 1, marginBottom: 4 }}>SPECIAL ABILITY</div>
               <div style={{ fontSize: 15, fontWeight: 900, color: hero.accentColor, display: "flex", alignItems: "center", gap: 6 }}>
-                <span>{hero.ability === "berserk" ? "🔥" : "🛡️"}</span>
-                <span>{hero.ability === "berserk" ? "BERSERK MODE" : "ENERGY SHIELD"}</span>
+                <span>{hero.ability === "berserk" ? "🔥" : hero.ability === "shield" ? "🛡️" : "💨"}</span>
+                <span>
+                  {hero.ability === "berserk"
+                    ? "BERSERK MODE"
+                    : hero.ability === "shield"
+                      ? "ENERGY SHIELD"
+                      : "TACTICAL DASH"}
+                </span>
               </div>
               <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
                 Cooldown: {hero.abilityCooldown}s

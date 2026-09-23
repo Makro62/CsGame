@@ -29,8 +29,8 @@ import {
 
 describe("l4dLayout", () => {
   describe("constants", () => {
-    it("L4D_ZONES has 4 zones", () => {
-      expect(L4D_ZONES).toHaveLength(4);
+    it("L4D_ZONES has 6 zones", () => {
+      expect(L4D_ZONES).toHaveLength(6);
     });
 
     it("L4D_BOUNDS is valid", () => {

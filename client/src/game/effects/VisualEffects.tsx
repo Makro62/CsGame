@@ -11,6 +11,7 @@ interface TracerProps {
 
 export function BulletTracer({ start, end, color = "#ffea60", duration = 0.09 }: TracerProps) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
   const opacityRef = useRef(1);
 
   const { position, quaternion, length } = useMemo(() => {
@@ -39,6 +40,13 @@ export function BulletTracer({ start, end, color = "#ffea60", duration = 0.09 }:
       }
       meshRef.current.visible = opacityRef.current > 0;
     }
+    if (coreRef.current) {
+      const coreMat = coreRef.current.material as THREE.MeshBasicMaterial;
+      if (coreMat) {
+        coreMat.opacity = 0.9 * opacityRef.current;
+      }
+      coreRef.current.visible = opacityRef.current > 0;
+    }
   });
 
   return (
@@ -55,7 +63,7 @@ export function BulletTracer({ start, end, color = "#ffea60", duration = 0.09 }:
         />
       </mesh>
       {/* Fine inner core */}
-      <mesh>
+      <mesh ref={coreRef}>
         <cylinderGeometry args={[0.005, 0.005, length, 4]} />
         <meshBasicMaterial
           color="#ffffff"

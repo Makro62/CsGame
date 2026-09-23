@@ -39,6 +39,8 @@ import {
   getL4DSurvivor,
   type L4DSurvivorDef,
 } from "../game/l4d/l4dKit";
+import { useProgressStore } from "../stores/useProgressStore";
+import { XP } from "../game/progress/xp";
 
 function applyL4DSurvivorStats(survivor: L4DSurvivorDef) {
   useL4DStore.setState(s => ({
@@ -343,6 +345,10 @@ export function L4DMode() {
   const zoneBanner = useL4DStore(s => s.zoneBanner);
   const zombiesRemaining = useL4DStore(s => s.zombiesRemaining);
   const zoneQuota = useL4DStore(s => s.zoneQuota);
+  const infected = useL4DStore(s => s.infected);
+  const specialsPresent = Array.from(
+    new Set(infected.filter(i => !i.isDead && i.type !== "common").map(i => i.type.toUpperCase())),
+  );
   const isGameOver = useL4DStore(s => s.isGameOver);
   const isVictory = useL4DStore(s => s.isVictory);
   const abilityCooldownRemaining = useL4DStore(s => s.abilityCooldownRemaining);
@@ -393,6 +399,19 @@ export function L4DMode() {
     const t = window.setTimeout(() => useL4DStore.getState().setZoneBanner(null), 2800);
     return () => window.clearTimeout(t);
   }, [zoneBanner]);
+
+  const prevUnlockedRef = useRef(unlockedZones);
+  const prevVictoryRef = useRef(isVictory);
+  useEffect(() => {
+    if (unlockedZones > prevUnlockedRef.current) {
+      useProgressStore.getState().addXp(XP.zoneClear);
+    }
+    if (isVictory && !prevVictoryRef.current) {
+      useProgressStore.getState().addXp(XP.matchWin);
+    }
+    prevUnlockedRef.current = unlockedZones;
+    prevVictoryRef.current = isVictory;
+  }, [unlockedZones, isVictory]);
 
   useEffect(() => {
     let holding = false;
@@ -558,6 +577,11 @@ export function L4DMode() {
         <div className="text-xs opacity-80" style={{ fontSize: "clamp(10px, 1.2vw, 12px)" }}>{subtitle}</div>
         <div className="text-xs" style={{ fontSize: "clamp(10px, 1.2vw, 12px)" }}>Zombie {zombiesRemaining}/{zoneQuota}</div>
         <div className="text-xs opacity-70" style={{ fontSize: "clamp(10px, 1.2vw, 12px)" }}>Hidup {aliveCount}/4 · 3 teman AI</div>
+        {specialsPresent.length > 0 && (
+          <div className="text-xs font-bold text-red-400 animate-pulse" style={{ fontSize: "clamp(10px, 1.2vw, 12px)" }}>
+            ⚠ SPECIAL: {specialsPresent.join(", ")}
+          </div>
+        )}
       </div>
       {survivorSelected && !isGameOver && !isVictory && <InGameChrome onMenu={openPause} />}
 
