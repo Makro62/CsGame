@@ -31,12 +31,12 @@ export function RecoilPractice() {
   const { scene } = useThree();
   const decals = useRef<Decal[]>([]);
 
-  // The UI promises infinite ammo, so make the magazine actually stay full
+  // The UI promises infinite ammo, so make the magazine actually stay full.
+  // Ownership of the flag lives on TrainingRange (parent) so switching
+  // recoil → aim does not strip infinite ammo from the aim tab.
   useEffect(() => {
-    const store = useWeaponStore.getState();
-    store.setInfiniteAmmo(true);
-    store.finishReload();
-    return () => useWeaponStore.getState().setInfiniteAmmo(false);
+    useWeaponStore.getState().setInfiniteAmmo(true);
+    useWeaponStore.getState().finishReload();
   }, []);
 
   // Decals come from the shooting raycast, so they land exactly where the

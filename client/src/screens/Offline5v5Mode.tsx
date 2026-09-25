@@ -135,6 +135,8 @@ export function Offline5v5Mode() {
   const killFeed = useOffline5v5Store((s) => s.killFeed);
   const initMatch = useOffline5v5Store((s) => s.initMatch);
   const me = useOffline5v5Store((s) => s.players.get("local"));
+  const hudAmmo = useWeaponStore((s) => s.currentAmmo);
+  const hudReserve = useWeaponStore((s) => s.reserveAmmo);
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<"T" | "CT" | null>(null);
   const [showSelection, setShowSelection] = useState(true);
@@ -182,8 +184,12 @@ export function Offline5v5Mode() {
     }
 
     if (prevPhase !== "matchEnd" && phase === "matchEnd" && localTeam) {
+      const prevLocal = localTeam === "T" ? prevScores.red : prevScores.blue;
       const localScore = localTeam === "T" ? teamRedScore : teamBlueScore;
       const enemyScore = localTeam === "T" ? teamBlueScore : teamRedScore;
+      if (prevPhase !== "roundEnd") {
+        progress.recordRoundResult(localScore > prevLocal);
+      }
       progress.recordMatchResult(localScore > enemyScore);
     }
 
@@ -219,6 +225,9 @@ export function Offline5v5Mode() {
       ws.syncLoadout({ primary: me.primaryWeapon, secondary: me.secondaryWeapon, knife: me.knifeSlot });
       if (me.currentWeapon) ws.equipWeapon(me.currentWeapon as never);
     }
+    // New match starts on a full mag — the per-weapon bag still holds the
+    // previous match's drained ammo.
+    ws.refillForRound();
     setSelectedTeam(team);
     setSelectedMapId(mapId);
     setShowSelection(false);
@@ -531,8 +540,8 @@ export function Offline5v5Mode() {
               {me.currentWeapon}
             </div>
             <div>
-              <span style={{ color: "#facc15", fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 900 }}>{me.ammo}</span>{" "}
-              <span style={{ color: "#94a3b8", fontSize: "clamp(11px, 1.5vw, 14px)" }}>/ {me.reserveAmmo}</span>
+              <span style={{ color: "#facc15", fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 900 }}>{hudAmmo}</span>{" "}
+              <span style={{ color: "#94a3b8", fontSize: "clamp(11px, 1.5vw, 14px)" }}>/ {hudReserve}</span>
             </div>
           </div>
 

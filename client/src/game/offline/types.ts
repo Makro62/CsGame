@@ -134,6 +134,7 @@ export interface OfflineGameState {
   localShoot: (targetId: string | null, headshot: boolean) => boolean;
   localBuy: (item: string) => boolean;
   localReload: () => void;
+  consumeGrenade: (type: "he" | "smoke" | "flash") => boolean;
   localPlantStart: (site: string) => void;
   localPlantCancel: () => void;
   localDefuseStart: () => void;

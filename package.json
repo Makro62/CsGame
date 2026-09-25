@@ -11,10 +11,7 @@
     "dev": "npm run build --workspace=shared && npm run dev --workspace=client",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

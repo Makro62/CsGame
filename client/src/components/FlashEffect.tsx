@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { useEffect, useState } from "react";
 import { useNetworkStore } from "../stores/useNetworkStore";
+import { useGameStore } from "../stores/useGameStore";
+import { useOffline5v5Store } from "../screens/Offline5v5Store";
 import { gameEvents } from "../lib/gameEvents";
 
 interface FlashState {
@@ -16,7 +18,18 @@ export function FlashEffect() {
   useEffect(() => {
     const onFlash = (detail: { x: number; y: number; z: number; throwerId: string }) => {
       if (!detail) return;
-      const { localX, localZ } = useNetworkStore.getState();
+      const mode = useGameStore.getState().mode;
+      let localX: number;
+      let localZ: number;
+      if (mode === "offline5v5") {
+        const me = useOffline5v5Store.getState().players.get("local");
+        localX = me?.x ?? 0;
+        localZ = me?.z ?? 0;
+      } else {
+        const n = useNetworkStore.getState();
+        localX = n.localX;
+        localZ = n.localZ;
+      }
       const dist = Math.sqrt(
         (detail.x - localX) ** 2 + (detail.z - localZ) ** 2
       );
@@ -24,7 +37,9 @@ export function FlashEffect() {
       if (dist > maxDist) return;
 
       const strength = Math.max(0.2, 1 - dist / maxDist);
-      const selfThrown = detail.throwerId === sessionId;
+      const selfThrown =
+        detail.throwerId === sessionId ||
+        (mode === "offline5v5" && detail.throwerId === "local");
       const opacity = selfThrown ? strength * 0.7 : strength;
 
       setFlash({

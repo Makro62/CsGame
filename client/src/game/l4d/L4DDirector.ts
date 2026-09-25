@@ -60,8 +60,11 @@ export class L4DDirector {
       this.spawnTimer += dt;
       while (this.spawnQueue > 0 && this.spawnTimer >= 0.22) {
         this.spawnTimer -= 0.22;
-        this.spawnZoneCommon();
-        this.spawnQueue -= 1;
+        // Only consume the queue entry when a spawn actually happened;
+        // otherwise blocked spawns (cap reached) would silently drain it.
+        if (this.spawnZoneCommon()) {
+          this.spawnQueue -= 1;
+        }
       }
       this.syncRemaining();
       return;
@@ -108,9 +111,9 @@ export class L4DDirector {
     useL4DStore.getState().setZombiesRemaining(alive + this.spawnQueue);
   }
 
-  private spawnZoneCommon() {
+  private spawnZoneCommon(): boolean {
     const st = useL4DStore.getState();
-    if (st.infected.filter(i => !i.isDead).length >= 42) return;
+    if (st.infected.filter(i => !i.isDead).length >= 42) return false;
     const pos = pickL4DZoneSpawn(st.currentZone);
     const hp = 50 + st.currentZone * 12;
     const inf: L4DInfected = {
@@ -130,6 +133,7 @@ export class L4DDirector {
       grabTarget: null,
     };
     useL4DStore.getState().addInfected(inf);
+    return true;
   }
 
   private spawnSpecial() {
@@ -307,6 +311,14 @@ export class L4DDirector {
           if (idx >= 0) {
             updated[idx] = { ...inf, grabTarget: near.id };
             changed = true;
+            // Mirror grab onto the survivor so PlayerController drag + HUD "SMOKER!" work.
+            useL4DStore.setState(s => ({
+              survivors: s.survivors.map(sv =>
+                sv.id === near.id && !sv.isDead && !sv.grabbedBy
+                  ? { ...sv, grabbedBy: inf.id }
+                  : sv
+              ),
+            }));
           }
         }
         continue;

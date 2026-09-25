@@ -598,6 +598,12 @@ export function ShootingSystem() {
     }
 
     if (activeWeapon === "he" || activeWeapon === "smoke" || activeWeapon === "flash") {
+      // Ownership: offline5v5 requires an owned grenade of this type.
+      if (gameMode === "offline5v5") {
+        const consumed = useOffline5v5Store.getState().consumeGrenade(activeWeapon);
+        if (!consumed) return;
+      }
+
       camera.getWorldDirection(shootDirection);
       const origin = camera.position.clone().add(shootDirection.clone().multiplyScalar(0.4));
       const velocity = shootDirection

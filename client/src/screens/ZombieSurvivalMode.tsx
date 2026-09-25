@@ -33,8 +33,6 @@ import {
   WeaponModel,
 } from "../game/zombie/zombieKit";
 import { SurvivorBreakModal } from "../game/zombie/SurvivorBreakModal";
-import { useProgressStore } from "../stores/useProgressStore";
-import { XP } from "../game/progress/xp";
 
 const ZOMBIE_CANVAS_ID = "zombie-survival-canvas";
 const SHIELD_ARMOR_BONUS = 40;
@@ -113,7 +111,9 @@ export function ZombieSurvivalMode() {
       return () => clearTimeout(timer);
     }
     if (waveState === "wave_clear" && prevWaveState.current !== "wave_clear") {
-      useProgressStore.getState().addXp(XP.waveClear);
+      // XP for clearing a wave is granted in ZombieEngine.onWaveComplete;
+      // wave_clear → buy_phase is same-tick batched so this effect may never
+      // observe wave_clear — do not grant here to avoid double-counting.
     }
     prevWaveState.current = waveState;
   }, [waveState]);

@@ -17,6 +17,8 @@ import { zombieEvents, type ZombieEvent } from "./ZombieEventBus";
 import { ZombieDOTSystem } from "./ZombieDOTSystem";
 import { pickupSurvivalWeapon } from "./survivalBuy";
 import { gameEvents } from "../../lib/gameEvents";
+import { useProgressStore } from "../../stores/useProgressStore";
+import { XP } from "../progress/xp";
 
 export { zombieEvents, type ZombieEvent };
 
@@ -457,6 +459,9 @@ export class ZombieEngine {
     const wave = store.currentWave;
     const stage = store.currentStage ?? 1;
 
+    // Grant XP here: wave_clear → buy_phase in the same tick is batched by
+    // React, so the ZombieSurvivalMode effect would never observe wave_clear.
+    useProgressStore.getState().addXp(XP.waveClear);
     store.setWaveState("buy_phase");
     store.setInterWaveTimer(WAVE_CONFIG.buyPhaseDuration);
 

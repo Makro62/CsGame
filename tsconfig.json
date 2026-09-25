@@ -17,6 +17,6 @@
       "@cs-game/shared/*": ["./shared/*"]
     }
   },
-  "include": ["client/src/**/*", "test/**/*", "shared/**/*"],
+  "include": ["client/src/**/*", "shared/**/*"],
   "exclude": ["node_modules", "dist"]
 }

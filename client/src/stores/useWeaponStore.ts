@@ -83,6 +83,7 @@ interface WeaponState {
   resetUpgrades: () => void;
   setFireRateMultiplier: (multiplier: number) => void;
   resetAmmoInventory: () => void;
+  refillForRound: () => void;
   incrementBullets: () => void;
   resetBullets: () => void;
   setSwitching: (switching: boolean) => void;
@@ -472,6 +473,53 @@ export const useWeaponStore = create<WeaponState>()((set, get) => ({
 
   resetAmmoInventory: () => {
     set({ ammoByWeapon: {} });
+  },
+
+  /**
+   * Round reset / new match: refill every owned gun to a full mag and reserve.
+   * The offline store refills `me.ammo` but the HUD and `canFire()` read this
+   * store, so without this the local player keeps last round's drained mag.
+   */
+  refillForRound: () => {
+    set((state) => {
+      const bag = { ...state.ammoByWeapon };
+      const patch: Partial<WeaponState> = {
+        ammoByWeapon: bag,
+        isReloading: false,
+        reloadStartTime: null,
+      };
+
+      if (state.primaryWeapon) {
+        const stats = WEAPONS[state.primaryWeapon];
+        bag[state.primaryWeapon] = { mag: stats.mag, reserve: stats.reserveAmmo };
+        patch.primaryAmmo = stats.mag;
+        patch.primaryReserve = stats.reserveAmmo;
+        patch.primaryMaxAmmo = stats.mag;
+      }
+      if (state.secondaryWeapon) {
+        const stats = WEAPONS[state.secondaryWeapon];
+        bag[state.secondaryWeapon] = { mag: stats.mag, reserve: stats.reserveAmmo };
+        patch.secondaryAmmo = stats.mag;
+        patch.secondaryReserve = stats.reserveAmmo;
+        patch.secondaryMaxAmmo = stats.mag;
+      }
+
+      if (isAmmoWeapon(state.activeWeapon)) {
+        const stats = WEAPONS[state.activeWeapon];
+        patch.currentAmmo = stats.mag;
+        patch.reserveAmmo = stats.reserveAmmo;
+        patch.maxAmmo = stats.mag;
+      } else if (state.activeWeapon) {
+        const isGrenade =
+          state.activeWeapon === "he" ||
+          state.activeWeapon === "smoke" ||
+          state.activeWeapon === "flash";
+        patch.currentAmmo = isGrenade ? 1 : 0;
+        patch.maxAmmo = isGrenade ? 1 : 0;
+      }
+
+      return patch;
+    });
   },
 
   incrementBullets: () => {

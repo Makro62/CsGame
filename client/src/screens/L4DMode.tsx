@@ -304,12 +304,18 @@ function L4DSimLoop({
       if (inf.isDead || !inf.isAttacking) continue;
       if (inf.type === "hunter" && inf.pinTarget) continue;
       for (const sv of survivorsNow) {
-        if (sv.isDead || sv.isDowned) continue;
+        if (sv.isDead) continue;
         if (Math.hypot(inf.x - sv.x, inf.z - sv.z) < 1.8 && Math.random() < 0.04) {
           const dmg = inf.type === "tank" ? 28 : inf.type === "witch" ? 40 : inf.type === "hunter" ? 18 : 10;
           useL4DStore.getState().updateSurvivor(sv.id, s => {
+            if (s.isDead) return s;
+            if (s.isDowned) {
+              // Lethal hit on a downed survivor finishes them.
+              return { ...s, hp: 0, isDowned: false, isDead: true };
+            }
             const nhp = Math.max(0, s.hp - dmg);
-            if (nhp <= 0) return { ...s, hp: 0, isDowned: false, isDead: true };
+            // First lethal hit downs instead of skipping straight to death.
+            if (nhp <= 0) return { ...s, hp: 0, isDowned: true, downedTimer: 22 };
             if (nhp < 20) return { ...s, hp: nhp, isDowned: true, downedTimer: 22 };
             return { ...s, hp: nhp };
           });

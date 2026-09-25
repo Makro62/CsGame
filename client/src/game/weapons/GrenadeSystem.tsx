@@ -72,10 +72,8 @@ export function GrenadeSystem() {
     if (g.type === "he") {
       Sound.explosion();
       triggerScreenShake(0.22);
-      // Apply splash damage in training mode
       const gameMode = useGameStore.getState().mode;
       if (gameMode === "training") {
-        // Broadcast targetDamaged to training bots within 4m
         const targets = useGameStore.getState().targets;
         Object.values(targets).forEach((target) => {
           const dist = Math.sqrt(
@@ -86,6 +84,39 @@ export function GrenadeSystem() {
             useGameStore.getState().damageTarget(target.id, dmg, false);
           }
         });
+      } else if (gameMode === "offline5v5") {
+        const s = useOffline5v5Store.getState();
+        const me = s.players.get("local");
+        if (me && !me.isDead) {
+          const players = new Map(s.players);
+          let killFeed = s.killFeed;
+          players.forEach((p, id) => {
+            if (id === "local" || p.isDead || p.team === me.team) return;
+            const dist = Math.hypot(p.x - g.position.x, p.z - g.position.z);
+            if (dist > 4) return;
+            const dmg = Math.round(80 * (1 - dist / 4));
+            const victim = { ...p, hp: Math.max(0, p.hp - dmg) };
+            if (victim.hp <= 0) {
+              victim.isDead = true;
+              victim.deaths += 1;
+              const killer = { ...me, kills: me.kills + 1 };
+              players.set("local", killer);
+              const entry = {
+                killerName: killer.nickname,
+                victimName: victim.nickname,
+                weapon: "he",
+                headshot: false,
+                timestamp: Date.now(),
+              };
+              killFeed = killFeed.length >= 5 ? [...killFeed.slice(1), entry] : [...killFeed, entry];
+            }
+            players.set(id, victim);
+          });
+          useOffline5v5Store.setState({ players, killFeed });
+          useOffline5v5Store.getState().checkRoundEnd();
+        }
+      } else if (gameMode === "zombie") {
+        // Zombie mode uses arcade damage via engine handles; splash handled there if needed.
       }
     } else if (g.type === "smoke") {
       Sound.smokeHiss();
@@ -198,6 +229,14 @@ export function GrenadeSystem() {
         const { grenadeType } = useWeaponStore.getState();
 
         if (performance.now() - lastThrow.current < GRENADE.cooldownMs) return;
+
+        // Ownership: offline5v5 requires an owned grenade of this type.
+        const modeBeforeThrow = useGameStore.getState().mode;
+        if (modeBeforeThrow === "offline5v5") {
+          const consumed = useOffline5v5Store.getState().consumeGrenade(grenadeType);
+          if (!consumed) return;
+        }
+
         lastThrow.current = performance.now();
 
         const power = 0.4 + charge.current * 0.6; // 0.4x .. 1x throw speed
@@ -255,10 +294,13 @@ export function GrenadeSystem() {
 
     const now = performance.now();
 
-    // Clean up expired smoke clouds
-    setLocalSmokes((prev) =>
-      prev.filter((s) => now - s.startTime < s.duration)
-    );
+    // Clean up expired smoke clouds — only setState when something expires
+    // so this does not re-render every frame.
+    setLocalSmokes((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.filter((s) => now - s.startTime < s.duration);
+      return next.length === prev.length ? prev : next;
+    });
 
     if (grenades.length === 0) return;
 

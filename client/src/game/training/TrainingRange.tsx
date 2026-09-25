@@ -360,6 +360,15 @@ export function TrainingRange() {
     state.equipWeapon(state.activeWeapon ?? "ak47");
   }, []);
 
+  // TrainingRange owns infinite ammo across tab switches (aim ↔ recoil).
+  useEffect(() => {
+    useWeaponStore.getState().setInfiniteAmmo(true);
+  }, [trainingMode]);
+
+  useEffect(() => {
+    return () => useWeaponStore.getState().setInfiniteAmmo(false);
+  }, []);
+
   useEffect(() => {
     const onPointerLockChange = () => {
       const locked = !!document.pointerLockElement;

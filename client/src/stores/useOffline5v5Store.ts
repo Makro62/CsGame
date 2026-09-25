@@ -5,7 +5,7 @@ import { mkPlayer, assignBombCarrier, resetBotNav } from "../game/offline/BotAI"
 import { getWeaponStats, executeLocalBuy } from "../game/offline/EconomySystem";
 import { executeLocalShoot } from "../game/offline/CombatSystem";
 import { tickRound, endRound as handleEndRound, resetForRound as handleResetRound } from "../game/offline/RoundManager";
-import { computeReloadFill } from "../lib/numericGuards";
+import { useWeaponStore } from "./useWeaponStore";
 import type {
   OfflineGameState,
   LocalPlayer,
@@ -131,26 +131,44 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
     const s = get();
     const me = s.players.get("local");
     if (!me || me.isDead || me.isReloading) return;
-    const ws = getWeaponStats(me.currentWeapon);
-    if (!ws || me.ammo >= ws.mag || me.reserveAmmo <= 0) return;
+    // Weapon store is the live source of truth for the local mag/reserve;
+    // offline store only mirrors it for HUD/buy fallbacks.
+    const weaponState = useWeaponStore.getState();
+    const ws = getWeaponStats(weaponState.activeWeapon ?? me.currentWeapon);
+    if (!ws) return;
+    const mag = weaponState.currentAmmo;
+    const reserve = weaponState.reserveAmmo;
+    if (mag >= ws.mag || (reserve <= 0 && !weaponState.infiniteAmmo)) return;
 
     const players = new Map(s.players);
     players.set("local", { ...me, isReloading: true });
     set({ players });
 
     setTimeout(() => {
+      const after = useWeaponStore.getState();
       const currentMe = get().players.get("local");
       if (!currentMe || currentMe.isDead) return;
-      const fill = computeReloadFill(ws.mag, currentMe.ammo, currentMe.reserveAmmo);
       const updatedPlayers = new Map(get().players);
       updatedPlayers.set("local", {
         ...currentMe,
-        ammo: fill.ammoAfter,
-        reserveAmmo: fill.reserveAfter,
+        ammo: after.currentAmmo,
+        reserveAmmo: after.reserveAmmo,
         isReloading: false,
       });
       set({ players: updatedPlayers });
     }, ws.reload * 1000);
+  },
+
+  consumeGrenade: (type: "he" | "smoke" | "flash") => {
+    const s = get();
+    const me = s.players.get("local");
+    if (!me || me.isDead) return false;
+    const key = type === "he" ? "grenadeHE" : type === "smoke" ? "grenadeSmoke" : "grenadeFlash";
+    if (me[key] <= 0) return false;
+    const players = new Map(s.players);
+    players.set("local", { ...me, [key]: me[key] - 1 });
+    set({ players });
+    return true;
   },
 
   localPlantStart: (site: string) => {
@@ -260,5 +278,8 @@ export const useOffline5v5Store = create<OfflineGameState>()((set, get) => ({
 
   resetForRound: () => {
     handleResetRound(get(), set);
+    // refillAmmo() above tops up `me.ammo` only — the HUD and canFire() read
+    // the weapon store, so it has to be refilled too.
+    useWeaponStore.getState().refillForRound();
   },
 }));
