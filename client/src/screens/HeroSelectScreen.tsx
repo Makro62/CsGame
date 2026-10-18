@@ -148,7 +148,7 @@ function HeroCard({ hero, selected, onClick }: { hero: HeroDefinition; selected:
   );
 }
 
-export function HeroSelectScreen({ onSelect }: { onSelect: () => void }) {
+export function HeroSelectScreen({ onSelect, onBack }: { onSelect: () => void; onBack?: () => void }) {
   const selectedHeroId = useHeroStore(s => s.selectedHeroId);
   const selectHero = useHeroStore(s => s.selectHero);
   const hero = useHeroStore(s => s.hero);
@@ -183,6 +183,31 @@ export function HeroSelectScreen({ onSelect }: { onSelect: () => void }) {
         background: "radial-gradient(circle at 30% 40%, rgba(0,212,255,0.06) 0%, transparent 50%), radial-gradient(circle at 70% 60%, rgba(255,107,0,0.04) 0%, transparent 50%)",
         pointerEvents: "none",
       }} />
+
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            position: "fixed",
+            top: 12,
+            left: 12,
+            zIndex: 210,
+            padding: "8px 14px",
+            background: "rgba(15,23,42,0.85)",
+            border: "1px solid rgba(148,163,184,0.4)",
+            borderRadius: 8,
+            color: "#e2e8f0",
+            fontFamily: "'Rajdhani', monospace",
+            fontWeight: 800,
+            fontSize: 13,
+            letterSpacing: 1,
+            cursor: "pointer",
+          }}
+        >
+          ← MENU UTAMA
+        </button>
+      )}
 
       <div style={{ textAlign: "center", padding: "clamp(10px, 1.6vh, 22px) 16px clamp(6px, 1vh, 12px)", position: "relative", zIndex: 1, flexShrink: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: 4, color: "#64748b", marginBottom: 4, textTransform: "uppercase" }}>

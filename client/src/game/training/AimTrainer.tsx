@@ -113,7 +113,8 @@ export function AimTrainerUI() {
 
       if (newTime <= 0) {
         useGameStore.getState().stopTimer()
-        useGameStore.getState().saveBestTime()
+        // Audit F-08: saveBestTime legacy dihapus — dulu menyimpan sisa timer (selalu 1s)
+        // dan hanya menyesatkan; rekor training kini dari kills (aimBestKills).
         useGameStore.getState().setTimer(0)
         const finalKills = useGameStore.getState().stats.kills
         useProgressStore.getState().recordTrainingScore("aim", finalKills)
@@ -326,12 +327,6 @@ export function AimTrainerUI() {
             <span style={{ fontWeight: 800, color: "#38bdf8" }}>{stats.hsRate.toFixed(1)}%</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "4px" }}>
-            <span style={{ color: "#94a3b8" }}>Best Record:</span>
-            <span style={{ fontWeight: 800, color: "#fbbf24" }}>
-              {stats.bestTime === Infinity ? "---" : `${stats.bestTime}s`}
-            </span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "#94a3b8" }}>Best Kills:</span>
             <span style={{ fontWeight: 800, color: aimBestKills > 0 ? "#4ade80" : "#64748b" }}>
               {aimBestKills > 0 ? (

@@ -79,8 +79,9 @@ export function ZombieSurvivalMode() {
   const waveState = useZombieStore(s => s.waveState);
   const stageBreakActive = useZombieStore(s => s.stageBreakActive);
   const cameraPerspective = useZombieStore(s => s.cameraPerspective ?? "arcade");
-  const { buyMenuOpen, closeBuyMenu, toggleBuyMenu } = useWeaponSwitch();
   const betweenWaves = (waveState === "buy_phase" || waveState === "wave_clear") && !stageBreakActive;
+  // Audit F-03: shop hanya hidup di antara wave — B/Esc jangan direbut saat bertarung
+  const { buyMenuOpen, closeBuyMenu, toggleBuyMenu } = useWeaponSwitch({ buyMenu: betweenWaves });
 
   const [paused, setPaused] = useState(false);
   const [showWaveAlert, setShowWaveAlert] = useState(false);
@@ -292,6 +293,8 @@ export function ZombieSurvivalMode() {
         return;
       }
       if (e.code !== "Escape") return;
+      // Audit F-02: Esc diabaikan selagi hero belum dipilih (menu hero menutupi pause)
+      if (!heroSelectedRef.current) return;
       if (buyMenuOpen) { closeBuyMenu(); return; }
       if (paused) { resume(); return; }
       setPaused(true);
@@ -300,7 +303,7 @@ export function ZombieSurvivalMode() {
       if (e.code === "KeyF") reviveHeld.current = false;
     };
     const onVisibility = () => {
-      if (document.hidden) {
+      if (document.hidden && heroSelectedRef.current) {
         setPaused(true);
       }
     };
@@ -316,6 +319,11 @@ export function ZombieSurvivalMode() {
 
 
 
+  // Audit F-03: wave mulai saat shop masih terbuka → tutup agar Esc/angka kembali ke game
+  useEffect(() => {
+    if (!betweenWaves && buyMenuOpen) closeBuyMenu();
+  }, [betweenWaves, buyMenuOpen, closeBuyMenu]);
+
   const handleHeroSelect = useCallback(() => {
     setHeroSelected(true);
     lockZombieCanvas();
@@ -324,7 +332,7 @@ export function ZombieSurvivalMode() {
   return (
     <div className="w-full bg-black relative" style={{ cursor: "crosshair", height: "100dvh", width: "100dvw" }}>
       {/* Hero Selection Screen */}
-      {!heroSelected && <HeroSelectScreen onSelect={handleHeroSelect} />}
+      {!heroSelected && <HeroSelectScreen onSelect={handleHeroSelect} onBack={handleBackToMenu} />}
       {heroSelected && (
         <ClickToPlayOverlay
           onLock={() => setPaused(false)}

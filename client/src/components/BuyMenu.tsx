@@ -93,11 +93,12 @@ const BUY_CATALOG: BuyItem[] = [
   ...SECONDARY_WEAPONS.map((id, i) => weaponItem(id, `${i + 5}`)),
   weaponItem("combatknife", "9"),
   gearItem("kevlar", "gear", "Q"),
-  gearItem("helmet", "gear", "W"),
+  // Audit F-04: gear pakai hotkey non-WASD agar tidak terbeli tak sengaja saat bergerak
+  gearItem("helmet", "gear", "Z"),
   gearItem("defuseKit", "gear", "E"),
-  gearItem("grenadeHE", "utility", "A"),
-  gearItem("grenadeSmoke", "utility", "S"),
-  gearItem("grenadeFlash", "utility", "D"),
+  gearItem("grenadeHE", "utility", "X"),
+  gearItem("grenadeSmoke", "utility", "C"),
+  gearItem("grenadeFlash", "utility", "V"),
 ];
 
 function purchase(itemId: string) {

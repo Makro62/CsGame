@@ -46,7 +46,7 @@ export function DeathScreen() {
           fontWeight: 700,
         }}
       >
-        MENUNGGU RONDE BERIKUTNYA • TEKAN [ESC] UNTUK MENU
+        MENUNGGU RONDE BERIKUTNYA • TEKAN [ESC] UNTUK JEDA
       </div>
     </div>
   );

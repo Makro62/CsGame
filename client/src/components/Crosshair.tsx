@@ -1,6 +1,7 @@
 import { useWeaponStore } from "../stores/useWeaponStore";
 import { useGameStore } from "../stores/useGameStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
+import { HUD_Z } from "../ui/hudTheme";
 import {
   getSpreadRadius,
   getMovementState,
@@ -44,7 +45,7 @@ export function Crosshair() {
         left: "50%",
         transform: "translate(-50%, -50%)",
         pointerEvents: "none",
-        zIndex: 100,
+        zIndex: HUD_Z.hud,
       }}
     >
       {/* Center dot */}

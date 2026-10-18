@@ -345,7 +345,8 @@ function TrainingTopNav({
 
 export function TrainingRange() {
   const [trainingMode, setTrainingMode] = useState<"aim" | "recoil">("aim");
-  const { buyMenuOpen, closeBuyMenu } = useWeaponSwitch();
+  // Audit F-03: training tidak punya shop — matikan B/Esc buy-menu agar Esc tidak telan pesan
+  const { buyMenuOpen, closeBuyMenu } = useWeaponSwitch({ buyMenu: false });
   const [paused, setPaused] = useState(false);
 
   useEffect(() => {

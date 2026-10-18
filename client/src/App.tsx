@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { Component, lazy, Suspense, useEffect, type ReactNode } from 'react'
 import { Switch, Route, useLocation, Redirect } from 'wouter'
 import { MainMenu } from './screens/MainMenu'
 import { AudioManager } from './components/AudioManager'
@@ -23,6 +23,60 @@ const ZombieSurvivalMode = lazy(() =>
 const L4DMode = lazy(() =>
   import('./screens/L4DMode').then((m) => ({ default: m.L4DMode })),
 )
+
+class RouteErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          style={{
+            width: '100dvw',
+            height: '100dvh',
+            background: '#0a0e14',
+            color: '#94a3b8',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'Rajdhani, sans-serif',
+            fontWeight: 700,
+            letterSpacing: 2,
+          }}
+        >
+          <div style={{ fontSize: 18, color: '#f87171' }}>GAGAL MEMUAT MODE</div>
+          <div style={{ fontSize: 12 }}>Periksa koneksi lalu coba lagi.</div>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = '/'
+            }}
+            style={{
+              padding: '10px 22px',
+              background: 'rgba(56,189,248,0.15)',
+              border: '1px solid rgba(56,189,248,0.5)',
+              borderRadius: 8,
+              color: '#38bdf8',
+              fontFamily: 'inherit',
+              fontWeight: 800,
+              letterSpacing: 1,
+              cursor: 'pointer',
+            }}
+          >
+            KEMBALI KE MENU
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 function ModeFallback() {
   return (
@@ -90,11 +144,15 @@ function GameRoutes() {
   const [location] = useLocation()
 
   // Render the right component based on URL — all offline
-  if (location === '/training') return <Suspense fallback={<ModeFallback />}><TrainingRange /></Suspense>
-  if (location === '/offline5v5') return <Suspense fallback={<ModeFallback />}><Offline5v5Mode /></Suspense>
-  if (location === '/zombie') return <Suspense fallback={<ModeFallback />}><ZombieSurvivalMode /></Suspense>
-  if (location === '/l4d') return <Suspense fallback={<ModeFallback />}><L4DMode /></Suspense>
-  return <MainMenu />
+  const content =
+    location === '/training' ? <Suspense fallback={<ModeFallback />}><TrainingRange /></Suspense>
+      : location === '/offline5v5' ? <Suspense fallback={<ModeFallback />}><Offline5v5Mode /></Suspense>
+        : location === '/zombie' ? <Suspense fallback={<ModeFallback />}><ZombieSurvivalMode /></Suspense>
+          : location === '/l4d' ? <Suspense fallback={<ModeFallback />}><L4DMode /></Suspense>
+            : <MainMenu />
+
+  // Audit F-10: chunk lazy gagal dimuat → fallback + tombol kembali, bukan "MEMUAT…" abadi
+  return <RouteErrorBoundary>{content}</RouteErrorBoundary>
 }
 
 export default function App() {
